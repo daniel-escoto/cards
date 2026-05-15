@@ -28,6 +28,11 @@ const params = new URLSearchParams(window.location.search);
 if (params.get("room")) roomInput.value = params.get("room").toUpperCase();
 nameInput.value = localStorage.getItem("holdem:name") || "";
 
+function setGameViewportHeight() {
+  const height = window.visualViewport?.height || window.innerHeight;
+  document.documentElement.style.setProperty("--game-vh", `${Math.floor(height)}px`);
+}
+
 function setKeyboardMode(isOpen) {
   document.body.classList.toggle("keyboard-open", isOpen && !welcome.classList.contains("hidden"));
   if (isOpen) window.scrollTo(0, 0);
@@ -57,6 +62,8 @@ function phaseLabel(phase) {
 }
 
 function showTable(room) {
+  setGameViewportHeight();
+  document.documentElement.classList.add("game-open-root");
   document.body.classList.add("game-open");
   document.body.classList.remove("keyboard-open");
   welcome.classList.add("hidden");
@@ -222,4 +229,12 @@ socket.on("room:update", (room) => {
   state = room;
   joinError.textContent = "";
   render();
+});
+
+window.addEventListener("resize", () => {
+  if (document.body.classList.contains("game-open")) setGameViewportHeight();
+});
+
+window.visualViewport?.addEventListener("resize", () => {
+  if (document.body.classList.contains("game-open")) setGameViewportHeight();
 });

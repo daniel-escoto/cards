@@ -1,5 +1,6 @@
 :root {
   color-scheme: dark;
+  --game-vh: 100dvh;
   --bg: #101418;
   --panel: #1b2228;
   --panel-2: #222b31;
@@ -22,6 +23,11 @@
 html {
   min-height: 100%;
   overflow-x: hidden;
+}
+
+html.game-open-root {
+  height: var(--game-vh);
+  overflow: hidden;
 }
 
 body {
@@ -461,18 +467,24 @@ input:focus {
 
   body.game-open,
   body:has(.table-view:not(.hidden)) {
-    height: 100dvh;
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: var(--game-vh);
+    min-height: 0;
     overflow: hidden;
+    overscroll-behavior: none;
   }
 
   body.game-open .app,
   body:has(.table-view:not(.hidden)) .app {
-    height: 100dvh;
+    height: var(--game-vh);
+    min-height: 0;
     overflow: hidden;
   }
 
   .table-view {
-    height: calc(100dvh - 24px);
+    height: calc(var(--game-vh) - 24px);
     grid-template-rows: auto minmax(0, 1fr) auto;
     gap: 8px;
     overflow: hidden;
