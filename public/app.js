@@ -20,10 +20,13 @@ const winnerList = document.querySelector("#winnerList");
 const turnInfo = document.querySelector("#turnInfo");
 const gameButtons = document.querySelector("#gameButtons");
 const betControls = document.querySelector("#betControls");
-const raiseInput = document.querySelector("#raiseInput");
+const raiseMinus = document.querySelector("#raiseMinus");
+const raisePlus = document.querySelector("#raisePlus");
+const raiseAmount = document.querySelector("#raiseAmount");
 const raiseBtn = document.querySelector("#raiseBtn");
 
 let state = null;
+let raiseState = { value: 0, min: 0, max: 0, step: 20 };
 const params = new URLSearchParams(window.location.search);
 if (params.get("room")) roomInput.value = params.get("room").toUpperCase();
 nameInput.value = localStorage.getItem("holdem:name") || "";
@@ -96,11 +99,11 @@ function render() {
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
         ${player.dealer ? '<span class="pill">D</span>' : ""}
       </div>
-      <div class="seat-line">
+      <div class="seat-line stack-line">
         <span>Stack</span>
         <strong>${player.stack}</strong>
       </div>
-      <div class="seat-line">
+      <div class="seat-line bet-line">
         <span>Bet</span>
         <strong>${player.bet}</strong>
       </div>
@@ -142,11 +145,34 @@ function renderControls(hero) {
   const maxRaise = hero.bet + hero.stack;
   if (maxRaise > state.currentBet) {
     betControls.classList.remove("hidden");
-    raiseInput.min = Math.min(maxRaise, state.minRaiseTo);
-    raiseInput.max = maxRaise;
-    raiseInput.value = Math.min(maxRaise, Math.max(state.minRaiseTo, state.currentBet + state.bigBlind));
-    raiseInput.step = state.bigBlind;
+    const minRaise = Math.min(maxRaise, state.minRaiseTo);
+    const preferredRaise = Math.max(minRaise, state.currentBet + state.bigBlind);
+    setRaiseState({
+      min: minRaise,
+      max: maxRaise,
+      step: state.bigBlind,
+      value: Math.min(maxRaise, preferredRaise),
+    });
   }
+}
+
+function setRaiseState(next) {
+  raiseState = {
+    ...raiseState,
+    ...next,
+  };
+  raiseState.value = clampRaise(raiseState.value);
+  raiseAmount.textContent = raiseState.value;
+  raiseMinus.disabled = raiseState.value <= raiseState.min;
+  raisePlus.disabled = raiseState.value >= raiseState.max;
+}
+
+function clampRaise(value) {
+  return Math.min(raiseState.max, Math.max(raiseState.min, Math.floor(Number(value) || raiseState.min)));
+}
+
+function changeRaise(direction) {
+  setRaiseState({ value: raiseState.value + direction * raiseState.step });
 }
 
 function addButton(label, eventName) {
@@ -213,8 +239,11 @@ joinForm.addEventListener("focusout", () => {
   }, 80);
 });
 
+raiseMinus.addEventListener("click", () => changeRaise(-1));
+raisePlus.addEventListener("click", () => changeRaise(1));
+
 raiseBtn.addEventListener("click", () => {
-  emitWithAck("game:action", { type: "raise", raiseTo: Number(raiseInput.value) });
+  emitWithAck("game:action", { type: "raise", raiseTo: raiseState.value });
 });
 
 copyLink.addEventListener("click", async () => {

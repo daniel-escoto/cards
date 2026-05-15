@@ -66,10 +66,14 @@
           <div id="turnInfo" class="turn-info"></div>
           <div id="gameButtons" class="game-buttons"></div>
           <div id="betControls" class="bet-controls hidden">
-            <label>
-              Raise to
-              <input id="raiseInput" type="number" min="20" step="10" />
-            </label>
+            <div class="raise-stepper" aria-label="Raise amount">
+              <button id="raiseMinus" type="button" class="secondary" aria-label="Decrease raise">-</button>
+              <div class="raise-display">
+                <span>Raise to</span>
+                <strong id="raiseAmount">40</strong>
+              </div>
+              <button id="raisePlus" type="button" class="secondary" aria-label="Increase raise">+</button>
+            </div>
             <button id="raiseBtn">Raise</button>
           </div>
         </section>
