@@ -318,6 +318,12 @@ input:focus {
   gap: 8px;
 }
 
+.seat-info,
+.seat-stats {
+  display: grid;
+  gap: 3px;
+}
+
 .seat-name {
   overflow: hidden;
   font-weight: 900;
@@ -583,14 +589,10 @@ input:focus {
     width: 100%;
     min-height: 0;
     flex: 1 1 0;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "head cards"
-      "stack cards"
-      "bet cards";
+    display: flex;
     align-items: center;
-    gap: 3px 10px;
+    justify-content: space-between;
+    gap: 10px;
     padding: 7px 9px;
     font-size: 13px;
   }
@@ -612,24 +614,24 @@ input:focus {
     box-shadow: inset 4px 0 0 var(--accent), 0 0 0 1px rgba(224, 177, 90, 0.32);
   }
 
-  .seat-head {
-    grid-area: head;
+  .seat-info {
+    min-width: 0;
+    flex: 1 1 auto;
+    gap: 5px;
+  }
+
+  .seat-stats {
+    grid-template-columns: repeat(2, minmax(72px, auto));
+    gap: 10px;
   }
 
   .seat-line {
     justify-content: flex-start;
+    align-items: baseline;
   }
 
   .seat-line span {
-    min-width: 42px;
-  }
-
-  .stack-line {
-    grid-area: stack;
-  }
-
-  .bet-line {
-    grid-area: bet;
+    min-width: 34px;
   }
 
   .community {
@@ -655,7 +657,7 @@ input:focus {
   }
 
   .mini-cards {
-    grid-area: cards;
+    flex: 0 0 auto;
     align-self: center;
     gap: 4px;
     margin-top: 0;
