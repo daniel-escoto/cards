@@ -459,50 +459,146 @@ input:focus {
     align-items: stretch;
   }
 
+  body.game-open,
+  body:has(.table-view:not(.hidden)) {
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  body.game-open .app,
+  body:has(.table-view:not(.hidden)) .app {
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .table-view {
+    height: calc(100dvh - 24px);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 8px;
+    overflow: hidden;
+  }
+
+  .topbar h2 {
+    font-size: 20px;
+    line-height: 1;
+  }
+
   .topbar .ghost {
-    width: 120px;
+    width: 112px;
+    min-height: 40px;
     padding: 0 10px;
   }
 
   .felt {
-    min-height: 660px;
+    min-height: 0;
+    height: 100%;
     border-width: 5px;
     border-radius: 16px;
   }
 
+  .table-meta {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+  }
+
+  .table-meta div {
+    min-width: 70px;
+    padding: 6px 9px;
+  }
+
+  .table-meta span {
+    font-size: 10px;
+  }
+
+  .table-meta strong {
+    font-size: 20px;
+  }
+
   .players {
-    inset: 82px 10px 14px;
+    inset: 60px 8px 10px;
   }
 
   .seat {
     width: calc(50% - 7px);
-    min-height: 92px;
+    min-height: 74px;
+    padding: 7px;
+    font-size: 13px;
   }
 
   .seat.pos-0 { left: 50%; bottom: 0; transform: translateX(-50%); }
-  .seat.pos-1 { left: 0; bottom: 102px; }
-  .seat.pos-2 { right: 0; bottom: 102px; }
-  .seat.pos-3 { left: 0; top: 82px; }
-  .seat.pos-4 { right: 0; top: 82px; }
+  .seat.pos-1 { left: 0; bottom: 78px; }
+  .seat.pos-2 { right: 0; bottom: 78px; }
+  .seat.pos-3 { left: 0; top: 64px; }
+  .seat.pos-4 { right: 0; top: 64px; }
   .seat.pos-5 { left: 0; top: 0; }
   .seat.pos-6 { right: 0; top: 0; }
-  .seat.pos-7 { left: 50%; top: 184px; transform: translateX(-50%); }
+  .seat.pos-7 { left: 50%; top: 142px; transform: translateX(-50%); }
 
   .community {
     top: 47%;
   }
 
+  .card {
+    width: clamp(38px, 10.5vw, 50px);
+    padding: 6px;
+  }
+
+  .card .suit {
+    font-size: 17px;
+  }
+
   .message {
-    top: calc(47% + 66px);
-    font-size: 14px;
+    top: calc(47% + 54px);
+    width: calc(100% - 28px);
+    font-size: 12px;
+  }
+
+  .mini-cards {
+    gap: 4px;
+    margin-top: 5px;
+  }
+
+  .mini-cards .card {
+    width: 26px;
+    padding: 4px;
+    font-size: 11px;
+  }
+
+  .mini-cards .card .suit {
+    font-size: 12px;
+  }
+
+  .control-panel {
+    gap: 7px;
+    padding: 9px;
+  }
+
+  .hero-hand {
+    gap: 6px;
+  }
+
+  .hero-hand .card {
+    width: 38px;
+  }
+
+  .turn-info,
+  .winner-list {
+    font-size: 13px;
+  }
+
+  .game-buttons {
+    gap: 7px;
   }
 
   .bet-controls {
     grid-template-columns: 1fr;
+    gap: 7px;
   }
 
   .game-buttons button {
     flex: 1 1 30%;
+    min-height: 40px;
     padding: 0 10px;
   }
 }

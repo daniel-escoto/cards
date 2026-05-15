@@ -57,6 +57,8 @@ function phaseLabel(phase) {
 }
 
 function showTable(room) {
+  document.body.classList.add("game-open");
+  document.body.classList.remove("keyboard-open");
   welcome.classList.add("hidden");
   tableView.classList.remove("hidden");
   const url = new URL(window.location.href);
