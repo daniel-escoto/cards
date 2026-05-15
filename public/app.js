@@ -91,7 +91,7 @@ function render() {
     : Array.from({ length: 5 }, () => cardTemplate(null)).join("");
 
   players.innerHTML = state.players.map((player, index) => `
-    <article class="seat pos-${index} ${player.isTurn ? "turn" : ""} ${player.folded ? "folded" : ""}">
+    <article class="seat pos-${index} ${player.isTurn ? "turn" : ""} ${player.folded ? "folded" : ""} ${player.isYou ? "you" : ""}">
       <div class="seat-head">
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
         ${player.dealer ? '<span class="pill">D</span>' : ""}
@@ -104,7 +104,7 @@ function render() {
         <span>Bet</span>
         <strong>${player.bet}</strong>
       </div>
-      <div class="mini-cards">${player.cards.map(cardTemplate).join("")}</div>
+      ${player.isYou ? "" : `<div class="mini-cards">${player.cards.map(cardTemplate).join("")}</div>`}
     </article>
   `).join("");
 
