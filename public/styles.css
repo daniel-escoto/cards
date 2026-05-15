@@ -526,8 +526,10 @@ input:focus {
   }
 
   .table-view {
-    height: calc(var(--game-vh) - 24px);
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    min-height: calc(var(--game-vh) - 24px);
+    height: auto;
+    grid-template-rows: auto auto auto;
+    align-content: start;
     gap: 8px;
     overflow: hidden;
   }
@@ -549,7 +551,7 @@ input:focus {
     gap: 7px;
     align-content: stretch;
     min-height: 0;
-    height: 100%;
+    height: min(560px, calc(var(--game-vh) - 220px));
     padding: 10px;
     border-width: 5px;
     border-radius: 16px;
@@ -581,14 +583,17 @@ input:focus {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    overflow: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 2px;
+    -webkit-overflow-scrolling: touch;
   }
 
   .seat {
     position: relative;
     width: 100%;
-    min-height: 0;
-    flex: 1 1 0;
+    min-height: 74px;
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
