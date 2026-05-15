@@ -19,6 +19,11 @@
   box-sizing: border-box;
 }
 
+html {
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -26,6 +31,7 @@ body {
   color: var(--text);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  overflow-x: hidden;
 }
 
 button,
@@ -62,6 +68,7 @@ button:disabled {
 .app {
   width: min(1180px, 100%);
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0 auto;
   padding: 20px;
 }
@@ -72,6 +79,7 @@ button:disabled {
 
 .welcome {
   min-height: calc(100vh - 40px);
+  min-height: calc(100dvh - 40px);
   display: grid;
   place-items: center;
   gap: 28px;
@@ -378,7 +386,73 @@ input:focus {
 
 @media (max-width: 779px) {
   .app {
+    min-height: 100dvh;
     padding: 12px;
+  }
+
+  .welcome {
+    min-height: calc(100dvh - 24px);
+    align-content: center;
+    justify-items: center;
+    gap: clamp(16px, 4vh, 28px);
+  }
+
+  .brand {
+    gap: 14px;
+  }
+
+  .mark {
+    width: 54px;
+    height: 54px;
+    font-size: 32px;
+  }
+
+  .join-panel {
+    gap: 12px;
+    padding: 16px;
+  }
+
+  body.keyboard-open,
+  body:has(.welcome:not(.hidden):focus-within) {
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  body.keyboard-open .app,
+  body:has(.welcome:not(.hidden):focus-within) .app {
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  body.keyboard-open .welcome,
+  .welcome:not(.hidden):focus-within {
+    min-height: auto;
+    align-content: start;
+    padding-top: max(8px, env(safe-area-inset-top));
+    gap: 0;
+  }
+
+  body.keyboard-open .brand,
+  .welcome:not(.hidden):focus-within .brand {
+    display: none;
+  }
+
+  body.keyboard-open .join-panel,
+  .welcome:not(.hidden):focus-within .join-panel {
+    gap: 9px;
+    padding: 12px;
+  }
+
+  body.keyboard-open label,
+  .welcome:not(.hidden):focus-within label {
+    gap: 5px;
+  }
+
+  body.keyboard-open input,
+  body.keyboard-open button,
+  .welcome:not(.hidden):focus-within input,
+  .welcome:not(.hidden):focus-within button {
+    min-height: 42px;
   }
 
   .topbar {

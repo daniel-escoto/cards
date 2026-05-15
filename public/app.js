@@ -28,6 +28,11 @@ const params = new URLSearchParams(window.location.search);
 if (params.get("room")) roomInput.value = params.get("room").toUpperCase();
 nameInput.value = localStorage.getItem("holdem:name") || "";
 
+function setKeyboardMode(isOpen) {
+  document.body.classList.toggle("keyboard-open", isOpen && !welcome.classList.contains("hidden"));
+  if (isOpen) window.scrollTo(0, 0);
+}
+
 function cardTemplate(card) {
   if (!card) return '<div class="card back"><span></span><span></span></div>';
   return `
@@ -187,6 +192,16 @@ createBtn.addEventListener("click", () => joinOrCreate("create"));
 joinForm.addEventListener("submit", (event) => {
   event.preventDefault();
   joinOrCreate(roomInput.value.trim() ? "join" : "create");
+});
+
+joinForm.addEventListener("focusin", (event) => {
+  if (event.target.matches("input")) setKeyboardMode(true);
+});
+
+joinForm.addEventListener("focusout", () => {
+  setTimeout(() => {
+    if (!joinForm.contains(document.activeElement)) setKeyboardMode(false);
+  }, 80);
 });
 
 raiseBtn.addEventListener("click", () => {
