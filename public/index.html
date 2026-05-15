@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Table Stakes Hold'em</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section id="welcome" class="welcome">
+        <div class="brand">
+          <span class="mark">♠</span>
+          <div>
+            <h1>Table Stakes Hold'em</h1>
+            <p>Private real-time Texas hold'em rooms for friends.</p>
+          </div>
+        </div>
+
+        <form id="joinForm" class="join-panel">
+          <label>
+            Display name
+            <input id="nameInput" autocomplete="nickname" maxlength="18" placeholder="Your name" required />
+          </label>
+          <label>
+            Room code
+            <input id="roomInput" maxlength="6" placeholder="Leave blank to host" />
+          </label>
+          <div class="actions-row">
+            <button id="createBtn" type="button">Host table</button>
+            <button id="joinBtn" type="submit" class="secondary">Join table</button>
+          </div>
+          <p id="joinError" class="error" role="alert"></p>
+        </form>
+      </section>
+
+      <section id="tableView" class="table-view hidden">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Room <span id="roomCode"></span></p>
+            <h2 id="phaseTitle">Lobby</h2>
+          </div>
+          <button id="copyLink" class="ghost">Copy invite</button>
+        </header>
+
+        <section class="felt">
+          <div class="table-meta">
+            <div>
+              <span>Pot</span>
+              <strong id="potValue">0</strong>
+            </div>
+            <div>
+              <span>Bet</span>
+              <strong id="betValue">0</strong>
+            </div>
+          </div>
+
+          <div id="community" class="community"></div>
+          <div id="message" class="message"></div>
+          <div id="players" class="players"></div>
+        </section>
+
+        <section class="control-panel">
+          <div id="heroHand" class="hero-hand"></div>
+          <div id="winnerList" class="winner-list"></div>
+          <div id="turnInfo" class="turn-info"></div>
+          <div id="gameButtons" class="game-buttons"></div>
+          <div id="betControls" class="bet-controls hidden">
+            <label>
+              Raise to
+              <input id="raiseInput" type="number" min="20" step="10" />
+            </label>
+            <button id="raiseBtn">Raise</button>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

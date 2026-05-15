@@ -1,0 +1,24 @@
+{
+  "name": "cards",
+  "version": "1.0.0",
+  "description": "Multiplayer Texas Hold'em for private online rooms.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "smoke": "node tests/smoke.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.2.1",
+    "nanoid": "^5.1.11",
+    "pokersolver": "^2.1.4",
+    "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.3"
+  }
+}
