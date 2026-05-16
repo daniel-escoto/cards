@@ -55,6 +55,9 @@ button {
   background: var(--accent);
   font-weight: 800;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 button:disabled {
@@ -511,10 +514,10 @@ select:focus {
 }
 
 .seat-history {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 5px;
-  max-height: 54px;
+  max-height: 70px;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 2px;
@@ -525,23 +528,36 @@ select:focus {
   display: none;
 }
 
-.seat-history-chip {
+.seat-action-card {
   min-width: 0;
-  padding: 3px 7px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.055);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  padding: 3px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.05);
   color: color-mix(in srgb, var(--muted) 88%, var(--text));
   font-size: 11px;
   font-weight: 750;
   line-height: 1.25;
 }
 
-.seat-history-chip em {
-  margin-right: 4px;
+.seat-action-card em {
+  flex: 0 0 auto;
   color: var(--accent);
   font-style: normal;
   font-weight: 900;
   text-transform: uppercase;
+}
+
+.seat-action-card strong {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .seat-status {

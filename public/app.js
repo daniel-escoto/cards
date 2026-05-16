@@ -331,12 +331,14 @@ function playerActionHistory(player) {
   if (!entries.length) {
     return "";
   }
-  return groupActionLog(entries).map(([phase, phaseEntries]) => `
-    <span class="seat-history-chip">
-      ${compactStreetLabel(phase) ? `<em>${escapeHtml(compactStreetLabel(phase))}</em>` : ""}
-      ${phaseEntries.map((entry) => escapeHtml(compactPlayerAction(entry, player))).join(", ")}
-    </span>
-  `).join("");
+  return groupActionLog(entries).flatMap(([phase, phaseEntries]) => (
+    phaseEntries.map((entry) => `
+      <span class="seat-action-card">
+        ${compactStreetLabel(phase) ? `<em>${escapeHtml(compactStreetLabel(phase))}</em>` : ""}
+        <strong>${escapeHtml(compactPlayerAction(entry, player))}</strong>
+      </span>
+    `)
+  )).join("");
 }
 
 function playerTableStatus(player) {
@@ -618,6 +620,8 @@ joinForm.addEventListener("focusout", () => {
 
 raiseMinus.addEventListener("click", () => changeRaise(-1));
 raisePlus.addEventListener("click", () => changeRaise(1));
+raiseMinus.addEventListener("dblclick", (event) => event.preventDefault());
+raisePlus.addEventListener("dblclick", (event) => event.preventDefault());
 
 raiseBtn.addEventListener("click", () => {
   emitWithAck("game:action", { type: "raise", raiseTo: raiseState.value }, "click");
