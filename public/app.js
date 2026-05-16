@@ -249,6 +249,71 @@ function winnerSignature(room) {
   return room.winners.map((winner) => `${winner.playerId}:${winner.amount}:${winner.hand}`).join("|");
 }
 
+function streetLabel(phase) {
+  const labels = {
+    lobby: "Lobby",
+    preflop: "Preflop",
+    flop: "Flop",
+    turn: "Turn",
+    river: "River",
+    showdown: "Showdown",
+    complete: "Result",
+  };
+  return labels[phase] || phaseLabel(phase);
+}
+
+function playerStatus(player) {
+  if (player.folded) return "Folded";
+  if (player.allIn) return "All in";
+  if (player.isTurn) return "Acting";
+  if (player.isBot) return "CPU";
+  return player.connected ? "In" : "Away";
+}
+
+function groupActionLog(entries) {
+  const ordered = ["preflop", "flop", "turn", "river", "showdown", "complete", "lobby"];
+  const groups = new Map();
+  for (const entry of entries) {
+    const phase = entry.phase || "preflop";
+    if (!groups.has(phase)) groups.set(phase, []);
+    groups.get(phase).push(entry);
+  }
+  return [...groups.entries()].sort((a, b) => {
+    const left = ordered.indexOf(a[0]);
+    const right = ordered.indexOf(b[0]);
+    return (left < 0 ? ordered.length : left) - (right < 0 ? ordered.length : right);
+  });
+}
+
+function renderHandHistory(logEntries) {
+  const visibleEntries = isActionLogExpanded ? logEntries : logEntries.slice(-8);
+  const groups = groupActionLog(visibleEntries);
+  const historyMarkup = groups.length ? groups.map(([phase, entries]) => `
+    <section class="history-street">
+      <div class="history-street-title">${escapeHtml(streetLabel(phase))}</div>
+      <div class="history-actions">
+        ${entries.map((entry) => `<div>${escapeHtml(entry.text)}</div>`).join("")}
+      </div>
+    </section>
+  `).join("") : '<div class="history-empty">No actions yet.</div>';
+
+  const stacksMarkup = state.players.map((player) => `
+    <div class="history-stack-row ${player.isYou ? "you" : ""} ${player.isTurn ? "turn" : ""}">
+      <span class="history-stack-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
+      <span class="history-stack-status">${playerStatus(player)}</span>
+      <strong>${player.stack}</strong>
+    </div>
+  `).join("");
+
+  actionLog.innerHTML = `
+    <div class="history-board">${historyMarkup}</div>
+    <div class="history-stacks">
+      <div class="history-stacks-title">Stacks</div>
+      ${stacksMarkup}
+    </div>
+  `;
+}
+
 function inferActionSound(previous, next) {
   if (!previous || previous.id !== next.id || previous.handNumber !== next.handNumber) return null;
   const actingPlayer = previous.players.find((player) => player.isTurn);
@@ -335,13 +400,11 @@ function render() {
     `<div>${escapeHtml(winner.name)} wins ${winner.amount} with ${escapeHtml(winner.hand)}</div>`
   )).join("");
   const logEntries = state.actionLog || [];
-  actionLog.innerHTML = (isActionLogExpanded ? logEntries : logEntries.slice(-6)).map((entry) => (
-    `<div>${escapeHtml(entry.text)}</div>`
-  )).join("");
-  actionLogWrap.classList.toggle("hidden", !logEntries.length);
+  renderHandHistory(logEntries);
+  actionLogWrap.classList.toggle("hidden", state.phase === "lobby" && !logEntries.length);
   actionLogWrap.classList.toggle("expanded", isActionLogExpanded);
   toggleActionLog.textContent = isActionLogExpanded ? "Collapse" : "Expand";
-  toggleActionLog.disabled = logEntries.length <= 6;
+  toggleActionLog.disabled = logEntries.length <= 8;
 
   renderControls(hero);
   scrollCurrentPlayerIntoView();

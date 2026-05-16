@@ -527,22 +527,101 @@ select:focus {
 }
 
 .action-log {
-  max-height: 86px;
+  max-height: 188px;
   display: grid;
-  gap: 3px;
+  gap: 10px;
   overflow-y: auto;
-  padding: 7px 9px;
+  padding: 9px;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: rgba(16, 22, 26, 0.76);
-  color: var(--muted);
   font-size: 13px;
-  font-weight: 700;
   -webkit-overflow-scrolling: touch;
 }
 
 .action-log-wrap.expanded .action-log {
-  max-height: 220px;
+  max-height: 340px;
+}
+
+.history-board,
+.history-stacks,
+.history-actions {
+  display: grid;
+}
+
+.history-board {
+  gap: 8px;
+}
+
+.history-street {
+  display: grid;
+  gap: 4px;
+}
+
+.history-street-title,
+.history-stacks-title {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.history-actions {
+  gap: 3px;
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.28;
+}
+
+.history-empty {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.history-stacks {
+  gap: 5px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+
+.history-stack-row {
+  min-height: 30px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.history-stack-row.you {
+  outline: 1px solid rgba(224, 177, 90, 0.38);
+}
+
+.history-stack-row.turn {
+  background: rgba(224, 177, 90, 0.12);
+}
+
+.history-stack-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-stack-status {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.history-stack-row strong {
+  color: var(--accent);
+  font-size: 14px;
 }
 
 @media (min-width: 780px) {
@@ -838,7 +917,7 @@ select:focus {
   }
 
   .action-log-wrap.expanded .action-log {
-    max-height: 150px;
+    max-height: 240px;
   }
 
   .game-buttons {
