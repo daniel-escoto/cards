@@ -19,6 +19,7 @@ app.use(express.static("public"));
 
 const rooms = new Map();
 const socketRoom = new Map();
+const socketPlayer = new Map();
 
 const ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"];
 const suits = ["s", "h", "d", "c"];
@@ -44,7 +45,7 @@ function publicCard(card) {
   };
 }
 
-function makeRoom(hostId, hostName) {
+function makeRoom(hostId, hostName, socketId) {
   const id = makeId();
   const room = {
     id,
@@ -64,6 +65,7 @@ function makeRoom(hostId, hostName) {
     players: [
       {
         id: hostId,
+        socketId,
         name: hostName,
         stack: STARTING_STACK,
         hand: [],
@@ -81,6 +83,22 @@ function makeRoom(hostId, hostName) {
 
 function getRoom(roomId) {
   return rooms.get(String(roomId || "").toUpperCase());
+}
+
+function cleanName(name) {
+  return String(name || "Player").trim().slice(0, 18) || "Player";
+}
+
+function cleanDeviceId(deviceId, fallback) {
+  return String(deviceId || fallback || "").trim().slice(0, 80) || fallback;
+}
+
+function attachSocketToPlayer(socket, room, player) {
+  player.socketId = socket.id;
+  player.connected = true;
+  socketRoom.set(socket.id, room.id);
+  socketPlayer.set(socket.id, player.id);
+  socket.join(room.id);
 }
 
 function activePlayers(room) {
@@ -348,42 +366,55 @@ function serializeRoom(room, viewerId) {
 
 function emitRoom(room) {
   for (const player of room.players) {
-    io.to(player.id).emit("room:update", serializeRoom(room, player.id));
+    if (player.socketId) io.to(player.socketId).emit("room:update", serializeRoom(room, player.id));
   }
 }
 
 function leaveCurrentRoom(socket) {
   const roomId = socketRoom.get(socket.id);
+  const playerId = socketPlayer.get(socket.id);
   if (!roomId) return;
   const room = rooms.get(roomId);
   if (!room) return;
-  const player = room.players.find((item) => item.id === socket.id);
-  if (player) player.connected = false;
+  const player = room.players.find((item) => item.id === playerId);
+  if (player && player.socketId === socket.id) {
+    player.connected = false;
+    player.socketId = null;
+  }
   socketRoom.delete(socket.id);
+  socketPlayer.delete(socket.id);
   emitRoom(room);
 }
 
 io.on("connection", (socket) => {
-  socket.on("room:create", ({ name }, ack) => {
-    const cleanName = String(name || "Player").trim().slice(0, 18) || "Player";
-    const room = makeRoom(socket.id, cleanName);
-    socketRoom.set(socket.id, room.id);
-    socket.join(room.id);
+  socket.on("room:create", ({ name, deviceId }, ack) => {
+    const playerId = cleanDeviceId(deviceId, socket.id);
+    const room = makeRoom(playerId, cleanName(name), socket.id);
+    attachSocketToPlayer(socket, room, room.players[0]);
     ack?.({ ok: true, roomId: room.id });
     emitRoom(room);
   });
 
-  socket.on("room:join", ({ roomId, name }, ack) => {
+  socket.on("room:join", ({ roomId, name, deviceId }, ack) => {
     const room = getRoom(roomId);
     if (!room) return ack?.({ ok: false, error: "Room not found." });
+    const playerId = cleanDeviceId(deviceId, socket.id);
+    const existing = room.players.find((player) => player.id === playerId);
+    if (existing) {
+      existing.name = cleanName(name);
+      attachSocketToPlayer(socket, room, existing);
+      ack?.({ ok: true, roomId: room.id });
+      emitRoom(room);
+      return;
+    }
     if (room.players.length >= MAX_PLAYERS) return ack?.({ ok: false, error: "Room is full." });
     if (room.phase !== "lobby" && room.phase !== "complete") {
       return ack?.({ ok: false, error: "This hand is in progress. Join after it ends." });
     }
-    const cleanName = String(name || "Player").trim().slice(0, 18) || "Player";
     room.players.push({
-      id: socket.id,
-      name: cleanName,
+      id: playerId,
+      socketId: socket.id,
+      name: cleanName(name),
       stack: STARTING_STACK,
       hand: [],
       folded: false,
@@ -392,15 +423,15 @@ io.on("connection", (socket) => {
       invested: 0,
       connected: true,
     });
-    socketRoom.set(socket.id, room.id);
-    socket.join(room.id);
+    attachSocketToPlayer(socket, room, room.players[room.players.length - 1]);
     ack?.({ ok: true, roomId: room.id });
     emitRoom(room);
   });
 
   socket.on("game:start", (_, ack) => {
     const room = rooms.get(socketRoom.get(socket.id));
-    if (!room || room.hostId !== socket.id) return ack?.({ ok: false, error: "Only the host can start." });
+    const playerId = socketPlayer.get(socket.id);
+    if (!room || room.hostId !== playerId) return ack?.({ ok: false, error: "Only the host can start." });
     startHand(room);
     ack?.({ ok: true });
     emitRoom(room);
@@ -408,7 +439,8 @@ io.on("connection", (socket) => {
 
   socket.on("game:next", (_, ack) => {
     const room = rooms.get(socketRoom.get(socket.id));
-    if (!room || room.hostId !== socket.id) return ack?.({ ok: false, error: "Only the host can deal the next hand." });
+    const playerId = socketPlayer.get(socket.id);
+    if (!room || room.hostId !== playerId) return ack?.({ ok: false, error: "Only the host can deal the next hand." });
     startNextHand(room);
     ack?.({ ok: true });
     emitRoom(room);
@@ -416,8 +448,9 @@ io.on("connection", (socket) => {
 
   socket.on("game:action", ({ type, raiseTo }, ack) => {
     const room = rooms.get(socketRoom.get(socket.id));
-    if (!room || room.turn !== socket.id) return ack?.({ ok: false, error: "It is not your turn." });
-    const index = playerIndex(room, socket.id);
+    const playerId = socketPlayer.get(socket.id);
+    if (!room || room.turn !== playerId) return ack?.({ ok: false, error: "It is not your turn." });
+    const index = playerIndex(room, playerId);
     const player = room.players[index];
     const callAmount = Math.max(0, room.currentBet - player.bet);
 

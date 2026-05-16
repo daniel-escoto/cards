@@ -33,6 +33,15 @@ const params = new URLSearchParams(window.location.search);
 if (params.get("room")) roomInput.value = params.get("room").toUpperCase();
 nameInput.value = localStorage.getItem("holdem:name") || "";
 
+function getDeviceId() {
+  let deviceId = localStorage.getItem("holdem:deviceId");
+  if (!deviceId) {
+    deviceId = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem("holdem:deviceId", deviceId);
+  }
+  return deviceId;
+}
+
 function setGameViewportHeight() {
   const height = window.visualViewport?.height || window.innerHeight;
   document.documentElement.style.setProperty("--game-vh", `${Math.floor(height)}px`);
@@ -354,7 +363,7 @@ function joinOrCreate(mode) {
   localStorage.setItem("holdem:name", name);
   const roomId = roomInput.value.trim().toUpperCase();
   const eventName = mode === "create" ? "room:create" : "room:join";
-  socket.emit(eventName, { name, roomId }, (response) => {
+  socket.emit(eventName, { name, roomId, deviceId: getDeviceId() }, (response) => {
     if (!response?.ok) {
       joinError.textContent = response?.error || "Could not join table.";
     }
@@ -410,6 +419,16 @@ socket.on("room:update", (room) => {
   joinError.textContent = "";
   render();
   hasRenderedRoom = true;
+});
+
+socket.on("connect", () => {
+  const roomId = roomInput.value.trim().toUpperCase();
+  const name = nameInput.value.trim();
+  if (!state && roomId && name) {
+    socket.emit("room:join", { roomId, name, deviceId: getDeviceId() }, (response) => {
+      if (!response?.ok) joinError.textContent = response?.error || "Could not rejoin table.";
+    });
+  }
 });
 
 window.addEventListener("resize", () => {

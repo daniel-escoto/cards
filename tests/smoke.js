@@ -8,7 +8,7 @@ function connectPlayer(name) {
   socket.on("room:update", (next) => {
     state = next;
   });
-  return { name, socket, get state() { return state; } };
+  return { name, deviceId: `device-${name.toLowerCase()}`, socket, get state() { return state; } };
 }
 
 function emit(socket, event, payload = {}) {
@@ -42,10 +42,20 @@ function waitFor(predicate, label, timeout = 5000) {
   const players = [alice, bob, carmen];
 
   await waitFor(() => alice.socket.connected && bob.socket.connected && carmen.socket.connected, "connections");
-  const created = await emit(alice.socket, "room:create", { name: alice.name });
-  await emit(bob.socket, "room:join", { roomId: created.roomId, name: bob.name });
-  await emit(carmen.socket, "room:join", { roomId: created.roomId, name: carmen.name });
+  const created = await emit(alice.socket, "room:create", { name: alice.name, deviceId: alice.deviceId });
+  await emit(bob.socket, "room:join", { roomId: created.roomId, name: bob.name, deviceId: bob.deviceId });
+  await emit(carmen.socket, "room:join", { roomId: created.roomId, name: carmen.name, deviceId: carmen.deviceId });
   await waitFor(() => players.every((player) => player.state?.players.length === 3), "all players in room");
+
+  const bobAgain = connectPlayer("Bob");
+  await waitFor(() => bobAgain.socket.connected, "rejoin connection");
+  await emit(bobAgain.socket, "room:join", { roomId: created.roomId, name: bobAgain.name, deviceId: bob.deviceId });
+  await waitFor(() => bobAgain.state?.players.length === 3, "idempotent rejoin");
+  if (bobAgain.state.players.filter((player) => player.name === "Bob").length !== 1) {
+    throw new Error("Rejoin created a duplicate player");
+  }
+  bob.socket.disconnect();
+  players[1] = bobAgain;
 
   await emit(alice.socket, "game:start");
   await waitFor(() => alice.state?.phase === "preflop", "hand start");
