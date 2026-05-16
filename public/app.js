@@ -15,6 +15,7 @@ const menuBtn = document.querySelector("#menuBtn");
 const gameMenuModal = document.querySelector("#gameMenuModal");
 const closeMenuBtn = document.querySelector("#closeMenuBtn");
 const restartGameBtn = document.querySelector("#restartGameBtn");
+const endGameBtn = document.querySelector("#endGameBtn");
 const shareGameBtn = document.querySelector("#shareGameBtn");
 const backToMenuBtn = document.querySelector("#backToMenuBtn");
 const menuRoomCode = document.querySelector("#menuRoomCode");
@@ -112,6 +113,7 @@ function hideGameMenu() {
 function showGameMenu() {
   if (!state) return;
   menuRoomCode.textContent = state.id;
+  endGameBtn.classList.toggle("hidden", !state.canEndGame);
   gameMenuModal.classList.remove("hidden");
 }
 
@@ -497,9 +499,6 @@ function renderControls(hero) {
   if (state.canNextHand) {
     addButton("Next hand", "game:next");
   }
-  if (state.canEndGame) {
-    addButton("End game", "game:end", "danger");
-  }
 
   if (!state.isYourTurn || !hero) {
     const currentIndex = findLastIndex(state.players, (player) => player.id === state.turn);
@@ -668,6 +667,11 @@ gameMenuModal.addEventListener("click", (event) => {
 restartGameBtn.addEventListener("click", () => {
   hideGameMenu();
   emitWithAck("game:restart", {}, "click");
+});
+
+endGameBtn.addEventListener("click", () => {
+  hideGameMenu();
+  emitWithAck("game:end", {}, "click");
 });
 
 shareGameBtn.addEventListener("click", copyInviteLink);
