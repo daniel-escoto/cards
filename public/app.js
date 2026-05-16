@@ -48,6 +48,7 @@ let audioContext = null;
 let hasRenderedRoom = false;
 let leavingEndedRoom = false;
 let menuTimer = null;
+let lastAutoRejoinKey = "";
 const params = new URLSearchParams(window.location.search);
 const initialRoomId = (params.get("room") || localStorage.getItem("holdem:lastRoom") || "").toUpperCase();
 if (initialRoomId) roomInput.value = initialRoomId;
@@ -686,7 +687,13 @@ function showSharePanel() {
 
 function emitWithAck(eventName, payload, pendingSound = null) {
   ensureAudio();
-  socket.emit(eventName, payload, (response) => {
+  socket.timeout(4000).emit(eventName, payload, (error, response) => {
+    if (error) {
+      joinError.textContent = "Reconnecting to the table...";
+      lastAutoRejoinKey = "";
+      attemptAutoRejoin();
+      return;
+    }
     if (!response?.ok) {
       joinError.textContent = response?.error || "Action failed.";
       return;
@@ -716,6 +723,7 @@ function joinOrCreate(mode) {
       joinError.textContent = response?.error || "Could not join table.";
       return;
     }
+    lastAutoRejoinKey = `${socket.id}:${response.roomId || roomId}`;
     setRoomUrl(response.roomId || roomId);
   });
 }
@@ -825,11 +833,14 @@ socket.on("room:kicked", () => {
 });
 
 function attemptAutoRejoin() {
-  const roomId = roomInput.value.trim().toUpperCase();
+  const roomId = (state?.id || roomInput.value.trim()).toUpperCase();
   const name = nameInput.value.trim() || localStorage.getItem("holdem:name") || "Player";
-  if (socket.connected && !state && roomId) {
+  const rejoinKey = `${socket.id}:${roomId}`;
+  if (socket.connected && roomId && rejoinKey !== lastAutoRejoinKey && !leavingEndedRoom) {
+    lastAutoRejoinKey = rejoinKey;
     socket.emit("room:join", { roomId, name, deviceId: getDeviceId() }, (response) => {
       if (!response?.ok) {
+        lastAutoRejoinKey = "";
         joinError.textContent = response?.error || "Could not rejoin table.";
         return;
       }
@@ -840,6 +851,11 @@ function attemptAutoRejoin() {
 
 socket.on("connect", attemptAutoRejoin);
 attemptAutoRejoin();
+
+window.addEventListener("focus", attemptAutoRejoin);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) attemptAutoRejoin();
+});
 
 window.addEventListener("resize", () => {
   if (document.body.classList.contains("game-open")) setGameViewportHeight();
