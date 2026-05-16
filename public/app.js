@@ -168,8 +168,17 @@ function clearRoomUrl() {
   window.history.replaceState({}, "", url);
 }
 
+function findLastIndex(items, predicate) {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    if (predicate(items[index], index)) return index;
+  }
+  return -1;
+}
+
 function activeHero() {
-  return state?.players.find((player) => player.isYou);
+  if (!state?.players) return null;
+  const heroIndex = findLastIndex(state.players, (player) => player.isYou);
+  return heroIndex >= 0 ? state.players[heroIndex] : null;
 }
 
 function audioNow() {
@@ -323,24 +332,25 @@ function compactPlayerAction(entry, player) {
     .replace(/^Wins\s+/i, "+");
 }
 
-function playerTableStatus(player) {
+function playerTableStatus(player, isActiveTurn = player.isTurn) {
   if (player.folded) return "Folded";
   if (player.allIn) return "All in";
-  if (player.isTurn) return "Acting";
+  if (isActiveTurn) return "Acting";
   return player.connected ? "In hand" : "Away";
 }
 
 function playerForAction(entry) {
   if (entry.playerId) {
-    const byId = state.players.find((player) => player.id === entry.playerId);
-    if (byId) return byId;
+    const byIdIndex = findLastIndex(state.players, (player) => player.id === entry.playerId);
+    if (byIdIndex >= 0) return state.players[byIdIndex];
   }
-  return state.players.find((player) => entry.text?.startsWith(`${player.name} `)) || null;
+  const byNameIndex = findLastIndex(state.players, (player) => entry.text?.startsWith(`${player.name} `));
+  return byNameIndex >= 0 ? state.players[byNameIndex] : null;
 }
 
-function renderSeatCard(player) {
+function renderSeatCard(player, isActiveTurn = player.isTurn) {
   return `
-    <article class="action-feed-card state-card ${player.isTurn ? "turn" : ""} ${player.folded ? "folded" : ""} ${player.isYou ? "you" : ""}">
+    <article class="action-feed-card state-card ${isActiveTurn ? "turn" : ""} ${player.folded ? "folded" : ""} ${player.isYou ? "you" : ""}">
       <div class="action-card-head">
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
         <span class="seat-badges">
@@ -351,7 +361,7 @@ function renderSeatCard(player) {
       <div class="action-card-stats">
         <span>Stack <strong>${player.stack}</strong></span>
         <span>In pot <strong>${player.invested}</strong></span>
-        <em>${playerTableStatus(player)}</em>
+        <em>${playerTableStatus(player, isActiveTurn)}</em>
       </div>
     </article>
   `;
@@ -360,20 +370,23 @@ function renderSeatCard(player) {
 function renderActionFeed() {
   const entries = (state.actionLog || []).filter((entry) => entry.phase !== "lobby");
   if (!entries.length) {
-    return state.players.map(renderSeatCard).join("");
+    const activeSeatIndex = findLastIndex(state.players, (player) => player.id === state.turn);
+    return state.players.map((player, index) => renderSeatCard(player, index === activeSeatIndex)).join("");
   }
 
+  const activeActionIndex = findLastIndex(entries, (entry) => playerForAction(entry)?.id === state.turn);
   let lastPhase = "";
-  return entries.map((entry) => {
+  return entries.map((entry, index) => {
     const player = playerForAction(entry);
     const phase = entry.phase || "preflop";
+    const isActiveTurnAction = index === activeActionIndex;
     const phaseDivider = phase !== lastPhase
       ? `<div class="street-divider">${escapeHtml(streetLabel(phase))}</div>`
       : "";
     lastPhase = phase;
     return `
       ${phaseDivider}
-      <article class="action-feed-card ${player?.isTurn ? "turn" : ""} ${player?.folded ? "folded" : ""} ${player?.isYou ? "you" : ""}">
+      <article class="action-feed-card ${isActiveTurnAction ? "turn" : ""} ${player?.folded ? "folded" : ""} ${player?.isYou ? "you" : ""}">
         <div class="action-card-head">
           <span class="seat-name">${escapeHtml(player?.name || "Table")}${player?.isYou ? " (you)" : ""}</span>
           <span class="seat-badges">
@@ -389,7 +402,7 @@ function renderActionFeed() {
           <div class="action-card-stats">
             <span>Stack <strong>${player.stack}</strong></span>
             <span>In pot <strong>${player.invested}</strong></span>
-            <em>${playerTableStatus(player)}</em>
+            <em>${playerTableStatus(player, isActiveTurnAction)}</em>
           </div>
         ` : ""}
       </article>
@@ -484,7 +497,8 @@ function renderControls(hero) {
   }
 
   if (!state.isYourTurn || !hero) {
-    const current = state.players.find((player) => player.id === state.turn);
+    const currentIndex = findLastIndex(state.players, (player) => player.id === state.turn);
+    const current = currentIndex >= 0 ? state.players[currentIndex] : null;
     turnInfo.textContent = current ? `${current.name} is acting.` : "Waiting for the host.";
     return;
   }

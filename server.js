@@ -175,6 +175,8 @@ function restoreRoom(raw) {
     botTimer: null,
   };
 
+  dedupePlayersById(room);
+
   if (room.tableSize) {
     for (const player of room.players) {
       if (!player.isBot) markRestoredHumanAsBot(room, player);
@@ -186,6 +188,20 @@ function restoreRoom(raw) {
   if (!room.players.length) return null;
   if (room.dealer >= room.players.length) room.dealer = 0;
   return room;
+}
+
+function dedupePlayersById(room) {
+  const lastIndexById = new Map();
+  for (let index = 0; index < room.players.length; index += 1) {
+    lastIndexById.set(room.players[index].id, index);
+  }
+  if (lastIndexById.size === room.players.length) return false;
+
+  const dealerId = room.players[room.dealer]?.id || null;
+  room.players = room.players.filter((player, index) => lastIndexById.get(player.id) === index);
+  if (dealerId) room.dealer = room.players.findIndex((player) => player.id === dealerId);
+  if (room.dealer < 0 || room.dealer >= room.players.length) room.dealer = 0;
+  return true;
 }
 
 function loadRooms() {
@@ -807,6 +823,7 @@ function scheduleComputerTurn(room) {
 }
 
 function serializeRoom(room, viewerId) {
+  dedupePlayersById(room);
   const pot = collectPot(room);
   const viewer = room.players.find((player) => player.id === viewerId);
   const toCall = viewer && !viewer.folded && !viewer.allIn ? Math.max(0, room.currentBet - viewer.bet) : 0;
