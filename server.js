@@ -1,5 +1,7 @@
 const express = require("express");
+const fs = require("fs");
 const http = require("http");
+const path = require("path");
 const { Server } = require("socket.io");
 const { Hand } = require("pokersolver");
 const { customAlphabet } = require("nanoid");
@@ -15,13 +17,18 @@ const SMALL_BLIND = 10;
 const BIG_BLIND = 20;
 const MAX_PLAYERS = 8;
 const BOT_DELAY_MS = 350;
+const DISCONNECT_GRACE_MS = Math.max(0, Number(process.env.DISCONNECT_GRACE_MS) || 30000);
 const BOT_NAMES = ["Ada", "Ben", "Cy", "Dee", "Eli", "Fay", "Gus"];
+const DEFAULT_DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DATA_DIR || path.join(__dirname, ".data");
+const STATE_FILE = process.env.GAME_STATE_FILE || path.join(DEFAULT_DATA_DIR, "rooms.json");
+const SAVE_DEBOUNCE_MS = 150;
 
 app.use(express.static("public"));
 
 const rooms = new Map();
 const socketRoom = new Map();
 const socketPlayer = new Map();
+let saveTimer = null;
 
 const ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"];
 const suits = ["s", "h", "d", "c"];
@@ -47,11 +54,161 @@ function publicCard(card) {
   };
 }
 
-function makeRoom(hostId, hostName, socketId) {
+function serializePlayerForStorage(player) {
+  return {
+    id: player.id,
+    name: player.name,
+    stack: player.stack,
+    hand: player.hand,
+    folded: player.folded,
+    allIn: player.allIn,
+    bet: player.bet,
+    invested: player.invested,
+    connected: false,
+    isBot: player.isBot,
+    replacedPlayerId: player.replacedPlayerId || null,
+    replacedPlayerName: player.replacedPlayerName || null,
+  };
+}
+
+function serializeRoomForStorage(room) {
+  return {
+    id: room.id,
+    hostId: room.hostId,
+    tableSize: room.tableSize || 0,
+    status: room.status,
+    phase: room.phase,
+    deck: room.deck,
+    community: room.community,
+    dealer: room.dealer,
+    turn: room.turn,
+    currentBet: room.currentBet,
+    minRaise: room.minRaise,
+    deadPot: room.deadPot || 0,
+    acted: [...(room.acted || [])],
+    message: room.message,
+    winners: room.winners,
+    actionLog: room.actionLog,
+    handNumber: room.handNumber,
+    players: room.players.map(serializePlayerForStorage),
+  };
+}
+
+function saveRoomsNow() {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
+  const payload = {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    rooms: [...rooms.values()].map(serializeRoomForStorage),
+  };
+  fs.writeFileSync(STATE_FILE, `${JSON.stringify(payload, null, 2)}\n`);
+}
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      saveRoomsNow();
+    } catch (error) {
+      console.error("Failed to save game state:", error);
+    }
+  }, SAVE_DEBOUNCE_MS);
+}
+
+function restorePlayer(raw) {
+  return {
+    id: String(raw.id),
+    socketIds: new Set(),
+    name: cleanName(raw.name),
+    stack: Math.max(0, Math.floor(Number(raw.stack) || 0)),
+    hand: Array.isArray(raw.hand) ? raw.hand : [],
+    folded: Boolean(raw.folded),
+    allIn: Boolean(raw.allIn),
+    bet: Math.max(0, Math.floor(Number(raw.bet) || 0)),
+    invested: Math.max(0, Math.floor(Number(raw.invested) || 0)),
+    connected: false,
+    isBot: Boolean(raw.isBot),
+    replacedPlayerId: raw.replacedPlayerId || null,
+    replacedPlayerName: raw.replacedPlayerName || null,
+    disconnectTimer: null,
+  };
+}
+
+function markRestoredHumanAsBot(room, player) {
+  const oldId = player.id;
+  const oldName = player.name;
+  const botNumber = nextBotNumber(room);
+  player.id = `bot:${room.id}:${botNumber}`;
+  player.name = `${BOT_NAMES[(botNumber - 1) % BOT_NAMES.length]} CPU`;
+  player.isBot = true;
+  player.connected = true;
+  player.replacedPlayerId = oldId;
+  player.replacedPlayerName = oldName;
+  if (room.turn === oldId) room.turn = player.id;
+  replaceActedId(room, oldId, player.id);
+}
+
+function restoreRoom(raw) {
+  const room = {
+    id: String(raw.id || makeId()).toUpperCase(),
+    hostId: raw.hostId || null,
+    tableSize: cleanTableSize(raw.tableSize),
+    status: raw.status || "lobby",
+    phase: raw.phase || "lobby",
+    deck: Array.isArray(raw.deck) ? raw.deck : [],
+    community: Array.isArray(raw.community) ? raw.community : [],
+    dealer: Math.max(0, Math.floor(Number(raw.dealer) || 0)),
+    turn: raw.turn || null,
+    currentBet: Math.max(0, Math.floor(Number(raw.currentBet) || 0)),
+    minRaise: Math.max(BIG_BLIND, Math.floor(Number(raw.minRaise) || BIG_BLIND)),
+    deadPot: Math.max(0, Math.floor(Number(raw.deadPot) || 0)),
+    acted: new Set(Array.isArray(raw.acted) ? raw.acted : []),
+    message: raw.message || "Room restored after update.",
+    winners: Array.isArray(raw.winners) ? raw.winners : [],
+    actionLog: Array.isArray(raw.actionLog) ? raw.actionLog : [],
+    handNumber: Math.max(0, Math.floor(Number(raw.handNumber) || 0)),
+    players: Array.isArray(raw.players) ? raw.players.map(restorePlayer) : [],
+    botTimer: null,
+  };
+
+  if (room.tableSize) {
+    for (const player of room.players) {
+      if (!player.isBot) markRestoredHumanAsBot(room, player);
+    }
+    addComputerPlayers(room, room.tableSize);
+    if (!room.players.some((player) => player.id === room.hostId && !player.isBot)) chooseNextHost(room);
+  }
+
+  if (!room.players.length) return null;
+  if (room.dealer >= room.players.length) room.dealer = 0;
+  return room;
+}
+
+function loadRooms() {
+  if (!fs.existsSync(STATE_FILE)) return;
+  try {
+    const payload = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
+    const restoredRooms = Array.isArray(payload.rooms) ? payload.rooms : [];
+    for (const rawRoom of restoredRooms) {
+      const room = restoreRoom(rawRoom);
+      if (room) rooms.set(room.id, room);
+    }
+    if (rooms.size > 0) console.log(`Restored ${rooms.size} room(s) from ${STATE_FILE}`);
+  } catch (error) {
+    console.error("Failed to restore game state:", error);
+  }
+}
+
+function makeRoom(hostId, hostName, socketId, tableSize = 0) {
   const id = makeId();
   const room = {
     id,
     hostId,
+    tableSize: cleanTableSize(tableSize),
     status: "lobby",
     phase: "lobby",
     deck: [],
@@ -60,6 +217,7 @@ function makeRoom(hostId, hostName, socketId) {
     turn: null,
     currentBet: 0,
     minRaise: BIG_BLIND,
+    deadPot: 0,
     acted: new Set(),
     message: "Invite friends with this room link.",
     winners: [],
@@ -78,6 +236,9 @@ function makeRoom(hostId, hostName, socketId) {
         invested: 0,
         connected: true,
         isBot: false,
+        replacedPlayerId: null,
+        replacedPlayerName: null,
+        disconnectTimer: null,
       },
     ],
   };
@@ -101,6 +262,12 @@ function cleanComputerPlayers(count) {
   return Math.max(0, Math.min(MAX_PLAYERS, Math.floor(Number(count) || 0)));
 }
 
+function cleanTableSize(count) {
+  const parsed = Math.floor(Number(count) || 0);
+  if (!parsed) return 0;
+  return Math.max(2, Math.min(MAX_PLAYERS, parsed));
+}
+
 function makePlayer({ id, name, socketId = null, isBot = false }) {
   return {
     id,
@@ -114,14 +281,18 @@ function makePlayer({ id, name, socketId = null, isBot = false }) {
     invested: 0,
     connected: true,
     isBot,
+    replacedPlayerId: null,
+    replacedPlayerName: null,
+    disconnectTimer: null,
   };
 }
 
 function addComputerPlayers(room, totalPlayers) {
-  const target = cleanComputerPlayers(totalPlayers);
+  const target = cleanTableSize(totalPlayers) || cleanComputerPlayers(totalPlayers);
+  if (target > 0) room.tableSize = target;
   const needed = Math.max(0, Math.min(MAX_PLAYERS, target) - room.players.length);
   for (let index = 0; index < needed; index += 1) {
-    const botNumber = room.players.filter((player) => player.isBot).length + 1;
+    const botNumber = nextBotNumber(room);
     room.players.push(makePlayer({
       id: `bot:${room.id}:${botNumber}`,
       name: `${BOT_NAMES[(botNumber - 1) % BOT_NAMES.length]} CPU`,
@@ -131,13 +302,71 @@ function addComputerPlayers(room, totalPlayers) {
   if (needed > 0) room.message = `Computer table ready with ${room.players.length} players.`;
 }
 
+function nextBotNumber(room) {
+  const used = new Set(room.players
+    .map((player) => /^bot:[^:]+:(\d+)$/.exec(player.id)?.[1])
+    .filter(Boolean)
+    .map(Number));
+  for (let number = 1; number <= MAX_PLAYERS * 4; number += 1) {
+    if (!used.has(number)) return number;
+  }
+  return Date.now();
+}
+
 function attachSocketToPlayer(socket, room, player) {
   if (!player.socketIds) player.socketIds = new Set();
+  clearTimeout(player.disconnectTimer);
+  player.disconnectTimer = null;
   player.socketIds.add(socket.id);
   player.connected = true;
   socketRoom.set(socket.id, room.id);
   socketPlayer.set(socket.id, player.id);
   socket.join(room.id);
+}
+
+function replaceActedId(room, oldId, newId) {
+  if (!room.acted?.has(oldId)) return;
+  room.acted.delete(oldId);
+  room.acted.add(newId);
+}
+
+function convertBotToHuman(socket, room, bot, playerId, name) {
+  const oldId = bot.id;
+  const hadHumanBefore = room.players.some((player) => !player.isBot);
+  bot.id = playerId;
+  bot.name = cleanName(name);
+  bot.isBot = false;
+  bot.replacedPlayerId = null;
+  bot.replacedPlayerName = null;
+  bot.connected = true;
+  bot.socketIds = new Set();
+  bot.disconnectTimer = null;
+  if (room.turn === oldId) room.turn = playerId;
+  if (room.hostId === oldId || !hadHumanBefore) room.hostId = playerId;
+  replaceActedId(room, oldId, playerId);
+  attachSocketToPlayer(socket, room, bot);
+  room.message = `${bot.name} took over a CPU seat.`;
+  return bot;
+}
+
+function convertHumanToBot(room, player) {
+  const oldId = player.id;
+  const oldName = player.name;
+  const botNumber = nextBotNumber(room);
+  player.id = `bot:${room.id}:${botNumber}`;
+  player.name = `${BOT_NAMES[(botNumber - 1) % BOT_NAMES.length]} CPU`;
+  player.replacedPlayerId = oldId;
+  player.replacedPlayerName = oldName;
+  player.socketIds = new Set();
+  player.connected = true;
+  player.isBot = true;
+  clearTimeout(player.disconnectTimer);
+  player.disconnectTimer = null;
+  if (room.turn === oldId) room.turn = player.id;
+  replaceActedId(room, oldId, player.id);
+  if (room.hostId === oldId) chooseNextHost(room);
+  room.message = `${player.name} took over ${oldName}'s seat.`;
+  return player;
 }
 
 function activePlayers(room) {
@@ -188,6 +417,7 @@ function resetHandState(room) {
   room.deck = makeDeck();
   room.currentBet = 0;
   room.minRaise = BIG_BLIND;
+  room.deadPot = 0;
   room.acted = new Set();
   room.winners = [];
   room.actionLog = [];
@@ -331,7 +561,7 @@ function advanceTurn(room, actorIndex) {
 }
 
 function collectPot(room) {
-  return room.players.reduce((sum, player) => sum + player.invested, 0);
+  return room.deadPot + room.players.reduce((sum, player) => sum + player.invested, 0);
 }
 
 function awardUncontested(room, winner) {
@@ -354,6 +584,13 @@ function buildSidePots(room) {
     const contenders = contributors.filter((player) => !player.folded);
     if (amount > 0 && contenders.length > 0) pots.push({ amount, contenders });
     previous = level;
+  }
+  if (room.deadPot > 0) {
+    if (pots.length > 0) {
+      pots[0].amount += room.deadPot;
+    } else {
+      pots.push({ amount: room.deadPot, contenders: livePlayers(room) });
+    }
   }
   return pots;
 }
@@ -457,21 +694,60 @@ function applyPlayerAction(room, playerId, { type, raiseTo }) {
   return { ok: true };
 }
 
+function cardRankValue(card) {
+  return ranks.indexOf(card[0]) + 2;
+}
+
+function estimateComputerConfidence(room, player) {
+  const cards = [...player.hand, ...room.community];
+  const values = cards.map(cardRankValue);
+  const holeValues = player.hand.map(cardRankValue);
+  const counts = new Map();
+  for (const value of values) counts.set(value, (counts.get(value) || 0) + 1);
+
+  const pairCount = [...counts.values()].filter((count) => count >= 2).length;
+  const hasTrips = [...counts.values()].some((count) => count >= 3);
+  const hasPair = pairCount > 0;
+  const holePair = holeValues.length === 2 && holeValues[0] === holeValues[1];
+  const highCards = holeValues.filter((value) => value >= 11).length;
+  const suited = player.hand.length === 2 && player.hand[0][1] === player.hand[1][1];
+  const topHole = Math.max(...holeValues);
+
+  let confidence = 0.24;
+  if (topHole >= 14) confidence += 0.16;
+  else if (topHole >= 12) confidence += 0.1;
+  if (highCards === 2) confidence += 0.14;
+  if (suited) confidence += 0.06;
+  if (holePair) confidence += topHole >= 10 ? 0.34 : 0.22;
+
+  if (room.community.length > 0) {
+    confidence -= 0.07;
+    if (hasPair) confidence += 0.22;
+    if (pairCount >= 2) confidence += 0.12;
+    if (hasTrips) confidence += 0.24;
+  }
+
+  return Math.max(0.08, Math.min(0.92, confidence));
+}
+
 function chooseComputerAction(room, player) {
   const callAmount = Math.max(0, room.currentBet - player.bet);
   const maxBet = player.bet + player.stack;
   const canRaise = maxBet > room.currentBet;
   const minRaiseTo = Math.min(maxBet, room.currentBet + room.minRaise);
+  const confidence = estimateComputerConfidence(room, player);
 
   if (callAmount === 0) {
-    if (canRaise && minRaiseTo <= maxBet && Math.random() < 0.16) {
+    if (canRaise && minRaiseTo <= maxBet && confidence > 0.58 && Math.random() < confidence * 0.22) {
       return { type: "raise", raiseTo: Math.min(maxBet, minRaiseTo + (Math.random() < 0.35 ? BIG_BLIND : 0)) };
     }
     return { type: "check" };
   }
 
-  const cheapCall = callAmount <= Math.max(BIG_BLIND, player.stack * 0.18);
-  if (cheapCall || Math.random() < 0.58) return { type: "call" };
+  const potPressure = callAmount / Math.max(BIG_BLIND, collectPot(room) + callAmount);
+  const stackPressure = callAmount / Math.max(1, player.stack + callAmount);
+  const callChance = Math.max(0.06, Math.min(0.94, confidence + 0.2 - potPressure * 0.72 - stackPressure * 0.58));
+  if (Math.random() < callChance) return { type: "call" };
   return { type: "fold" };
 }
 
@@ -499,6 +775,7 @@ function serializeRoom(room, viewerId) {
     hostId: room.hostId,
     status: room.status,
     phase: room.phase,
+    tableSize: room.tableSize || room.players.length,
     message: room.message,
     pot,
     currentBet: room.currentBet,
@@ -529,6 +806,7 @@ function serializeRoom(room, viewerId) {
       dealer: index === room.dealer,
       isTurn: room.turn === player.id,
       isYou: player.id === viewerId,
+      canKick: room.hostId === viewerId && player.id !== viewerId && !player.isBot && !isHandInProgress(room),
       cards: player.id === viewerId || room.phase === "complete" || room.phase === "showdown"
         ? player.hand.map(publicCard)
         : player.hand.map(() => null),
@@ -542,10 +820,60 @@ function emitRoom(room) {
       io.to(socketId).emit("room:update", serializeRoom(room, player.id));
     }
   }
+  scheduleSave();
   scheduleComputerTurn(room);
 }
 
-function leaveCurrentRoom(socket) {
+function detachSocketFromRoom(socketId, roomId) {
+  socketRoom.delete(socketId);
+  socketPlayer.delete(socketId);
+  io.sockets.sockets.get(socketId)?.leave(roomId);
+}
+
+function chooseNextHost(room) {
+  const nextHost = room.players.find((player) => !player.isBot) || room.players[0];
+  room.hostId = nextHost?.id || null;
+}
+
+function removePlayerAfterDisconnect(room, player) {
+  if (room.tableSize) {
+    convertHumanToBot(room, player);
+    emitRoom(room);
+    return;
+  }
+
+  const index = playerIndex(room, player.id);
+  if (index < 0 || player.connected) return;
+  const wasTurn = room.turn === player.id;
+
+  clearTimeout(player.disconnectTimer);
+  player.disconnectTimer = null;
+  room.deadPot += player.invested;
+  player.bet = 0;
+  player.invested = 0;
+  player.folded = true;
+  room.players.splice(index, 1);
+  if (room.players.length === 0) {
+    rooms.delete(room.id);
+    scheduleSave();
+    return;
+  }
+  if (index < room.dealer) room.dealer -= 1;
+  if (room.dealer >= room.players.length) room.dealer = 0;
+  if (room.hostId === player.id) chooseNextHost(room);
+  room.message = `${player.name} was removed after disconnecting.`;
+  if (isHandInProgress(room)) {
+    if (wasTurn) {
+      const fromIndex = (index - 1 + room.players.length) % room.players.length;
+      const next = nextIndex(room, fromIndex, (item) => !item.folded && !item.allIn && item.stack > 0);
+      room.turn = next >= 0 ? room.players[next].id : null;
+    }
+    maybeAdvance(room);
+  }
+  emitRoom(room);
+}
+
+function leaveCurrentRoom(socket, { removeAfterGrace = true } = {}) {
   const roomId = socketRoom.get(socket.id);
   const playerId = socketPlayer.get(socket.id);
   if (!roomId) return;
@@ -555,17 +883,55 @@ function leaveCurrentRoom(socket) {
   if (player?.socketIds) {
     player.socketIds.delete(socket.id);
     player.connected = player.socketIds.size > 0;
+    if (!player.connected && !player.isBot) {
+      if (room.tableSize) {
+        convertHumanToBot(room, player);
+      } else if (removeAfterGrace) {
+        clearTimeout(player.disconnectTimer);
+        player.disconnectTimer = setTimeout(() => {
+          const latestRoom = rooms.get(room.id);
+          const latestPlayer = latestRoom?.players.find((item) => item.id === player.id);
+          if (latestRoom && latestPlayer && !latestPlayer.connected) {
+            removePlayerAfterDisconnect(latestRoom, latestPlayer);
+          }
+        }, DISCONNECT_GRACE_MS);
+      }
+    }
   }
-  socketRoom.delete(socket.id);
-  socketPlayer.delete(socket.id);
+  detachSocketFromRoom(socket.id, room.id);
   emitRoom(room);
 }
 
+function kickPlayerFromRoom(room, playerId) {
+  const index = playerIndex(room, playerId);
+  if (index < 0) return null;
+  if (room.tableSize && !room.players[index].isBot) {
+    const player = room.players[index];
+    for (const socketId of player.socketIds || []) {
+      io.to(socketId).emit("room:kicked");
+      detachSocketFromRoom(socketId, room.id);
+    }
+    convertHumanToBot(room, player);
+    return player;
+  }
+  const [removed] = room.players.splice(index, 1);
+  clearTimeout(removed.disconnectTimer);
+  for (const socketId of removed.socketIds || []) {
+    io.to(socketId).emit("room:kicked");
+    detachSocketFromRoom(socketId, room.id);
+  }
+  if (index < room.dealer) room.dealer -= 1;
+  if (room.dealer >= room.players.length) room.dealer = 0;
+  room.message = `${removed.name} was kicked from the table.`;
+  return removed;
+}
+
 io.on("connection", (socket) => {
-  socket.on("room:create", ({ name, deviceId, computerPlayers }, ack) => {
+  socket.on("room:create", ({ name, deviceId, computerPlayers, tableSize }, ack) => {
     const playerId = cleanDeviceId(deviceId, socket.id);
-    const room = makeRoom(playerId, cleanName(name), socket.id);
-    addComputerPlayers(room, computerPlayers);
+    const requestedSize = cleanTableSize(tableSize) || cleanTableSize(computerPlayers);
+    const room = makeRoom(playerId, cleanName(name), socket.id, requestedSize);
+    addComputerPlayers(room, requestedSize || computerPlayers);
     attachSocketToPlayer(socket, room, room.players[0]);
     ack?.({ ok: true, roomId: room.id });
     emitRoom(room);
@@ -577,31 +943,49 @@ io.on("connection", (socket) => {
     const playerId = cleanDeviceId(deviceId, socket.id);
     const existing = room.players.find((player) => player.id === playerId);
     if (existing) {
+      if (existing.isBot) {
+        convertBotToHuman(socket, room, existing, playerId, name);
+        ack?.({ ok: true, roomId: room.id });
+        emitRoom(room);
+        return;
+      }
       existing.name = cleanName(name);
       attachSocketToPlayer(socket, room, existing);
       ack?.({ ok: true, roomId: room.id });
       emitRoom(room);
       return;
     }
-    if (room.players.length >= MAX_PLAYERS) return ack?.({ ok: false, error: "Room is full." });
+    const botSeat = room.players.find((player) => player.isBot);
+    if (botSeat) {
+      convertBotToHuman(socket, room, botSeat, playerId, name);
+      ack?.({ ok: true, roomId: room.id });
+      emitRoom(room);
+      return;
+    }
+    const effectiveMax = room.tableSize || MAX_PLAYERS;
+    if (room.players.length >= effectiveMax) return ack?.({ ok: false, error: "Room is full." });
     if (room.phase !== "lobby" && room.phase !== "complete") {
       return ack?.({ ok: false, error: "This hand is in progress. Join after it ends." });
     }
-    room.players.push({
-      id: playerId,
-      socketIds: new Set([socket.id]),
-      name: cleanName(name),
-      stack: STARTING_STACK,
-      hand: [],
-      folded: false,
-      allIn: false,
-      bet: 0,
-      invested: 0,
-      connected: true,
-      isBot: false,
-    });
+    room.players.push(makePlayer({ id: playerId, socketId: socket.id, name: cleanName(name) }));
     attachSocketToPlayer(socket, room, room.players[room.players.length - 1]);
+    if (room.tableSize) addComputerPlayers(room, room.tableSize);
     ack?.({ ok: true, roomId: room.id });
+    emitRoom(room);
+  });
+
+  socket.on("room:kick", ({ playerId }, ack) => {
+    const room = rooms.get(socketRoom.get(socket.id));
+    const hostId = socketPlayer.get(socket.id);
+    if (!room || room.hostId !== hostId) return ack?.({ ok: false, error: "Only the host can kick players." });
+    if (isHandInProgress(room)) return ack?.({ ok: false, error: "Players can only be kicked between hands." });
+    if (playerId === hostId) return ack?.({ ok: false, error: "Host cannot kick themselves." });
+    if (room.tableSize && room.players.find((player) => player.id === playerId)?.isBot) {
+      return ack?.({ ok: false, error: "CPU seats are kept for drop-in players." });
+    }
+    const removed = kickPlayerFromRoom(room, playerId);
+    if (!removed) return ack?.({ ok: false, error: "Player not found." });
+    ack?.({ ok: true });
     emitRoom(room);
   });
 
@@ -642,9 +1026,26 @@ io.on("connection", (socket) => {
     emitRoom(room);
   });
 
+  socket.on("room:leave", (_, ack) => {
+    leaveCurrentRoom(socket, { removeAfterGrace: false });
+    ack?.({ ok: true });
+  });
+
   socket.on("disconnect", () => {
     leaveCurrentRoom(socket);
   });
+});
+
+loadRooms();
+
+process.once("SIGINT", () => {
+  saveRoomsNow();
+  process.exit(0);
+});
+
+process.once("SIGTERM", () => {
+  saveRoomsNow();
+  process.exit(0);
 });
 
 server.listen(PORT, () => {

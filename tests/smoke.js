@@ -126,6 +126,16 @@ function waitFor(predicate, label, timeout = 5000) {
   await emit(solo.socket, "game:start");
   await waitFor(() => solo.state?.phase === "preflop", "computer game hand start");
 
+  const dana = connectPlayer("Dana");
+  await waitFor(() => dana.socket.connected, "drop-in connection");
+  await emit(dana.socket, "room:join", { roomId: solo.state.id, name: dana.name, deviceId: dana.deviceId });
+  await waitFor(() => dana.state?.phase === "preflop" && dana.state?.players.length === 4, "drop-in player seated");
+  if (dana.state.players.filter((player) => player.isBot).length !== 2) {
+    throw new Error("Expected joining player to take a CPU seat");
+  }
+  dana.socket.disconnect();
+  await waitFor(() => solo.state?.players.filter((player) => player.isBot).length === 3, "drop-out CPU replacement");
+
   for (let i = 0; i < 240 && solo.state.phase !== "complete"; i += 1) {
     if (solo.state.isYourTurn) {
       await emit(solo.socket, "game:action", { type: solo.state.toCall > 0 ? "call" : "check" });

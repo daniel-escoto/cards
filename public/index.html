@@ -27,7 +27,7 @@
             <input id="roomInput" maxlength="6" placeholder="Leave blank to host" />
           </label>
           <label>
-            Computer game players
+            Players per room
             <select id="computerPlayerCount">
               <option value="2">2 players</option>
               <option value="3">3 players</option>
@@ -76,7 +76,13 @@
         <section class="control-panel">
           <div id="heroHand" class="hero-hand"></div>
           <div id="winnerList" class="winner-list"></div>
-          <div id="actionLog" class="action-log"></div>
+          <div id="actionLogWrap" class="action-log-wrap hidden">
+            <div class="action-log-head">
+              <span>History</span>
+              <button id="toggleActionLog" type="button" class="ghost">Expand</button>
+            </div>
+            <div id="actionLog" class="action-log"></div>
+          </div>
           <div id="turnInfo" class="turn-info"></div>
           <div id="gameButtons" class="game-buttons"></div>
           <div id="betControls" class="bet-controls hidden">
@@ -91,6 +97,17 @@
             <button id="raiseBtn">Raise</button>
           </div>
         </section>
+      </section>
+
+      <section id="scoreView" class="score-view hidden">
+        <div class="score-panel">
+          <div class="score-head">
+            <p class="eyebrow">Final standings</p>
+            <h2>Game over</h2>
+          </div>
+          <div id="scoreList" class="score-list"></div>
+          <button id="scoreMenuBtn" type="button">Back to menu</button>
+        </div>
       </section>
     </main>
 

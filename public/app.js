@@ -2,6 +2,7 @@ const socket = io();
 
 const welcome = document.querySelector("#welcome");
 const tableView = document.querySelector("#tableView");
+const scoreView = document.querySelector("#scoreView");
 const joinForm = document.querySelector("#joinForm");
 const nameInput = document.querySelector("#nameInput");
 const roomInput = document.querySelector("#roomInput");
@@ -19,7 +20,9 @@ const message = document.querySelector("#message");
 const players = document.querySelector("#players");
 const heroHand = document.querySelector("#heroHand");
 const winnerList = document.querySelector("#winnerList");
+const actionLogWrap = document.querySelector("#actionLogWrap");
 const actionLog = document.querySelector("#actionLog");
+const toggleActionLog = document.querySelector("#toggleActionLog");
 const turnInfo = document.querySelector("#turnInfo");
 const gameButtons = document.querySelector("#gameButtons");
 const betControls = document.querySelector("#betControls");
@@ -27,11 +30,15 @@ const raiseMinus = document.querySelector("#raiseMinus");
 const raisePlus = document.querySelector("#raisePlus");
 const raiseAmount = document.querySelector("#raiseAmount");
 const raiseBtn = document.querySelector("#raiseBtn");
+const scoreList = document.querySelector("#scoreList");
+const scoreMenuBtn = document.querySelector("#scoreMenuBtn");
 
 let state = null;
 let raiseState = { value: 0, min: 0, max: 0, step: 20 };
 let audioContext = null;
 let hasRenderedRoom = false;
+let leavingEndedRoom = false;
+let isActionLogExpanded = false;
 const params = new URLSearchParams(window.location.search);
 const initialRoomId = (params.get("room") || localStorage.getItem("holdem:lastRoom") || "").toUpperCase();
 if (initialRoomId) roomInput.value = initialRoomId;
@@ -85,8 +92,41 @@ function showTable(room) {
   document.body.classList.add("game-open");
   document.body.classList.remove("keyboard-open");
   welcome.classList.add("hidden");
+  scoreView.classList.add("hidden");
   tableView.classList.remove("hidden");
   setRoomUrl(room.id);
+}
+
+function showWelcome(status = "") {
+  state = null;
+  hasRenderedRoom = false;
+  leavingEndedRoom = false;
+  document.documentElement.classList.remove("game-open-root");
+  document.body.classList.remove("game-open", "keyboard-open");
+  tableView.classList.add("hidden");
+  scoreView.classList.add("hidden");
+  welcome.classList.remove("hidden");
+  joinError.textContent = status;
+  clearRoomUrl();
+}
+
+function showScoreScreen(room) {
+  const standings = [...room.players].sort((a, b) => b.stack - a.stack || a.name.localeCompare(b.name));
+  state = null;
+  hasRenderedRoom = false;
+  document.documentElement.classList.remove("game-open-root");
+  document.body.classList.remove("game-open", "keyboard-open");
+  welcome.classList.add("hidden");
+  tableView.classList.add("hidden");
+  scoreView.classList.remove("hidden");
+  scoreList.innerHTML = standings.map((player, index) => `
+    <div class="score-row ${player.isYou ? "you" : ""}">
+      <span class="score-rank">${index + 1}</span>
+      <span class="score-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
+      <strong>${player.stack}</strong>
+    </div>
+  `).join("");
+  clearRoomUrl();
 }
 
 function setRoomUrl(roomId) {
@@ -96,6 +136,14 @@ function setRoomUrl(roomId) {
   roomInput.value = normalized;
   const url = new URL(window.location.href);
   url.searchParams.set("room", normalized);
+  window.history.replaceState({}, "", url);
+}
+
+function clearRoomUrl() {
+  localStorage.removeItem("holdem:lastRoom");
+  roomInput.value = "";
+  const url = new URL(window.location.href);
+  url.searchParams.delete("room");
   window.history.replaceState({}, "", url);
 }
 
@@ -238,6 +286,10 @@ function playRoomSounds(previous, next) {
   }
 }
 
+function isEndedGameReturn(previous, next) {
+  return previous && previous.phase !== "lobby" && next.phase === "lobby" && next.message === "Game ended by host.";
+}
+
 function render() {
   if (!state) return;
   showTable(state);
@@ -256,7 +308,10 @@ function render() {
       <div class="seat-info">
         <div class="seat-head">
           <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
-          ${player.dealer ? '<span class="pill">D</span>' : ""}
+          <span class="seat-badges">
+            ${player.dealer ? '<span class="pill">D</span>' : ""}
+            ${player.isBot ? '<span class="pill">CPU</span>' : ""}
+          </span>
         </div>
         <div class="seat-stats">
           <div class="seat-line stack-line">
@@ -268,6 +323,7 @@ function render() {
             <strong>${player.bet}</strong>
           </div>
         </div>
+        ${player.canKick ? `<button type="button" class="kick-btn danger" data-kick-player="${escapeHtml(player.id)}">Kick</button>` : ""}
       </div>
       ${player.isYou ? "" : `<div class="mini-cards">${player.cards.map(cardTemplate).join("")}</div>`}
     </article>
@@ -278,10 +334,14 @@ function render() {
   winnerList.innerHTML = state.winners.map((winner) => (
     `<div>${escapeHtml(winner.name)} wins ${winner.amount} with ${escapeHtml(winner.hand)}</div>`
   )).join("");
-  actionLog.innerHTML = (state.actionLog || []).slice(-6).map((entry) => (
+  const logEntries = state.actionLog || [];
+  actionLog.innerHTML = (isActionLogExpanded ? logEntries : logEntries.slice(-6)).map((entry) => (
     `<div>${escapeHtml(entry.text)}</div>`
   )).join("");
-  actionLog.classList.toggle("hidden", !state.actionLog?.length);
+  actionLogWrap.classList.toggle("hidden", !logEntries.length);
+  actionLogWrap.classList.toggle("expanded", isActionLogExpanded);
+  toggleActionLog.textContent = isActionLogExpanded ? "Collapse" : "Expand";
+  toggleActionLog.disabled = logEntries.length <= 6;
 
   renderControls(hero);
   scrollCurrentPlayerIntoView();
@@ -370,6 +430,10 @@ function addActionButton(label, payload, className = "") {
   gameButtons.appendChild(button);
 }
 
+function kickPlayer(playerId) {
+  emitWithAck("room:kick", { playerId }, "click");
+}
+
 function emitWithAck(eventName, payload, pendingSound = null) {
   ensureAudio();
   socket.emit(eventName, payload, (response) => {
@@ -392,9 +456,13 @@ function joinOrCreate(mode) {
   localStorage.setItem("holdem:name", name);
   const roomId = roomInput.value.trim().toUpperCase();
   const eventName = mode === "join" ? "room:join" : "room:create";
+  const selectedTableSize = Math.max(2, Math.min(8, Math.floor(Number(computerPlayerCount.value) || 2)));
   const payload = { name, roomId, deviceId: getDeviceId() };
+  if (mode !== "join") {
+    payload.tableSize = selectedTableSize;
+  }
   if (mode === "computer") {
-    payload.computerPlayers = Math.max(2, Math.min(8, Math.floor(Number(computerPlayerCount.value) || 2)));
+    payload.computerPlayers = selectedTableSize;
   }
   socket.emit(eventName, payload, (response) => {
     if (!response?.ok) {
@@ -449,12 +517,37 @@ copyLink.addEventListener("click", async () => {
   setTimeout(() => { copyLink.textContent = "Copy invite"; }, 1200);
 });
 
+players.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-kick-player]");
+  if (!button) return;
+  kickPlayer(button.dataset.kickPlayer);
+});
+
+scoreMenuBtn.addEventListener("click", () => showWelcome());
+
+toggleActionLog.addEventListener("click", () => {
+  isActionLogExpanded = !isActionLogExpanded;
+  render();
+});
+
 socket.on("room:update", (room) => {
+  if (leavingEndedRoom) return;
+  if (isEndedGameReturn(state, room)) {
+    leavingEndedRoom = true;
+    socket.emit("room:leave");
+    showScoreScreen(room);
+    return;
+  }
+
   playRoomSounds(state, room);
   state = room;
   joinError.textContent = "";
   render();
   hasRenderedRoom = true;
+});
+
+socket.on("room:kicked", () => {
+  showWelcome("You were kicked from the table.");
 });
 
 function attemptAutoRejoin() {

@@ -36,3 +36,9 @@ Every push to `main` runs the GitHub Actions workflow in `.github/workflows/depl
 Add this GitHub repository secret:
 
 - `RAILWAY_API_TOKEN`: Railway account or workspace token with access to the project.
+
+## Persistent games
+
+The server snapshots active rooms to JSON so games can be restored after a restart or deploy. By default it writes to `RAILWAY_VOLUME_MOUNT_PATH`, `DATA_DIR`, or local `.data/rooms.json`.
+
+For production deploys, attach a Railway volume or set `GAME_STATE_FILE` to a persistent path. Without a persistent filesystem, games will still be saved locally during the process lifetime but will not survive a fresh container.

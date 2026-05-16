@@ -192,6 +192,68 @@ select:focus {
   gap: 16px;
 }
 
+.score-view {
+  min-height: calc(100vh - 40px);
+  min-height: calc(100dvh - 40px);
+  display: grid;
+  place-items: center;
+}
+
+.score-panel {
+  width: min(520px, 100%);
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(27, 34, 40, 0.94);
+}
+
+.score-head {
+  display: grid;
+  gap: 4px;
+}
+
+.score-list {
+  display: grid;
+  gap: 8px;
+}
+
+.score-row {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(16, 22, 26, 0.76);
+}
+
+.score-row.you {
+  border-color: rgba(224, 177, 90, 0.62);
+}
+
+.score-rank {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(224, 177, 90, 0.16);
+  color: var(--accent);
+  font-weight: 900;
+}
+
+.score-name {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .topbar {
   display: flex;
   align-items: center;
@@ -326,10 +388,23 @@ select:focus {
   gap: 8px;
 }
 
+.seat-badges {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
 .seat-info,
 .seat-stats {
   display: grid;
   gap: 3px;
+}
+
+.kick-btn {
+  justify-self: start;
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
 }
 
 .seat-name {
@@ -429,6 +504,28 @@ select:focus {
   font-weight: 800;
 }
 
+.action-log-wrap {
+  display: grid;
+  gap: 6px;
+}
+
+.action-log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.action-log-head button {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
 .action-log {
   max-height: 86px;
   display: grid;
@@ -442,6 +539,10 @@ select:focus {
   font-size: 13px;
   font-weight: 700;
   -webkit-overflow-scrolling: touch;
+}
+
+.action-log-wrap.expanded .action-log {
+  max-height: 220px;
 }
 
 @media (min-width: 780px) {
@@ -466,6 +567,14 @@ select:focus {
     align-content: center;
     justify-items: center;
     gap: clamp(16px, 4vh, 28px);
+  }
+
+  .score-view {
+    min-height: calc(100dvh - 24px);
+  }
+
+  .score-panel {
+    padding: 16px;
   }
 
   .brand {
@@ -726,6 +835,10 @@ select:focus {
     max-height: 58px;
     gap: 2px;
     padding: 6px 8px;
+  }
+
+  .action-log-wrap.expanded .action-log {
+    max-height: 150px;
   }
 
   .game-buttons {
