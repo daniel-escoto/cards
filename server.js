@@ -65,7 +65,7 @@ function makeRoom(hostId, hostName, socketId) {
     players: [
       {
         id: hostId,
-        socketId,
+        socketIds: new Set([socketId]),
         name: hostName,
         stack: STARTING_STACK,
         hand: [],
@@ -94,7 +94,8 @@ function cleanDeviceId(deviceId, fallback) {
 }
 
 function attachSocketToPlayer(socket, room, player) {
-  player.socketId = socket.id;
+  if (!player.socketIds) player.socketIds = new Set();
+  player.socketIds.add(socket.id);
   player.connected = true;
   socketRoom.set(socket.id, room.id);
   socketPlayer.set(socket.id, player.id);
@@ -385,7 +386,9 @@ function serializeRoom(room, viewerId) {
 
 function emitRoom(room) {
   for (const player of room.players) {
-    if (player.socketId) io.to(player.socketId).emit("room:update", serializeRoom(room, player.id));
+    for (const socketId of player.socketIds || []) {
+      io.to(socketId).emit("room:update", serializeRoom(room, player.id));
+    }
   }
 }
 
@@ -396,9 +399,9 @@ function leaveCurrentRoom(socket) {
   const room = rooms.get(roomId);
   if (!room) return;
   const player = room.players.find((item) => item.id === playerId);
-  if (player && player.socketId === socket.id) {
-    player.connected = false;
-    player.socketId = null;
+  if (player?.socketIds) {
+    player.socketIds.delete(socket.id);
+    player.connected = player.socketIds.size > 0;
   }
   socketRoom.delete(socket.id);
   socketPlayer.delete(socket.id);
@@ -432,7 +435,7 @@ io.on("connection", (socket) => {
     }
     room.players.push({
       id: playerId,
-      socketId: socket.id,
+      socketIds: new Set([socket.id]),
       name: cleanName(name),
       stack: STARTING_STACK,
       hand: [],

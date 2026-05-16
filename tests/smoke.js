@@ -47,6 +47,11 @@ function waitFor(predicate, label, timeout = 5000) {
   await emit(carmen.socket, "room:join", { roomId: created.roomId, name: carmen.name, deviceId: carmen.deviceId });
   await waitFor(() => players.every((player) => player.state?.players.length === 3), "all players in room");
 
+  const aliceAgain = connectPlayer("Alice");
+  await waitFor(() => aliceAgain.socket.connected, "host duplicate connection");
+  await emit(aliceAgain.socket, "room:join", { roomId: created.roomId, name: aliceAgain.name, deviceId: alice.deviceId });
+  await waitFor(() => alice.state?.players.length === 3 && aliceAgain.state?.players.length === 3, "duplicate host updates");
+
   const bobAgain = connectPlayer("Bob");
   await waitFor(() => bobAgain.socket.connected, "rejoin connection");
   await emit(bobAgain.socket, "room:join", { roomId: created.roomId, name: bobAgain.name, deviceId: bob.deviceId });
@@ -59,6 +64,7 @@ function waitFor(predicate, label, timeout = 5000) {
 
   await emit(alice.socket, "game:start");
   await waitFor(() => alice.state?.phase === "preflop", "hand start");
+  aliceAgain.socket.disconnect();
   await emit(alice.socket, "game:end");
   await waitFor(() => alice.state?.phase === "lobby", "game end");
   if (alice.state.players.reduce((sum, player) => sum + player.stack, 0) !== 3000) {

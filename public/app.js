@@ -30,7 +30,8 @@ let raiseState = { value: 0, min: 0, max: 0, step: 20 };
 let audioContext = null;
 let hasRenderedRoom = false;
 const params = new URLSearchParams(window.location.search);
-if (params.get("room")) roomInput.value = params.get("room").toUpperCase();
+const initialRoomId = (params.get("room") || localStorage.getItem("holdem:lastRoom") || "").toUpperCase();
+if (initialRoomId) roomInput.value = initialRoomId;
 nameInput.value = localStorage.getItem("holdem:name") || "";
 
 function getDeviceId() {
@@ -82,8 +83,16 @@ function showTable(room) {
   document.body.classList.remove("keyboard-open");
   welcome.classList.add("hidden");
   tableView.classList.remove("hidden");
+  setRoomUrl(room.id);
+}
+
+function setRoomUrl(roomId) {
+  if (!roomId) return;
+  const normalized = String(roomId).toUpperCase();
+  localStorage.setItem("holdem:lastRoom", normalized);
+  roomInput.value = normalized;
   const url = new URL(window.location.href);
-  url.searchParams.set("room", room.id);
+  url.searchParams.set("room", normalized);
   window.history.replaceState({}, "", url);
 }
 
@@ -370,7 +379,9 @@ function joinOrCreate(mode) {
   socket.emit(eventName, { name, roomId, deviceId: getDeviceId() }, (response) => {
     if (!response?.ok) {
       joinError.textContent = response?.error || "Could not join table.";
+      return;
     }
+    setRoomUrl(response.roomId || roomId);
   });
 }
 
@@ -425,15 +436,22 @@ socket.on("room:update", (room) => {
   hasRenderedRoom = true;
 });
 
-socket.on("connect", () => {
+function attemptAutoRejoin() {
   const roomId = roomInput.value.trim().toUpperCase();
   const name = nameInput.value.trim();
-  if (!state && roomId && name) {
+  if (socket.connected && !state && roomId && name) {
     socket.emit("room:join", { roomId, name, deviceId: getDeviceId() }, (response) => {
-      if (!response?.ok) joinError.textContent = response?.error || "Could not rejoin table.";
+      if (!response?.ok) {
+        joinError.textContent = response?.error || "Could not rejoin table.";
+        return;
+      }
+      setRoomUrl(response.roomId || roomId);
     });
   }
-});
+}
+
+socket.on("connect", attemptAutoRejoin);
+attemptAutoRejoin();
 
 window.addEventListener("resize", () => {
   if (document.body.classList.contains("game-open")) setGameViewportHeight();
