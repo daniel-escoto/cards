@@ -367,26 +367,30 @@ function renderSeatCard(player, isActiveTurn = player.isTurn) {
   `;
 }
 
+function currentTurnPlayer() {
+  const index = findLastIndex(state.players, (player) => player.id === state.turn);
+  return index >= 0 ? state.players[index] : null;
+}
+
 function renderActionFeed() {
   const entries = (state.actionLog || []).filter((entry) => entry.phase !== "lobby");
+  const activePlayer = currentTurnPlayer();
   if (!entries.length) {
-    const activeSeatIndex = findLastIndex(state.players, (player) => player.id === state.turn);
+    const activeSeatIndex = findLastIndex(state.players, (player) => player.id === activePlayer?.id);
     return state.players.map((player, index) => renderSeatCard(player, index === activeSeatIndex)).join("");
   }
 
-  const activeActionIndex = findLastIndex(entries, (entry) => playerForAction(entry)?.id === state.turn);
   let lastPhase = "";
-  return entries.map((entry, index) => {
+  const historyMarkup = entries.map((entry) => {
     const player = playerForAction(entry);
     const phase = entry.phase || "preflop";
-    const isActiveTurnAction = index === activeActionIndex;
     const phaseDivider = phase !== lastPhase
       ? `<div class="street-divider">${escapeHtml(streetLabel(phase))}</div>`
       : "";
     lastPhase = phase;
     return `
       ${phaseDivider}
-      <article class="action-feed-card ${isActiveTurnAction ? "turn" : ""} ${player?.folded ? "folded" : ""} ${player?.isYou ? "you" : ""}">
+      <article class="action-feed-card ${player?.folded ? "folded" : ""} ${player?.isYou ? "you" : ""}">
         <div class="action-card-head">
           <span class="seat-name">${escapeHtml(player?.name || "Table")}${player?.isYou ? " (you)" : ""}</span>
           <span class="seat-badges">
@@ -402,12 +406,13 @@ function renderActionFeed() {
           <div class="action-card-stats">
             <span>Stack <strong>${player.stack}</strong></span>
             <span>In pot <strong>${player.invested}</strong></span>
-            <em>${playerTableStatus(player, isActiveTurnAction)}</em>
+            <em>${playerTableStatus(player, false)}</em>
           </div>
         ` : ""}
       </article>
     `;
   }).join("");
+  return `${historyMarkup}${activePlayer ? renderSeatCard(activePlayer, true) : ""}`;
 }
 
 function inferActionSound(previous, next) {
