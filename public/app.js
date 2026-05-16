@@ -142,6 +142,7 @@ function renderMenuPlayers() {
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
         <span class="seat-badges">
           ${player.dealer ? '<span class="pill">D</span>' : ""}
+          ${player.isHost ? '<span class="pill">Host</span>' : ""}
           ${player.isBot ? '<span class="pill">CPU</span>' : ""}
         </span>
       </div>
@@ -417,6 +418,7 @@ function renderSeatCard(player, isActiveTurn = player.isTurn) {
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
         <span class="seat-badges">
           ${player.dealer ? '<span class="pill">D</span>' : ""}
+          ${player.isHost ? '<span class="pill">Host</span>' : ""}
           ${player.isBot ? '<span class="pill">CPU</span>' : ""}
         </span>
       </div>
@@ -474,6 +476,7 @@ function renderActionFeed() {
           <span class="seat-name">${escapeHtml(player?.name || "Table")}${player?.isYou ? " (you)" : ""}</span>
           <span class="seat-badges">
             ${player?.dealer ? '<span class="pill">D</span>' : ""}
+            ${player?.isHost ? '<span class="pill">Host</span>' : ""}
             ${player?.isBot ? '<span class="pill">CPU</span>' : ""}
           </span>
         </div>

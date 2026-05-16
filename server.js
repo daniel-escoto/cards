@@ -937,6 +937,7 @@ function serializeRoom(room, viewerId) {
       isBot: player.isBot,
       showCards: Boolean(player.showCards),
       disconnectExpiresAt: player.disconnectExpiresAt || null,
+      isHost: player.id === room.hostId,
       dealer: index === room.dealer,
       isTurn: room.turn === player.id,
       isYou: player.id === viewerId,

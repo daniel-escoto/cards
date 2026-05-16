@@ -46,6 +46,9 @@ function waitFor(predicate, label, timeout = 5000) {
   await emit(bob.socket, "room:join", { roomId: created.roomId, name: bob.name, deviceId: bob.deviceId });
   await emit(carmen.socket, "room:join", { roomId: created.roomId, name: carmen.name, deviceId: carmen.deviceId });
   await waitFor(() => players.every((player) => player.state?.players.length === 3), "all players in room");
+  if (alice.state.players.find((player) => player.name === "Alice")?.isHost !== true) {
+    throw new Error("Expected host to be marked");
+  }
   if (new Set(alice.state.players.map((player) => player.color).filter(Boolean)).size !== 3) {
     throw new Error("Expected real players to receive distinct colors");
   }
