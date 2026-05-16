@@ -286,15 +286,12 @@ function streetLabel(phase) {
 
 function compactStreetLabel(phase) {
   const labels = {
-    lobby: "Lobby",
     preflop: "PF",
-    flop: "Flop",
-    turn: "Turn",
-    river: "River",
-    showdown: "Show",
-    complete: "Result",
+    flop: "F",
+    turn: "T",
+    river: "R",
   };
-  return labels[phase] || streetLabel(phase);
+  return labels[phase] || "";
 }
 
 function groupActionLog(entries) {
@@ -320,11 +317,11 @@ function compactPlayerAction(entry, player) {
   return withoutName
     .replace(/^Posts small blind\s+/i, "SB ")
     .replace(/^Posts big blind\s+/i, "BB ")
-    .replace(/^Calls\s+/i, "calls ")
-    .replace(/^Checks$/i, "checks")
-    .replace(/^Folds$/i, "folds")
-    .replace(/^Raises to\s+/i, "raises ")
-    .replace(/^Wins\s+/i, "wins ");
+    .replace(/^Calls\s+/i, "call ")
+    .replace(/^Checks$/i, "check")
+    .replace(/^Folds$/i, "fold")
+    .replace(/^Raises to\s+/i, "raise ")
+    .replace(/^Wins\s+/i, "+");
 }
 
 function playerActionHistory(player) {
@@ -332,13 +329,13 @@ function playerActionHistory(player) {
     entry.playerId === player.id || (!entry.playerId && entry.text?.startsWith(player.name))
   ));
   if (!entries.length) {
-    return '<div class="seat-history-empty">No action</div>';
+    return "";
   }
   return groupActionLog(entries).map(([phase, phaseEntries]) => `
-    <div class="seat-history-row">
-      <span>${escapeHtml(compactStreetLabel(phase))}</span>
-      <strong>${phaseEntries.map((entry) => escapeHtml(compactPlayerAction(entry, player))).join(", ")}</strong>
-    </div>
+    <span class="seat-history-chip">
+      ${compactStreetLabel(phase) ? `<em>${escapeHtml(compactStreetLabel(phase))}</em>` : ""}
+      ${phaseEntries.map((entry) => escapeHtml(compactPlayerAction(entry, player))).join(", ")}
+    </span>
   `).join("");
 }
 
