@@ -7,8 +7,8 @@ const joinForm = document.querySelector("#joinForm");
 const nameInput = document.querySelector("#nameInput");
 const roomInput = document.querySelector("#roomInput");
 const computerPlayerCount = document.querySelector("#computerPlayerCount");
-const createBtn = document.querySelector("#createBtn");
-const computerBtn = document.querySelector("#computerBtn");
+const tableSizeLabel = computerPlayerCount.closest("label");
+const tableActionBtn = document.querySelector("#tableActionBtn");
 const joinError = document.querySelector("#joinError");
 const roomCode = document.querySelector("#roomCode");
 const copyLink = document.querySelector("#copyLink");
@@ -61,6 +61,12 @@ function setGameViewportHeight() {
 function setKeyboardMode(isOpen) {
   document.body.classList.toggle("keyboard-open", isOpen && !welcome.classList.contains("hidden"));
   if (isOpen) window.scrollTo(0, 0);
+}
+
+function updateTableActionLabel() {
+  const isJoining = Boolean(roomInput.value.trim());
+  tableActionBtn.textContent = isJoining ? "Join table" : "Host table";
+  tableSizeLabel.classList.toggle("hidden", isJoining);
 }
 
 function cardTemplate(card) {
@@ -142,6 +148,7 @@ function setRoomUrl(roomId) {
 function clearRoomUrl() {
   localStorage.removeItem("holdem:lastRoom");
   roomInput.value = "";
+  updateTableActionLabel();
   const url = new URL(window.location.href);
   url.searchParams.delete("room");
   window.history.replaceState({}, "", url);
@@ -524,9 +531,6 @@ function joinOrCreate(mode) {
   if (mode !== "join") {
     payload.tableSize = selectedTableSize;
   }
-  if (mode === "computer") {
-    payload.computerPlayers = selectedTableSize;
-  }
   socket.emit(eventName, payload, (response) => {
     if (!response?.ok) {
       joinError.textContent = response?.error || "Could not join table.";
@@ -546,12 +550,12 @@ function escapeHtml(value) {
   }[char]));
 }
 
-createBtn.addEventListener("click", () => joinOrCreate("create"));
-computerBtn.addEventListener("click", () => joinOrCreate("computer"));
+roomInput.addEventListener("input", updateTableActionLabel);
 joinForm.addEventListener("submit", (event) => {
   event.preventDefault();
   joinOrCreate(roomInput.value.trim() ? "join" : "create");
 });
+updateTableActionLabel();
 
 joinForm.addEventListener("focusin", (event) => {
   if (event.target.matches("input")) setKeyboardMode(true);
