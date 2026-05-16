@@ -144,6 +144,9 @@ function waitFor(predicate, label, timeout = 5000) {
   if (solo.state.players.filter((player) => player.isBot).length !== 3) {
     throw new Error("Expected three computer players");
   }
+  if (solo.state.players.some((player) => player.isBot && !player.connected)) {
+    throw new Error("Expected CPU players to be connected");
+  }
   await emit(solo.socket, "game:start");
   await waitFor(() => solo.state?.phase === "preflop", "computer game hand start");
 

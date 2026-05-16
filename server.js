@@ -137,7 +137,7 @@ function restorePlayer(raw) {
     invested: Math.max(0, Math.floor(Number(raw.invested) || 0)),
     showCards: Boolean(raw.showCards),
     disconnectExpiresAt: null,
-    connected: false,
+    connected: Boolean(raw.isBot),
     isBot: Boolean(raw.isBot),
     replacedPlayerId: raw.replacedPlayerId || null,
     replacedPlayerName: raw.replacedPlayerName || null,
