@@ -508,8 +508,8 @@ select:focus {
 
 .seat-history {
   display: grid;
-  gap: 3px;
-  max-height: 86px;
+  gap: 4px;
+  max-height: 76px;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 2px;
@@ -518,17 +518,19 @@ select:focus {
 
 .seat-history-row {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
-  gap: 6px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 7px;
   align-items: start;
   font-size: 11px;
   line-height: 1.25;
 }
 
 .seat-history-row span {
+  padding-top: 1px;
   color: var(--accent);
   font-weight: 900;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .seat-history-row strong,
@@ -536,6 +538,12 @@ select:focus {
   min-width: 0;
   color: var(--muted);
   font-weight: 800;
+}
+
+.seat-history-row strong {
+  color: color-mix(in srgb, var(--muted) 88%, var(--text));
+  font-weight: 750;
+  overflow-wrap: anywhere;
 }
 
 .seat-history-empty {

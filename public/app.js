@@ -283,6 +283,19 @@ function streetLabel(phase) {
   return labels[phase] || phaseLabel(phase);
 }
 
+function compactStreetLabel(phase) {
+  const labels = {
+    lobby: "Lobby",
+    preflop: "PF",
+    flop: "Flop",
+    turn: "Turn",
+    river: "River",
+    showdown: "Show",
+    complete: "Result",
+  };
+  return labels[phase] || streetLabel(phase);
+}
+
 function groupActionLog(entries) {
   const ordered = ["preflop", "flop", "turn", "river", "showdown", "complete", "lobby"];
   const groups = new Map();
@@ -298,17 +311,32 @@ function groupActionLog(entries) {
   });
 }
 
+function compactPlayerAction(entry, player) {
+  const raw = entry.action || entry.text || "";
+  const withoutName = raw
+    .replace(new RegExp(`^${escapeRegExp(player.name)}\\s+`, "i"), "")
+    .replace(/\.$/, "");
+  return withoutName
+    .replace(/^Posts small blind\s+/i, "SB ")
+    .replace(/^Posts big blind\s+/i, "BB ")
+    .replace(/^Calls\s+/i, "calls ")
+    .replace(/^Checks$/i, "checks")
+    .replace(/^Folds$/i, "folds")
+    .replace(/^Raises to\s+/i, "raises ")
+    .replace(/^Wins\s+/i, "wins ");
+}
+
 function playerActionHistory(player) {
   const entries = (state.actionLog || []).filter((entry) => (
     entry.playerId === player.id || (!entry.playerId && entry.text?.startsWith(player.name))
   ));
   if (!entries.length) {
-    return '<div class="seat-history-empty">No actions yet</div>';
+    return '<div class="seat-history-empty">No action</div>';
   }
   return groupActionLog(entries).map(([phase, phaseEntries]) => `
     <div class="seat-history-row">
-      <span>${escapeHtml(streetLabel(phase))}</span>
-      <strong>${phaseEntries.map((entry) => escapeHtml(entry.action || entry.text)).join(" · ")}</strong>
+      <span>${escapeHtml(compactStreetLabel(phase))}</span>
+      <strong>${phaseEntries.map((entry) => escapeHtml(compactPlayerAction(entry, player))).join(", ")}</strong>
     </div>
   `).join("");
 }
@@ -556,6 +584,10 @@ function escapeHtml(value) {
     '"': "&quot;",
     "'": "&#039;",
   }[char]));
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 roomInput.addEventListener("input", updateTableActionLabel);
