@@ -72,6 +72,7 @@ function serializePlayerForStorage(player) {
     isBot: player.isBot,
     replacedPlayerId: player.replacedPlayerId || null,
     replacedPlayerName: player.replacedPlayerName || null,
+    replacedPlayerColor: player.replacedPlayerColor || null,
   };
 }
 
@@ -141,6 +142,7 @@ function restorePlayer(raw) {
     isBot: Boolean(raw.isBot),
     replacedPlayerId: raw.replacedPlayerId || null,
     replacedPlayerName: raw.replacedPlayerName || null,
+    replacedPlayerColor: cleanPlayerColor(raw.replacedPlayerColor),
     disconnectTimer: null,
   };
 }
@@ -155,6 +157,8 @@ function markRestoredHumanAsBot(room, player) {
   player.connected = true;
   player.replacedPlayerId = oldId;
   player.replacedPlayerName = oldName;
+  player.replacedPlayerColor = player.color || null;
+  player.color = null;
   if (room.turn === oldId) room.turn = player.id;
   replaceActedId(room, oldId, player.id);
 }
@@ -274,6 +278,7 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0) {
         isBot: false,
         replacedPlayerId: null,
         replacedPlayerName: null,
+        replacedPlayerColor: null,
         disconnectExpiresAt: null,
         disconnectTimer: null,
       },
@@ -331,6 +336,7 @@ function makePlayer({ id, name, socketId = null, isBot = false }) {
     isBot,
     replacedPlayerId: null,
     replacedPlayerName: null,
+    replacedPlayerColor: null,
     disconnectExpiresAt: null,
     disconnectTimer: null,
   };
@@ -391,10 +397,11 @@ function convertBotToHuman(socket, room, bot, playerId, name) {
   const hadHumanBefore = room.players.some((player) => !player.isBot);
   bot.id = playerId;
   bot.name = cleanName(name);
-  bot.color = defaultPlayerColor(room);
+  bot.color = bot.replacedPlayerColor || defaultPlayerColor(room);
   bot.isBot = false;
   bot.replacedPlayerId = null;
   bot.replacedPlayerName = null;
+  bot.replacedPlayerColor = null;
   bot.connected = true;
   bot.socketIds = new Set();
   bot.disconnectTimer = null;
@@ -412,9 +419,10 @@ function convertHumanToBot(room, player) {
   const botNumber = nextBotNumber(room);
   player.id = `bot:${room.id}:${botNumber}`;
   player.name = `${BOT_NAMES[(botNumber - 1) % BOT_NAMES.length]} CPU`;
-  player.color = null;
   player.replacedPlayerId = oldId;
   player.replacedPlayerName = oldName;
+  player.replacedPlayerColor = player.color || null;
+  player.color = null;
   player.socketIds = new Set();
   player.connected = true;
   player.isBot = true;
@@ -1095,6 +1103,13 @@ io.on("connection", (socket) => {
       emitRoom(room);
       return;
     }
+    const reservedBotSeat = room.players.find((player) => player.isBot && player.replacedPlayerId === playerId);
+    if (reservedBotSeat) {
+      convertBotToHuman(socket, room, reservedBotSeat, playerId, name);
+      ack?.({ ok: true, roomId: room.id });
+      emitRoom(room);
+      return;
+    }
     const botSeat = room.players.find((player) => player.isBot);
     if (botSeat) {
       convertBotToHuman(socket, room, botSeat, playerId, name);
@@ -1194,7 +1209,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("room:leave", (_, ack) => {
-    leaveCurrentRoom(socket, { removeAfterGrace: false });
+    leaveCurrentRoom(socket);
     ack?.({ ok: true });
   });
 

@@ -160,12 +160,29 @@ function waitFor(predicate, label, timeout = 5000) {
   if (dana.state.players.filter((player) => player.isBot).length !== 2) {
     throw new Error("Expected joining player to take a CPU seat");
   }
-  dana.socket.disconnect();
+  const danaSeatIndex = dana.state.players.findIndex((player) => player.name === "Dana");
+  await emit(dana.socket, "room:leave");
   await waitFor(() => {
     const danaSeat = solo.state?.players.find((player) => player.name === "Dana");
     return danaSeat && !danaSeat.connected && danaSeat.disconnectExpiresAt;
-  }, "drop-out grace timer");
+  }, "leave grace timer");
+  const danaReturn = connectPlayer("Dana");
+  await waitFor(() => danaReturn.socket.connected, "reserved seat rejoin connection");
+  await emit(danaReturn.socket, "room:join", { roomId: solo.state.id, name: danaReturn.name, deviceId: dana.deviceId });
+  await waitFor(() => danaReturn.state?.players[danaSeatIndex]?.name === "Dana" && danaReturn.state.players[danaSeatIndex].connected, "same seat rejoin");
+  if (danaReturn.state.players.filter((player) => player.isBot).length !== 2) {
+    throw new Error("Expected rejoin before grace to keep the reserved seat");
+  }
+  danaReturn.socket.disconnect();
   await waitFor(() => solo.state?.players.filter((player) => player.isBot).length === 3, "drop-out CPU replacement", 35000);
+  const danaLate = connectPlayer("Dana");
+  await waitFor(() => danaLate.socket.connected, "late reserved seat rejoin connection");
+  await emit(danaLate.socket, "room:join", { roomId: solo.state.id, name: danaLate.name, deviceId: dana.deviceId });
+  await waitFor(() => danaLate.state?.players[danaSeatIndex]?.name === "Dana" && danaLate.state.players[danaSeatIndex].connected, "same replacement seat rejoin");
+  if (danaLate.state.players.filter((player) => player.isBot).length !== 2) {
+    throw new Error("Expected late rejoin to reclaim the replacement CPU seat");
+  }
+  danaLate.socket.disconnect();
 
   for (let i = 0; i < 240 && solo.state.phase !== "complete"; i += 1) {
     if (solo.state.isYourTurn) {
@@ -184,6 +201,7 @@ function waitFor(predicate, label, timeout = 5000) {
 
   players.forEach((player) => player.socket.disconnect());
   solo.socket.disconnect();
+  dana.socket.disconnect();
   console.log(`Smoke test passed for room ${created.roomId}`);
 })().catch((error) => {
   console.error(error);
