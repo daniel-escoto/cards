@@ -151,6 +151,10 @@ function resetHandState(room) {
   }
 }
 
+function isHandInProgress(room) {
+  return ["preflop", "flop", "turn", "river", "showdown"].includes(room.phase);
+}
+
 function startHand(room) {
   const seated = room.players.filter((player) => player.stack > 0);
   if (seated.length < 2) {
@@ -193,6 +197,20 @@ function startNextHand(room) {
   const nextDealer = nextIndex(room, room.dealer, (player) => player.stack > 0);
   room.dealer = nextDealer >= 0 ? nextDealer : 0;
   startHand(room);
+}
+
+function endGame(room) {
+  if (isHandInProgress(room)) {
+    for (const player of room.players) {
+      player.stack += player.invested;
+    }
+  }
+
+  resetHandState(room);
+  room.status = "lobby";
+  room.phase = "lobby";
+  room.turn = null;
+  room.message = "Game ended by host.";
 }
 
 function dealStreet(room) {
@@ -341,8 +359,9 @@ function serializeRoom(room, viewerId) {
     turn: room.turn,
     isYourTurn: room.turn === viewerId,
     toCall,
-    canStart: room.hostId === viewerId && room.players.filter((p) => p.stack > 0).length >= 2 && room.phase !== "preflop" && room.phase !== "flop" && room.phase !== "turn" && room.phase !== "river",
+    canStart: room.hostId === viewerId && room.players.filter((p) => p.stack > 0).length >= 2 && !isHandInProgress(room),
     canNextHand: room.hostId === viewerId && room.phase === "complete" && room.players.filter((p) => p.stack > 0).length >= 2,
+    canEndGame: room.hostId === viewerId && room.phase !== "lobby",
     community: room.community.map(publicCard),
     winners: room.winners,
     players: room.players.map((player, index) => ({
@@ -442,6 +461,16 @@ io.on("connection", (socket) => {
     const playerId = socketPlayer.get(socket.id);
     if (!room || room.hostId !== playerId) return ack?.({ ok: false, error: "Only the host can deal the next hand." });
     startNextHand(room);
+    ack?.({ ok: true });
+    emitRoom(room);
+  });
+
+  socket.on("game:end", (_, ack) => {
+    const room = rooms.get(socketRoom.get(socket.id));
+    const playerId = socketPlayer.get(socket.id);
+    if (!room || room.hostId !== playerId) return ack?.({ ok: false, error: "Only the host can end the game." });
+    if (room.phase === "lobby") return ack?.({ ok: false, error: "No game is in progress." });
+    endGame(room);
     ack?.({ ok: true });
     emitRoom(room);
   });

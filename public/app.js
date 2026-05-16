@@ -281,6 +281,9 @@ function renderControls(hero) {
   if (state.canNextHand) {
     addButton("Next hand", "game:next");
   }
+  if (state.canEndGame) {
+    addButton("End game", "game:end", "danger");
+  }
 
   if (!state.isYourTurn || !hero) {
     const current = state.players.find((player) => player.id === state.turn);
@@ -326,9 +329,10 @@ function changeRaise(direction) {
   playSound("tick");
 }
 
-function addButton(label, eventName) {
+function addButton(label, eventName, className = "") {
   const button = document.createElement("button");
   button.textContent = label;
+  if (className) button.className = className;
   button.addEventListener("click", () => emitWithAck(eventName, {}, "click"));
   gameButtons.appendChild(button);
 }

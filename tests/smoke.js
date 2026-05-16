@@ -59,6 +59,17 @@ function waitFor(predicate, label, timeout = 5000) {
 
   await emit(alice.socket, "game:start");
   await waitFor(() => alice.state?.phase === "preflop", "hand start");
+  await emit(alice.socket, "game:end");
+  await waitFor(() => alice.state?.phase === "lobby", "game end");
+  if (alice.state.players.reduce((sum, player) => sum + player.stack, 0) !== 3000) {
+    throw new Error("Chip totals did not balance after ending the game");
+  }
+  if (alice.state.pot !== 0 || alice.state.players.some((player) => player.cards.length > 0)) {
+    throw new Error("Expected ended game to clear the active hand");
+  }
+
+  await emit(alice.socket, "game:start");
+  await waitFor(() => alice.state?.phase === "preflop", "second hand start");
 
   for (let i = 0; i < 80 && alice.state.phase !== "complete"; i += 1) {
     const current = players.find((player) => player.state?.isYourTurn);

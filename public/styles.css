@@ -71,6 +71,11 @@ button:disabled {
   border: 1px solid var(--line);
 }
 
+.danger {
+  color: #170d0c;
+  background: var(--danger);
+}
+
 .app {
   width: min(1180px, 100%);
   min-height: 100vh;
