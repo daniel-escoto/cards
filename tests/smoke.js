@@ -67,6 +67,12 @@ function waitFor(predicate, label, timeout = 5000) {
   if (!alice.state.actionLog?.some((entry) => entry.text.includes("small blind"))) {
     throw new Error("Expected action log to include blind posts");
   }
+  carmen.socket.disconnect();
+  const carmenAgain = connectPlayer("Carmen");
+  await waitFor(() => carmenAgain.socket.connected, "in-progress rejoin connection");
+  await emit(carmenAgain.socket, "room:join", { roomId: created.roomId, name: carmenAgain.name, deviceId: carmen.deviceId });
+  await waitFor(() => carmenAgain.state?.phase === "preflop" && carmenAgain.state?.players.length === 3, "in-progress existing player rejoin");
+  players[2] = carmenAgain;
   aliceAgain.socket.disconnect();
   await emit(alice.socket, "game:end");
   await waitFor(() => alice.state?.phase === "lobby", "game end");
@@ -98,6 +104,10 @@ function waitFor(predicate, label, timeout = 5000) {
   if (alice.state.phase !== "complete") throw new Error(`Expected complete hand, got ${alice.state.phase}`);
   if (!sawBettingAction) throw new Error("Expected action log to include betting actions");
   if (!alice.state.winners.length) throw new Error("Expected at least one winner");
+  const duplicateWinner = alice.state.winners.find((winner, index, list) => (
+    list.findIndex((item) => item.playerId === winner.playerId && item.hand === winner.hand) !== index
+  ));
+  if (duplicateWinner) throw new Error("Expected same-player same-hand side pots to be combined");
   if (alice.state.players.reduce((sum, player) => sum + player.stack, 0) !== 3000) {
     throw new Error("Chip totals did not balance after showdown");
   }

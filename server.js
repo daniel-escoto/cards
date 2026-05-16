@@ -321,6 +321,20 @@ function buildSidePots(room) {
   return pots;
 }
 
+function combineWinnerSummaries(summaries) {
+  const combined = new Map();
+  for (const summary of summaries) {
+    const key = `${summary.playerId}:${summary.hand}`;
+    const existing = combined.get(key);
+    if (existing) {
+      existing.amount += summary.amount;
+    } else {
+      combined.set(key, { ...summary });
+    }
+  }
+  return [...combined.values()];
+}
+
 function settleShowdown(room) {
   room.phase = "showdown";
   room.turn = null;
@@ -350,9 +364,9 @@ function settleShowdown(room) {
   }
 
   room.phase = "complete";
-  room.winners = summaries;
-  room.message = summaries.map((winner) => `${winner.name} wins ${winner.amount} with ${winner.hand}`).join(" · ");
-  for (const winner of summaries) {
+  room.winners = combineWinnerSummaries(summaries);
+  room.message = room.winners.map((winner) => `${winner.name} wins ${winner.amount} with ${winner.hand}`).join(" · ");
+  for (const winner of room.winners) {
     logAction(room, `${winner.name} wins ${winner.amount} with ${winner.hand}.`);
   }
 }

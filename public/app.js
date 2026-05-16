@@ -452,8 +452,8 @@ socket.on("room:update", (room) => {
 
 function attemptAutoRejoin() {
   const roomId = roomInput.value.trim().toUpperCase();
-  const name = nameInput.value.trim();
-  if (socket.connected && !state && roomId && name) {
+  const name = nameInput.value.trim() || localStorage.getItem("holdem:name") || "Player";
+  if (socket.connected && !state && roomId) {
     socket.emit("room:join", { roomId, name, deviceId: getDeviceId() }, (response) => {
       if (!response?.ok) {
         joinError.textContent = response?.error || "Could not rejoin table.";
