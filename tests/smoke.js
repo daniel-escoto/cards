@@ -117,6 +117,15 @@ function waitFor(predicate, label, timeout = 5000) {
   if (alice.state.players.reduce((sum, player) => sum + player.stack, 0) !== 3000) {
     throw new Error("Chip totals did not balance after showdown");
   }
+  const hiddenOpponent = alice.state.players.find((player) => !player.isYou && !player.isBot);
+  if (hiddenOpponent?.cards.some((card) => card?.code)) {
+    throw new Error("Expected opponent cards to stay hidden after hand completion");
+  }
+  await emit(alice.socket, "game:showCards");
+  await waitFor(() => alice.state.players.find((player) => player.isYou)?.showCards, "show hand");
+  if (!bobAgain.state.players.find((player) => player.name === "Alice")?.cards.every((card) => card?.code)) {
+    throw new Error("Expected shown hand to be visible to other players");
+  }
 
   const solo = connectPlayer("Solo");
   await waitFor(() => solo.socket.connected, "computer game connection");
@@ -140,7 +149,11 @@ function waitFor(predicate, label, timeout = 5000) {
     throw new Error("Expected joining player to take a CPU seat");
   }
   dana.socket.disconnect();
-  await waitFor(() => solo.state?.players.filter((player) => player.isBot).length === 3, "drop-out CPU replacement");
+  await waitFor(() => {
+    const danaSeat = solo.state?.players.find((player) => player.name === "Dana");
+    return danaSeat && !danaSeat.connected && danaSeat.disconnectExpiresAt;
+  }, "drop-out grace timer");
+  await waitFor(() => solo.state?.players.filter((player) => player.isBot).length === 3, "drop-out CPU replacement", 35000);
 
   for (let i = 0; i < 240 && solo.state.phase !== "complete"; i += 1) {
     if (solo.state.isYourTurn) {

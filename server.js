@@ -64,6 +64,8 @@ function serializePlayerForStorage(player) {
     allIn: player.allIn,
     bet: player.bet,
     invested: player.invested,
+    showCards: Boolean(player.showCards),
+    disconnectExpiresAt: player.disconnectExpiresAt || null,
     connected: false,
     isBot: player.isBot,
     replacedPlayerId: player.replacedPlayerId || null,
@@ -130,6 +132,8 @@ function restorePlayer(raw) {
     allIn: Boolean(raw.allIn),
     bet: Math.max(0, Math.floor(Number(raw.bet) || 0)),
     invested: Math.max(0, Math.floor(Number(raw.invested) || 0)),
+    showCards: Boolean(raw.showCards),
+    disconnectExpiresAt: null,
     connected: false,
     isBot: Boolean(raw.isBot),
     replacedPlayerId: raw.replacedPlayerId || null,
@@ -295,10 +299,12 @@ function makePlayer({ id, name, socketId = null, isBot = false }) {
     allIn: false,
     bet: 0,
     invested: 0,
+    showCards: false,
     connected: true,
     isBot,
     replacedPlayerId: null,
     replacedPlayerName: null,
+    disconnectExpiresAt: null,
     disconnectTimer: null,
   };
 }
@@ -333,6 +339,7 @@ function attachSocketToPlayer(socket, room, player) {
   if (!player.socketIds) player.socketIds = new Set();
   clearTimeout(player.disconnectTimer);
   player.disconnectTimer = null;
+  player.disconnectExpiresAt = null;
   player.socketIds.add(socket.id);
   player.connected = true;
   socketRoom.set(socket.id, room.id);
@@ -378,6 +385,7 @@ function convertHumanToBot(room, player) {
   player.isBot = true;
   clearTimeout(player.disconnectTimer);
   player.disconnectTimer = null;
+  player.disconnectExpiresAt = null;
   if (room.turn === oldId) room.turn = player.id;
   replaceActedId(room, oldId, player.id);
   if (room.hostId === oldId) chooseNextHost(room);
@@ -444,6 +452,7 @@ function resetHandState(room) {
     player.allIn = player.stack <= 0;
     player.bet = 0;
     player.invested = 0;
+    player.showCards = false;
   }
 }
 
@@ -527,6 +536,7 @@ function restartGame(room) {
     player.allIn = false;
     player.bet = 0;
     player.invested = 0;
+    player.showCards = false;
   }
   room.status = "lobby";
   room.phase = "lobby";
@@ -752,6 +762,21 @@ function applyPlayerAction(room, playerId, { type, raiseTo }) {
   return { ok: true };
 }
 
+function showPlayerCards(room, playerId) {
+  const player = room?.players.find((item) => item.id === playerId);
+  if (!room || !player) return { ok: false, error: "Player not found." };
+  if (room.phase !== "complete") return { ok: false, error: "You can show your hand after the hand ends." };
+  if (!player.hand.length) return { ok: false, error: "No hand to show." };
+  if (player.showCards) return { ok: true };
+  player.showCards = true;
+  room.message = `${player.name} shows their hand.`;
+  logAction(room, room.message, {
+    playerId: player.id,
+    action: `Shows ${player.hand.join(" ")}`,
+  });
+  return { ok: true };
+}
+
 function cardRankValue(card) {
   return ranks.indexOf(card[0]) + 2;
 }
@@ -846,6 +871,7 @@ function serializeRoom(room, viewerId) {
     turn: room.turn,
     isYourTurn: room.turn === viewerId,
     toCall,
+    canShowHand: room.phase === "complete" && Boolean(viewer?.hand?.length) && !viewer.showCards,
     canStart: room.hostId === viewerId && room.players.filter((p) => p.stack > 0).length >= 2 && !isHandInProgress(room),
     canNextHand: room.hostId === viewerId && room.phase === "complete" && room.players.filter((p) => p.stack > 0).length >= 2,
     canEndGame: room.hostId === viewerId && room.phase !== "lobby",
@@ -862,11 +888,13 @@ function serializeRoom(room, viewerId) {
       allIn: player.allIn,
       connected: player.connected,
       isBot: player.isBot,
+      showCards: Boolean(player.showCards),
+      disconnectExpiresAt: player.disconnectExpiresAt || null,
       dealer: index === room.dealer,
       isTurn: room.turn === player.id,
       isYou: player.id === viewerId,
       canKick: room.hostId === viewerId && player.id !== viewerId && !player.isBot && !isHandInProgress(room),
-      cards: player.id === viewerId || room.phase === "complete" || room.phase === "showdown"
+      cards: player.id === viewerId || player.showCards
         ? player.hand.map(publicCard)
         : player.hand.map(() => null),
     })),
@@ -907,6 +935,7 @@ function removePlayerAfterDisconnect(room, player) {
 
   clearTimeout(player.disconnectTimer);
   player.disconnectTimer = null;
+  player.disconnectExpiresAt = null;
   room.deadPot += player.invested;
   player.bet = 0;
   player.invested = 0;
@@ -943,9 +972,13 @@ function leaveCurrentRoom(socket, { removeAfterGrace = true } = {}) {
     player.socketIds.delete(socket.id);
     player.connected = player.socketIds.size > 0;
     if (!player.connected && !player.isBot) {
-      if (room.tableSize) {
-        convertHumanToBot(room, player);
-      } else if (removeAfterGrace) {
+      if (!removeAfterGrace) {
+        player.disconnectExpiresAt = null;
+        if (room.tableSize) {
+          convertHumanToBot(room, player);
+        }
+      } else {
+        player.disconnectExpiresAt = Date.now() + DISCONNECT_GRACE_MS;
         clearTimeout(player.disconnectTimer);
         player.disconnectTimer = setTimeout(() => {
           const latestRoom = rooms.get(room.id);
@@ -1082,6 +1115,15 @@ io.on("connection", (socket) => {
     if (!room || room.hostId !== playerId) return ack?.({ ok: false, error: "Only the host can restart." });
     restartGame(room);
     ack?.({ ok: true });
+    emitRoom(room);
+  });
+
+  socket.on("game:showCards", (_, ack) => {
+    const room = rooms.get(socketRoom.get(socket.id));
+    const playerId = socketPlayer.get(socket.id);
+    const result = showPlayerCards(room, playerId);
+    if (!result.ok) return ack?.(result);
+    ack?.(result);
     emitRoom(room);
   });
 

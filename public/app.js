@@ -19,6 +19,7 @@ const endGameBtn = document.querySelector("#endGameBtn");
 const shareGameBtn = document.querySelector("#shareGameBtn");
 const backToMenuBtn = document.querySelector("#backToMenuBtn");
 const menuRoomCode = document.querySelector("#menuRoomCode");
+const menuPlayers = document.querySelector("#menuPlayers");
 const phaseTitle = document.querySelector("#phaseTitle");
 const potValue = document.querySelector("#potValue");
 const betValue = document.querySelector("#betValue");
@@ -42,6 +43,7 @@ let raiseState = { value: 0, min: 0, max: 0, step: 20 };
 let audioContext = null;
 let hasRenderedRoom = false;
 let leavingEndedRoom = false;
+let menuTimer = null;
 const params = new URLSearchParams(window.location.search);
 const initialRoomId = (params.get("room") || localStorage.getItem("holdem:lastRoom") || "").toUpperCase();
 if (initialRoomId) roomInput.value = initialRoomId;
@@ -108,12 +110,52 @@ function showTable(room) {
 
 function hideGameMenu() {
   gameMenuModal.classList.add("hidden");
+  clearInterval(menuTimer);
+  menuTimer = null;
 }
 
-function showGameMenu() {
+function roundStatus(player) {
+  if (!player.connected && player.disconnectExpiresAt) {
+    const seconds = Math.max(0, Math.ceil((new Date(player.disconnectExpiresAt).getTime() - Date.now()) / 1000));
+    return seconds > 0 ? `Away ${seconds}s` : "Away";
+  }
+  if (!player.connected) return "Away";
+  if (["lobby", "complete"].includes(state?.phase)) return player.connected ? "Seated" : "Away";
+  if (player.folded) return "Folded";
+  if (player.allIn) return "All in";
+  if (player.isTurn) return "Acting";
+  if (player.stack > 0 || player.invested > 0) return "In round";
+  return "Out";
+}
+
+function renderMenuPlayers() {
   if (!state) return;
   menuRoomCode.textContent = state.id;
   endGameBtn.classList.toggle("hidden", !state.canEndGame);
+  menuPlayers.innerHTML = state.players.map((player) => `
+    <article class="menu-player ${player.isYou ? "you" : ""} ${player.folded ? "folded" : ""}">
+      <div class="menu-player-head">
+        <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
+        <span class="seat-badges">
+          ${player.dealer ? '<span class="pill">D</span>' : ""}
+          ${player.isBot ? '<span class="pill">CPU</span>' : ""}
+        </span>
+      </div>
+      <div class="menu-player-cards">${player.cards.map(cardTemplate).join("")}</div>
+      <div class="menu-player-stats">
+        <span>Stack <strong>${player.stack}</strong></span>
+        <span>Bet <strong>${player.bet}</strong></span>
+        <span>In pot <strong>${player.invested}</strong></span>
+        <em>${escapeHtml(roundStatus(player))}</em>
+      </div>
+    </article>
+  `).join("");
+}
+
+function showGameMenu() {
+  renderMenuPlayers();
+  clearInterval(menuTimer);
+  menuTimer = setInterval(renderMenuPlayers, 1000);
   gameMenuModal.classList.remove("hidden");
 }
 
@@ -369,6 +411,23 @@ function renderSeatCard(player, isActiveTurn = player.isTurn) {
   `;
 }
 
+function renderShownHandCard(player) {
+  return `
+    <article class="action-feed-card shown-hand-card ${player.isYou ? "you" : ""}">
+      <div class="action-card-head">
+        <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
+        <span class="pill">Shown</span>
+      </div>
+      <div class="shown-hand">${player.cards.map(cardTemplate).join("")}</div>
+      <div class="action-card-stats">
+        <span>Stack <strong>${player.stack}</strong></span>
+        <span>In pot <strong>${player.invested}</strong></span>
+        <em>${escapeHtml(roundStatus(player))}</em>
+      </div>
+    </article>
+  `;
+}
+
 function currentTurnPlayer() {
   const index = findLastIndex(state.players, (player) => player.id === state.turn);
   return index >= 0 ? state.players[index] : null;
@@ -414,7 +473,10 @@ function renderActionFeed() {
       </article>
     `;
   }).join("");
-  return `${historyMarkup}${activePlayer ? renderSeatCard(activePlayer, true) : ""}`;
+  const shownHands = state.phase === "complete"
+    ? state.players.filter((player) => player.showCards).map(renderShownHandCard).join("")
+    : "";
+  return `${historyMarkup}${shownHands}${activePlayer ? renderSeatCard(activePlayer, true) : ""}`;
 }
 
 function inferActionSound(previous, next) {
@@ -480,6 +542,7 @@ function render() {
   )).join("");
 
   renderControls(hero);
+  if (!gameMenuModal.classList.contains("hidden")) renderMenuPlayers();
   requestAnimationFrame(scrollPlayersToBottom);
 }
 
@@ -498,6 +561,9 @@ function renderControls(hero) {
   }
   if (state.canNextHand) {
     addButton("Next hand", "game:next");
+  }
+  if (state.canShowHand) {
+    addButton("Show hand", "game:showCards", "secondary");
   }
 
   if (!state.isYourTurn || !hero) {

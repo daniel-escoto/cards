@@ -288,6 +288,8 @@ select:focus {
 
 .modal-panel {
   width: min(420px, 100%);
+  max-height: min(720px, calc(100dvh - 40px));
+  overflow-y: auto;
   display: grid;
   gap: 18px;
   padding: 16px;
@@ -307,6 +309,73 @@ select:focus {
 .modal-actions {
   display: grid;
   gap: 10px;
+}
+
+.menu-players {
+  display: grid;
+  gap: 8px;
+}
+
+.menu-player {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(13, 19, 22, 0.72);
+}
+
+.menu-player.you {
+  border-color: rgba(224, 177, 90, 0.5);
+}
+
+.menu-player.folded {
+  opacity: 0.68;
+}
+
+.menu-player-head,
+.menu-player-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.menu-player-cards,
+.shown-hand {
+  display: flex;
+  gap: 5px;
+}
+
+.menu-player-cards .card,
+.shown-hand .card {
+  width: 30px;
+  padding: 4px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+
+.menu-player-cards .card .suit,
+.shown-hand .card .suit {
+  font-size: 13px;
+}
+
+.menu-player-stats {
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.menu-player-stats strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.menu-player-stats em {
+  color: var(--accent);
+  font-style: normal;
 }
 
 .eyebrow {
