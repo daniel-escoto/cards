@@ -14,8 +14,10 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-      RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+      RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      RAILWAY_PROJECT_ID: 81112f2e-941e-4cb0-a842-ffdced4b9160
+      RAILWAY_ENVIRONMENT_ID: 4453d092-6816-4fa4-bc91-ec2b4c7e5a85
+      RAILWAY_SERVICE_ID: 264ceb30-e2aa-4636-a02e-8cb917359002
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,9 +26,4 @@ jobs:
         run: npm install -g @railway/cli
 
       - name: Deploy
-        run: |
-          if [ -n "$RAILWAY_SERVICE_ID" ]; then
-            railway up --ci --service "$RAILWAY_SERVICE_ID"
-          else
-            railway up --ci
-          fi
+        run: railway up --ci --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_ENVIRONMENT_ID" --service "$RAILWAY_SERVICE_ID"

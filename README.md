@@ -31,9 +31,8 @@ The smoke test creates a three-player room, plays a hand through showdown, and v
 
 ## Deployment
 
-Every push to `main` runs the GitHub Actions workflow in `.github/workflows/deploy.yml` and deploys to Railway with `railway up --ci`.
+Every push to `main` runs the GitHub Actions workflow in `.github/workflows/deploy.yml` and deploys to the Railway `cards` project, `production` environment, `holdem` service with `railway up --ci`.
 
-Add these GitHub repository secrets:
+Add this GitHub repository secret:
 
-- `RAILWAY_TOKEN`: Railway project token for the target project/environment.
-- `RAILWAY_SERVICE_ID`: optional Railway service id, only needed if the token/project has multiple services.
+- `RAILWAY_API_TOKEN`: Railway account or workspace token with access to the project.
