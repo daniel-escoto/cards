@@ -407,6 +407,10 @@ select:focus {
   inset: 86px 18px 22px;
 }
 
+.players-jump-bottom {
+  display: none;
+}
+
 .seat {
   position: absolute;
   width: min(214px, 42vw);
@@ -801,6 +805,25 @@ select:focus {
     overscroll-behavior: contain;
     padding-right: 2px;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .players-jump-bottom {
+    position: absolute;
+    right: 14px;
+    bottom: 14px;
+    z-index: 3;
+    width: 42px;
+    min-height: 42px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    color: var(--text);
+    background: rgba(16, 22, 26, 0.88);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.32);
+    font-size: 24px;
+    line-height: 1;
   }
 
   .seat {
