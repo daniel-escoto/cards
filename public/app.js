@@ -24,7 +24,6 @@ const betValue = document.querySelector("#betValue");
 const community = document.querySelector("#community");
 const message = document.querySelector("#message");
 const players = document.querySelector("#players");
-const playersJumpBottom = document.querySelector("#playersJumpBottom");
 const heroHand = document.querySelector("#heroHand");
 const winnerList = document.querySelector("#winnerList");
 const turnInfo = document.querySelector("#turnInfo");
@@ -439,26 +438,12 @@ function render() {
   )).join("");
 
   renderControls(hero);
-  scrollCurrentPlayerIntoView();
-  requestAnimationFrame(updatePlayersJumpButton);
-}
-
-function scrollCurrentPlayerIntoView() {
-  if (!window.matchMedia("(max-width: 779px)").matches) return;
-  const current = players.querySelector(".seat.turn");
-  if (!current) return;
-  const top = current.offsetTop - (players.clientHeight - current.offsetHeight) / 2;
-  players.scrollTo({ top: Math.max(0, top), behavior: hasRenderedRoom ? "smooth" : "auto" });
-}
-
-function updatePlayersJumpButton() {
-  const isMobile = window.matchMedia("(max-width: 779px)").matches;
-  const distanceFromBottom = players.scrollHeight - players.clientHeight - players.scrollTop;
-  playersJumpBottom.classList.toggle("hidden", !isMobile || distanceFromBottom <= 16);
+  requestAnimationFrame(scrollPlayersToBottom);
 }
 
 function scrollPlayersToBottom() {
-  players.scrollTo({ top: players.scrollHeight, behavior: "smooth" });
+  if (!window.matchMedia("(max-width: 779px)").matches) return;
+  players.scrollTo({ top: players.scrollHeight, behavior: hasRenderedRoom ? "smooth" : "auto" });
 }
 
 function renderControls(hero) {
@@ -658,9 +643,6 @@ players.addEventListener("click", (event) => {
   kickPlayer(button.dataset.kickPlayer);
 });
 
-players.addEventListener("scroll", updatePlayersJumpButton, { passive: true });
-playersJumpBottom.addEventListener("click", scrollPlayersToBottom);
-
 scoreMenuBtn.addEventListener("click", () => showWelcome());
 
 socket.on("room:update", (room) => {
@@ -702,10 +684,10 @@ attemptAutoRejoin();
 
 window.addEventListener("resize", () => {
   if (document.body.classList.contains("game-open")) setGameViewportHeight();
-  updatePlayersJumpButton();
+  requestAnimationFrame(scrollPlayersToBottom);
 });
 
 window.visualViewport?.addEventListener("resize", () => {
   if (document.body.classList.contains("game-open")) setGameViewportHeight();
-  updatePlayersJumpButton();
+  requestAnimationFrame(scrollPlayersToBottom);
 });
