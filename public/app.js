@@ -393,7 +393,7 @@ function render() {
   roomCode.textContent = state.id;
   phaseTitle.textContent = phaseLabel(state.phase);
   potValue.textContent = state.pot;
-  betValue.textContent = state.currentBet;
+  betValue.textContent = state.toCall;
   message.textContent = state.message || "";
 
   community.innerHTML = state.community.length
@@ -420,8 +420,8 @@ function render() {
             <strong>${player.stack}</strong>
           </div>
           <div class="seat-line bet-line">
-            <span>Bet</span>
-            <strong>${player.bet}</strong>
+            <span>In pot</span>
+            <strong>${player.invested}</strong>
           </div>
         </div>
         <span class="seat-status">${playerTableStatus(player)}</span>
