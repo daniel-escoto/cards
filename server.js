@@ -5,6 +5,7 @@ const path = require("path");
 const { Server } = require("socket.io");
 const { Hand } = require("pokersolver");
 const { customAlphabet } = require("nanoid");
+const QRCode = require("qrcode");
 
 const app = express();
 const server = http.createServer(app);
@@ -25,6 +26,24 @@ const STATE_FILE = process.env.GAME_STATE_FILE || path.join(DEFAULT_DATA_DIR, "r
 const SAVE_DEBOUNCE_MS = 150;
 
 app.use(express.static("public"));
+
+app.get("/qr.svg", async (req, res) => {
+  const text = String(req.query.text || "").slice(0, 512);
+  if (!text) return res.status(400).type("text/plain").send("Missing text");
+  try {
+    const svg = await QRCode.toString(text, {
+      type: "svg",
+      margin: 1,
+      color: {
+        dark: "#0f1619",
+        light: "#f7f1e6",
+      },
+    });
+    res.type("image/svg+xml").send(svg);
+  } catch (error) {
+    res.status(500).type("text/plain").send("Could not generate QR code");
+  }
+});
 
 const rooms = new Map();
 const socketRoom = new Map();

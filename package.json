@@ -16,6 +16,7 @@
     "express": "^5.2.1",
     "nanoid": "^5.1.11",
     "pokersolver": "^2.1.4",
+    "qrcode": "^1.5.4",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {

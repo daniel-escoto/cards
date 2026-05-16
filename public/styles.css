@@ -379,6 +379,38 @@ select:focus {
   font-style: normal;
 }
 
+.share-panel {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(13, 19, 22, 0.72);
+}
+
+.share-panel img {
+  width: min(210px, 100%);
+  aspect-ratio: 1;
+  justify-self: center;
+  border-radius: 8px;
+  background: #f7f1e6;
+}
+
+.share-link-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.share-link-row input {
+  min-height: 42px;
+  font-size: 13px;
+}
+
+.share-link-row button {
+  min-height: 42px;
+}
+
 .color-swatches {
   display: flex;
   flex-wrap: wrap;
@@ -698,9 +730,8 @@ select:focus {
 @media (min-width: 780px) {
   .players {
     inset: 94px 22px 24px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     align-content: end;
-    align-items: end;
   }
 
   .street-divider {
@@ -708,7 +739,12 @@ select:focus {
   }
 
   .action-feed-card {
-    width: min(300px, 100%);
+    width: 100%;
+  }
+
+  .action-feed-card:nth-of-type(odd),
+  .action-feed-card:nth-of-type(even) {
+    justify-self: stretch;
   }
 }
 

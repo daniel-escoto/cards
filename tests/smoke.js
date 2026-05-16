@@ -43,6 +43,10 @@ function waitFor(predicate, label, timeout = 5000) {
 
   await waitFor(() => alice.socket.connected && bob.socket.connected && carmen.socket.connected, "connections");
   const created = await emit(alice.socket, "room:create", { name: alice.name, deviceId: alice.deviceId });
+  const qrResponse = await fetch(`${URL}/qr.svg?text=${encodeURIComponent(`${URL}/?room=${created.roomId}`)}`);
+  if (!qrResponse.ok || !(await qrResponse.text()).includes("<svg")) {
+    throw new Error("Expected QR endpoint to return SVG");
+  }
   await emit(bob.socket, "room:join", { roomId: created.roomId, name: bob.name, deviceId: bob.deviceId });
   await emit(carmen.socket, "room:join", { roomId: created.roomId, name: carmen.name, deviceId: carmen.deviceId });
   await waitFor(() => players.every((player) => player.state?.players.length === 3), "all players in room");

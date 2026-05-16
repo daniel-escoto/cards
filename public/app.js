@@ -20,6 +20,10 @@ const shareGameBtn = document.querySelector("#shareGameBtn");
 const backToMenuBtn = document.querySelector("#backToMenuBtn");
 const menuRoomCode = document.querySelector("#menuRoomCode");
 const menuPlayers = document.querySelector("#menuPlayers");
+const sharePanel = document.querySelector("#sharePanel");
+const shareQr = document.querySelector("#shareQr");
+const shareLink = document.querySelector("#shareLink");
+const copyShareBtn = document.querySelector("#copyShareBtn");
 const phaseTitle = document.querySelector("#phaseTitle");
 const potValue = document.querySelector("#potValue");
 const betValue = document.querySelector("#betValue");
@@ -114,6 +118,7 @@ function showTable(room) {
 
 function hideGameMenu() {
   gameMenuModal.classList.add("hidden");
+  sharePanel.classList.add("hidden");
   clearInterval(menuTimer);
   menuTimer = null;
 }
@@ -220,6 +225,13 @@ function setRoomUrl(roomId) {
   const url = new URL(window.location.href);
   url.searchParams.set("room", normalized);
   window.history.replaceState({}, "", url);
+}
+
+function inviteUrl() {
+  if (!state) return "";
+  const url = new URL(window.location.href);
+  url.searchParams.set("room", state.id);
+  return url.toString();
 }
 
 function clearRoomUrl() {
@@ -652,15 +664,24 @@ function kickPlayer(playerId) {
   emitWithAck("room:kick", { playerId }, "click");
 }
 
-async function copyInviteLink() {
-  if (!state) return;
+async function copyText(text, button) {
+  if (!text) return;
   ensureAudio();
-  const url = new URL(window.location.href);
-  url.searchParams.set("room", state.id);
-  await navigator.clipboard.writeText(url.toString());
+  await navigator.clipboard.writeText(text);
   playSound("click");
-  shareGameBtn.textContent = "Copied";
-  setTimeout(() => { shareGameBtn.textContent = "Share"; }, 1200);
+  const original = button.textContent;
+  button.textContent = "Copied";
+  setTimeout(() => { button.textContent = original; }, 1200);
+}
+
+function showSharePanel() {
+  const link = inviteUrl();
+  if (!link) return;
+  ensureAudio();
+  playSound("click");
+  shareLink.value = link;
+  shareQr.src = `/qr.svg?text=${encodeURIComponent(link)}`;
+  sharePanel.classList.toggle("hidden");
 }
 
 function emitWithAck(eventName, payload, pendingSound = null) {
@@ -766,7 +787,8 @@ endGameBtn.addEventListener("click", () => {
   emitWithAck("game:end", {}, "click");
 });
 
-shareGameBtn.addEventListener("click", copyInviteLink);
+shareGameBtn.addEventListener("click", showSharePanel);
+copyShareBtn.addEventListener("click", () => copyText(shareLink.value, copyShareBtn));
 
 backToMenuBtn.addEventListener("click", () => {
   hideGameMenu();
