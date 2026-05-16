@@ -17,6 +17,7 @@ const message = document.querySelector("#message");
 const players = document.querySelector("#players");
 const heroHand = document.querySelector("#heroHand");
 const winnerList = document.querySelector("#winnerList");
+const actionLog = document.querySelector("#actionLog");
 const turnInfo = document.querySelector("#turnInfo");
 const gameButtons = document.querySelector("#gameButtons");
 const betControls = document.querySelector("#betControls");
@@ -275,8 +276,21 @@ function render() {
   winnerList.innerHTML = state.winners.map((winner) => (
     `<div>${escapeHtml(winner.name)} wins ${winner.amount} with ${escapeHtml(winner.hand)}</div>`
   )).join("");
+  actionLog.innerHTML = (state.actionLog || []).slice(-6).map((entry) => (
+    `<div>${escapeHtml(entry.text)}</div>`
+  )).join("");
+  actionLog.classList.toggle("hidden", !state.actionLog?.length);
 
   renderControls(hero);
+  scrollCurrentPlayerIntoView();
+}
+
+function scrollCurrentPlayerIntoView() {
+  if (!window.matchMedia("(max-width: 779px)").matches) return;
+  const current = players.querySelector(".seat.turn");
+  if (!current) return;
+  const top = current.offsetTop - (players.clientHeight - current.offsetHeight) / 2;
+  players.scrollTo({ top: Math.max(0, top), behavior: hasRenderedRoom ? "smooth" : "auto" });
 }
 
 function renderControls(hero) {

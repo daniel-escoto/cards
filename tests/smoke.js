@@ -64,6 +64,9 @@ function waitFor(predicate, label, timeout = 5000) {
 
   await emit(alice.socket, "game:start");
   await waitFor(() => alice.state?.phase === "preflop", "hand start");
+  if (!alice.state.actionLog?.some((entry) => entry.text.includes("small blind"))) {
+    throw new Error("Expected action log to include blind posts");
+  }
   aliceAgain.socket.disconnect();
   await emit(alice.socket, "game:end");
   await waitFor(() => alice.state?.phase === "lobby", "game end");
@@ -76,6 +79,7 @@ function waitFor(predicate, label, timeout = 5000) {
 
   await emit(alice.socket, "game:start");
   await waitFor(() => alice.state?.phase === "preflop", "second hand start");
+  let sawBettingAction = false;
 
   for (let i = 0; i < 80 && alice.state.phase !== "complete"; i += 1) {
     const current = players.find((player) => player.state?.isYourTurn);
@@ -85,10 +89,14 @@ function waitFor(predicate, label, timeout = 5000) {
     }
     const type = current.state.toCall > 0 ? "call" : "check";
     await emit(current.socket, "game:action", { type });
+    sawBettingAction = sawBettingAction || Boolean(alice.state.actionLog?.some((entry) => (
+      entry.text.includes("calls") || entry.text.includes("checks")
+    )));
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
 
   if (alice.state.phase !== "complete") throw new Error(`Expected complete hand, got ${alice.state.phase}`);
+  if (!sawBettingAction) throw new Error("Expected action log to include betting actions");
   if (!alice.state.winners.length) throw new Error("Expected at least one winner");
   if (alice.state.players.reduce((sum, player) => sum + player.stack, 0) !== 3000) {
     throw new Error("Chip totals did not balance after showdown");

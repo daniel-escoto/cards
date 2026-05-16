@@ -61,6 +61,7 @@ function makeRoom(hostId, hostName, socketId) {
     acted: new Set(),
     message: "Invite friends with this room link.",
     winners: [],
+    actionLog: [],
     handNumber: 0,
     players: [
       {
@@ -136,6 +137,15 @@ function postBlind(room, index, amount) {
   return posted;
 }
 
+function logAction(room, text) {
+  room.actionLog.push({
+    id: `${room.handNumber}-${room.actionLog.length + 1}`,
+    phase: room.phase,
+    text,
+  });
+  if (room.actionLog.length > 24) room.actionLog.shift();
+}
+
 function resetHandState(room) {
   room.community = [];
   room.deck = makeDeck();
@@ -143,6 +153,7 @@ function resetHandState(room) {
   room.minRaise = BIG_BLIND;
   room.acted = new Set();
   room.winners = [];
+  room.actionLog = [];
   for (const player of room.players) {
     player.hand = [];
     player.folded = false;
@@ -186,6 +197,8 @@ function startHand(room) {
   const bigBlindIndex = nextIndex(room, smallBlindIndex, (p) => p.stack > 0);
   postBlind(room, smallBlindIndex, SMALL_BLIND);
   postBlind(room, bigBlindIndex, BIG_BLIND);
+  logAction(room, `${room.players[smallBlindIndex].name} posts small blind ${SMALL_BLIND}.`);
+  logAction(room, `${room.players[bigBlindIndex].name} posts big blind ${BIG_BLIND}.`);
   room.currentBet = Math.max(...room.players.map((player) => player.bet));
 
   const firstToAct = nextIndex(room, bigBlindIndex, (p) => !p.folded && !p.allIn && p.stack > 0);
@@ -212,6 +225,7 @@ function endGame(room) {
   room.phase = "lobby";
   room.turn = null;
   room.message = "Game ended by host.";
+  room.actionLog = [];
 }
 
 function dealStreet(room) {
@@ -240,6 +254,7 @@ function dealStreet(room) {
   const first = nextIndex(room, room.dealer, (p) => !p.folded && !p.allIn && p.stack > 0);
   room.turn = first >= 0 ? room.players[first].id : null;
   room.message = `${room.phase[0].toUpperCase()}${room.phase.slice(1)} betting.`;
+  logAction(room, `${room.phase[0].toUpperCase()}${room.phase.slice(1)} dealt.`);
   maybeAdvance(room);
 }
 
@@ -289,6 +304,7 @@ function awardUncontested(room, winner) {
   room.turn = null;
   room.winners = [{ playerId: winner.id, name: winner.name, amount, hand: "Everyone else folded" }];
   room.message = `${winner.name} wins ${amount}.`;
+  logAction(room, `${winner.name} wins ${amount}.`);
 }
 
 function buildSidePots(room) {
@@ -336,6 +352,9 @@ function settleShowdown(room) {
   room.phase = "complete";
   room.winners = summaries;
   room.message = summaries.map((winner) => `${winner.name} wins ${winner.amount} with ${winner.hand}`).join(" · ");
+  for (const winner of summaries) {
+    logAction(room, `${winner.name} wins ${winner.amount} with ${winner.hand}.`);
+  }
 }
 
 function serializeRoom(room, viewerId) {
@@ -365,6 +384,7 @@ function serializeRoom(room, viewerId) {
     canEndGame: room.hostId === viewerId && room.phase !== "lobby",
     community: room.community.map(publicCard),
     winners: room.winners,
+    actionLog: room.actionLog,
     players: room.players.map((player, index) => ({
       id: player.id,
       name: player.name,
@@ -490,6 +510,7 @@ io.on("connection", (socket) => {
       player.folded = true;
       room.acted.add(player.id);
       room.message = `${player.name} folds.`;
+      logAction(room, room.message);
     } else if (type === "call" || type === "check") {
       if (type === "check" && callAmount > 0) return ack?.({ ok: false, error: "You cannot check while facing a bet." });
       const paid = Math.min(callAmount, player.stack);
@@ -499,6 +520,7 @@ io.on("connection", (socket) => {
       if (player.stack === 0) player.allIn = true;
       room.acted.add(player.id);
       room.message = paid > 0 ? `${player.name} calls ${paid}.` : `${player.name} checks.`;
+      logAction(room, room.message);
     } else if (type === "raise") {
       const target = Math.floor(Number(raiseTo));
       if (!Number.isFinite(target)) return ack?.({ ok: false, error: "Invalid raise." });
@@ -518,6 +540,7 @@ io.on("connection", (socket) => {
       room.currentBet = Math.max(room.currentBet, target);
       room.acted = new Set([player.id]);
       room.message = `${player.name} raises to ${target}.`;
+      logAction(room, room.message);
     } else {
       return ack?.({ ok: false, error: "Unknown action." });
     }

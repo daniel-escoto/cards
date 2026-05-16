@@ -426,6 +426,21 @@ input:focus {
   font-weight: 800;
 }
 
+.action-log {
+  max-height: 86px;
+  display: grid;
+  gap: 3px;
+  overflow-y: auto;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(16, 22, 26, 0.76);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  -webkit-overflow-scrolling: touch;
+}
+
 @media (min-width: 780px) {
   .seat.pos-0 { left: 50%; bottom: 0; transform: translateX(-50%); }
   .seat.pos-1 { left: 4%; bottom: 13%; }
@@ -697,8 +712,15 @@ input:focus {
   }
 
   .turn-info,
-  .winner-list {
+  .winner-list,
+  .action-log {
     font-size: 13px;
+  }
+
+  .action-log {
+    max-height: 58px;
+    gap: 2px;
+    padding: 6px 8px;
   }
 
   .game-buttons {
