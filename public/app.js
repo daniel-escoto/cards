@@ -84,6 +84,10 @@ function cardTemplate(card) {
   `;
 }
 
+function playerColorStyle(player) {
+  return player?.color ? `style="--player-color: ${escapeHtml(player.color)}"` : "";
+}
+
 function phaseLabel(phase) {
   const labels = {
     lobby: "Lobby",
@@ -133,7 +137,7 @@ function renderMenuPlayers() {
   menuRoomCode.textContent = state.id;
   endGameBtn.classList.toggle("hidden", !state.canEndGame);
   menuPlayers.innerHTML = state.players.map((player) => `
-    <article class="menu-player ${player.isYou ? "you" : ""} ${player.folded ? "folded" : ""}">
+    <article class="menu-player ${player.isYou ? "you" : ""} ${player.folded ? "folded" : ""}" ${playerColorStyle(player)}>
       <div class="menu-player-head">
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
         <span class="seat-badges">
@@ -148,6 +152,20 @@ function renderMenuPlayers() {
         <span>In pot <strong>${player.invested}</strong></span>
         <em>${escapeHtml(roundStatus(player))}</em>
       </div>
+      ${player.isYou && !player.isBot ? `
+        <div class="color-swatches" aria-label="Player color">
+          ${(state.playerColors || []).map((color) => `
+            <button
+              type="button"
+              class="color-swatch ${player.color === color ? "selected" : ""}"
+              style="--swatch-color: ${escapeHtml(color)}"
+              data-player-color="${escapeHtml(color)}"
+              aria-label="Choose ${escapeHtml(color)}"
+              aria-pressed="${player.color === color ? "true" : "false"}"
+            ></button>
+          `).join("")}
+        </div>
+      ` : ""}
     </article>
   `).join("");
 }
@@ -394,7 +412,7 @@ function playerForAction(entry) {
 
 function renderSeatCard(player, isActiveTurn = player.isTurn) {
   return `
-    <article class="action-feed-card state-card ${isActiveTurn ? "turn" : ""} ${player.folded ? "folded" : ""} ${player.isYou ? "you" : ""}">
+    <article class="action-feed-card state-card ${isActiveTurn ? "turn" : ""} ${player.folded ? "folded" : ""} ${player.isYou ? "you" : ""}" ${playerColorStyle(player)}>
       <div class="action-card-head">
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
         <span class="seat-badges">
@@ -413,7 +431,7 @@ function renderSeatCard(player, isActiveTurn = player.isTurn) {
 
 function renderShownHandCard(player) {
   return `
-    <article class="action-feed-card shown-hand-card ${player.isYou ? "you" : ""}">
+    <article class="action-feed-card shown-hand-card ${player.isYou ? "you" : ""}" ${playerColorStyle(player)}>
       <div class="action-card-head">
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
         <span class="pill">Shown</span>
@@ -451,7 +469,7 @@ function renderActionFeed() {
     lastPhase = phase;
     return `
       ${phaseDivider}
-      <article class="action-feed-card ${player?.folded ? "folded" : ""} ${player?.isYou ? "you" : ""}">
+      <article class="action-feed-card ${player?.folded ? "folded" : ""} ${player?.isYou ? "you" : ""}" ${playerColorStyle(player)}>
         <div class="action-card-head">
           <span class="seat-name">${escapeHtml(player?.name || "Table")}${player?.isYou ? " (you)" : ""}</span>
           <span class="seat-badges">
@@ -727,6 +745,11 @@ menuBtn.addEventListener("click", () => {
 closeMenuBtn.addEventListener("click", hideGameMenu);
 
 gameMenuModal.addEventListener("click", (event) => {
+  const colorButton = event.target.closest("[data-player-color]");
+  if (colorButton) {
+    emitWithAck("player:setColor", { color: colorButton.dataset.playerColor }, "click");
+    return;
+  }
   if (event.target === gameMenuModal) hideGameMenu();
 });
 

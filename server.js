@@ -19,6 +19,7 @@ const MAX_PLAYERS = 8;
 const BOT_DELAY_MS = 350;
 const DISCONNECT_GRACE_MS = Math.max(0, Number(process.env.DISCONNECT_GRACE_MS) || 30000);
 const BOT_NAMES = ["Ada", "Ben", "Cy", "Dee", "Eli", "Fay", "Gus"];
+const PLAYER_COLORS = ["#e0b15a", "#5ec2ff", "#7ddc85", "#f472b6", "#a78bfa", "#fb7185", "#f97316", "#2dd4bf"];
 const DEFAULT_DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DATA_DIR || path.join(__dirname, ".data");
 const STATE_FILE = process.env.GAME_STATE_FILE || path.join(DEFAULT_DATA_DIR, "rooms.json");
 const SAVE_DEBOUNCE_MS = 150;
@@ -58,6 +59,7 @@ function serializePlayerForStorage(player) {
   return {
     id: player.id,
     name: player.name,
+    color: player.color || null,
     stack: player.stack,
     hand: player.hand,
     folded: player.folded,
@@ -126,6 +128,7 @@ function restorePlayer(raw) {
     id: String(raw.id),
     socketIds: new Set(),
     name: cleanName(raw.name),
+    color: cleanPlayerColor(raw.color),
     stack: Math.max(0, Math.floor(Number(raw.stack) || 0)),
     hand: Array.isArray(raw.hand) ? raw.hand : [],
     folded: Boolean(raw.folded),
@@ -180,6 +183,7 @@ function restoreRoom(raw) {
   };
 
   dedupePlayersById(room);
+  assignMissingPlayerColors(room);
 
   if (room.tableSize) {
     for (const player of room.players) {
@@ -206,6 +210,16 @@ function dedupePlayersById(room) {
   if (dealerId) room.dealer = room.players.findIndex((player) => player.id === dealerId);
   if (room.dealer < 0 || room.dealer >= room.players.length) room.dealer = 0;
   return true;
+}
+
+function assignMissingPlayerColors(room) {
+  for (const player of room.players) {
+    if (player.isBot) {
+      player.color = null;
+    } else if (!player.color) {
+      player.color = defaultPlayerColor(room);
+    }
+  }
 }
 
 function loadRooms() {
@@ -248,16 +262,19 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0) {
         id: hostId,
         socketIds: new Set([socketId]),
         name: hostName,
+        color: PLAYER_COLORS[0],
         stack: STARTING_STACK,
         hand: [],
         folded: false,
         allIn: false,
         bet: 0,
         invested: 0,
+        showCards: false,
         connected: true,
         isBot: false,
         replacedPlayerId: null,
         replacedPlayerName: null,
+        disconnectExpiresAt: null,
         disconnectTimer: null,
       },
     ],
@@ -288,11 +305,21 @@ function cleanTableSize(count) {
   return Math.max(2, Math.min(MAX_PLAYERS, parsed));
 }
 
+function cleanPlayerColor(color) {
+  return PLAYER_COLORS.includes(String(color || "").toLowerCase()) ? String(color).toLowerCase() : null;
+}
+
+function defaultPlayerColor(room) {
+  const used = new Set(room.players.map((player) => player.color).filter(Boolean));
+  return PLAYER_COLORS.find((color) => !used.has(color)) || PLAYER_COLORS[room.players.length % PLAYER_COLORS.length];
+}
+
 function makePlayer({ id, name, socketId = null, isBot = false }) {
   return {
     id,
     socketIds: socketId ? new Set([socketId]) : new Set(),
     name,
+    color: isBot ? null : PLAYER_COLORS[0],
     stack: STARTING_STACK,
     hand: [],
     folded: false,
@@ -322,6 +349,12 @@ function addComputerPlayers(room, totalPlayers) {
     }));
   }
   if (needed > 0) room.message = `Computer table ready with ${room.players.length} players.`;
+}
+
+function makeHumanPlayer(room, { id, socketId, name }) {
+  const player = makePlayer({ id, socketId, name });
+  player.color = defaultPlayerColor(room);
+  return player;
 }
 
 function nextBotNumber(room) {
@@ -358,6 +391,7 @@ function convertBotToHuman(socket, room, bot, playerId, name) {
   const hadHumanBefore = room.players.some((player) => !player.isBot);
   bot.id = playerId;
   bot.name = cleanName(name);
+  bot.color = defaultPlayerColor(room);
   bot.isBot = false;
   bot.replacedPlayerId = null;
   bot.replacedPlayerName = null;
@@ -378,6 +412,7 @@ function convertHumanToBot(room, player) {
   const botNumber = nextBotNumber(room);
   player.id = `bot:${room.id}:${botNumber}`;
   player.name = `${BOT_NAMES[(botNumber - 1) % BOT_NAMES.length]} CPU`;
+  player.color = null;
   player.replacedPlayerId = oldId;
   player.replacedPlayerName = oldName;
   player.socketIds = new Set();
@@ -777,6 +812,16 @@ function showPlayerCards(room, playerId) {
   return { ok: true };
 }
 
+function setPlayerColor(room, playerId, color) {
+  const player = room?.players.find((item) => item.id === playerId);
+  const nextColor = cleanPlayerColor(color);
+  if (!room || !player) return { ok: false, error: "Player not found." };
+  if (player.isBot) return { ok: false, error: "CPU players cannot choose colors." };
+  if (!nextColor) return { ok: false, error: "Unknown color." };
+  player.color = nextColor;
+  return { ok: true };
+}
+
 function cardRankValue(card) {
   return ranks.indexOf(card[0]) + 2;
 }
@@ -867,6 +912,7 @@ function serializeRoom(room, viewerId) {
     minRaiseTo,
     smallBlind: SMALL_BLIND,
     bigBlind: BIG_BLIND,
+    playerColors: PLAYER_COLORS,
     handNumber: room.handNumber,
     turn: room.turn,
     isYourTurn: room.turn === viewerId,
@@ -881,6 +927,7 @@ function serializeRoom(room, viewerId) {
     players: room.players.map((player, index) => ({
       id: player.id,
       name: player.name,
+      color: player.color || null,
       stack: player.stack,
       bet: player.bet,
       invested: player.invested,
@@ -1059,7 +1106,7 @@ io.on("connection", (socket) => {
     if (room.phase !== "lobby" && room.phase !== "complete") {
       return ack?.({ ok: false, error: "This hand is in progress. Join after it ends." });
     }
-    room.players.push(makePlayer({ id: playerId, socketId: socket.id, name: cleanName(name) }));
+    room.players.push(makeHumanPlayer(room, { id: playerId, socketId: socket.id, name: cleanName(name) }));
     attachSocketToPlayer(socket, room, room.players[room.players.length - 1]);
     if (room.tableSize) addComputerPlayers(room, room.tableSize);
     ack?.({ ok: true, roomId: room.id });
@@ -1122,6 +1169,15 @@ io.on("connection", (socket) => {
     const room = rooms.get(socketRoom.get(socket.id));
     const playerId = socketPlayer.get(socket.id);
     const result = showPlayerCards(room, playerId);
+    if (!result.ok) return ack?.(result);
+    ack?.(result);
+    emitRoom(room);
+  });
+
+  socket.on("player:setColor", ({ color }, ack) => {
+    const room = rooms.get(socketRoom.get(socket.id));
+    const playerId = socketPlayer.get(socket.id);
+    const result = setPlayerColor(room, playerId, color);
     if (!result.ok) return ack?.(result);
     ack?.(result);
     emitRoom(room);

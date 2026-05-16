@@ -321,12 +321,13 @@ select:focus {
   gap: 8px;
   padding: 10px;
   border: 1px solid var(--line);
+  border-left: 5px solid var(--player-color, var(--line));
   border-radius: 8px;
   background: rgba(13, 19, 22, 0.72);
 }
 
 .menu-player.you {
-  border-color: rgba(224, 177, 90, 0.5);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--player-color, var(--accent)) 58%, transparent);
 }
 
 .menu-player.folded {
@@ -376,6 +377,26 @@ select:focus {
 .menu-player-stats em {
   color: var(--accent);
   font-style: normal;
+}
+
+.color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.color-swatch {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: var(--swatch-color);
+}
+
+.color-swatch.selected {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--swatch-color) 56%, transparent);
 }
 
 .eyebrow {
@@ -492,6 +513,7 @@ select:focus {
   gap: 8px;
   padding: 10px;
   border: 1px solid rgba(255, 255, 255, 0.13);
+  border-left: 5px solid var(--player-color, rgba(255, 255, 255, 0.13));
   border-radius: 8px;
   background: rgba(15, 22, 25, 0.78);
 }
@@ -505,11 +527,12 @@ select:focus {
 }
 
 .action-feed-card.you {
-  border-color: rgba(224, 177, 90, 0.5);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--player-color, var(--accent)) 48%, transparent);
 }
 
 .action-feed-card.turn {
   border-color: var(--accent);
+  border-left-color: var(--player-color, var(--accent));
   box-shadow: 0 0 0 2px rgba(224, 177, 90, 0.26);
 }
 

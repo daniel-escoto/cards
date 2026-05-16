@@ -46,6 +46,12 @@ function waitFor(predicate, label, timeout = 5000) {
   await emit(bob.socket, "room:join", { roomId: created.roomId, name: bob.name, deviceId: bob.deviceId });
   await emit(carmen.socket, "room:join", { roomId: created.roomId, name: carmen.name, deviceId: carmen.deviceId });
   await waitFor(() => players.every((player) => player.state?.players.length === 3), "all players in room");
+  if (new Set(alice.state.players.map((player) => player.color).filter(Boolean)).size !== 3) {
+    throw new Error("Expected real players to receive distinct colors");
+  }
+  const nextColor = alice.state.playerColors.find((color) => color !== bob.state.players.find((player) => player.isYou)?.color);
+  await emit(bob.socket, "player:setColor", { color: nextColor });
+  await waitFor(() => alice.state?.players.find((player) => player.name === "Bob")?.color === nextColor, "player color update");
 
   const aliceAgain = connectPlayer("Alice");
   await waitFor(() => aliceAgain.socket.connected, "host duplicate connection");
