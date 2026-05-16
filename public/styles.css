@@ -41,7 +41,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -152,7 +153,8 @@ label {
   font-weight: 700;
 }
 
-input {
+input,
+select {
   width: 100%;
   min-height: 46px;
   border: 1px solid var(--line);
@@ -164,7 +166,8 @@ input {
   outline: none;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: var(--accent);
 }
 
@@ -517,8 +520,10 @@ input:focus {
   }
 
   body.keyboard-open input,
+  body.keyboard-open select,
   body.keyboard-open button,
   .welcome:not(.hidden):focus-within input,
+  .welcome:not(.hidden):focus-within select,
   .welcome:not(.hidden):focus-within button {
     min-height: 42px;
   }

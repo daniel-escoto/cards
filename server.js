@@ -14,6 +14,8 @@ const STARTING_STACK = 1000;
 const SMALL_BLIND = 10;
 const BIG_BLIND = 20;
 const MAX_PLAYERS = 8;
+const BOT_DELAY_MS = 350;
+const BOT_NAMES = ["Ada", "Ben", "Cy", "Dee", "Eli", "Fay", "Gus"];
 
 app.use(express.static("public"));
 
@@ -75,6 +77,7 @@ function makeRoom(hostId, hostName, socketId) {
         bet: 0,
         invested: 0,
         connected: true,
+        isBot: false,
       },
     ],
   };
@@ -92,6 +95,40 @@ function cleanName(name) {
 
 function cleanDeviceId(deviceId, fallback) {
   return String(deviceId || fallback || "").trim().slice(0, 80) || fallback;
+}
+
+function cleanComputerPlayers(count) {
+  return Math.max(0, Math.min(MAX_PLAYERS, Math.floor(Number(count) || 0)));
+}
+
+function makePlayer({ id, name, socketId = null, isBot = false }) {
+  return {
+    id,
+    socketIds: socketId ? new Set([socketId]) : new Set(),
+    name,
+    stack: STARTING_STACK,
+    hand: [],
+    folded: false,
+    allIn: false,
+    bet: 0,
+    invested: 0,
+    connected: true,
+    isBot,
+  };
+}
+
+function addComputerPlayers(room, totalPlayers) {
+  const target = cleanComputerPlayers(totalPlayers);
+  const needed = Math.max(0, Math.min(MAX_PLAYERS, target) - room.players.length);
+  for (let index = 0; index < needed; index += 1) {
+    const botNumber = room.players.filter((player) => player.isBot).length + 1;
+    room.players.push(makePlayer({
+      id: `bot:${room.id}:${botNumber}`,
+      name: `${BOT_NAMES[(botNumber - 1) % BOT_NAMES.length]} CPU`,
+      isBot: true,
+    }));
+  }
+  if (needed > 0) room.message = `Computer table ready with ${room.players.length} players.`;
 }
 
 function attachSocketToPlayer(socket, room, player) {
@@ -371,6 +408,86 @@ function settleShowdown(room) {
   }
 }
 
+function applyPlayerAction(room, playerId, { type, raiseTo }) {
+  if (!room || room.turn !== playerId) return { ok: false, error: "It is not your turn." };
+  const index = playerIndex(room, playerId);
+  const player = room.players[index];
+  const callAmount = Math.max(0, room.currentBet - player.bet);
+
+  if (type === "fold") {
+    player.folded = true;
+    room.acted.add(player.id);
+    room.message = `${player.name} folds.`;
+    logAction(room, room.message);
+  } else if (type === "call" || type === "check") {
+    if (type === "check" && callAmount > 0) return { ok: false, error: "You cannot check while facing a bet." };
+    const paid = Math.min(callAmount, player.stack);
+    player.stack -= paid;
+    player.bet += paid;
+    player.invested += paid;
+    if (player.stack === 0) player.allIn = true;
+    room.acted.add(player.id);
+    room.message = paid > 0 ? `${player.name} calls ${paid}.` : `${player.name} checks.`;
+    logAction(room, room.message);
+  } else if (type === "raise") {
+    const target = Math.floor(Number(raiseTo));
+    if (!Number.isFinite(target)) return { ok: false, error: "Invalid raise." };
+    const maxBet = player.bet + player.stack;
+    if (target > maxBet) return { ok: false, error: "You do not have enough chips." };
+    const isAllInShortRaise = target === maxBet && target > room.currentBet;
+    if (target < room.currentBet + room.minRaise && !isAllInShortRaise) {
+      return { ok: false, error: `Minimum raise is to ${room.currentBet + room.minRaise}.` };
+    }
+    const paid = target - player.bet;
+    player.stack -= paid;
+    player.invested += paid;
+    const raiseSize = target - room.currentBet;
+    player.bet = target;
+    if (player.stack === 0) player.allIn = true;
+    if (raiseSize >= room.minRaise) room.minRaise = raiseSize;
+    room.currentBet = Math.max(room.currentBet, target);
+    room.acted = new Set([player.id]);
+    room.message = `${player.name} raises to ${target}.`;
+    logAction(room, room.message);
+  } else {
+    return { ok: false, error: "Unknown action." };
+  }
+
+  advanceTurn(room, index);
+  return { ok: true };
+}
+
+function chooseComputerAction(room, player) {
+  const callAmount = Math.max(0, room.currentBet - player.bet);
+  const maxBet = player.bet + player.stack;
+  const canRaise = maxBet > room.currentBet;
+  const minRaiseTo = Math.min(maxBet, room.currentBet + room.minRaise);
+
+  if (callAmount === 0) {
+    if (canRaise && minRaiseTo <= maxBet && Math.random() < 0.16) {
+      return { type: "raise", raiseTo: Math.min(maxBet, minRaiseTo + (Math.random() < 0.35 ? BIG_BLIND : 0)) };
+    }
+    return { type: "check" };
+  }
+
+  const cheapCall = callAmount <= Math.max(BIG_BLIND, player.stack * 0.18);
+  if (cheapCall || Math.random() < 0.58) return { type: "call" };
+  return { type: "fold" };
+}
+
+function scheduleComputerTurn(room) {
+  clearTimeout(room.botTimer);
+  const player = room.players.find((item) => item.id === room.turn);
+  if (!player?.isBot || !isHandInProgress(room)) return;
+  room.botTimer = setTimeout(() => {
+    const currentRoom = rooms.get(room.id);
+    const currentPlayer = currentRoom?.players.find((item) => item.id === currentRoom.turn);
+    if (!currentRoom || !currentPlayer?.isBot || !isHandInProgress(currentRoom)) return;
+    applyPlayerAction(currentRoom, currentPlayer.id, chooseComputerAction(currentRoom, currentPlayer));
+    emitRoom(currentRoom);
+  }, BOT_DELAY_MS);
+}
+
 function serializeRoom(room, viewerId) {
   const pot = collectPot(room);
   const viewer = room.players.find((player) => player.id === viewerId);
@@ -408,6 +525,7 @@ function serializeRoom(room, viewerId) {
       folded: player.folded,
       allIn: player.allIn,
       connected: player.connected,
+      isBot: player.isBot,
       dealer: index === room.dealer,
       isTurn: room.turn === player.id,
       isYou: player.id === viewerId,
@@ -424,6 +542,7 @@ function emitRoom(room) {
       io.to(socketId).emit("room:update", serializeRoom(room, player.id));
     }
   }
+  scheduleComputerTurn(room);
 }
 
 function leaveCurrentRoom(socket) {
@@ -443,9 +562,10 @@ function leaveCurrentRoom(socket) {
 }
 
 io.on("connection", (socket) => {
-  socket.on("room:create", ({ name, deviceId }, ack) => {
+  socket.on("room:create", ({ name, deviceId, computerPlayers }, ack) => {
     const playerId = cleanDeviceId(deviceId, socket.id);
     const room = makeRoom(playerId, cleanName(name), socket.id);
+    addComputerPlayers(room, computerPlayers);
     attachSocketToPlayer(socket, room, room.players[0]);
     ack?.({ ok: true, roomId: room.id });
     emitRoom(room);
@@ -478,6 +598,7 @@ io.on("connection", (socket) => {
       bet: 0,
       invested: 0,
       connected: true,
+      isBot: false,
     });
     attachSocketToPlayer(socket, room, room.players[room.players.length - 1]);
     ack?.({ ok: true, roomId: room.id });
@@ -515,52 +636,9 @@ io.on("connection", (socket) => {
   socket.on("game:action", ({ type, raiseTo }, ack) => {
     const room = rooms.get(socketRoom.get(socket.id));
     const playerId = socketPlayer.get(socket.id);
-    if (!room || room.turn !== playerId) return ack?.({ ok: false, error: "It is not your turn." });
-    const index = playerIndex(room, playerId);
-    const player = room.players[index];
-    const callAmount = Math.max(0, room.currentBet - player.bet);
-
-    if (type === "fold") {
-      player.folded = true;
-      room.acted.add(player.id);
-      room.message = `${player.name} folds.`;
-      logAction(room, room.message);
-    } else if (type === "call" || type === "check") {
-      if (type === "check" && callAmount > 0) return ack?.({ ok: false, error: "You cannot check while facing a bet." });
-      const paid = Math.min(callAmount, player.stack);
-      player.stack -= paid;
-      player.bet += paid;
-      player.invested += paid;
-      if (player.stack === 0) player.allIn = true;
-      room.acted.add(player.id);
-      room.message = paid > 0 ? `${player.name} calls ${paid}.` : `${player.name} checks.`;
-      logAction(room, room.message);
-    } else if (type === "raise") {
-      const target = Math.floor(Number(raiseTo));
-      if (!Number.isFinite(target)) return ack?.({ ok: false, error: "Invalid raise." });
-      const maxBet = player.bet + player.stack;
-      if (target > maxBet) return ack?.({ ok: false, error: "You do not have enough chips." });
-      const isAllInShortRaise = target === maxBet && target > room.currentBet;
-      if (target < room.currentBet + room.minRaise && !isAllInShortRaise) {
-        return ack?.({ ok: false, error: `Minimum raise is to ${room.currentBet + room.minRaise}.` });
-      }
-      const paid = target - player.bet;
-      player.stack -= paid;
-      player.invested += paid;
-      const raiseSize = target - room.currentBet;
-      player.bet = target;
-      if (player.stack === 0) player.allIn = true;
-      if (raiseSize >= room.minRaise) room.minRaise = raiseSize;
-      room.currentBet = Math.max(room.currentBet, target);
-      room.acted = new Set([player.id]);
-      room.message = `${player.name} raises to ${target}.`;
-      logAction(room, room.message);
-    } else {
-      return ack?.({ ok: false, error: "Unknown action." });
-    }
-
-    ack?.({ ok: true });
-    advanceTurn(room, index);
+    const result = applyPlayerAction(room, playerId, { type, raiseTo });
+    if (!result.ok) return ack?.(result);
+    ack?.(result);
     emitRoom(room);
   });
 

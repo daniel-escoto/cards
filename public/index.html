@@ -26,8 +26,21 @@
             Room code
             <input id="roomInput" maxlength="6" placeholder="Leave blank to host" />
           </label>
+          <label>
+            Computer game players
+            <select id="computerPlayerCount">
+              <option value="2">2 players</option>
+              <option value="3">3 players</option>
+              <option value="4">4 players</option>
+              <option value="5">5 players</option>
+              <option value="6">6 players</option>
+              <option value="7">7 players</option>
+              <option value="8">8 players</option>
+            </select>
+          </label>
           <div class="actions-row">
             <button id="createBtn" type="button">Host table</button>
+            <button id="computerBtn" type="button" class="secondary">Play computer</button>
             <button id="joinBtn" type="submit" class="secondary">Join table</button>
           </div>
           <p id="joinError" class="error" role="alert"></p>

@@ -5,7 +5,9 @@ const tableView = document.querySelector("#tableView");
 const joinForm = document.querySelector("#joinForm");
 const nameInput = document.querySelector("#nameInput");
 const roomInput = document.querySelector("#roomInput");
+const computerPlayerCount = document.querySelector("#computerPlayerCount");
 const createBtn = document.querySelector("#createBtn");
+const computerBtn = document.querySelector("#computerBtn");
 const joinError = document.querySelector("#joinError");
 const roomCode = document.querySelector("#roomCode");
 const copyLink = document.querySelector("#copyLink");
@@ -389,8 +391,12 @@ function joinOrCreate(mode) {
   }
   localStorage.setItem("holdem:name", name);
   const roomId = roomInput.value.trim().toUpperCase();
-  const eventName = mode === "create" ? "room:create" : "room:join";
-  socket.emit(eventName, { name, roomId, deviceId: getDeviceId() }, (response) => {
+  const eventName = mode === "join" ? "room:join" : "room:create";
+  const payload = { name, roomId, deviceId: getDeviceId() };
+  if (mode === "computer") {
+    payload.computerPlayers = Math.max(2, Math.min(8, Math.floor(Number(computerPlayerCount.value) || 2)));
+  }
+  socket.emit(eventName, payload, (response) => {
     if (!response?.ok) {
       joinError.textContent = response?.error || "Could not join table.";
       return;
@@ -410,6 +416,7 @@ function escapeHtml(value) {
 }
 
 createBtn.addEventListener("click", () => joinOrCreate("create"));
+computerBtn.addEventListener("click", () => joinOrCreate("computer"));
 joinForm.addEventListener("submit", (event) => {
   event.preventDefault();
   joinOrCreate(roomInput.value.trim() ? "join" : "create");

@@ -112,7 +112,37 @@ function waitFor(predicate, label, timeout = 5000) {
     throw new Error("Chip totals did not balance after showdown");
   }
 
+  const solo = connectPlayer("Solo");
+  await waitFor(() => solo.socket.connected, "computer game connection");
+  await emit(solo.socket, "room:create", {
+    name: solo.name,
+    deviceId: solo.deviceId,
+    computerPlayers: 4,
+  });
+  await waitFor(() => solo.state?.players.length === 4, "computer players seated");
+  if (solo.state.players.filter((player) => player.isBot).length !== 3) {
+    throw new Error("Expected three computer players");
+  }
+  await emit(solo.socket, "game:start");
+  await waitFor(() => solo.state?.phase === "preflop", "computer game hand start");
+
+  for (let i = 0; i < 240 && solo.state.phase !== "complete"; i += 1) {
+    if (solo.state.isYourTurn) {
+      await emit(solo.socket, "game:action", { type: solo.state.toCall > 0 ? "call" : "check" });
+    }
+    await new Promise((resolve) => setTimeout(resolve, 75));
+  }
+
+  if (solo.state.phase !== "complete") throw new Error(`Expected computer hand to complete, got ${solo.state.phase}`);
+  if (!solo.state.actionLog?.some((entry) => entry.text.includes("CPU"))) {
+    throw new Error("Expected computer players to take actions");
+  }
+  if (solo.state.players.reduce((sum, player) => sum + player.stack, 0) !== 4000) {
+    throw new Error("Computer game chip totals did not balance");
+  }
+
   players.forEach((player) => player.socket.disconnect());
+  solo.socket.disconnect();
   console.log(`Smoke test passed for room ${created.roomId}`);
 })().catch((error) => {
   console.error(error);
