@@ -261,6 +261,51 @@ select:focus {
   gap: 12px;
 }
 
+.menu-btn {
+  min-width: 96px;
+}
+
+.icon-btn {
+  width: 42px;
+  min-height: 42px;
+  padding: 0;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(6, 10, 12, 0.68);
+}
+
+.modal-panel {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.46);
+}
+
+.modal-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.modal-actions {
+  display: grid;
+  gap: 10px;
+}
+
 .eyebrow {
   font-size: 12px;
   font-weight: 900;
@@ -365,7 +410,10 @@ select:focus {
 .seat {
   position: absolute;
   width: min(214px, 42vw);
-  min-height: 96px;
+  min-height: 134px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
   padding: 10px;
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 8px;
@@ -381,11 +429,21 @@ select:focus {
   opacity: 0.58;
 }
 
-.seat-head,
+.seat-top,
 .seat-line {
   display: flex;
   justify-content: space-between;
   gap: 8px;
+}
+
+.seat-top {
+  align-items: flex-start;
+}
+
+.seat-head {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
 }
 
 .seat-badges {
@@ -394,10 +452,16 @@ select:focus {
   gap: 4px;
 }
 
-.seat-info,
+.seat-footer,
 .seat-stats {
   display: grid;
   gap: 3px;
+}
+
+.seat-footer {
+  align-self: end;
+  padding-top: 7px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .kick-btn {
@@ -408,6 +472,7 @@ select:focus {
 }
 
 .seat-name {
+  min-width: 0;
   overflow: hidden;
   font-weight: 900;
   text-overflow: ellipsis;
@@ -425,9 +490,9 @@ select:focus {
 }
 
 .mini-cards {
+  flex: 0 0 auto;
   display: flex;
   gap: 5px;
-  margin-top: 8px;
 }
 
 .mini-cards .card {
@@ -439,6 +504,49 @@ select:focus {
 
 .mini-cards .card .suit {
   font-size: 14px;
+}
+
+.seat-history {
+  display: grid;
+  gap: 3px;
+  max-height: 86px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.seat-history-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 6px;
+  align-items: start;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.seat-history-row span {
+  color: var(--accent);
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.seat-history-row strong,
+.seat-history-empty {
+  min-width: 0;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.seat-history-empty {
+  font-size: 11px;
+}
+
+.seat-status {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .control-panel {
@@ -502,126 +610,6 @@ select:focus {
   display: grid;
   gap: 4px;
   font-weight: 800;
-}
-
-.action-log-wrap {
-  display: grid;
-  gap: 6px;
-}
-
-.action-log-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.action-log-head button {
-  min-height: 30px;
-  padding: 0 10px;
-  font-size: 12px;
-}
-
-.action-log {
-  max-height: 188px;
-  display: grid;
-  gap: 10px;
-  overflow-y: auto;
-  padding: 9px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: rgba(16, 22, 26, 0.76);
-  font-size: 13px;
-  -webkit-overflow-scrolling: touch;
-}
-
-.action-log-wrap.expanded .action-log {
-  max-height: 340px;
-}
-
-.history-board,
-.history-stacks,
-.history-actions {
-  display: grid;
-}
-
-.history-board {
-  gap: 8px;
-}
-
-.history-street {
-  display: grid;
-  gap: 4px;
-}
-
-.history-street-title,
-.history-stacks-title {
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.history-actions {
-  gap: 3px;
-  color: var(--muted);
-  font-weight: 700;
-  line-height: 1.28;
-}
-
-.history-empty {
-  color: var(--muted);
-  font-weight: 800;
-}
-
-.history-stacks {
-  gap: 5px;
-  padding-top: 9px;
-  border-top: 1px solid var(--line);
-}
-
-.history-stack-row {
-  min-height: 30px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 7px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.045);
-}
-
-.history-stack-row.you {
-  outline: 1px solid rgba(224, 177, 90, 0.38);
-}
-
-.history-stack-row.turn {
-  background: rgba(224, 177, 90, 0.12);
-}
-
-.history-stack-name {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text);
-  font-weight: 900;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.history-stack-status {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.history-stack-row strong {
-  color: var(--accent);
-  font-size: 14px;
 }
 
 @media (min-width: 780px) {
@@ -758,6 +746,11 @@ select:focus {
     padding: 0 10px;
   }
 
+  .modal {
+    align-items: end;
+    padding: 12px;
+  }
+
   .felt {
     display: grid;
     grid-template-rows: auto auto auto minmax(0, 1fr);
@@ -805,12 +798,12 @@ select:focus {
   .seat {
     position: relative;
     width: 100%;
-    min-height: 74px;
+    min-height: 112px;
     flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 7px;
     padding: 7px 9px;
     font-size: 13px;
   }
@@ -832,15 +825,24 @@ select:focus {
     box-shadow: inset 4px 0 0 var(--accent), 0 0 0 1px rgba(224, 177, 90, 0.32);
   }
 
-  .seat-info {
-    min-width: 0;
-    flex: 1 1 auto;
-    gap: 5px;
+  .seat-top {
+    align-items: center;
+    gap: 10px;
+  }
+
+  .seat-history {
+    max-height: none;
   }
 
   .seat-stats {
     grid-template-columns: repeat(2, minmax(72px, auto));
     gap: 10px;
+  }
+
+  .seat-footer {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 8px;
   }
 
   .seat-line {
@@ -875,10 +877,7 @@ select:focus {
   }
 
   .mini-cards {
-    flex: 0 0 auto;
-    align-self: center;
     gap: 4px;
-    margin-top: 0;
   }
 
   .mini-cards .card {
@@ -905,19 +904,8 @@ select:focus {
   }
 
   .turn-info,
-  .winner-list,
-  .action-log {
+  .winner-list {
     font-size: 13px;
-  }
-
-  .action-log {
-    max-height: 58px;
-    gap: 2px;
-    padding: 6px 8px;
-  }
-
-  .action-log-wrap.expanded .action-log {
-    max-height: 240px;
   }
 
   .game-buttons {

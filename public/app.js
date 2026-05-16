@@ -11,7 +11,13 @@ const tableSizeLabel = computerPlayerCount.closest("label");
 const tableActionBtn = document.querySelector("#tableActionBtn");
 const joinError = document.querySelector("#joinError");
 const roomCode = document.querySelector("#roomCode");
-const copyLink = document.querySelector("#copyLink");
+const menuBtn = document.querySelector("#menuBtn");
+const gameMenuModal = document.querySelector("#gameMenuModal");
+const closeMenuBtn = document.querySelector("#closeMenuBtn");
+const restartGameBtn = document.querySelector("#restartGameBtn");
+const shareGameBtn = document.querySelector("#shareGameBtn");
+const backToMenuBtn = document.querySelector("#backToMenuBtn");
+const menuRoomCode = document.querySelector("#menuRoomCode");
 const phaseTitle = document.querySelector("#phaseTitle");
 const potValue = document.querySelector("#potValue");
 const betValue = document.querySelector("#betValue");
@@ -20,9 +26,6 @@ const message = document.querySelector("#message");
 const players = document.querySelector("#players");
 const heroHand = document.querySelector("#heroHand");
 const winnerList = document.querySelector("#winnerList");
-const actionLogWrap = document.querySelector("#actionLogWrap");
-const actionLog = document.querySelector("#actionLog");
-const toggleActionLog = document.querySelector("#toggleActionLog");
 const turnInfo = document.querySelector("#turnInfo");
 const gameButtons = document.querySelector("#gameButtons");
 const betControls = document.querySelector("#betControls");
@@ -38,7 +41,6 @@ let raiseState = { value: 0, min: 0, max: 0, step: 20 };
 let audioContext = null;
 let hasRenderedRoom = false;
 let leavingEndedRoom = false;
-let isActionLogExpanded = false;
 const params = new URLSearchParams(window.location.search);
 const initialRoomId = (params.get("room") || localStorage.getItem("holdem:lastRoom") || "").toUpperCase();
 if (initialRoomId) roomInput.value = initialRoomId;
@@ -103,10 +105,21 @@ function showTable(room) {
   setRoomUrl(room.id);
 }
 
+function hideGameMenu() {
+  gameMenuModal.classList.add("hidden");
+}
+
+function showGameMenu() {
+  if (!state) return;
+  menuRoomCode.textContent = state.id;
+  gameMenuModal.classList.remove("hidden");
+}
+
 function showWelcome(status = "") {
   state = null;
   hasRenderedRoom = false;
   leavingEndedRoom = false;
+  hideGameMenu();
   document.documentElement.classList.remove("game-open-root");
   document.body.classList.remove("game-open", "keyboard-open");
   tableView.classList.add("hidden");
@@ -120,6 +133,7 @@ function showScoreScreen(room) {
   const standings = [...room.players].sort((a, b) => b.stack - a.stack || a.name.localeCompare(b.name));
   state = null;
   hasRenderedRoom = false;
+  hideGameMenu();
   document.documentElement.classList.remove("game-open-root");
   document.body.classList.remove("game-open", "keyboard-open");
   welcome.classList.add("hidden");
@@ -269,14 +283,6 @@ function streetLabel(phase) {
   return labels[phase] || phaseLabel(phase);
 }
 
-function playerStatus(player) {
-  if (player.folded) return "Folded";
-  if (player.allIn) return "All in";
-  if (player.isTurn) return "Acting";
-  if (player.isBot) return "CPU";
-  return player.connected ? "In" : "Away";
-}
-
 function groupActionLog(entries) {
   const ordered = ["preflop", "flop", "turn", "river", "showdown", "complete", "lobby"];
   const groups = new Map();
@@ -292,33 +298,26 @@ function groupActionLog(entries) {
   });
 }
 
-function renderHandHistory(logEntries) {
-  const visibleEntries = isActionLogExpanded ? logEntries : logEntries.slice(-8);
-  const groups = groupActionLog(visibleEntries);
-  const historyMarkup = groups.length ? groups.map(([phase, entries]) => `
-    <section class="history-street">
-      <div class="history-street-title">${escapeHtml(streetLabel(phase))}</div>
-      <div class="history-actions">
-        ${entries.map((entry) => `<div>${escapeHtml(entry.text)}</div>`).join("")}
-      </div>
-    </section>
-  `).join("") : '<div class="history-empty">No actions yet.</div>';
-
-  const stacksMarkup = state.players.map((player) => `
-    <div class="history-stack-row ${player.isYou ? "you" : ""} ${player.isTurn ? "turn" : ""}">
-      <span class="history-stack-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
-      <span class="history-stack-status">${playerStatus(player)}</span>
-      <strong>${player.stack}</strong>
+function playerActionHistory(player) {
+  const entries = (state.actionLog || []).filter((entry) => (
+    entry.playerId === player.id || (!entry.playerId && entry.text?.startsWith(player.name))
+  ));
+  if (!entries.length) {
+    return '<div class="seat-history-empty">No actions yet</div>';
+  }
+  return groupActionLog(entries).map(([phase, phaseEntries]) => `
+    <div class="seat-history-row">
+      <span>${escapeHtml(streetLabel(phase))}</span>
+      <strong>${phaseEntries.map((entry) => escapeHtml(entry.action || entry.text)).join(" · ")}</strong>
     </div>
   `).join("");
+}
 
-  actionLog.innerHTML = `
-    <div class="history-board">${historyMarkup}</div>
-    <div class="history-stacks">
-      <div class="history-stacks-title">Stacks</div>
-      ${stacksMarkup}
-    </div>
-  `;
+function playerTableStatus(player) {
+  if (player.folded) return "Folded";
+  if (player.allIn) return "All in";
+  if (player.isTurn) return "Acting";
+  return player.connected ? "In hand" : "Away";
 }
 
 function inferActionSound(previous, next) {
@@ -377,7 +376,7 @@ function render() {
 
   players.innerHTML = state.players.map((player, index) => `
     <article class="seat pos-${index} ${player.isTurn ? "turn" : ""} ${player.folded ? "folded" : ""} ${player.isYou ? "you" : ""}">
-      <div class="seat-info">
+      <div class="seat-top">
         <div class="seat-head">
           <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
           <span class="seat-badges">
@@ -385,6 +384,10 @@ function render() {
             ${player.isBot ? '<span class="pill">CPU</span>' : ""}
           </span>
         </div>
+        ${player.isYou ? "" : `<div class="mini-cards">${player.cards.map(cardTemplate).join("")}</div>`}
+      </div>
+      <div class="seat-history">${playerActionHistory(player)}</div>
+      <div class="seat-footer">
         <div class="seat-stats">
           <div class="seat-line stack-line">
             <span>Stack</span>
@@ -395,9 +398,9 @@ function render() {
             <strong>${player.bet}</strong>
           </div>
         </div>
+        <span class="seat-status">${playerTableStatus(player)}</span>
         ${player.canKick ? `<button type="button" class="kick-btn danger" data-kick-player="${escapeHtml(player.id)}">Kick</button>` : ""}
       </div>
-      ${player.isYou ? "" : `<div class="mini-cards">${player.cards.map(cardTemplate).join("")}</div>`}
     </article>
   `).join("");
 
@@ -406,12 +409,6 @@ function render() {
   winnerList.innerHTML = state.winners.map((winner) => (
     `<div>${escapeHtml(winner.name)} wins ${winner.amount} with ${escapeHtml(winner.hand)}</div>`
   )).join("");
-  const logEntries = state.actionLog || [];
-  renderHandHistory(logEntries);
-  actionLogWrap.classList.toggle("hidden", state.phase === "lobby" && !logEntries.length);
-  actionLogWrap.classList.toggle("expanded", isActionLogExpanded);
-  toggleActionLog.textContent = isActionLogExpanded ? "Collapse" : "Expand";
-  toggleActionLog.disabled = logEntries.length <= 8;
 
   renderControls(hero);
   scrollCurrentPlayerIntoView();
@@ -504,6 +501,17 @@ function kickPlayer(playerId) {
   emitWithAck("room:kick", { playerId }, "click");
 }
 
+async function copyInviteLink() {
+  if (!state) return;
+  ensureAudio();
+  const url = new URL(window.location.href);
+  url.searchParams.set("room", state.id);
+  await navigator.clipboard.writeText(url.toString());
+  playSound("click");
+  shareGameBtn.textContent = "Copied";
+  setTimeout(() => { shareGameBtn.textContent = "Share"; }, 1200);
+}
+
 function emitWithAck(eventName, payload, pendingSound = null) {
   ensureAudio();
   socket.emit(eventName, payload, (response) => {
@@ -574,14 +582,29 @@ raiseBtn.addEventListener("click", () => {
   emitWithAck("game:action", { type: "raise", raiseTo: raiseState.value }, "click");
 });
 
-copyLink.addEventListener("click", async () => {
+menuBtn.addEventListener("click", () => {
   ensureAudio();
-  const url = new URL(window.location.href);
-  url.searchParams.set("room", state.id);
-  await navigator.clipboard.writeText(url.toString());
   playSound("click");
-  copyLink.textContent = "Copied";
-  setTimeout(() => { copyLink.textContent = "Copy invite"; }, 1200);
+  showGameMenu();
+});
+
+closeMenuBtn.addEventListener("click", hideGameMenu);
+
+gameMenuModal.addEventListener("click", (event) => {
+  if (event.target === gameMenuModal) hideGameMenu();
+});
+
+restartGameBtn.addEventListener("click", () => {
+  hideGameMenu();
+  emitWithAck("game:restart", {}, "click");
+});
+
+shareGameBtn.addEventListener("click", copyInviteLink);
+
+backToMenuBtn.addEventListener("click", () => {
+  hideGameMenu();
+  socket.emit("room:leave");
+  showWelcome();
 });
 
 players.addEventListener("click", (event) => {
@@ -591,11 +614,6 @@ players.addEventListener("click", (event) => {
 });
 
 scoreMenuBtn.addEventListener("click", () => showWelcome());
-
-toggleActionLog.addEventListener("click", () => {
-  isActionLogExpanded = !isActionLogExpanded;
-  render();
-});
 
 socket.on("room:update", (room) => {
   if (leavingEndedRoom) return;

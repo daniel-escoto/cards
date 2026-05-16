@@ -403,11 +403,12 @@ function postBlind(room, index, amount) {
   return posted;
 }
 
-function logAction(room, text) {
+function logAction(room, text, metadata = {}) {
   room.actionLog.push({
     id: `${room.handNumber}-${room.actionLog.length + 1}`,
     phase: room.phase,
     text,
+    ...metadata,
   });
   if (room.actionLog.length > 24) room.actionLog.shift();
 }
@@ -464,8 +465,14 @@ function startHand(room) {
   const bigBlindIndex = nextIndex(room, smallBlindIndex, (p) => p.stack > 0);
   postBlind(room, smallBlindIndex, SMALL_BLIND);
   postBlind(room, bigBlindIndex, BIG_BLIND);
-  logAction(room, `${room.players[smallBlindIndex].name} posts small blind ${SMALL_BLIND}.`);
-  logAction(room, `${room.players[bigBlindIndex].name} posts big blind ${BIG_BLIND}.`);
+  logAction(room, `${room.players[smallBlindIndex].name} posts small blind ${SMALL_BLIND}.`, {
+    playerId: room.players[smallBlindIndex].id,
+    action: `Posts small blind ${SMALL_BLIND}`,
+  });
+  logAction(room, `${room.players[bigBlindIndex].name} posts big blind ${BIG_BLIND}.`, {
+    playerId: room.players[bigBlindIndex].id,
+    action: `Posts big blind ${BIG_BLIND}`,
+  });
   room.currentBet = Math.max(...room.players.map((player) => player.bet));
 
   const firstToAct = nextIndex(room, bigBlindIndex, (p) => !p.folded && !p.allIn && p.stack > 0);
@@ -493,6 +500,32 @@ function endGame(room) {
   room.turn = null;
   room.message = "Game ended by host.";
   room.actionLog = [];
+}
+
+function restartGame(room) {
+  clearTimeout(room.botTimer);
+  for (const player of room.players) {
+    player.stack = STARTING_STACK;
+    player.hand = [];
+    player.folded = false;
+    player.allIn = false;
+    player.bet = 0;
+    player.invested = 0;
+  }
+  room.status = "lobby";
+  room.phase = "lobby";
+  room.deck = [];
+  room.community = [];
+  room.dealer = 0;
+  room.turn = null;
+  room.currentBet = 0;
+  room.minRaise = BIG_BLIND;
+  room.deadPot = 0;
+  room.acted = new Set();
+  room.winners = [];
+  room.actionLog = [];
+  room.handNumber = 0;
+  room.message = "Game restarted. Start a new hand when ready.";
 }
 
 function dealStreet(room) {
@@ -571,7 +604,10 @@ function awardUncontested(room, winner) {
   room.turn = null;
   room.winners = [{ playerId: winner.id, name: winner.name, amount, hand: "Everyone else folded" }];
   room.message = `${winner.name} wins ${amount}.`;
-  logAction(room, `${winner.name} wins ${amount}.`);
+  logAction(room, `${winner.name} wins ${amount}.`, {
+    playerId: winner.id,
+    action: `Wins ${amount}`,
+  });
 }
 
 function buildSidePots(room) {
@@ -641,7 +677,10 @@ function settleShowdown(room) {
   room.winners = combineWinnerSummaries(summaries);
   room.message = room.winners.map((winner) => `${winner.name} wins ${winner.amount} with ${winner.hand}`).join(" · ");
   for (const winner of room.winners) {
-    logAction(room, `${winner.name} wins ${winner.amount} with ${winner.hand}.`);
+    logAction(room, `${winner.name} wins ${winner.amount} with ${winner.hand}.`, {
+      playerId: winner.playerId,
+      action: `Wins ${winner.amount}`,
+    });
   }
 }
 
@@ -655,7 +694,7 @@ function applyPlayerAction(room, playerId, { type, raiseTo }) {
     player.folded = true;
     room.acted.add(player.id);
     room.message = `${player.name} folds.`;
-    logAction(room, room.message);
+    logAction(room, room.message, { playerId: player.id, action: "Folds" });
   } else if (type === "call" || type === "check") {
     if (type === "check" && callAmount > 0) return { ok: false, error: "You cannot check while facing a bet." };
     const paid = Math.min(callAmount, player.stack);
@@ -665,7 +704,10 @@ function applyPlayerAction(room, playerId, { type, raiseTo }) {
     if (player.stack === 0) player.allIn = true;
     room.acted.add(player.id);
     room.message = paid > 0 ? `${player.name} calls ${paid}.` : `${player.name} checks.`;
-    logAction(room, room.message);
+    logAction(room, room.message, {
+      playerId: player.id,
+      action: paid > 0 ? `Calls ${paid}` : "Checks",
+    });
   } else if (type === "raise") {
     const target = Math.floor(Number(raiseTo));
     if (!Number.isFinite(target)) return { ok: false, error: "Invalid raise." };
@@ -685,7 +727,7 @@ function applyPlayerAction(room, playerId, { type, raiseTo }) {
     room.currentBet = Math.max(room.currentBet, target);
     room.acted = new Set([player.id]);
     room.message = `${player.name} raises to ${target}.`;
-    logAction(room, room.message);
+    logAction(room, room.message, { playerId: player.id, action: `Raises to ${target}` });
   } else {
     return { ok: false, error: "Unknown action." };
   }
@@ -1013,6 +1055,15 @@ io.on("connection", (socket) => {
     if (!room || room.hostId !== playerId) return ack?.({ ok: false, error: "Only the host can end the game." });
     if (room.phase === "lobby") return ack?.({ ok: false, error: "No game is in progress." });
     endGame(room);
+    ack?.({ ok: true });
+    emitRoom(room);
+  });
+
+  socket.on("game:restart", (_, ack) => {
+    const room = rooms.get(socketRoom.get(socket.id));
+    const playerId = socketPlayer.get(socket.id);
+    if (!room || room.hostId !== playerId) return ack?.({ ok: false, error: "Only the host can restart." });
+    restartGame(room);
     ack?.({ ok: true });
     emitRoom(room);
   });

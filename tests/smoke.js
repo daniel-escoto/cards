@@ -83,6 +83,12 @@ function waitFor(predicate, label, timeout = 5000) {
     throw new Error("Expected ended game to clear the active hand");
   }
 
+  await emit(alice.socket, "game:restart");
+  await waitFor(() => alice.state?.phase === "lobby" && alice.state?.handNumber === 0, "game restart");
+  if (alice.state.players.some((player) => player.stack !== 1000 || player.cards.length > 0)) {
+    throw new Error("Expected restart to reset stacks and clear cards");
+  }
+
   await emit(alice.socket, "game:start");
   await waitFor(() => alice.state?.phase === "preflop", "second hand start");
   let sawBettingAction = false;

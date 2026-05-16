@@ -51,7 +51,7 @@
             <p class="eyebrow">Room <span id="roomCode"></span></p>
             <h2 id="phaseTitle">Lobby</h2>
           </div>
-          <button id="copyLink" class="ghost">Copy invite</button>
+          <button id="menuBtn" class="ghost menu-btn" type="button" aria-haspopup="dialog" aria-controls="gameMenuModal">Menu</button>
         </header>
 
         <section class="felt">
@@ -74,13 +74,6 @@
         <section class="control-panel">
           <div id="heroHand" class="hero-hand"></div>
           <div id="winnerList" class="winner-list"></div>
-          <div id="actionLogWrap" class="action-log-wrap hidden">
-            <div class="action-log-head">
-              <span>Hand tracker</span>
-              <button id="toggleActionLog" type="button" class="ghost">Expand</button>
-            </div>
-            <div id="actionLog" class="action-log"></div>
-          </div>
           <div id="turnInfo" class="turn-info"></div>
           <div id="gameButtons" class="game-buttons"></div>
           <div id="betControls" class="bet-controls hidden">
@@ -107,6 +100,23 @@
           <button id="scoreMenuBtn" type="button">Back to menu</button>
         </div>
       </section>
+
+      <div id="gameMenuModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="gameMenuTitle">
+        <div class="modal-panel">
+          <div class="modal-head">
+            <div>
+              <p class="eyebrow">Room <span id="menuRoomCode"></span></p>
+              <h2 id="gameMenuTitle">Table menu</h2>
+            </div>
+            <button id="closeMenuBtn" class="ghost icon-btn" type="button" aria-label="Close menu">×</button>
+          </div>
+          <div class="modal-actions">
+            <button id="restartGameBtn" type="button">Restart game</button>
+            <button id="shareGameBtn" type="button" class="secondary">Share</button>
+            <button id="backToMenuBtn" type="button" class="secondary">Back to menu</button>
+          </div>
+        </div>
+      </div>
     </main>
 
     <script src="/socket.io/socket.io.js"></script>
