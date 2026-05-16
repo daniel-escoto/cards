@@ -28,3 +28,12 @@ npm run smoke
 ```
 
 The smoke test creates a three-player room, plays a hand through showdown, and verifies chip totals.
+
+## Deployment
+
+Every push to `main` runs the GitHub Actions workflow in `.github/workflows/deploy.yml` and deploys to Railway with `railway up --ci`.
+
+Add these GitHub repository secrets:
+
+- `RAILWAY_TOKEN`: Railway project token for the target project/environment.
+- `RAILWAY_SERVICE_ID`: optional Railway service id, only needed if the token/project has multiple services.
