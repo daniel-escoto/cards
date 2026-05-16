@@ -310,9 +310,9 @@ function groupActionLog(entries) {
 
 function compactPlayerAction(entry, player) {
   const raw = entry.action || entry.text || "";
-  const withoutName = raw
-    .replace(new RegExp(`^${escapeRegExp(player.name)}\\s+`, "i"), "")
-    .replace(/\.$/, "");
+  const withoutName = player
+    ? raw.replace(new RegExp(`^${escapeRegExp(player.name)}\\s+`, "i"), "").replace(/\.$/, "")
+    : raw.replace(/\.$/, "");
   return withoutName
     .replace(/^Posts small blind\s+/i, "SB ")
     .replace(/^Posts big blind\s+/i, "BB ")
@@ -323,28 +323,78 @@ function compactPlayerAction(entry, player) {
     .replace(/^Wins\s+/i, "+");
 }
 
-function playerActionHistory(player) {
-  const entries = (state.actionLog || []).filter((entry) => (
-    entry.playerId === player.id || (!entry.playerId && entry.text?.startsWith(player.name))
-  ));
-  if (!entries.length) {
-    return "";
-  }
-  return groupActionLog(entries).flatMap(([phase, phaseEntries]) => (
-    phaseEntries.map((entry) => `
-      <span class="seat-action-card">
-        ${compactStreetLabel(phase) ? `<em>${escapeHtml(compactStreetLabel(phase))}</em>` : ""}
-        <strong>${escapeHtml(compactPlayerAction(entry, player))}</strong>
-      </span>
-    `)
-  )).join("");
-}
-
 function playerTableStatus(player) {
   if (player.folded) return "Folded";
   if (player.allIn) return "All in";
   if (player.isTurn) return "Acting";
   return player.connected ? "In hand" : "Away";
+}
+
+function playerForAction(entry) {
+  if (entry.playerId) {
+    const byId = state.players.find((player) => player.id === entry.playerId);
+    if (byId) return byId;
+  }
+  return state.players.find((player) => entry.text?.startsWith(`${player.name} `)) || null;
+}
+
+function renderSeatCard(player) {
+  return `
+    <article class="action-feed-card state-card ${player.isTurn ? "turn" : ""} ${player.folded ? "folded" : ""} ${player.isYou ? "you" : ""}">
+      <div class="action-card-head">
+        <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
+        <span class="seat-badges">
+          ${player.dealer ? '<span class="pill">D</span>' : ""}
+          ${player.isBot ? '<span class="pill">CPU</span>' : ""}
+        </span>
+      </div>
+      <div class="action-card-stats">
+        <span>Stack <strong>${player.stack}</strong></span>
+        <span>In pot <strong>${player.invested}</strong></span>
+        <em>${playerTableStatus(player)}</em>
+      </div>
+    </article>
+  `;
+}
+
+function renderActionFeed() {
+  const entries = (state.actionLog || []).filter((entry) => entry.phase !== "lobby");
+  if (!entries.length) {
+    return state.players.map(renderSeatCard).join("");
+  }
+
+  let lastPhase = "";
+  return entries.map((entry) => {
+    const player = playerForAction(entry);
+    const phase = entry.phase || "preflop";
+    const phaseDivider = phase !== lastPhase
+      ? `<div class="street-divider">${escapeHtml(streetLabel(phase))}</div>`
+      : "";
+    lastPhase = phase;
+    return `
+      ${phaseDivider}
+      <article class="action-feed-card ${player?.isTurn ? "turn" : ""} ${player?.folded ? "folded" : ""} ${player?.isYou ? "you" : ""}">
+        <div class="action-card-head">
+          <span class="seat-name">${escapeHtml(player?.name || "Table")}${player?.isYou ? " (you)" : ""}</span>
+          <span class="seat-badges">
+            ${player?.dealer ? '<span class="pill">D</span>' : ""}
+            ${player?.isBot ? '<span class="pill">CPU</span>' : ""}
+          </span>
+        </div>
+        <div class="action-card-move">
+          ${compactStreetLabel(phase) ? `<em>${escapeHtml(compactStreetLabel(phase))}</em>` : ""}
+          <strong>${escapeHtml(compactPlayerAction(entry, player))}</strong>
+        </div>
+        ${player ? `
+          <div class="action-card-stats">
+            <span>Stack <strong>${player.stack}</strong></span>
+            <span>In pot <strong>${player.invested}</strong></span>
+            <em>${playerTableStatus(player)}</em>
+          </div>
+        ` : ""}
+      </article>
+    `;
+  }).join("");
 }
 
 function inferActionSound(previous, next) {
@@ -401,35 +451,7 @@ function render() {
     ? state.community.map(cardTemplate).join("")
     : Array.from({ length: 5 }, () => cardTemplate(null)).join("");
 
-  players.innerHTML = state.players.map((player, index) => `
-    <article class="seat pos-${index} ${player.isTurn ? "turn" : ""} ${player.folded ? "folded" : ""} ${player.isYou ? "you" : ""}">
-      <div class="seat-top">
-        <div class="seat-head">
-          <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
-          <span class="seat-badges">
-            ${player.dealer ? '<span class="pill">D</span>' : ""}
-            ${player.isBot ? '<span class="pill">CPU</span>' : ""}
-          </span>
-        </div>
-        ${player.isYou ? "" : `<div class="mini-cards">${player.cards.map(cardTemplate).join("")}</div>`}
-      </div>
-      <div class="seat-history">${playerActionHistory(player)}</div>
-      <div class="seat-footer">
-        <div class="seat-stats">
-          <div class="seat-line stack-line">
-            <span>Stack</span>
-            <strong>${player.stack}</strong>
-          </div>
-          <div class="seat-line bet-line">
-            <span>In pot</span>
-            <strong>${player.invested}</strong>
-          </div>
-        </div>
-        <span class="seat-status">${playerTableStatus(player)}</span>
-        ${player.canKick ? `<button type="button" class="kick-btn danger" data-kick-player="${escapeHtml(player.id)}">Kick</button>` : ""}
-      </div>
-    </article>
-  `).join("");
+  players.innerHTML = renderActionFeed();
 
   const hero = activeHero();
   heroHand.innerHTML = hero?.cards?.length ? hero.cards.map(cardTemplate).join("") : "";
