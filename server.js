@@ -685,11 +685,18 @@ function collectPot(room) {
   return room.deadPot + room.players.reduce((sum, player) => sum + player.invested, 0);
 }
 
+function revealComputerHands(room) {
+  for (const player of room.players) {
+    if (player.isBot && player.hand.length) player.showCards = true;
+  }
+}
+
 function awardUncontested(room, winner) {
   const amount = collectPot(room);
   winner.stack += amount;
   room.phase = "complete";
   room.turn = null;
+  revealComputerHands(room);
   room.winners = [{ playerId: winner.id, name: winner.name, amount, hand: "Everyone else folded" }];
   room.message = `${winner.name} wins ${amount}.`;
   logAction(room, `${winner.name} wins ${amount}.`, {
@@ -763,6 +770,7 @@ function settleShowdown(room) {
 
   room.phase = "complete";
   room.winners = combineWinnerSummaries(summaries);
+  revealComputerHands(room);
   room.message = room.winners.map((winner) => `${winner.name} wins ${winner.amount} with ${winner.hand}`).join(" · ");
   for (const winner of room.winners) {
     logAction(room, `${winner.name} wins ${winner.amount} with ${winner.hand}.`, {
@@ -968,6 +976,7 @@ function serializeRoom(room, viewerId) {
       dealer: index === room.dealer,
       isTurn: room.turn === player.id,
       isYou: player.id === viewerId,
+      canMakeHost: room.hostId === viewerId && player.id !== viewerId && !player.isBot && player.connected,
       canKick: room.hostId === viewerId && player.id !== viewerId && !player.isBot && !isHandInProgress(room),
       cards: player.id === viewerId || player.showCards
         ? player.hand.map(publicCard)
@@ -995,6 +1004,18 @@ function detachSocketFromRoom(socketId, roomId) {
 function chooseNextHost(room) {
   const nextHost = room.players.find((player) => !player.isBot) || room.players[0];
   room.hostId = nextHost?.id || null;
+}
+
+function transferHost(room, currentHostId, nextHostId) {
+  if (!room || room.hostId !== currentHostId) return { ok: false, error: "Only the host can make another player host." };
+  if (currentHostId === nextHostId) return { ok: false, error: "You are already the host." };
+  const nextHost = room.players.find((player) => player.id === nextHostId);
+  if (!nextHost) return { ok: false, error: "Player not found." };
+  if (nextHost.isBot) return { ok: false, error: "CPU players cannot be host." };
+  if (!nextHost.connected) return { ok: false, error: "That player is away." };
+  room.hostId = nextHost.id;
+  room.message = `${nextHost.name} is now host.`;
+  return { ok: true };
 }
 
 function removePlayerAfterDisconnect(room, player) {
@@ -1160,6 +1181,15 @@ io.on("connection", (socket) => {
     const removed = kickPlayerFromRoom(room, playerId);
     if (!removed) return ack?.({ ok: false, error: "Player not found." });
     ack?.({ ok: true });
+    emitRoom(room);
+  });
+
+  socket.on("room:makeHost", ({ playerId }, ack) => {
+    const room = rooms.get(socketRoom.get(socket.id));
+    const hostId = socketPlayer.get(socket.id);
+    const result = transferHost(room, hostId, playerId);
+    if (!result.ok) return ack?.(result);
+    ack?.(result);
     emitRoom(room);
   });
 

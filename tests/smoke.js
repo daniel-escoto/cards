@@ -72,6 +72,12 @@ function waitFor(predicate, label, timeout = 5000) {
   if (bobAgain.state.players.filter((player) => player.name === "Bob").length !== 1) {
     throw new Error("Rejoin created a duplicate player");
   }
+  const bobId = alice.state.players.find((player) => player.name === "Bob")?.id;
+  const aliceId = alice.state.players.find((player) => player.name === "Alice")?.id;
+  await emit(alice.socket, "room:makeHost", { playerId: bobId });
+  await waitFor(() => bobAgain.state?.players.find((player) => player.name === "Bob")?.isHost, "host transfer to Bob");
+  await emit(bobAgain.socket, "room:makeHost", { playerId: aliceId });
+  await waitFor(() => alice.state?.players.find((player) => player.name === "Alice")?.isHost, "host transfer back to Alice");
   bob.socket.disconnect();
   players[1] = bobAgain;
 
@@ -186,11 +192,12 @@ function waitFor(predicate, label, timeout = 5000) {
   if (danaLate.state.players.filter((player) => player.isBot).length !== 2) {
     throw new Error("Expected late rejoin to reclaim the replacement CPU seat");
   }
-  danaLate.socket.disconnect();
 
+  const computerTableHumans = [solo, danaLate];
   for (let i = 0; i < 240 && solo.state.phase !== "complete"; i += 1) {
-    if (solo.state.isYourTurn) {
-      await emit(solo.socket, "game:action", { type: solo.state.toCall > 0 ? "call" : "check" });
+    const current = computerTableHumans.find((player) => player.state?.isYourTurn);
+    if (current) {
+      await emit(current.socket, "game:action", { type: current.state.toCall > 0 ? "call" : "check" });
     }
     await new Promise((resolve) => setTimeout(resolve, 75));
   }
@@ -202,10 +209,15 @@ function waitFor(predicate, label, timeout = 5000) {
   if (solo.state.players.reduce((sum, player) => sum + player.stack, 0) !== 4000) {
     throw new Error("Computer game chip totals did not balance");
   }
+  const hiddenCpu = solo.state.players.find((player) => player.isBot && player.cards.some((card) => !card?.code));
+  if (hiddenCpu) {
+    throw new Error("Expected CPU cards to show after hand completion");
+  }
 
   players.forEach((player) => player.socket.disconnect());
   solo.socket.disconnect();
   dana.socket.disconnect();
+  danaLate.socket.disconnect();
   console.log(`Smoke test passed for room ${created.roomId}`);
 })().catch((error) => {
   console.error(error);
