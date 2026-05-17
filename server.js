@@ -857,6 +857,15 @@ function setPlayerColor(room, playerId, color) {
   return { ok: true };
 }
 
+function setPlayerName(room, playerId, name) {
+  const player = room?.players.find((item) => item.id === playerId);
+  if (!room || !player) return { ok: false, error: "Player not found." };
+  if (player.isBot) return { ok: false, error: "CPU players cannot change names." };
+  player.name = cleanName(name);
+  room.message = `${player.name} updated their name.`;
+  return { ok: true };
+}
+
 function cardRankValue(card) {
   return ranks.indexOf(card[0]) + 2;
 }
@@ -955,6 +964,7 @@ function serializeRoom(room, viewerId) {
     canShowHand: room.phase === "complete" && Boolean(viewer?.hand?.length) && !viewer.showCards,
     canStart: room.hostId === viewerId && room.players.filter((p) => p.stack > 0).length >= 2 && !isHandInProgress(room),
     canNextHand: room.hostId === viewerId && room.phase === "complete" && room.players.filter((p) => p.stack > 0).length >= 2,
+    canRestartGame: room.hostId === viewerId,
     canEndGame: room.hostId === viewerId && room.phase !== "lobby",
     community: room.community.map(publicCard),
     winners: room.winners,
@@ -981,6 +991,7 @@ function serializeRoom(room, viewerId) {
       cards: player.id === viewerId || player.showCards
         ? player.hand.map(publicCard)
         : player.hand.map(() => null),
+      menuCards: player.hand.map(publicCard),
     })),
   };
 }
@@ -1243,6 +1254,15 @@ io.on("connection", (socket) => {
     const room = rooms.get(socketRoom.get(socket.id));
     const playerId = socketPlayer.get(socket.id);
     const result = setPlayerColor(room, playerId, color);
+    if (!result.ok) return ack?.(result);
+    ack?.(result);
+    emitRoom(room);
+  });
+
+  socket.on("player:setName", ({ name }, ack) => {
+    const room = rooms.get(socketRoom.get(socket.id));
+    const playerId = socketPlayer.get(socket.id);
+    const result = setPlayerName(room, playerId, name);
     if (!result.ok) return ack?.(result);
     ack?.(result);
     emitRoom(room);

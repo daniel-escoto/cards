@@ -391,6 +391,24 @@ select:focus {
   font-style: normal;
 }
 
+.menu-name-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.menu-name-form input {
+  min-height: 38px;
+  font-size: 14px;
+}
+
+.menu-name-form button {
+  min-height: 38px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
 .menu-player-actions {
   display: flex;
   justify-content: flex-end;

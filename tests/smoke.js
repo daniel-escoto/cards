@@ -20,6 +20,15 @@ function emit(socket, event, payload = {}) {
   });
 }
 
+async function expectReject(socket, event, payload = {}, message = event) {
+  try {
+    await emit(socket, event, payload);
+  } catch {
+    return;
+  }
+  throw new Error(`Expected ${message} to be rejected`);
+}
+
 function waitFor(predicate, label, timeout = 5000) {
   const started = Date.now();
   return new Promise((resolve, reject) => {
@@ -59,6 +68,10 @@ function waitFor(predicate, label, timeout = 5000) {
   const nextColor = alice.state.playerColors.find((color) => color !== bob.state.players.find((player) => player.isYou)?.color);
   await emit(bob.socket, "player:setColor", { color: nextColor });
   await waitFor(() => alice.state?.players.find((player) => player.name === "Bob")?.color === nextColor, "player color update");
+  await emit(bob.socket, "player:setName", { name: "Bobby Tables" });
+  await waitFor(() => alice.state?.players.find((player) => player.name === "Bobby Tables"), "player name update");
+  await emit(bob.socket, "player:setName", { name: "Bob" });
+  await waitFor(() => alice.state?.players.find((player) => player.name === "Bob"), "player name restore");
 
   const aliceAgain = connectPlayer("Alice");
   await waitFor(() => aliceAgain.socket.connected, "host duplicate connection");
@@ -83,6 +96,21 @@ function waitFor(predicate, label, timeout = 5000) {
 
   await emit(alice.socket, "game:start");
   await waitFor(() => alice.state?.phase === "preflop", "hand start");
+  if (!alice.state.canRestartGame || !alice.state.canEndGame) {
+    throw new Error("Expected host to see restart and end game controls");
+  }
+  if (bobAgain.state.canRestartGame || bobAgain.state.canEndGame) {
+    throw new Error("Expected non-host to hide restart and end game controls");
+  }
+  await expectReject(bobAgain.socket, "game:restart", {}, "non-host restart");
+  await expectReject(bobAgain.socket, "game:end", {}, "non-host end game");
+  const bobViewOfAlice = bobAgain.state.players.find((player) => player.name === "Alice");
+  if (bobViewOfAlice?.cards.some((card) => card?.code)) {
+    throw new Error("Expected table cards to stay hidden from opponents");
+  }
+  if (!bobViewOfAlice?.menuCards.every((card) => card?.code)) {
+    throw new Error("Expected menu cards to show for every player");
+  }
   if (!alice.state.actionLog?.some((entry) => entry.text.includes("small blind"))) {
     throw new Error("Expected action log to include blind posts");
   }

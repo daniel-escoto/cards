@@ -166,7 +166,9 @@ function roundStatus(player) {
 
 function renderMenuPlayers() {
   if (!state) return;
+  if (document.activeElement?.matches("[data-player-name]")) return;
   menuRoomCode.textContent = state.id;
+  restartGameBtn.classList.toggle("hidden", !state.canRestartGame);
   endGameBtn.classList.toggle("hidden", !state.canEndGame);
   menuPlayers.innerHTML = state.players.map((player) => `
     <article class="menu-player ${player.isYou ? "you" : ""} ${player.folded ? "folded" : ""}" ${playerColorStyle(player)}>
@@ -178,13 +180,22 @@ function renderMenuPlayers() {
           ${player.isBot ? '<span class="pill">CPU</span>' : ""}
         </span>
       </div>
-      <div class="menu-player-cards">${player.cards.map(cardTemplate).join("")}</div>
+      <div class="menu-player-cards">${(player.menuCards || player.cards).map(cardTemplate).join("")}</div>
       <div class="menu-player-stats">
         <span>Stack <strong>${player.stack}</strong></span>
         <span>Bet <strong>${player.bet}</strong></span>
         <span>In pot <strong>${player.invested}</strong></span>
         <em>${escapeHtml(roundStatus(player))}</em>
       </div>
+      ${player.isYou && !player.isBot ? `
+        <form class="menu-name-form" data-name-form>
+          <label>
+            Display name
+            <input data-player-name maxlength="18" value="${escapeHtml(player.name)}" autocomplete="name" />
+          </label>
+          <button type="submit" class="secondary">Save</button>
+        </form>
+      ` : ""}
       ${player.isYou && !player.isBot ? `
         <div class="color-swatches" aria-label="Player color">
           ${(state.playerColors || []).map((color) => `
@@ -830,6 +841,19 @@ gameMenuModal.addEventListener("click", (event) => {
   if (event.target === gameMenuModal) hideGameMenu();
 });
 
+gameMenuModal.addEventListener("submit", (event) => {
+  const nameForm = event.target.closest("[data-name-form]");
+  if (!nameForm) return;
+  event.preventDefault();
+  const input = nameForm.querySelector("[data-player-name]");
+  const name = input.value.trim();
+  if (!name) return;
+  nameInput.value = name;
+  localStorage.setItem("holdem:name", name);
+  input.blur();
+  emitWithAck("player:setName", { name }, "click");
+});
+
 restartGameBtn.addEventListener("click", () => {
   hideGameMenu();
   emitWithAck("game:restart", {}, "click");
@@ -868,6 +892,11 @@ socket.on("room:update", (room) => {
 
   playRoomSounds(state, room);
   state = room;
+  const self = state.players.find((player) => player.isYou && !player.isBot);
+  if (self) {
+    nameInput.value = self.name;
+    localStorage.setItem("holdem:name", self.name);
+  }
   joinError.textContent = "";
   render();
   hasRenderedRoom = true;
@@ -878,6 +907,7 @@ socket.on("room:kicked", () => {
 });
 
 function attemptAutoRejoin() {
+  if (!state) return;
   const roomId = (state?.id || roomInput.value.trim()).toUpperCase();
   const name = nameInput.value.trim() || localStorage.getItem("holdem:name") || "Player";
   const rejoinKey = `${socket.id}:${roomId}`;
