@@ -356,8 +356,20 @@ select:focus {
   font-size: 12px;
 }
 
-.menu-player-cards .card .suit,
-.shown-hand .card .suit {
+.menu-player-cards .card .card-image,
+.shown-hand .card .card-image {
+  display: none;
+}
+
+.menu-player-cards .card .card-corner-bottom,
+.shown-hand .card .card-corner-bottom {
+  transform: none;
+}
+
+.menu-player-cards .card .card-rank,
+.shown-hand .card .card-rank,
+.menu-player-cards .card .card-corner-suit,
+.shown-hand .card .card-corner-suit {
   font-size: 13px;
 }
 
@@ -377,6 +389,17 @@ select:focus {
 .menu-player-stats em {
   color: var(--accent);
   font-style: normal;
+}
+
+.menu-player-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.menu-player-actions button {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 12px;
 }
 
 .share-panel {
@@ -439,6 +462,7 @@ select:focus {
 }
 
 .felt {
+  --community-y: 30%;
   position: relative;
   min-height: 560px;
   overflow: hidden;
@@ -482,7 +506,7 @@ select:focus {
 
 .community {
   position: absolute;
-  top: 44%;
+  top: var(--community-y);
   left: 50%;
   display: flex;
   gap: clamp(6px, 1.8vw, 12px);
@@ -490,16 +514,26 @@ select:focus {
 }
 
 .card {
-  width: clamp(48px, 11vw, 74px);
+  width: clamp(58px, 6.5vw, 90px);
   aspect-ratio: 0.72;
+  position: relative;
   display: grid;
-  align-content: space-between;
+  grid-template-rows: auto 1fr auto;
   padding: 8px;
   border-radius: 7px;
   background: #f7f1e6;
   color: var(--black-card);
   font-weight: 950;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.24);
+}
+
+.card-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: none;
 }
 
 .card.red {
@@ -512,15 +546,35 @@ select:focus {
   color: transparent;
 }
 
-.card .suit {
+.card-corner {
+  display: grid;
+  justify-items: center;
+  line-height: 0.9;
+  z-index: 1;
+}
+
+.card-corner-top {
+  justify-self: start;
+  align-self: start;
+}
+
+.card-corner-bottom {
   justify-self: end;
-  font-size: 22px;
+  align-self: end;
+}
+
+.card-rank {
+  font-size: 14px;
+}
+
+.card-corner-suit {
+  font-size: 12px;
 }
 
 .message {
   position: absolute;
   left: 50%;
-  top: calc(44% + 78px);
+  top: calc(var(--community-y) + 78px);
   width: min(560px, calc(100% - 36px));
   transform: translateX(-50%);
   text-align: center;
@@ -529,13 +583,16 @@ select:focus {
 
 .players {
   position: absolute;
-  inset: 86px 18px 22px;
+  inset: calc(var(--community-y) + 142px) 18px 22px;
+  min-height: 0;
   display: grid;
-  align-content: end;
+  align-content: start;
   gap: 7px;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 2px;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
 }
 
 .action-feed-card {
@@ -593,6 +650,10 @@ select:focus {
   min-width: 0;
   font-size: 14px;
   font-weight: 900;
+}
+
+.action-card-full-action {
+  display: none;
 }
 
 .kick-btn {
@@ -728,10 +789,78 @@ select:focus {
 }
 
 @media (min-width: 780px) {
+  .table-view {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+    align-items: start;
+  }
+
+  .topbar {
+    grid-column: 1 / -1;
+  }
+
+  .felt {
+    grid-column: 1;
+    min-height: min(660px, calc(100dvh - 92px));
+  }
+
+  .control-panel {
+    position: sticky;
+    top: 20px;
+    grid-column: 2;
+    max-height: calc(100dvh - 132px);
+    overflow-y: auto;
+  }
+
+  .hero-hand {
+    flex-wrap: wrap;
+  }
+
+  .game-buttons {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .game-buttons > button {
+    width: 100%;
+  }
+
+  .bet-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .action-card-full-action {
+    display: none;
+  }
+}
+
+@media (min-width: 1040px) {
+  .felt {
+    min-height: min(700px, calc(100dvh - 92px));
+  }
+
+  .card {
+    width: clamp(58px, 6.5vw, 90px);
+  }
+
+  .card-image {
+    display: block;
+  }
+
+  .card .card-corner {
+    display: none;
+  }
+
+  .action-feed-card {
+    gap: 10px;
+    padding: 12px 14px;
+  }
+}
+
+@media (min-width: 780px) {
   .players {
-    inset: 94px 22px 24px;
+    inset: calc(var(--community-y) + 146px) 22px 24px;
     grid-template-columns: minmax(0, 1fr);
-    align-content: end;
+    align-content: start;
   }
 
   .street-divider {
@@ -911,13 +1040,16 @@ select:focus {
   .players {
     position: static;
     min-height: 0;
+    height: 100%;
+    max-height: 100%;
     display: grid;
     grid-template-columns: 1fr;
-    align-content: end;
+    align-content: start;
     gap: 6px;
     overflow-y: auto;
     overscroll-behavior: contain;
     padding-right: 2px;
+    touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
   }
 
@@ -957,7 +1089,16 @@ select:focus {
     padding: 6px;
   }
 
-  .card .suit {
+  .card .card-image {
+    display: none;
+  }
+
+  .card .card-corner-bottom {
+    transform: none;
+  }
+
+  .card .card-rank,
+  .card .card-corner-suit {
     font-size: 17px;
   }
 

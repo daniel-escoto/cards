@@ -79,12 +79,38 @@ function updateTableActionLabel() {
   tableSizeLabel.classList.toggle("hidden", isJoining);
 }
 
+function cardImageUrl(card) {
+  const suitCodes = {
+    "♣": "C",
+    "♦": "D",
+    "♥": "H",
+    "♠": "S",
+  };
+  const rankCodes = {
+    A: "A",
+    J: "J",
+    Q: "Q",
+    K: "K",
+    10: "0",
+  };
+  const suit = suitCodes[card.suit];
+  const rank = rankCodes[card.rank] || card.rank;
+  return suit && rank ? `https://deckofcardsapi.com/static/img/${rank}${suit}.png` : "";
+}
+
 function cardTemplate(card) {
   if (!card) return '<div class="card back"><span></span><span></span></div>';
+  const imageUrl = cardImageUrl(card);
+  const cardName = `${card.rank}${card.suit}`;
   return `
     <div class="card ${card.color === "red" ? "red" : ""}">
-      <span>${card.rank}</span>
-      <span class="suit">${card.suit}</span>
+      ${imageUrl ? `<img class="card-image" src="${imageUrl}" alt="${escapeHtml(cardName)}" loading="eager" draggable="false" />` : ""}
+      <span class="card-corner card-corner-top">
+        <span class="card-rank">${card.rank}</span>
+      </span>
+      <span class="card-corner card-corner-bottom">
+        <span class="card-corner-suit suit">${card.suit}</span>
+      </span>
     </div>
   `;
 }
@@ -171,6 +197,11 @@ function renderMenuPlayers() {
               aria-pressed="${player.color === color ? "true" : "false"}"
             ></button>
           `).join("")}
+        </div>
+      ` : ""}
+      ${player.canMakeHost ? `
+        <div class="menu-player-actions">
+          <button type="button" class="secondary" data-make-host="${escapeHtml(player.id)}">Make host</button>
         </div>
       ` : ""}
     </article>
@@ -425,6 +456,7 @@ function playerForAction(entry) {
 }
 
 function renderSeatCard(player, isActiveTurn = player.isTurn) {
+  const status = playerTableStatus(player, isActiveTurn);
   return `
     <article class="action-feed-card state-card ${isActiveTurn ? "turn" : ""} ${player.folded ? "folded" : ""} ${player.isYou ? "you" : ""}" ${playerColorStyle(player)}>
       <div class="action-card-head">
@@ -438,13 +470,14 @@ function renderSeatCard(player, isActiveTurn = player.isTurn) {
       <div class="action-card-stats">
         <span>Stack <strong>${player.stack}</strong></span>
         <span>In pot <strong>${player.invested}</strong></span>
-        <em>${playerTableStatus(player, isActiveTurn)}</em>
+        <em>${status}</em>
       </div>
     </article>
   `;
 }
 
 function renderShownHandCard(player) {
+  const status = roundStatus(player);
   return `
     <article class="action-feed-card shown-hand-card ${player.isYou ? "you" : ""}" ${playerColorStyle(player)}>
       <div class="action-card-head">
@@ -455,7 +488,7 @@ function renderShownHandCard(player) {
       <div class="action-card-stats">
         <span>Stack <strong>${player.stack}</strong></span>
         <span>In pot <strong>${player.invested}</strong></span>
-        <em>${escapeHtml(roundStatus(player))}</em>
+        <em>${escapeHtml(status)}</em>
       </div>
     </article>
   `;
@@ -567,6 +600,8 @@ function render() {
     ? state.community.map(cardTemplate).join("")
     : Array.from({ length: 5 }, () => cardTemplate(null)).join("");
 
+  const shouldStickPlayersToBottom = !hasRenderedRoom
+    || players.scrollHeight - players.scrollTop - players.clientHeight < 48;
   players.innerHTML = renderActionFeed();
 
   const hero = activeHero();
@@ -577,11 +612,12 @@ function render() {
 
   renderControls(hero);
   if (!gameMenuModal.classList.contains("hidden")) renderMenuPlayers();
-  requestAnimationFrame(scrollPlayersToBottom);
+  requestAnimationFrame(() => scrollPlayersToBottom(shouldStickPlayersToBottom));
 }
 
-function scrollPlayersToBottom() {
-  if (!window.matchMedia("(max-width: 779px)").matches) return;
+function scrollPlayersToBottom(shouldScroll) {
+  if (!shouldScroll) return;
+  if (players.scrollHeight <= players.clientHeight) return;
   players.scrollTo({ top: players.scrollHeight, behavior: hasRenderedRoom ? "smooth" : "auto" });
 }
 
@@ -663,6 +699,10 @@ function addActionButton(label, payload, className = "") {
 
 function kickPlayer(playerId) {
   emitWithAck("room:kick", { playerId }, "click");
+}
+
+function makeHost(playerId) {
+  emitWithAck("room:makeHost", { playerId }, "click");
 }
 
 async function copyText(text, button) {
@@ -780,6 +820,11 @@ gameMenuModal.addEventListener("click", (event) => {
   const colorButton = event.target.closest("[data-player-color]");
   if (colorButton) {
     emitWithAck("player:setColor", { color: colorButton.dataset.playerColor }, "click");
+    return;
+  }
+  const hostButton = event.target.closest("[data-make-host]");
+  if (hostButton) {
+    makeHost(hostButton.dataset.makeHost);
     return;
   }
   if (event.target === gameMenuModal) hideGameMenu();
