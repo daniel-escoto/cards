@@ -513,9 +513,10 @@ function currentTurnPlayer() {
 function renderActionFeed() {
   const entries = (state.actionLog || []).filter((entry) => entry.phase !== "lobby");
   const activePlayer = currentTurnPlayer();
+  const activeSeatIndex = findLastIndex(state.players, (player) => player.id === activePlayer?.id);
+  const seatMarkup = () => state.players.map((player, index) => renderSeatCard(player, index === activeSeatIndex)).join("");
   if (!entries.length) {
-    const activeSeatIndex = findLastIndex(state.players, (player) => player.id === activePlayer?.id);
-    return state.players.map((player, index) => renderSeatCard(player, index === activeSeatIndex)).join("");
+    return seatMarkup();
   }
 
   let lastPhase = "";
@@ -554,7 +555,8 @@ function renderActionFeed() {
   const shownHands = state.phase === "complete"
     ? state.players.filter((player) => player.showCards).map(renderShownHandCard).join("")
     : "";
-  return `${historyMarkup}${shownHands}${activePlayer ? renderSeatCard(activePlayer, true) : ""}`;
+  const markup = `${historyMarkup}${shownHands}${activePlayer ? renderSeatCard(activePlayer, true) : ""}`.trim();
+  return markup || seatMarkup();
 }
 
 function inferActionSound(previous, next) {
