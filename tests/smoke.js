@@ -174,6 +174,31 @@ function waitFor(predicate, label, timeout = 5000) {
     throw new Error("Expected shown hand to be visible to other players");
   }
 
+  const idle = connectPlayer("Idle");
+  await waitFor(() => idle.socket.connected, "idle computer game connection");
+  await emit(idle.socket, "room:create", {
+    name: idle.name,
+    deviceId: idle.deviceId,
+    computerPlayers: 4,
+  });
+  await waitFor(() => idle.state?.players.length === 4, "idle computer players seated");
+  await emit(idle.socket, "game:start");
+  await waitFor(() => {
+    const current = idle.state?.players.find((player) => player.id === idle.state?.turn);
+    return idle.state?.phase === "preflop" && current?.isBot;
+  }, "idle game CPU turn");
+  const idleSignature = `${idle.state.phase}:${idle.state.turn}:${idle.state.actionLog.length}:${idle.state.pot}`;
+  idle.socket.disconnect();
+  await new Promise((resolve) => setTimeout(resolve, 900));
+  const idleReturn = connectPlayer("Idle");
+  await waitFor(() => idleReturn.socket.connected, "idle game rejoin connection");
+  await emit(idleReturn.socket, "room:join", { roomId: idle.state.id, name: idleReturn.name, deviceId: idle.deviceId });
+  await waitFor(() => idleReturn.state?.phase === "preflop", "idle game rejoin");
+  const idleReturnSignature = `${idleReturn.state.phase}:${idleReturn.state.turn}:${idleReturn.state.actionLog.length}:${idleReturn.state.pot}`;
+  if (idleReturnSignature !== idleSignature) {
+    throw new Error("Expected computer game to pause while no humans are connected");
+  }
+
   const solo = connectPlayer("Solo");
   await waitFor(() => solo.socket.connected, "computer game connection");
   await emit(solo.socket, "room:create", {
@@ -243,6 +268,7 @@ function waitFor(predicate, label, timeout = 5000) {
   }
 
   players.forEach((player) => player.socket.disconnect());
+  idleReturn.socket.disconnect();
   solo.socket.disconnect();
   dana.socket.disconnect();
   danaLate.socket.disconnect();

@@ -923,14 +923,19 @@ function chooseComputerAction(room, player) {
   return { type: "fold" };
 }
 
+function hasConnectedHuman(room) {
+  return room.players.some((player) => !player.isBot && player.connected);
+}
+
 function scheduleComputerTurn(room) {
   clearTimeout(room.botTimer);
+  if (!hasConnectedHuman(room)) return;
   const player = room.players.find((item) => item.id === room.turn);
   if (!player?.isBot || !isHandInProgress(room)) return;
   room.botTimer = setTimeout(() => {
     const currentRoom = rooms.get(room.id);
     const currentPlayer = currentRoom?.players.find((item) => item.id === currentRoom.turn);
-    if (!currentRoom || !currentPlayer?.isBot || !isHandInProgress(currentRoom)) return;
+    if (!currentRoom || !hasConnectedHuman(currentRoom) || !currentPlayer?.isBot || !isHandInProgress(currentRoom)) return;
     applyPlayerAction(currentRoom, currentPlayer.id, chooseComputerAction(currentRoom, currentPlayer));
     emitRoom(currentRoom);
   }, BOT_DELAY_MS);
