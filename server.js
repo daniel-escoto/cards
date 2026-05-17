@@ -902,6 +902,15 @@ function estimateComputerConfidence(room, player) {
   return Math.max(0.08, Math.min(0.92, confidence));
 }
 
+function chooseComputerRaiseTo(room, player, minRaiseTo, confidence) {
+  const maxBet = player.bet + player.stack;
+  const pot = collectPot(room);
+  const pressureRaise = minRaiseTo + BIG_BLIND * (confidence > 0.72 ? 2 : 1);
+  const potRaise = room.currentBet + Math.ceil(pot * (confidence > 0.66 ? 0.42 : 0.28) / BIG_BLIND) * BIG_BLIND;
+  const preferred = Math.max(minRaiseTo, Math.random() < 0.42 ? potRaise : pressureRaise);
+  return Math.min(maxBet, preferred);
+}
+
 function chooseComputerAction(room, player) {
   const callAmount = Math.max(0, room.currentBet - player.bet);
   const maxBet = player.bet + player.stack;
@@ -910,15 +919,17 @@ function chooseComputerAction(room, player) {
   const confidence = estimateComputerConfidence(room, player);
 
   if (callAmount === 0) {
-    if (canRaise && minRaiseTo <= maxBet && confidence > 0.58 && Math.random() < confidence * 0.22) {
-      return { type: "raise", raiseTo: Math.min(maxBet, minRaiseTo + (Math.random() < 0.35 ? BIG_BLIND : 0)) };
+    const valueRaiseChance = confidence > 0.48 ? confidence * 0.36 : 0;
+    const bluffRaiseChance = confidence < 0.34 && room.community.length >= 3 ? 0.06 : 0.025;
+    if (canRaise && minRaiseTo <= maxBet && Math.random() < valueRaiseChance + bluffRaiseChance) {
+      return { type: "raise", raiseTo: chooseComputerRaiseTo(room, player, minRaiseTo, confidence) };
     }
     return { type: "check" };
   }
 
   const potPressure = callAmount / Math.max(BIG_BLIND, collectPot(room) + callAmount);
   const stackPressure = callAmount / Math.max(1, player.stack + callAmount);
-  const callChance = Math.max(0.06, Math.min(0.94, confidence + 0.2 - potPressure * 0.72 - stackPressure * 0.58));
+  const callChance = Math.max(0.12, Math.min(0.96, confidence + 0.29 - potPressure * 0.55 - stackPressure * 0.44));
   if (Math.random() < callChance) return { type: "call" };
   return { type: "fold" };
 }
