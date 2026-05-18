@@ -985,6 +985,7 @@ select:focus {
     gap: 14px 18px;
     padding: 18px;
     min-height: 0;
+    height: 100%;
   }
 
   .community {
@@ -1069,9 +1070,12 @@ select:focus {
     grid-column: 1;
     grid-row: 1 / -1;
     grid-template-columns: minmax(0, 1fr);
-    align-content: end;
+    align-content: start;
+    align-self: stretch;
     min-height: 0;
     height: 100%;
+    max-height: 100%;
+    overflow-y: auto;
     padding-right: 4px;
   }
 
