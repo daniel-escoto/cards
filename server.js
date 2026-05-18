@@ -911,6 +911,30 @@ function chooseComputerRaiseTo(room, player, minRaiseTo, confidence) {
   return Math.min(maxBet, preferred);
 }
 
+function preflopBlindCallChance(room, player, callAmount) {
+  if (room.phase !== "preflop" || room.community.length > 0 || callAmount > BIG_BLIND) return null;
+
+  const holeValues = player.hand.map(cardRankValue).sort((a, b) => b - a);
+  const highCard = holeValues[0] || 0;
+  const lowCard = holeValues[1] || 0;
+  const gap = highCard - lowCard;
+  const suited = player.hand.length === 2 && player.hand[0][1] === player.hand[1][1];
+  const paired = highCard === lowCard;
+  const hasBroadway = highCard >= 11;
+  const connected = gap <= 1;
+  const nearConnected = gap === 2;
+
+  let callChance = callAmount < BIG_BLIND ? 0.86 : 0.68;
+  if (paired) callChance += highCard >= 10 ? 0.22 : 0.16;
+  if (hasBroadway) callChance += 0.08;
+  if (suited) callChance += 0.08;
+  if (connected) callChance += 0.1;
+  else if (nearConnected) callChance += 0.05;
+  if (highCard <= 9 && gap >= 5 && !suited) callChance -= 0.16;
+
+  return Math.max(0.36, Math.min(0.96, callChance));
+}
+
 function chooseComputerAction(room, player) {
   const callAmount = Math.max(0, room.currentBet - player.bet);
   const maxBet = player.bet + player.stack;
@@ -925,6 +949,12 @@ function chooseComputerAction(room, player) {
       return { type: "raise", raiseTo: chooseComputerRaiseTo(room, player, minRaiseTo, confidence) };
     }
     return { type: "check" };
+  }
+
+  const blindCallChance = preflopBlindCallChance(room, player, callAmount);
+  if (blindCallChance !== null) {
+    if (Math.random() < blindCallChance) return { type: "call" };
+    return { type: "fold" };
   }
 
   const potPressure = callAmount / Math.max(BIG_BLIND, collectPot(room) + callAmount);
