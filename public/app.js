@@ -539,7 +539,7 @@ function actionFeedSignature(room) {
       player.folded,
       player.allIn,
       player.showCards,
-      player.cards?.map((card) => card.code).join(",") || "",
+      player.cards?.map((card) => card?.code || "").join(",") || "",
     ].join(":"))
     .join("|");
   return `${room.handNumber}:${room.phase}:${room.turn}:${log}:${seats}`;
@@ -595,13 +595,8 @@ function render() {
 
   const actionEntries = (state.actionLog || []).filter((entry) => entry.phase !== "lobby");
   const nextFeedSignature = actionFeedSignature(state);
-  const feedChanged = nextFeedSignature !== lastActionFeedSignature;
-  const wasPinnedToFeedEnd = players.scrollHeight - players.scrollTop - players.clientHeight < 48;
-  const previousFeedScrollTop = players.scrollTop;
-  const shouldStickPlayersToFeedEnd = !hasRenderedRoom || (feedChanged && wasPinnedToFeedEnd);
   players.innerHTML = renderActionFeed();
   lastActionFeedSignature = nextFeedSignature;
-  if (!shouldStickPlayersToFeedEnd) players.scrollTop = previousFeedScrollTop;
 
   const hero = activeHero();
   heroHand.innerHTML = hero?.cards?.length ? hero.cards.map(cardTemplate).join("") : "";
@@ -616,23 +611,11 @@ function render() {
 
   renderControls(hero);
   if (!gameMenuModal.classList.contains("hidden")) renderMenuPlayers();
-  requestAnimationFrame(() => scrollActionFeed(shouldStickPlayersToFeedEnd, actionEntries.length > 0));
+  requestAnimationFrame(() => scrollActionFeed());
 }
 
-function scrollActionFeed(shouldScroll, hasActionEntries = false) {
-  if (!shouldScroll) return;
+function scrollActionFeed() {
   if (players.scrollHeight <= players.clientHeight) return;
-  if (hasActionEntries) {
-    const actionCards = players.querySelectorAll(".action-history-card");
-    const latestAction = actionCards[actionCards.length - 1];
-    if (latestAction) {
-      players.scrollTo({
-        top: Math.max(0, latestAction.offsetTop - players.offsetTop + latestAction.offsetHeight - players.clientHeight),
-        behavior: "auto",
-      });
-      return;
-    }
-  }
   players.scrollTo({ top: players.scrollHeight, behavior: hasRenderedRoom ? "smooth" : "auto" });
 }
 
@@ -655,7 +638,7 @@ function renderControls(hero) {
   if (!state.isYourTurn || !hero) {
     const currentIndex = findLastIndex(state.players, (player) => player.id === state.turn);
     const current = currentIndex >= 0 ? state.players[currentIndex] : null;
-    turnInfo.textContent = current ? `${current.name} is acting.` : "Waiting for the host.";
+    turnInfo.textContent = current ? `Pot ${state.pot}. ${current.name} is acting.` : "Waiting for the host.";
     if (hero && isBettingPhase(state.phase) && !hero.folded && !hero.allIn) {
       addActionButton("Fold", { type: "fold" }, "danger", true);
       addActionButton(state.toCall > 0 ? `Call ${state.toCall}` : "Check", { type: state.toCall > 0 ? "call" : "check" }, "", true);
@@ -664,7 +647,9 @@ function renderControls(hero) {
     return;
   }
 
-  turnInfo.textContent = state.toCall > 0 ? `Your turn. ${state.toCall} to call.` : "Your turn. You can check or bet.";
+  turnInfo.textContent = state.toCall > 0
+    ? `Pot ${state.pot}. Call ${state.toCall} to continue.`
+    : `Pot ${state.pot}. Your turn: check or bet.`;
   addActionButton("Fold", { type: "fold" }, "danger");
   addActionButton(state.toCall > 0 ? `Call ${state.toCall}` : "Check", { type: state.toCall > 0 ? "call" : "check" });
 
@@ -976,10 +961,10 @@ document.addEventListener("visibilitychange", () => {
 
 window.addEventListener("resize", () => {
   if (document.body.classList.contains("game-open")) setGameViewportHeight();
-  requestAnimationFrame(() => scrollActionFeed(true, Boolean(state?.actionLog?.length)));
+  requestAnimationFrame(() => scrollActionFeed());
 });
 
 window.visualViewport?.addEventListener("resize", () => {
   if (document.body.classList.contains("game-open")) setGameViewportHeight();
-  requestAnimationFrame(() => scrollActionFeed(true, Boolean(state?.actionLog?.length)));
+  requestAnimationFrame(() => scrollActionFeed());
 });

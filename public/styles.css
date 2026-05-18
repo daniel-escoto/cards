@@ -272,14 +272,22 @@ select:focus {
 }
 
 .topbar {
+  min-height: 48px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
+.topbar > div {
+  min-height: inherit;
+  display: flex;
+  align-items: center;
+}
+
 .menu-btn {
   min-width: 96px;
+  align-self: center;
 }
 
 .icon-btn {
@@ -833,6 +841,11 @@ select:focus {
   background: var(--panel);
 }
 
+.turn-info {
+  margin-top: -3px;
+  line-height: 1.25;
+}
+
 .hero-hand {
   display: flex;
   gap: 6px;
@@ -1202,11 +1215,12 @@ select:focus {
 
   .felt {
     display: grid;
-    grid-template-rows: auto auto auto minmax(80px, 1fr) auto;
-    gap: 7px;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 12px;
     align-content: stretch;
     min-height: 0;
-    height: auto;
+    height: 100%;
+    align-self: stretch;
     padding: 18px 10px 10px;
     border-width: 5px;
     border-radius: 16px;
@@ -1237,10 +1251,11 @@ select:focus {
     --feed-action: minmax(4.8rem, 1fr);
     position: static;
     min-height: 0;
+    height: 100%;
     display: grid;
     grid-template-columns: 1fr;
     align-self: stretch;
-    align-content: end;
+    align-content: start;
     gap: 6px;
     overflow-y: auto;
     max-height: 100%;
@@ -1248,7 +1263,7 @@ select:focus {
     padding-right: 2px;
     touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
-    grid-row: 4;
+    grid-row: 2;
   }
 
   .action-feed-card {
@@ -1301,7 +1316,7 @@ select:focus {
   }
 
   .control-panel {
-    grid-row: 5;
+    grid-row: 3;
     gap: 6px;
     padding: 8px 8px max(8px, env(safe-area-inset-bottom));
   }
