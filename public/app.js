@@ -42,7 +42,6 @@ const scoreMenuBtn = document.querySelector("#scoreMenuBtn");
 
 let state = null;
 let raiseState = { value: 0, min: 0, max: 0, step: 20 };
-let audioContext = null;
 let hasRenderedRoom = false;
 let leavingEndedRoom = false;
 let menuTimer = null;
@@ -301,104 +300,6 @@ function activeHero() {
   return heroIndex >= 0 ? state.players[heroIndex] : null;
 }
 
-function audioNow() {
-  return audioContext?.currentTime || 0;
-}
-
-function ensureAudio() {
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContext) return null;
-  if (!audioContext) audioContext = new AudioContext();
-  if (audioContext.state === "suspended") audioContext.resume();
-  return audioContext;
-}
-
-function playTone({ frequency, duration = 0.08, type = "sine", gain = 0.055, delay = 0 }) {
-  const context = ensureAudio();
-  if (!context) return;
-
-  const start = audioNow() + delay;
-  const oscillator = context.createOscillator();
-  const envelope = context.createGain();
-  oscillator.type = type;
-  oscillator.frequency.setValueAtTime(frequency, start);
-  envelope.gain.setValueAtTime(0.0001, start);
-  envelope.gain.exponentialRampToValueAtTime(gain, start + 0.012);
-  envelope.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-  oscillator.connect(envelope);
-  envelope.connect(context.destination);
-  oscillator.start(start);
-  oscillator.stop(start + duration + 0.02);
-}
-
-function playNoise({ duration = 0.08, gain = 0.04, delay = 0, filterFrequency = 1200 }) {
-  const context = ensureAudio();
-  if (!context) return;
-
-  const start = audioNow() + delay;
-  const sampleCount = Math.max(1, Math.floor(context.sampleRate * duration));
-  const buffer = context.createBuffer(1, sampleCount, context.sampleRate);
-  const output = buffer.getChannelData(0);
-  for (let i = 0; i < sampleCount; i += 1) {
-    output[i] = (Math.random() * 2 - 1) * (1 - i / sampleCount);
-  }
-
-  const source = context.createBufferSource();
-  const filter = context.createBiquadFilter();
-  const envelope = context.createGain();
-  filter.type = "bandpass";
-  filter.frequency.setValueAtTime(filterFrequency, start);
-  envelope.gain.setValueAtTime(gain, start);
-  envelope.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-  source.buffer = buffer;
-  source.connect(filter);
-  filter.connect(envelope);
-  envelope.connect(context.destination);
-  source.start(start);
-}
-
-function playSound(name) {
-  if (document.hidden) return;
-
-  const sounds = {
-    click: () => playTone({ frequency: 420, duration: 0.045, type: "triangle", gain: 0.035 }),
-    tick: () => playTone({ frequency: 620, duration: 0.035, type: "triangle", gain: 0.025 }),
-    deal: () => {
-      playNoise({ duration: 0.055, gain: 0.035, filterFrequency: 1800 });
-      playNoise({ duration: 0.055, gain: 0.03, delay: 0.055, filterFrequency: 2100 });
-    },
-    fold: () => playTone({ frequency: 180, duration: 0.12, type: "sawtooth", gain: 0.035 }),
-    check: () => playTone({ frequency: 360, duration: 0.07, type: "triangle", gain: 0.035 }),
-    call: () => {
-      playTone({ frequency: 300, duration: 0.055, type: "square", gain: 0.025 });
-      playTone({ frequency: 460, duration: 0.055, type: "square", gain: 0.025, delay: 0.045 });
-    },
-    raise: () => {
-      playTone({ frequency: 420, duration: 0.06, type: "triangle", gain: 0.032 });
-      playTone({ frequency: 640, duration: 0.075, type: "triangle", gain: 0.038, delay: 0.055 });
-    },
-    turn: () => {
-      playTone({ frequency: 760, duration: 0.08, type: "sine", gain: 0.035 });
-      playTone({ frequency: 980, duration: 0.08, type: "sine", gain: 0.032, delay: 0.07 });
-    },
-    win: () => {
-      playTone({ frequency: 523.25, duration: 0.09, type: "triangle", gain: 0.036 });
-      playTone({ frequency: 659.25, duration: 0.09, type: "triangle", gain: 0.036, delay: 0.08 });
-      playTone({ frequency: 783.99, duration: 0.13, type: "triangle", gain: 0.04, delay: 0.16 });
-    },
-  };
-
-  sounds[name]?.();
-}
-
-function communitySignature(room) {
-  return room.community.map((card) => card.code).join(",");
-}
-
-function winnerSignature(room) {
-  return room.winners.map((winner) => `${winner.playerId}:${winner.amount}:${winner.hand}`).join("|");
-}
-
 function compactStreetLabel(phase) {
   const labels = {
     preflop: "PF",
@@ -545,43 +446,6 @@ function actionFeedSignature(room) {
   return `${room.handNumber}:${room.phase}:${room.turn}:${log}:${seats}`;
 }
 
-function inferActionSound(previous, next) {
-  if (!previous || previous.id !== next.id || previous.handNumber !== next.handNumber) return null;
-  const actingPlayer = previous.players.find((player) => player.isTurn);
-  if (!actingPlayer) return null;
-
-  const nextPlayer = next.players.find((player) => player.id === actingPlayer.id);
-  if (!nextPlayer) return null;
-  if (!actingPlayer.folded && nextPlayer.folded) return "fold";
-  if (nextPlayer.bet > actingPlayer.bet && next.currentBet > previous.currentBet) return "raise";
-  if (nextPlayer.bet > actingPlayer.bet || nextPlayer.invested > actingPlayer.invested) return "call";
-  if (next.turn !== previous.turn || next.phase !== previous.phase) return "check";
-  return null;
-}
-
-function playRoomSounds(previous, next) {
-  if (!hasRenderedRoom || !previous) return;
-
-  if (next.handNumber > previous.handNumber && next.phase === "preflop") {
-    playSound("deal");
-  }
-
-  const actionSound = inferActionSound(previous, next);
-  if (actionSound) playSound(actionSound);
-
-  if (communitySignature(previous) !== communitySignature(next) && next.community.length > previous.community.length) {
-    playSound("deal");
-  }
-
-  if (!previous.isYourTurn && next.isYourTurn) {
-    playSound("turn");
-  }
-
-  if (previous.phase !== "complete" && next.phase === "complete" && winnerSignature(next)) {
-    playSound("win");
-  }
-}
-
 function isEndedGameReturn(previous, next) {
   return previous && previous.phase !== "lobby" && next.phase === "lobby" && next.message === "Game ended by host.";
 }
@@ -698,14 +562,13 @@ function clampRaise(value) {
 
 function changeRaise(direction) {
   setRaiseState({ value: raiseState.value + direction * raiseState.step });
-  playSound("tick");
 }
 
 function addButton(label, eventName, className = "") {
   const button = document.createElement("button");
   button.textContent = label;
   if (className) button.className = className;
-  button.addEventListener("click", () => emitWithAck(eventName, {}, "click"));
+  button.addEventListener("click", () => emitWithAck(eventName, {}));
   gameButtons.appendChild(button);
 }
 
@@ -714,19 +577,17 @@ function addActionButton(label, payload, className = "", disabled = false) {
   button.textContent = label;
   if (className) button.className = className;
   button.disabled = disabled;
-  button.addEventListener("click", () => emitWithAck("game:action", payload, "click"));
+  button.addEventListener("click", () => emitWithAck("game:action", payload));
   gameButtons.appendChild(button);
 }
 
 function makeHost(playerId) {
-  emitWithAck("room:makeHost", { playerId }, "click");
+  emitWithAck("room:makeHost", { playerId });
 }
 
 async function copyText(text, button) {
   if (!text) return;
-  ensureAudio();
   await navigator.clipboard.writeText(text);
-  playSound("click");
   const original = button.textContent;
   button.textContent = "Copied";
   setTimeout(() => { button.textContent = original; }, 1200);
@@ -735,15 +596,12 @@ async function copyText(text, button) {
 function showSharePanel() {
   const link = inviteUrl();
   if (!link) return;
-  ensureAudio();
-  playSound("click");
   shareLink.value = link;
   shareQr.src = `/qr.svg?text=${encodeURIComponent(link)}`;
   sharePanel.classList.toggle("hidden");
 }
 
-function emitWithAck(eventName, payload, pendingSound = null) {
-  ensureAudio();
+function emitWithAck(eventName, payload) {
   socket.timeout(4000).emit(eventName, payload, (error, response) => {
     if (error) {
       joinError.textContent = "Reconnecting to the table...";
@@ -755,12 +613,10 @@ function emitWithAck(eventName, payload, pendingSound = null) {
       joinError.textContent = response?.error || "Action failed.";
       return;
     }
-    if (pendingSound) playSound(pendingSound);
   });
 }
 
 function joinOrCreate(mode) {
-  ensureAudio();
   joinError.textContent = "";
   if (joinPending) return;
   if (!socket.connected) {
@@ -837,12 +693,10 @@ raiseMinus.addEventListener("dblclick", (event) => event.preventDefault());
 raisePlus.addEventListener("dblclick", (event) => event.preventDefault());
 
 raiseBtn.addEventListener("click", () => {
-  emitWithAck("game:action", { type: "raise", raiseTo: raiseState.value }, "click");
+  emitWithAck("game:action", { type: "raise", raiseTo: raiseState.value });
 });
 
 menuBtn.addEventListener("click", () => {
-  ensureAudio();
-  playSound("click");
   showGameMenu();
 });
 
@@ -851,7 +705,7 @@ closeMenuBtn.addEventListener("click", hideGameMenu);
 gameMenuModal.addEventListener("click", (event) => {
   const colorButton = event.target.closest("[data-player-color]");
   if (colorButton) {
-    emitWithAck("player:setColor", { color: colorButton.dataset.playerColor }, "click");
+    emitWithAck("player:setColor", { color: colorButton.dataset.playerColor });
     return;
   }
   const hostButton = event.target.closest("[data-make-host]");
@@ -872,17 +726,17 @@ gameMenuModal.addEventListener("submit", (event) => {
   nameInput.value = name;
   localStorage.setItem("holdem:name", name);
   input.blur();
-  emitWithAck("player:setName", { name }, "click");
+  emitWithAck("player:setName", { name });
 });
 
 restartGameBtn.addEventListener("click", () => {
   hideGameMenu();
-  emitWithAck("game:restart", {}, "click");
+  emitWithAck("game:restart", {});
 });
 
 endGameBtn.addEventListener("click", () => {
   hideGameMenu();
-  emitWithAck("game:end", {}, "click");
+  emitWithAck("game:end", {});
 });
 
 shareGameBtn.addEventListener("click", showSharePanel);
@@ -905,7 +759,6 @@ socket.on("room:update", (room) => {
     return;
   }
 
-  playRoomSounds(state, room);
   state = room;
   const self = state.players.find((player) => player.isYou && !player.isBot);
   if (self) {
