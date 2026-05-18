@@ -210,9 +210,10 @@ function renderMenuPlayers() {
           `).join("")}
         </div>
       ` : ""}
-      ${player.canMakeHost ? `
+      ${player.canMakeHost || player.canKick ? `
         <div class="menu-player-actions">
-          <button type="button" class="secondary" data-make-host="${escapeHtml(player.id)}">Make host</button>
+          ${player.canMakeHost ? `<button type="button" class="secondary" data-make-host="${escapeHtml(player.id)}">Make host</button>` : ""}
+          ${player.canKick ? `<button type="button" class="danger" data-kick-player="${escapeHtml(player.id)}">Kick</button>` : ""}
         </div>
       ` : ""}
     </article>
@@ -590,6 +591,10 @@ function makeHost(playerId) {
   emitWithAck("room:makeHost", { playerId });
 }
 
+function kickPlayer(playerId) {
+  emitWithAck("room:kick", { playerId });
+}
+
 async function copyText(text, button) {
   if (!text) return;
   await navigator.clipboard.writeText(text);
@@ -716,6 +721,11 @@ gameMenuModal.addEventListener("click", (event) => {
   const hostButton = event.target.closest("[data-make-host]");
   if (hostButton) {
     makeHost(hostButton.dataset.makeHost);
+    return;
+  }
+  const kickButton = event.target.closest("[data-kick-player]");
+  if (kickButton) {
+    kickPlayer(kickButton.dataset.kickPlayer);
     return;
   }
   if (event.target === gameMenuModal) hideGameMenu();

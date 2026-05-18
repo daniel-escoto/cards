@@ -5,10 +5,20 @@ const URL = process.env.SMOKE_URL || "http://localhost:3000";
 function connectPlayer(name) {
   const socket = io(URL, { transports: ["websocket"], forceNew: true });
   let state = null;
+  let kicked = false;
   socket.on("room:update", (next) => {
     state = next;
   });
-  return { name, deviceId: `device-${name.toLowerCase()}`, socket, get state() { return state; } };
+  socket.on("room:kicked", () => {
+    kicked = true;
+  });
+  return {
+    name,
+    deviceId: `device-${name.toLowerCase()}`,
+    socket,
+    get state() { return state; },
+    get kicked() { return kicked; },
+  };
 }
 
 function emit(socket, event, payload = {}) {
@@ -72,6 +82,46 @@ function waitFor(predicate, label, timeout = 5000) {
   await waitFor(() => alice.state?.players.find((player) => player.name === "Bobby Tables"), "player name update");
   await emit(bob.socket, "player:setName", { name: "Bob" });
   await waitFor(() => alice.state?.players.find((player) => player.name === "Bob"), "player name restore");
+
+  const opsHost = connectPlayer("OpsHost");
+  const opsNextHost = connectPlayer("OpsNextHost");
+  const opsKicked = connectPlayer("OpsKicked");
+  await waitFor(
+    () => opsHost.socket.connected && opsNextHost.socket.connected && opsKicked.socket.connected,
+    "host ops connections",
+  );
+  const opsRoom = await emit(opsHost.socket, "room:create", { name: opsHost.name, deviceId: opsHost.deviceId });
+  await emit(opsNextHost.socket, "room:join", {
+    roomId: opsRoom.roomId,
+    name: opsNextHost.name,
+    deviceId: opsNextHost.deviceId,
+  });
+  await emit(opsKicked.socket, "room:join", {
+    roomId: opsRoom.roomId,
+    name: opsKicked.name,
+    deviceId: opsKicked.deviceId,
+  });
+  await waitFor(() => opsHost.state?.players.length === 3, "host ops table seated");
+  const nextHostId = opsHost.state.players.find((player) => player.name === "OpsNextHost")?.id;
+  const kickedId = opsHost.state.players.find((player) => player.name === "OpsKicked")?.id;
+  const hostViewOfNext = opsHost.state.players.find((player) => player.id === nextHostId);
+  const hostViewOfKicked = opsHost.state.players.find((player) => player.id === kickedId);
+  if (!hostViewOfNext?.canMakeHost || !hostViewOfNext?.canKick || !hostViewOfKicked?.canKick) {
+    throw new Error("Expected host to be able to transfer host and kick players from the menu");
+  }
+  if (opsNextHost.state.players.some((player) => player.canMakeHost || player.canKick)) {
+    throw new Error("Expected non-host to lack host management controls");
+  }
+  await emit(opsHost.socket, "room:makeHost", { playerId: nextHostId });
+  await waitFor(() => opsNextHost.state?.players.find((player) => player.name === "OpsNextHost")?.isHost, "host ops transfer");
+  await emit(opsNextHost.socket, "room:kick", { playerId: kickedId });
+  await waitFor(
+    () => opsKicked.kicked && opsHost.state?.players.length === 2 && !opsHost.state.players.some((player) => player.name === "OpsKicked"),
+    "host ops kick",
+  );
+  opsHost.socket.disconnect();
+  opsNextHost.socket.disconnect();
+  opsKicked.socket.disconnect();
 
   const aliceAgain = connectPlayer("Alice");
   await waitFor(() => aliceAgain.socket.connected, "host duplicate connection");
