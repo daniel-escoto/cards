@@ -195,6 +195,11 @@ select:focus {
   gap: 16px;
 }
 
+.table-view:not(.hidden) {
+  width: min(960px, 100%);
+  margin: 0 auto;
+}
+
 .score-view {
   min-height: calc(100vh - 40px);
   min-height: calc(100dvh - 40px);
@@ -252,6 +257,7 @@ select:focus {
 .score-name {
   min-width: 0;
   overflow: hidden;
+  color: var(--player-color, var(--text));
   font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -318,7 +324,7 @@ select:focus {
 
 .menu-player {
   display: grid;
-  gap: 8px;
+  gap: 7px;
   padding: 10px;
   border: 1px solid var(--line);
   border-left: 5px solid var(--player-color, var(--line));
@@ -368,6 +374,7 @@ select:focus {
 }
 
 .menu-player-stats {
+  justify-content: flex-start;
   flex-wrap: wrap;
   color: var(--muted);
   font-size: 11px;
@@ -381,6 +388,7 @@ select:focus {
 }
 
 .menu-player-stats em {
+  margin-left: auto;
   color: var(--accent);
   font-style: normal;
 }
@@ -474,7 +482,7 @@ select:focus {
 }
 
 .felt {
-  --community-y: 30%;
+  --community-y: 152px;
   position: relative;
   min-height: 560px;
   overflow: hidden;
@@ -490,9 +498,7 @@ select:focus {
   position: absolute;
   top: 18px;
   left: 18px;
-  right: 18px;
   display: flex;
-  justify-content: space-between;
   pointer-events: none;
 }
 
@@ -526,7 +532,7 @@ select:focus {
 }
 
 .card {
-  width: clamp(58px, 6.5vw, 90px);
+  width: clamp(50px, 5vw, 68px);
   aspect-ratio: 0.72;
   position: relative;
   display: grid;
@@ -580,7 +586,7 @@ select:focus {
 }
 
 .card-corner-suit {
-  font-size: 12px;
+  font-size: 16px;
 }
 
 .message {
@@ -594,6 +600,10 @@ select:focus {
 }
 
 .players {
+  --feed-phase: 2rem;
+  --feed-stack: 4.75rem;
+  --feed-name: minmax(0, 1fr);
+  --feed-action: minmax(5.5rem, 1fr);
   position: absolute;
   inset: calc(var(--community-y) + 142px) 18px 22px;
   min-height: 0;
@@ -608,23 +618,15 @@ select:focus {
 }
 
 .action-feed-card {
-  width: min(260px, 44vw);
+  width: 100%;
   display: grid;
   align-content: start;
-  gap: 8px;
-  padding: 10px;
+  gap: 7px;
+  padding: 9px 11px;
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-left: 5px solid var(--player-color, rgba(255, 255, 255, 0.13));
   border-radius: 8px;
   background: rgba(15, 22, 25, 0.78);
-}
-
-.action-feed-card:nth-of-type(odd) {
-  justify-self: start;
-}
-
-.action-feed-card:nth-of-type(even) {
-  justify-self: end;
 }
 
 .action-feed-card.you {
@@ -656,7 +658,8 @@ select:focus {
 }
 
 .action-card-move {
-  display: flex;
+  display: grid;
+  grid-template-columns: var(--feed-phase) var(--feed-name) var(--feed-action) var(--feed-stack);
   align-items: center;
   gap: 7px;
   min-width: 0;
@@ -664,20 +667,15 @@ select:focus {
   font-weight: 900;
 }
 
-.action-card-full-action {
-  display: none;
-}
-
-.kick-btn {
-  justify-self: start;
-  min-height: 30px;
-  padding: 0 10px;
-  font-size: 12px;
+.action-history-card {
+  padding-block: 7px;
+  background: rgba(15, 22, 25, 0.58);
 }
 
 .seat-name {
   min-width: 0;
   overflow: hidden;
+  color: var(--player-color, var(--text));
   font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -698,6 +696,7 @@ select:focus {
   color: var(--accent);
   font-style: normal;
   font-weight: 900;
+  text-align: center;
   text-transform: uppercase;
 }
 
@@ -707,6 +706,101 @@ select:focus {
   font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.stack-chip {
+  width: var(--feed-stack);
+  justify-self: end;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 950;
+  text-align: center;
+}
+
+.action-card-status {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.action-card-status span,
+.action-card-status em {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.action-card-status strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.stack-label {
+  white-space: nowrap;
+}
+
+.action-card-status em:last-child {
+  grid-column: 4;
+  justify-self: end;
+  width: auto;
+}
+
+.state-card-grid {
+  display: grid;
+  grid-template-columns: var(--feed-phase) var(--feed-name) var(--feed-action) var(--feed-stack);
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 7px;
+}
+
+.state-card-spacer {
+  grid-row: 1 / 3;
+}
+
+.state-card-grid .seat-name,
+.state-card-grid .seat-badges,
+.state-stack {
+  grid-row: 1;
+}
+
+.state-pot,
+.state-status {
+  grid-row: 2;
+}
+
+.state-card-grid .seat-name {
+  grid-column: 2;
+}
+
+.state-card-grid .seat-badges,
+.state-pot {
+  grid-column: 3;
+}
+
+.state-stack,
+.state-status {
+  grid-column: 4;
+  justify-self: end;
+  text-align: right;
+}
+
+.state-stack,
+.state-pot,
+.state-status {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.state-stack strong,
+.state-pot strong {
+  color: var(--text);
+  font-size: 13px;
 }
 
 .action-card-stats,
@@ -726,17 +820,6 @@ select:focus {
   font-style: normal;
 }
 
-.street-divider {
-  justify-self: center;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: rgba(9, 21, 18, 0.62);
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
 .control-panel {
   display: grid;
   gap: 12px;
@@ -748,36 +831,70 @@ select:focus {
 
 .hero-hand {
   display: flex;
-  gap: 10px;
+  gap: 6px;
+}
+
+.hero-hand .card {
+  width: 38px;
+  padding: 6px;
+}
+
+.hero-hand .card-image {
+  display: none;
+}
+
+.hero-hand .card .card-corner {
+  display: grid;
+}
+
+.hero-hand .card .card-corner-bottom {
+  transform: none;
+}
+
+.hero-hand .card .card-rank,
+.hero-hand .card .card-corner-suit {
+  font-size: 18px;
 }
 
 .bet-controls {
+  --raise-row-height: 46px;
   display: grid;
   grid-template-columns: minmax(140px, 1fr) auto;
-  align-items: end;
+  align-items: stretch;
   gap: 10px;
 }
 
 .raise-stepper {
-  display: flex;
-  align-items: stretch;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
   gap: 8px;
 }
 
 .raise-stepper button {
-  width: 48px;
+  width: 100%;
+  min-height: 0;
+  height: var(--raise-row-height);
   padding: 0;
   font-size: 24px;
+  line-height: 1;
 }
 
 .raise-display {
-  min-height: 46px;
-  flex: 1 1 auto;
+  min-height: 0;
+  height: var(--raise-row-height);
   display: grid;
   place-items: center;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: #10161a;
+}
+
+.bet-controls > button {
+  min-height: 0;
+  height: var(--raise-row-height);
+  align-self: stretch;
+  line-height: 1;
 }
 
 .raise-display span {
@@ -802,25 +919,81 @@ select:focus {
 
 @media (min-width: 780px) {
   .table-view {
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
-    align-items: start;
+    height: calc(100dvh - 40px);
+    min-height: 0;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
   }
 
   .topbar {
-    grid-column: 1 / -1;
+    grid-column: auto;
   }
 
   .felt {
-    grid-column: 1;
-    min-height: min(660px, calc(100dvh - 92px));
+    grid-column: auto;
+    display: grid;
+    grid-template-columns: minmax(380px, 1.2fr) minmax(340px, 0.8fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    align-content: stretch;
+    gap: 14px 18px;
+    padding: 18px;
+    min-height: 0;
+  }
+
+  .table-meta {
+    position: static;
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .community {
+    position: static;
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
+    justify-content: flex-start;
+    transform: translateY(-18px);
+  }
+
+  .message {
+    position: static;
+    grid-column: 2;
+    grid-row: 2;
+    width: 100%;
+    align-self: center;
+    transform: translateY(62px);
+    text-align: left;
   }
 
   .control-panel {
-    position: sticky;
-    top: 20px;
     grid-column: 2;
-    max-height: calc(100dvh - 132px);
-    overflow-y: auto;
+    grid-row: 3;
+    width: 100%;
+    min-height: 0;
+    justify-self: stretch;
+    align-self: end;
+    grid-template-rows: auto auto auto auto auto;
+  }
+
+  .hero-hand {
+    grid-row: 1;
+  }
+
+  .winner-list {
+    grid-row: 2;
+  }
+
+  .turn-info {
+    grid-row: 3;
+  }
+
+  .game-buttons {
+    grid-row: 4;
+  }
+
+  .bet-controls {
+    grid-row: 5;
   }
 
   .hero-hand {
@@ -828,38 +1001,30 @@ select:focus {
   }
 
   .game-buttons {
-    display: grid;
-    grid-template-columns: 1fr;
+    display: flex;
   }
 
   .game-buttons > button {
-    width: 100%;
+    flex: 1 1 30%;
   }
 
   .bet-controls {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(140px, 1fr) auto;
   }
 
-  .action-card-full-action {
-    display: none;
-  }
 }
 
 @media (min-width: 1040px) {
   .felt {
-    min-height: min(700px, calc(100dvh - 92px));
+    min-height: 0;
   }
 
   .card {
-    width: clamp(58px, 6.5vw, 90px);
+    width: clamp(50px, 5vw, 68px);
   }
 
-  .card-image {
-    display: block;
-  }
-
-  .card .card-corner {
-    display: none;
+  .hero-hand .card {
+    width: 38px;
   }
 
   .action-feed-card {
@@ -870,13 +1035,14 @@ select:focus {
 
 @media (min-width: 780px) {
   .players {
-    inset: calc(var(--community-y) + 146px) 22px 24px;
+    position: static;
+    grid-column: 1;
+    grid-row: 1 / -1;
     grid-template-columns: minmax(0, 1fr);
-    align-content: start;
-  }
-
-  .street-divider {
-    grid-column: 1 / -1;
+    align-content: end;
+    min-height: 0;
+    height: 100%;
+    padding-right: 4px;
   }
 
   .action-feed-card {
@@ -1031,13 +1197,12 @@ select:focus {
 
   .table-meta {
     position: static;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    display: flex;
   }
 
   .table-meta div {
-    min-width: 0;
+    width: fit-content;
+    min-width: 96px;
     padding: 6px 9px;
   }
 
@@ -1050,6 +1215,9 @@ select:focus {
   }
 
   .players {
+    --feed-phase: 1.85rem;
+    --feed-stack: 4.4rem;
+    --feed-action: minmax(4.8rem, 1fr);
     position: static;
     min-height: 0;
     display: grid;
@@ -1109,7 +1277,7 @@ select:focus {
 
   .card .card-rank,
   .card .card-corner-suit {
-    font-size: 17px;
+    font-size: 18px;
   }
 
   .message {
@@ -1142,21 +1310,18 @@ select:focus {
   }
 
   .bet-controls {
+    --raise-row-height: 48px;
     grid-template-columns: 1fr auto;
     gap: 7px;
   }
 
   .raise-stepper {
     min-width: 0;
+    grid-template-columns: 52px minmax(0, 1fr) 52px;
   }
 
   .raise-stepper button {
-    width: 42px;
-    min-height: 40px;
-  }
-
-  .raise-display {
-    min-height: 40px;
+    height: var(--raise-row-height);
   }
 
   .raise-display strong {

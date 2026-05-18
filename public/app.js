@@ -26,7 +26,6 @@ const shareLink = document.querySelector("#shareLink");
 const copyShareBtn = document.querySelector("#copyShareBtn");
 const phaseTitle = document.querySelector("#phaseTitle");
 const potValue = document.querySelector("#potValue");
-const betValue = document.querySelector("#betValue");
 const community = document.querySelector("#community");
 const message = document.querySelector("#message");
 const players = document.querySelector("#players");
@@ -50,9 +49,12 @@ let leavingEndedRoom = false;
 let menuTimer = null;
 let lastAutoRejoinKey = "";
 const params = new URLSearchParams(window.location.search);
-const initialRoomId = (params.get("room") || localStorage.getItem("holdem:lastRoom") || "").toUpperCase();
+const initialRoomParam = (params.get("room") || "").toUpperCase();
+const initialRoomId = (initialRoomParam || localStorage.getItem("holdem:lastRoom") || "").toUpperCase();
 if (initialRoomId) roomInput.value = initialRoomId;
 nameInput.value = localStorage.getItem("holdem:name") || "";
+let joinPending = false;
+let didAutoJoinInitialRoom = false;
 
 function getDeviceId() {
   let deviceId = localStorage.getItem("holdem:deviceId");
@@ -75,7 +77,8 @@ function setKeyboardMode(isOpen) {
 
 function updateTableActionLabel() {
   const isJoining = Boolean(roomInput.value.trim());
-  tableActionBtn.textContent = isJoining ? "Join table" : "Host table";
+  if (!joinPending) tableActionBtn.textContent = isJoining ? "Join table" : "Host table";
+  tableActionBtn.disabled = joinPending || !socket.connected;
   tableSizeLabel.classList.toggle("hidden", isJoining);
 }
 
@@ -182,8 +185,6 @@ function renderMenuPlayers() {
       </div>
       <div class="menu-player-stats">
         <span>Stack <strong>${player.stack}</strong></span>
-        <span>Bet <strong>${player.bet}</strong></span>
-        <span>In pot <strong>${player.invested}</strong></span>
         <em>${escapeHtml(roundStatus(player))}</em>
       </div>
       ${player.isYou && !player.isBot ? `
@@ -250,7 +251,7 @@ function showScoreScreen(room) {
   tableView.classList.add("hidden");
   scoreView.classList.remove("hidden");
   scoreList.innerHTML = standings.map((player, index) => `
-    <div class="score-row ${player.isYou ? "you" : ""}">
+    <div class="score-row ${player.isYou ? "you" : ""}" ${playerColorStyle(player)}>
       <span class="score-rank">${index + 1}</span>
       <span class="score-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
       <strong>${player.stack}</strong>
@@ -396,19 +397,6 @@ function winnerSignature(room) {
   return room.winners.map((winner) => `${winner.playerId}:${winner.amount}:${winner.hand}`).join("|");
 }
 
-function streetLabel(phase) {
-  const labels = {
-    lobby: "Lobby",
-    preflop: "Preflop",
-    flop: "Flop",
-    turn: "Turn",
-    river: "River",
-    showdown: "Showdown",
-    complete: "Result",
-  };
-  return labels[phase] || phaseLabel(phase);
-}
-
 function compactStreetLabel(phase) {
   const labels = {
     preflop: "PF",
@@ -417,21 +405,6 @@ function compactStreetLabel(phase) {
     river: "R",
   };
   return labels[phase] || "";
-}
-
-function groupActionLog(entries) {
-  const ordered = ["preflop", "flop", "turn", "river", "showdown", "complete", "lobby"];
-  const groups = new Map();
-  for (const entry of entries) {
-    const phase = entry.phase || "preflop";
-    if (!groups.has(phase)) groups.set(phase, []);
-    groups.get(phase).push(entry);
-  }
-  return [...groups.entries()].sort((a, b) => {
-    const left = ordered.indexOf(a[0]);
-    const right = ordered.indexOf(b[0]);
-    return (left < 0 ? ordered.length : left) - (right < 0 ? ordered.length : right);
-  });
 }
 
 function compactPlayerAction(entry, player) {
@@ -469,18 +442,17 @@ function renderSeatCard(player, isActiveTurn = player.isTurn) {
   const status = playerTableStatus(player, isActiveTurn);
   return `
     <article class="action-feed-card state-card ${isActiveTurn ? "turn" : ""} ${player.folded ? "folded" : ""} ${player.isYou ? "you" : ""}" ${playerColorStyle(player)}>
-      <div class="action-card-head">
+      <div class="state-card-grid">
+        <span class="state-card-spacer"></span>
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
         <span class="seat-badges">
           ${player.dealer ? '<span class="pill">D</span>' : ""}
           ${player.isHost ? '<span class="pill">Host</span>' : ""}
           ${player.isBot ? '<span class="pill">CPU</span>' : ""}
         </span>
-      </div>
-      <div class="action-card-stats">
-        <span>Stack <strong>${player.stack}</strong></span>
-        <span>In pot <strong>${player.invested}</strong></span>
-        <em>${status}</em>
+        <span class="state-stack">Stack <strong>${player.stack}</strong></span>
+        <span class="state-pot">${player.invested ? `Pot <strong>${player.invested}</strong>` : ""}</span>
+        <em class="state-status">${status}</em>
       </div>
     </article>
   `;
@@ -497,7 +469,6 @@ function renderShownHandCard(player) {
       <div class="shown-hand">${player.cards.map(cardTemplate).join("")}</div>
       <div class="action-card-stats">
         <span>Stack <strong>${player.stack}</strong></span>
-        <span>In pot <strong>${player.invested}</strong></span>
         <em>${escapeHtml(status)}</em>
       </div>
     </article>
@@ -507,6 +478,10 @@ function renderShownHandCard(player) {
 function currentTurnPlayer() {
   const index = findLastIndex(state.players, (player) => player.id === state.turn);
   return index >= 0 ? state.players[index] : null;
+}
+
+function isBettingPhase(phase) {
+  return ["preflop", "flop", "turn", "river"].includes(phase);
 }
 
 function renderActionFeed() {
@@ -522,32 +497,16 @@ function renderActionFeed() {
   const historyMarkup = entries.map((entry) => {
     const player = playerForAction(entry);
     const phase = entry.phase || "preflop";
-    const phaseDivider = phase !== lastPhase
-      ? `<div class="street-divider">${escapeHtml(streetLabel(phase))}</div>`
-      : "";
+    const showPhase = phase !== lastPhase;
     lastPhase = phase;
     return `
-      ${phaseDivider}
       <article class="action-feed-card action-history-card ${player?.folded ? "folded" : ""} ${player?.isYou ? "you" : ""}" ${playerColorStyle(player)}>
-        <div class="action-card-head">
-          <span class="seat-name">${escapeHtml(player?.name || "Table")}${player?.isYou ? " (you)" : ""}</span>
-          <span class="seat-badges">
-            ${player?.dealer ? '<span class="pill">D</span>' : ""}
-            ${player?.isHost ? '<span class="pill">Host</span>' : ""}
-            ${player?.isBot ? '<span class="pill">CPU</span>' : ""}
-          </span>
-        </div>
         <div class="action-card-move">
-          ${compactStreetLabel(phase) ? `<em>${escapeHtml(compactStreetLabel(phase))}</em>` : ""}
+          <em>${showPhase && compactStreetLabel(phase) ? escapeHtml(compactStreetLabel(phase)) : ""}</em>
+          <span class="seat-name">${escapeHtml(player?.name || "Table")}${player?.isYou ? " (you)" : ""}</span>
           <strong>${escapeHtml(compactPlayerAction(entry, player))}</strong>
+          ${player ? `<span class="stack-chip">${player.stack}</span>` : ""}
         </div>
-        ${player ? `
-          <div class="action-card-stats">
-            <span>Stack <strong>${player.stack}</strong></span>
-            <span>In pot <strong>${player.invested}</strong></span>
-            <em>${playerTableStatus(player, false)}</em>
-          </div>
-        ` : ""}
       </article>
     `;
   }).join("");
@@ -605,12 +564,9 @@ function render() {
   roomCode.textContent = state.id;
   phaseTitle.textContent = phaseLabel(state.phase);
   potValue.textContent = state.pot;
-  betValue.textContent = state.toCall;
   message.textContent = state.message || "";
 
-  community.innerHTML = state.community.length
-    ? state.community.map(cardTemplate).join("")
-    : Array.from({ length: 5 }, () => cardTemplate(null)).join("");
+  community.innerHTML = Array.from({ length: 5 }, (_, index) => cardTemplate(state.community[index] || null)).join("");
 
   const actionEntries = (state.actionLog || []).filter((entry) => entry.phase !== "lobby");
   const shouldStickPlayersToFeedEnd = !hasRenderedRoom
@@ -619,9 +575,14 @@ function render() {
 
   const hero = activeHero();
   heroHand.innerHTML = hero?.cards?.length ? hero.cards.map(cardTemplate).join("") : "";
-  winnerList.innerHTML = state.winners.map((winner) => (
-    `<div>${escapeHtml(winner.name)} wins ${winner.amount} with ${escapeHtml(winner.hand)}</div>`
-  )).join("");
+  winnerList.innerHTML = state.winners.map((winner) => {
+    const winnerPlayer = state.players.find((player) => player.id === winner.playerId || player.name === winner.name);
+    return `
+      <div ${playerColorStyle(winnerPlayer)}>
+        <span class="seat-name">${escapeHtml(winner.name)}</span> wins ${winner.amount} with ${escapeHtml(winner.hand)}
+      </div>
+    `;
+  }).join("");
 
   renderControls(hero);
   if (!gameMenuModal.classList.contains("hidden")) renderMenuPlayers();
@@ -636,7 +597,7 @@ function scrollActionFeed(shouldScroll, hasActionEntries = false) {
     const latestAction = actionCards[actionCards.length - 1];
     if (latestAction) {
       players.scrollTo({
-        top: Math.max(0, latestAction.offsetTop + latestAction.offsetHeight - players.clientHeight),
+        top: Math.max(0, latestAction.offsetTop - players.offsetTop + latestAction.offsetHeight - players.clientHeight),
         behavior: "auto",
       });
       return;
@@ -648,6 +609,7 @@ function scrollActionFeed(shouldScroll, hasActionEntries = false) {
 function renderControls(hero) {
   gameButtons.innerHTML = "";
   betControls.classList.add("hidden");
+  raiseBtn.disabled = false;
   turnInfo.textContent = "";
 
   if (state.canStart && state.phase !== "complete") {
@@ -664,24 +626,40 @@ function renderControls(hero) {
     const currentIndex = findLastIndex(state.players, (player) => player.id === state.turn);
     const current = currentIndex >= 0 ? state.players[currentIndex] : null;
     turnInfo.textContent = current ? `${current.name} is acting.` : "Waiting for the host.";
+    if (hero && isBettingPhase(state.phase) && !hero.folded && !hero.allIn) {
+      addActionButton("Fold", { type: "fold" }, "danger", true);
+      addActionButton(state.toCall > 0 ? `Call ${state.toCall}` : "Check", { type: state.toCall > 0 ? "call" : "check" }, "", true);
+      configureRaiseControls(hero, true);
+    }
     return;
   }
 
   turnInfo.textContent = state.toCall > 0 ? `Your turn. ${state.toCall} to call.` : "Your turn. You can check or bet.";
-  addActionButton("Fold", { type: "fold" }, "secondary");
+  addActionButton("Fold", { type: "fold" }, "danger");
   addActionButton(state.toCall > 0 ? `Call ${state.toCall}` : "Check", { type: state.toCall > 0 ? "call" : "check" });
 
   const maxRaise = hero.bet + hero.stack;
   if (maxRaise > state.currentBet) {
-    betControls.classList.remove("hidden");
-    const minRaise = Math.min(maxRaise, state.minRaiseTo);
-    const preferredRaise = Math.max(minRaise, state.currentBet + state.bigBlind);
-    setRaiseState({
-      min: minRaise,
-      max: maxRaise,
-      step: state.bigBlind,
-      value: Math.min(maxRaise, preferredRaise),
-    });
+    configureRaiseControls(hero);
+  }
+}
+
+function configureRaiseControls(hero, disabled = false) {
+  const maxRaise = hero.bet + hero.stack;
+  if (maxRaise <= state.currentBet) return;
+  betControls.classList.remove("hidden");
+  const minRaise = Math.min(maxRaise, state.minRaiseTo);
+  const preferredRaise = Math.max(minRaise, state.currentBet + state.bigBlind);
+  setRaiseState({
+    min: minRaise,
+    max: maxRaise,
+    step: state.bigBlind,
+    value: Math.min(maxRaise, preferredRaise),
+  });
+  if (disabled) {
+    raiseMinus.disabled = true;
+    raisePlus.disabled = true;
+    raiseBtn.disabled = true;
   }
 }
 
@@ -713,16 +691,13 @@ function addButton(label, eventName, className = "") {
   gameButtons.appendChild(button);
 }
 
-function addActionButton(label, payload, className = "") {
+function addActionButton(label, payload, className = "", disabled = false) {
   const button = document.createElement("button");
   button.textContent = label;
   if (className) button.className = className;
+  button.disabled = disabled;
   button.addEventListener("click", () => emitWithAck("game:action", payload, "click"));
   gameButtons.appendChild(button);
-}
-
-function kickPlayer(playerId) {
-  emitWithAck("room:kick", { playerId }, "click");
 }
 
 function makeHost(playerId) {
@@ -769,6 +744,12 @@ function emitWithAck(eventName, payload, pendingSound = null) {
 function joinOrCreate(mode) {
   ensureAudio();
   joinError.textContent = "";
+  if (joinPending) return;
+  if (!socket.connected) {
+    joinError.textContent = "Connecting...";
+    socket.once("connect", () => joinOrCreate(mode));
+    return;
+  }
   const name = nameInput.value.trim();
   if (!name) {
     joinError.textContent = "Enter a display name.";
@@ -782,7 +763,16 @@ function joinOrCreate(mode) {
   if (mode !== "join") {
     payload.tableSize = selectedTableSize;
   }
-  socket.emit(eventName, payload, (response) => {
+  joinPending = true;
+  tableActionBtn.textContent = mode === "join" ? "Joining..." : "Hosting...";
+  updateTableActionLabel();
+  socket.timeout(4000).emit(eventName, payload, (error, response) => {
+    joinPending = false;
+    updateTableActionLabel();
+    if (error) {
+      joinError.textContent = "Still connecting. Try again.";
+      return;
+    }
     if (!response?.ok) {
       joinError.textContent = response?.error || "Could not join table.";
       return;
@@ -886,12 +876,6 @@ backToMenuBtn.addEventListener("click", () => {
   showWelcome();
 });
 
-players.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-kick-player]");
-  if (!button) return;
-  kickPlayer(button.dataset.kickPlayer);
-});
-
 scoreMenuBtn.addEventListener("click", () => showWelcome());
 
 socket.on("room:update", (room) => {
@@ -937,7 +921,19 @@ function attemptAutoRejoin() {
   }
 }
 
-socket.on("connect", attemptAutoRejoin);
+function autoJoinInitialRoom() {
+  if (didAutoJoinInitialRoom || !initialRoomParam || !nameInput.value.trim() || state) return;
+  didAutoJoinInitialRoom = true;
+  joinOrCreate("join");
+}
+
+socket.on("connect", () => {
+  updateTableActionLabel();
+  autoJoinInitialRoom();
+  attemptAutoRejoin();
+});
+socket.on("disconnect", updateTableActionLabel);
+autoJoinInitialRoom();
 attemptAutoRejoin();
 
 window.addEventListener("focus", attemptAutoRejoin);
