@@ -613,9 +613,9 @@ select:focus {
   position: absolute;
   inset: calc(var(--community-y) + 142px) 18px 22px;
   min-height: 0;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   align-self: stretch;
-  align-content: start;
   gap: 7px;
   overflow-y: auto;
   max-height: 100%;
@@ -623,6 +623,10 @@ select:focus {
   padding-right: 2px;
   scrollbar-gutter: stable;
   -webkit-overflow-scrolling: touch;
+}
+
+.players > :first-child {
+  margin-top: auto;
 }
 
 .action-feed-card {
@@ -1069,8 +1073,6 @@ select:focus {
     position: static;
     grid-column: 1;
     grid-row: 1 / -1;
-    grid-template-columns: minmax(0, 1fr);
-    align-content: start;
     align-self: stretch;
     min-height: 0;
     height: 100%;
@@ -1256,10 +1258,9 @@ select:focus {
     position: static;
     min-height: 0;
     height: 100%;
-    display: grid;
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
     align-self: stretch;
-    align-content: start;
     gap: 6px;
     overflow-y: auto;
     max-height: 100%;
