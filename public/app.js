@@ -599,11 +599,9 @@ function render() {
   const wasPinnedToFeedEnd = players.scrollHeight - players.scrollTop - players.clientHeight < 48;
   const previousFeedScrollTop = players.scrollTop;
   const shouldStickPlayersToFeedEnd = !hasRenderedRoom || (feedChanged && wasPinnedToFeedEnd);
-  if (feedChanged) {
-    players.innerHTML = renderActionFeed();
-    lastActionFeedSignature = nextFeedSignature;
-    if (!shouldStickPlayersToFeedEnd) players.scrollTop = previousFeedScrollTop;
-  }
+  players.innerHTML = renderActionFeed();
+  lastActionFeedSignature = nextFeedSignature;
+  if (!shouldStickPlayersToFeedEnd) players.scrollTop = previousFeedScrollTop;
 
   const hero = activeHero();
   heroHand.innerHTML = hero?.cards?.length ? hero.cards.map(cardTemplate).join("") : "";
