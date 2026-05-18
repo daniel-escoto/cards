@@ -24,10 +24,8 @@ const sharePanel = document.querySelector("#sharePanel");
 const shareQr = document.querySelector("#shareQr");
 const shareLink = document.querySelector("#shareLink");
 const copyShareBtn = document.querySelector("#copyShareBtn");
-const phaseTitle = document.querySelector("#phaseTitle");
 const potValue = document.querySelector("#potValue");
 const community = document.querySelector("#community");
-const message = document.querySelector("#message");
 const players = document.querySelector("#players");
 const heroHand = document.querySelector("#heroHand");
 const winnerList = document.querySelector("#winnerList");
@@ -36,6 +34,7 @@ const gameButtons = document.querySelector("#gameButtons");
 const betControls = document.querySelector("#betControls");
 const raiseMinus = document.querySelector("#raiseMinus");
 const raisePlus = document.querySelector("#raisePlus");
+const raiseLabel = document.querySelector("#raiseLabel");
 const raiseAmount = document.querySelector("#raiseAmount");
 const raiseBtn = document.querySelector("#raiseBtn");
 const scoreList = document.querySelector("#scoreList");
@@ -48,6 +47,7 @@ let hasRenderedRoom = false;
 let leavingEndedRoom = false;
 let menuTimer = null;
 let lastAutoRejoinKey = "";
+let lastActionFeedSignature = "";
 const params = new URLSearchParams(window.location.search);
 const initialRoomParam = (params.get("room") || "").toUpperCase();
 const initialRoomId = (initialRoomParam || localStorage.getItem("holdem:lastRoom") || "").toUpperCase();
@@ -229,6 +229,7 @@ function showGameMenu() {
 function showWelcome(status = "") {
   state = null;
   hasRenderedRoom = false;
+  lastActionFeedSignature = "";
   leavingEndedRoom = false;
   hideGameMenu();
   document.documentElement.classList.remove("game-open-root");
@@ -244,6 +245,7 @@ function showScoreScreen(room) {
   const standings = [...room.players].sort((a, b) => b.stack - a.stack || a.name.localeCompare(b.name));
   state = null;
   hasRenderedRoom = false;
+  lastActionFeedSignature = "";
   hideGameMenu();
   document.documentElement.classList.remove("game-open-root");
   document.body.classList.remove("game-open", "keyboard-open");
@@ -422,6 +424,12 @@ function compactPlayerAction(entry, player) {
     .replace(/^Wins\s+/i, "+");
 }
 
+function actionTokenClass(entry, player) {
+  const compact = compactPlayerAction(entry, player).toLowerCase();
+  if (compact.startsWith("raise ")) return " action-token-raise";
+  return "";
+}
+
 function playerTableStatus(player, isActiveTurn = player.isTurn) {
   if (player.folded) return "Folded";
   if (player.allIn) return "All in";
@@ -504,7 +512,7 @@ function renderActionFeed() {
         <div class="action-card-move">
           <em>${showPhase && compactStreetLabel(phase) ? escapeHtml(compactStreetLabel(phase)) : ""}</em>
           <span class="seat-name">${escapeHtml(player?.name || "Table")}${player?.isYou ? " (you)" : ""}</span>
-          <strong>${escapeHtml(compactPlayerAction(entry, player))}</strong>
+          <strong class="action-token${actionTokenClass(entry, player)}">${escapeHtml(compactPlayerAction(entry, player))}</strong>
           ${player ? `<span class="stack-chip">${player.stack}</span>` : ""}
         </div>
       </article>
@@ -515,6 +523,26 @@ function renderActionFeed() {
     : "";
   const markup = `${historyMarkup}${shownHands}${activePlayer ? renderSeatCard(activePlayer, true) : ""}`.trim();
   return markup || seatMarkup();
+}
+
+function actionFeedSignature(room) {
+  const log = (room.actionLog || [])
+    .filter((entry) => entry.phase !== "lobby")
+    .map((entry) => `${entry.id}:${entry.playerId || ""}:${entry.phase || ""}:${entry.action || entry.text || ""}`)
+    .join("|");
+  const seats = room.players
+    .map((player) => [
+      player.id,
+      player.stack,
+      player.bet,
+      player.invested,
+      player.folded,
+      player.allIn,
+      player.showCards,
+      player.cards?.map((card) => card.code).join(",") || "",
+    ].join(":"))
+    .join("|");
+  return `${room.handNumber}:${room.phase}:${room.turn}:${log}:${seats}`;
 }
 
 function inferActionSound(previous, next) {
@@ -562,16 +590,20 @@ function render() {
   if (!state) return;
   showTable(state);
   roomCode.textContent = state.id;
-  phaseTitle.textContent = phaseLabel(state.phase);
   potValue.textContent = state.pot;
-  message.textContent = state.message || "";
-
   community.innerHTML = Array.from({ length: 5 }, (_, index) => cardTemplate(state.community[index] || null)).join("");
 
   const actionEntries = (state.actionLog || []).filter((entry) => entry.phase !== "lobby");
-  const shouldStickPlayersToFeedEnd = !hasRenderedRoom
-    || players.scrollHeight - players.scrollTop - players.clientHeight < 48;
-  players.innerHTML = renderActionFeed();
+  const nextFeedSignature = actionFeedSignature(state);
+  const feedChanged = nextFeedSignature !== lastActionFeedSignature;
+  const wasPinnedToFeedEnd = players.scrollHeight - players.scrollTop - players.clientHeight < 48;
+  const previousFeedScrollTop = players.scrollTop;
+  const shouldStickPlayersToFeedEnd = !hasRenderedRoom || (feedChanged && wasPinnedToFeedEnd);
+  if (feedChanged) {
+    players.innerHTML = renderActionFeed();
+    lastActionFeedSignature = nextFeedSignature;
+    if (!shouldStickPlayersToFeedEnd) players.scrollTop = previousFeedScrollTop;
+  }
 
   const hero = activeHero();
   heroHand.innerHTML = hero?.cards?.length ? hero.cards.map(cardTemplate).join("") : "";
@@ -656,6 +688,9 @@ function configureRaiseControls(hero, disabled = false) {
     step: state.bigBlind,
     value: Math.min(maxRaise, preferredRaise),
   });
+  const isRaise = state.currentBet > 0;
+  raiseLabel.textContent = isRaise ? "Raise to" : "Bet";
+  raiseBtn.textContent = isRaise ? "Raise" : "Bet";
   if (disabled) {
     raiseMinus.disabled = true;
     raisePlus.disabled = true;

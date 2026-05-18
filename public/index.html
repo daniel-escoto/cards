@@ -48,24 +48,23 @@
       <section id="tableView" class="table-view hidden">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Room <span id="roomCode"></span></p>
-            <h2 id="phaseTitle">Lobby</h2>
+            <h2 class="room-heading">Room <span id="roomCode"></span></h2>
           </div>
           <button id="menuBtn" class="ghost menu-btn" type="button" aria-haspopup="dialog" aria-controls="gameMenuModal">Menu</button>
         </header>
 
         <section class="felt">
-          <div class="table-meta">
-            <div>
-              <span>Pot</span>
-              <strong id="potValue">0</strong>
-            </div>
-          </div>
-
           <div id="community" class="community"></div>
-          <div id="message" class="message"></div>
           <section class="control-panel">
-            <div id="heroHand" class="hero-hand"></div>
+            <div class="hand-row">
+              <div id="heroHand" class="hero-hand"></div>
+              <div class="table-meta">
+                <div>
+                  <span>Pot</span>
+                  <strong id="potValue">0</strong>
+                </div>
+              </div>
+            </div>
             <div id="winnerList" class="winner-list"></div>
             <div id="turnInfo" class="turn-info"></div>
             <div id="gameButtons" class="game-buttons"></div>
@@ -73,7 +72,7 @@
               <div class="raise-stepper" aria-label="Raise amount">
                 <button id="raiseMinus" type="button" class="secondary" aria-label="Decrease raise">-</button>
                 <div class="raise-display">
-                  <span>Raise to</span>
+                  <span id="raiseLabel">Raise to</span>
                   <strong id="raiseAmount">40</strong>
                 </div>
                 <button id="raisePlus" type="button" class="secondary" aria-label="Increase raise">+</button>

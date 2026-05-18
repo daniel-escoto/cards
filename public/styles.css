@@ -132,7 +132,6 @@ h1 {
 
 .brand p,
 .eyebrow,
-.message,
 .turn-info,
 .winner-list,
 label {
@@ -220,6 +219,15 @@ select:focus {
 .score-head {
   display: grid;
   gap: 4px;
+}
+
+.room-heading {
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .score-list {
@@ -354,8 +362,8 @@ select:focus {
 }
 
 .shown-hand .card {
-  width: 30px;
-  padding: 4px;
+  width: 34px;
+  padding: 5px;
   border-radius: 5px;
   font-size: 12px;
 }
@@ -370,7 +378,7 @@ select:focus {
 
 .shown-hand .card .card-rank,
 .shown-hand .card .card-corner-suit {
-  font-size: 13px;
+  font-size: 18px;
 }
 
 .menu-player-stats {
@@ -589,16 +597,6 @@ select:focus {
   font-size: 16px;
 }
 
-.message {
-  position: absolute;
-  left: 50%;
-  top: calc(var(--community-y) + 78px);
-  width: min(560px, calc(100% - 36px));
-  transform: translateX(-50%);
-  text-align: center;
-  font-weight: 750;
-}
-
 .players {
   --feed-phase: 2rem;
   --feed-stack: 4.75rem;
@@ -608,9 +606,11 @@ select:focus {
   inset: calc(var(--community-y) + 142px) 18px 22px;
   min-height: 0;
   display: grid;
+  align-self: stretch;
   align-content: start;
   gap: 7px;
   overflow-y: auto;
+  max-height: 100%;
   overscroll-behavior: contain;
   padding-right: 2px;
   scrollbar-gutter: stable;
@@ -706,6 +706,10 @@ select:focus {
   font-weight: 900;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.action-token-raise {
+  color: #55d485;
 }
 
 .stack-chip {
@@ -834,6 +838,35 @@ select:focus {
   gap: 6px;
 }
 
+.hand-row {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hand-row .table-meta {
+  position: static;
+  flex: 0 0 auto;
+  pointer-events: none;
+}
+
+.hand-row .table-meta div {
+  height: calc(38px / 0.72);
+  min-height: 0;
+  display: grid;
+  align-content: center;
+  padding: 5px 10px;
+}
+
+.hand-row .table-meta span {
+  font-size: 10px;
+}
+
+.hand-row .table-meta strong {
+  font-size: 20px;
+}
+
 .hero-hand .card {
   width: 38px;
   padding: 6px;
@@ -941,29 +974,13 @@ select:focus {
     min-height: 0;
   }
 
-  .table-meta {
-    position: static;
-    grid-column: 2;
-    grid-row: 1;
-  }
-
   .community {
     position: static;
     grid-column: 2;
     grid-row: 2;
     align-self: center;
-    justify-content: flex-start;
-    transform: translateY(-18px);
-  }
-
-  .message {
-    position: static;
-    grid-column: 2;
-    grid-row: 2;
-    width: 100%;
-    align-self: center;
-    transform: translateY(62px);
-    text-align: left;
+    justify-content: center;
+    transform: none;
   }
 
   .control-panel {
@@ -976,7 +993,7 @@ select:focus {
     grid-template-rows: auto auto auto auto auto;
   }
 
-  .hero-hand {
+  .hand-row {
     grid-row: 1;
   }
 
@@ -1137,7 +1154,7 @@ select:focus {
   }
 
   .topbar {
-    align-items: stretch;
+    align-items: center;
   }
 
   body.game-open,
@@ -1185,12 +1202,12 @@ select:focus {
 
   .felt {
     display: grid;
-    grid-template-rows: auto auto auto minmax(96px, 1fr);
+    grid-template-rows: auto auto auto minmax(80px, 1fr) auto;
     gap: 7px;
     align-content: stretch;
     min-height: 0;
     height: auto;
-    padding: 10px;
+    padding: 18px 10px 10px;
     border-width: 5px;
     border-radius: 16px;
   }
@@ -1222,13 +1239,16 @@ select:focus {
     min-height: 0;
     display: grid;
     grid-template-columns: 1fr;
-    align-content: start;
+    align-self: stretch;
+    align-content: end;
     gap: 6px;
     overflow-y: auto;
+    max-height: 100%;
     overscroll-behavior: contain;
     padding-right: 2px;
     touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
+    grid-row: 4;
   }
 
   .action-feed-card {
@@ -1280,24 +1300,24 @@ select:focus {
     font-size: 18px;
   }
 
-  .message {
-    position: static;
-    width: 100%;
-    transform: none;
-    font-size: 12px;
-  }
-
   .control-panel {
-    gap: 7px;
-    padding: 9px 9px max(9px, env(safe-area-inset-bottom));
+    grid-row: 5;
+    gap: 6px;
+    padding: 8px 8px max(8px, env(safe-area-inset-bottom));
   }
 
   .hero-hand {
-    gap: 6px;
+    gap: 5px;
   }
 
   .hero-hand .card {
-    width: 38px;
+    width: 34px;
+    padding: 5px;
+  }
+
+  .shown-hand .card {
+    width: 34px;
+    padding: 5px;
   }
 
   .turn-info,
@@ -1310,14 +1330,14 @@ select:focus {
   }
 
   .bet-controls {
-    --raise-row-height: 48px;
+    --raise-row-height: 40px;
     grid-template-columns: 1fr auto;
-    gap: 7px;
+    gap: 6px;
   }
 
   .raise-stepper {
     min-width: 0;
-    grid-template-columns: 52px minmax(0, 1fr) 52px;
+    grid-template-columns: 42px minmax(0, 1fr) 42px;
   }
 
   .raise-stepper button {
@@ -1325,12 +1345,12 @@ select:focus {
   }
 
   .raise-display strong {
-    font-size: 18px;
+    font-size: 17px;
   }
 
   .game-buttons button {
     flex: 1 1 30%;
-    min-height: 40px;
+    min-height: 38px;
     padding: 0 10px;
   }
 }
