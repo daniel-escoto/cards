@@ -812,6 +812,27 @@ select:focus {
   text-align: right;
 }
 
+.state-card.turn .state-card-grid {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto;
+}
+
+.state-card.turn .state-card-spacer,
+.state-card.turn .seat-badges,
+.state-card.turn .state-pot,
+.state-card.turn .state-status {
+  display: none;
+}
+
+.state-card.turn .seat-name {
+  grid-column: 1;
+}
+
+.state-card.turn .state-stack {
+  grid-column: 2;
+  grid-row: 1;
+}
+
 .state-stack,
 .state-pot,
 .state-status {
