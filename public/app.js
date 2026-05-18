@@ -180,7 +180,6 @@ function renderMenuPlayers() {
           ${player.isBot ? '<span class="pill">CPU</span>' : ""}
         </span>
       </div>
-      <div class="menu-player-cards">${(player.menuCards || player.cards).map(cardTemplate).join("")}</div>
       <div class="menu-player-stats">
         <span>Stack <strong>${player.stack}</strong></span>
         <span>Bet <strong>${player.bet}</strong></span>

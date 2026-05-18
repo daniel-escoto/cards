@@ -342,13 +342,11 @@ select:focus {
   gap: 8px;
 }
 
-.menu-player-cards,
 .shown-hand {
   display: flex;
   gap: 5px;
 }
 
-.menu-player-cards .card,
 .shown-hand .card {
   width: 30px;
   padding: 4px;
@@ -356,19 +354,15 @@ select:focus {
   font-size: 12px;
 }
 
-.menu-player-cards .card .card-image,
 .shown-hand .card .card-image {
   display: none;
 }
 
-.menu-player-cards .card .card-corner-bottom,
 .shown-hand .card .card-corner-bottom {
   transform: none;
 }
 
-.menu-player-cards .card .card-rank,
 .shown-hand .card .card-rank,
-.menu-player-cards .card .card-corner-suit,
 .shown-hand .card .card-corner-suit {
   font-size: 13px;
 }

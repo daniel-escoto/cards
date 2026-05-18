@@ -108,8 +108,8 @@ function waitFor(predicate, label, timeout = 5000) {
   if (bobViewOfAlice?.cards.some((card) => card?.code)) {
     throw new Error("Expected table cards to stay hidden from opponents");
   }
-  if (!bobViewOfAlice?.menuCards.every((card) => card?.code)) {
-    throw new Error("Expected menu cards to show for every player");
+  if ("menuCards" in bobViewOfAlice) {
+    throw new Error("Expected menu cards to be omitted");
   }
   if (!alice.state.actionLog?.some((entry) => entry.text.includes("small blind"))) {
     throw new Error("Expected action log to include blind posts");
@@ -172,6 +172,16 @@ function waitFor(predicate, label, timeout = 5000) {
   await waitFor(() => alice.state.players.find((player) => player.isYou)?.showCards, "show hand");
   if (!bobAgain.state.players.find((player) => player.name === "Alice")?.cards.every((card) => card?.code)) {
     throw new Error("Expected shown hand to be visible to other players");
+  }
+  const completedHandNumber = alice.state.handNumber;
+  const completedHandLogIds = new Set(alice.state.actionLog.map((entry) => entry.id));
+  await emit(alice.socket, "game:next");
+  await waitFor(() => alice.state?.phase === "preflop" && alice.state?.handNumber === completedHandNumber + 1, "next hand start");
+  if (!alice.state.actionLog.some((entry) => completedHandLogIds.has(entry.id))) {
+    throw new Error("Expected previous hand history to remain after starting a new hand");
+  }
+  if (!alice.state.actionLog.some((entry) => entry.id.startsWith(`${alice.state.handNumber}-`) && entry.text.includes("blind"))) {
+    throw new Error("Expected new hand history to include blind posts");
   }
 
   const idle = connectPlayer("Idle");

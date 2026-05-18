@@ -507,7 +507,6 @@ function resetHandState(room) {
   room.deadPot = 0;
   room.acted = new Set();
   room.winners = [];
-  room.actionLog = [];
   for (const player of room.players) {
     player.hand = [];
     player.folded = false;
@@ -1007,7 +1006,6 @@ function serializeRoom(room, viewerId) {
       cards: player.id === viewerId || player.showCards
         ? player.hand.map(publicCard)
         : player.hand.map(() => null),
-      menuCards: player.hand.map(publicCard),
     })),
   };
 }
