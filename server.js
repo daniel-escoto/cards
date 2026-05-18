@@ -543,12 +543,31 @@ function isHandInProgress(room) {
   return ["preflop", "flop", "turn", "river", "showdown"].includes(room.phase);
 }
 
+function playersWithChips(room) {
+  return room.players.filter((player) => player.stack > 0);
+}
+
+function maybeEndGame(room) {
+  const remaining = playersWithChips(room);
+  if (remaining.length >= 2 || room.phase !== "complete") return false;
+  room.status = "complete";
+  room.phase = "gameover";
+  room.turn = null;
+  room.message = remaining.length === 1
+    ? `${remaining[0].name} wins the game.`
+    : "Game over.";
+  return true;
+}
+
 function startHand(room) {
-  const seated = room.players.filter((player) => player.stack > 0);
+  const seated = playersWithChips(room);
   if (seated.length < 2) {
-    room.status = "lobby";
-    room.phase = "lobby";
-    room.message = "At least two players with chips are needed.";
+    maybeEndGame(room);
+    if (room.phase !== "gameover") {
+      room.status = "lobby";
+      room.phase = "lobby";
+      room.message = "At least two players with chips are needed.";
+    }
     return;
   }
 
@@ -727,6 +746,7 @@ function awardUncontested(room, winner) {
     playerId: winner.id,
     action: `Wins ${amount}`,
   });
+  maybeEndGame(room);
 }
 
 function buildSidePots(room) {
@@ -802,6 +822,7 @@ function settleShowdown(room) {
       action: `Wins ${winner.amount}`,
     });
   }
+  maybeEndGame(room);
 }
 
 function applyPlayerAction(room, playerId, { type, raiseTo }) {
@@ -1036,8 +1057,8 @@ function serializeRoom(room, viewerId) {
     isYourTurn: room.turn === viewerId,
     toCall,
     canShowHand: room.phase === "complete" && Boolean(viewer?.hand?.length) && !viewer.showCards,
-    canStart: room.hostId === viewerId && room.players.filter((p) => p.stack > 0).length >= 2 && !isHandInProgress(room),
-    canNextHand: room.hostId === viewerId && room.phase === "complete" && room.players.filter((p) => p.stack > 0).length >= 2,
+    canStart: room.hostId === viewerId && playersWithChips(room).length >= 2 && !isHandInProgress(room) && room.phase !== "gameover",
+    canNextHand: room.hostId === viewerId && room.phase === "complete" && playersWithChips(room).length >= 2,
     canRestartGame: room.hostId === viewerId,
     canEndGame: room.hostId === viewerId && room.phase !== "lobby",
     community: room.community.map(publicCard),

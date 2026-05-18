@@ -130,6 +130,7 @@ function phaseLabel(phase) {
     river: "River",
     showdown: "Showdown",
     complete: "Hand complete",
+    gameover: "Game over",
   };
   return labels[phase] || phase;
 }
@@ -450,6 +451,10 @@ function isEndedGameReturn(previous, next) {
   return previous && previous.phase !== "lobby" && next.phase === "lobby" && next.message === "Game ended by host.";
 }
 
+function isGameOver(room) {
+  return room?.phase === "gameover";
+}
+
 function render() {
   if (!state) return;
   showTable(state);
@@ -752,7 +757,7 @@ scoreMenuBtn.addEventListener("click", () => showWelcome());
 
 socket.on("room:update", (room) => {
   if (leavingEndedRoom) return;
-  if (isEndedGameReturn(state, room)) {
+  if (isGameOver(room) || isEndedGameReturn(state, room)) {
     leavingEndedRoom = true;
     socket.emit("room:leave");
     showScoreScreen(room);

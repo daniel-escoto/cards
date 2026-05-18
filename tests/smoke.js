@@ -276,11 +276,50 @@ function waitFor(predicate, label, timeout = 5000) {
     throw new Error("Expected CPU cards to show after hand completion");
   }
 
+  const finalA = connectPlayer("FinalA");
+  const finalB = connectPlayer("FinalB");
+  await waitFor(() => finalA.socket.connected && finalB.socket.connected, "final table connections");
+  const finalRoom = await emit(finalA.socket, "room:create", { name: finalA.name, deviceId: finalA.deviceId });
+  await emit(finalB.socket, "room:join", { roomId: finalRoom.roomId, name: finalB.name, deviceId: finalB.deviceId });
+  await waitFor(() => finalA.state?.players.length === 2 && finalB.state?.players.length === 2, "final table seated");
+
+  for (let hand = 0; hand < 10 && finalA.state.phase !== "gameover"; hand += 1) {
+    await emit(finalA.socket, finalA.state.phase === "complete" ? "game:next" : "game:start");
+    await waitFor(() => ["preflop", "gameover"].includes(finalA.state?.phase), "final hand start");
+
+    for (let i = 0; i < 20 && !["complete", "gameover"].includes(finalA.state.phase); i += 1) {
+      const current = [finalA, finalB].find((player) => player.state?.isYourTurn);
+      if (!current) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        continue;
+      }
+      const hero = current.state.players.find((player) => player.isYou);
+      const maxRaise = hero.bet + hero.stack;
+      if (maxRaise > current.state.currentBet) {
+        await emit(current.socket, "game:action", { type: "raise", raiseTo: maxRaise });
+      } else {
+        await emit(current.socket, "game:action", { type: current.state.toCall > 0 ? "call" : "check" });
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  }
+
+  await waitFor(() => finalA.state?.phase === "gameover", "natural game over");
+  const finalStacks = finalA.state.players.map((player) => player.stack).sort((a, b) => b - a);
+  if (finalStacks[0] !== 2000 || finalStacks[1] !== 0) {
+    throw new Error("Expected heads-up all-in game to leave one winner with all chips");
+  }
+  if (finalA.state.canNextHand || finalA.state.canStart) {
+    throw new Error("Expected game over to block further hands");
+  }
+
   players.forEach((player) => player.socket.disconnect());
   idleReturn.socket.disconnect();
   solo.socket.disconnect();
   dana.socket.disconnect();
   danaLate.socket.disconnect();
+  finalA.socket.disconnect();
+  finalB.socket.disconnect();
   console.log(`Smoke test passed for room ${created.roomId}`);
 })().catch((error) => {
   console.error(error);
