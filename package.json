@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
+    "test:blinds": "node tests/blinds.js",
     "smoke": "node tests/smoke.js"
   },
   "keywords": [],

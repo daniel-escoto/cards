@@ -14,8 +14,15 @@ const makeId = customAlphabet("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", 6);
 
 const PORT = process.env.PORT || 3000;
 const STARTING_STACK = 1000;
-const SMALL_BLIND = 10;
-const BIG_BLIND = 20;
+const BLIND_LEVELS = [
+  { smallBlind: 10, bigBlind: 20, hands: 6 },
+  { smallBlind: 20, bigBlind: 40, hands: 6 },
+  { smallBlind: 40, bigBlind: 80, hands: 6 },
+  { smallBlind: 75, bigBlind: 150, hands: 6 },
+  { smallBlind: 100, bigBlind: 200, hands: 6 },
+  { smallBlind: 200, bigBlind: 400, hands: Infinity },
+];
+const DEFAULT_BIG_BLIND = BLIND_LEVELS[0].bigBlind;
 const MAX_PLAYERS = 8;
 const BOT_DELAY_MS = 350;
 const DISCONNECT_GRACE_MS = Math.max(0, Number(process.env.DISCONNECT_GRACE_MS) || 30000);
@@ -52,6 +59,19 @@ let saveTimer = null;
 
 const ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"];
 const suits = ["s", "h", "d", "c"];
+
+function blindLevelForHand(handNumber) {
+  let remainingHands = Math.max(1, Math.floor(Number(handNumber) || 1));
+  for (const level of BLIND_LEVELS) {
+    if (remainingHands <= level.hands) return level;
+    remainingHands -= level.hands;
+  }
+  return BLIND_LEVELS[BLIND_LEVELS.length - 1];
+}
+
+function currentBlinds(room) {
+  return blindLevelForHand(room?.handNumber || 1);
+}
 
 function makeDeck() {
   const deck = [];
@@ -194,7 +214,7 @@ function restoreRoom(raw) {
     dealer: Math.max(0, Math.floor(Number(raw.dealer) || 0)),
     turn: raw.turn || null,
     currentBet: Math.max(0, Math.floor(Number(raw.currentBet) || 0)),
-    minRaise: Math.max(BIG_BLIND, Math.floor(Number(raw.minRaise) || BIG_BLIND)),
+    minRaise: Math.max(blindLevelForHand(raw.handNumber).bigBlind, Math.floor(Number(raw.minRaise) || DEFAULT_BIG_BLIND)),
     deadPot: Math.max(0, Math.floor(Number(raw.deadPot) || 0)),
     acted: new Set(Array.isArray(raw.acted) ? raw.acted : []),
     message: raw.message || "Room restored after update.",
@@ -273,7 +293,7 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0) {
     dealer: 0,
     turn: null,
     currentBet: 0,
-    minRaise: BIG_BLIND,
+    minRaise: DEFAULT_BIG_BLIND,
     deadPot: 0,
     acted: new Set(),
     message: "Invite friends with this room link.",
@@ -500,10 +520,11 @@ function logAction(room, text, metadata = {}) {
 }
 
 function resetHandState(room) {
+  const { bigBlind } = currentBlinds(room);
   room.community = [];
   room.deck = makeDeck();
   room.currentBet = 0;
-  room.minRaise = BIG_BLIND;
+  room.minRaise = bigBlind;
   room.deadPot = 0;
   room.acted = new Set();
   room.winners = [];
@@ -535,6 +556,8 @@ function startHand(room) {
   room.status = "playing";
   room.phase = "preflop";
   room.handNumber += 1;
+  const { smallBlind, bigBlind } = currentBlinds(room);
+  room.minRaise = bigBlind;
 
   if (room.players[room.dealer]?.stack <= 0) {
     room.dealer = nextIndex(room, room.dealer, (player) => player.stack > 0);
@@ -550,21 +573,21 @@ function startHand(room) {
   const headsUp = seated.length === 2;
   const smallBlindIndex = headsUp ? room.dealer : nextIndex(room, room.dealer, (p) => p.stack > 0);
   const bigBlindIndex = nextIndex(room, smallBlindIndex, (p) => p.stack > 0);
-  postBlind(room, smallBlindIndex, SMALL_BLIND);
-  postBlind(room, bigBlindIndex, BIG_BLIND);
-  logAction(room, `${room.players[smallBlindIndex].name} posts small blind ${SMALL_BLIND}.`, {
+  postBlind(room, smallBlindIndex, smallBlind);
+  postBlind(room, bigBlindIndex, bigBlind);
+  logAction(room, `${room.players[smallBlindIndex].name} posts small blind ${smallBlind}.`, {
     playerId: room.players[smallBlindIndex].id,
-    action: `Posts small blind ${SMALL_BLIND}`,
+    action: `Posts small blind ${smallBlind}`,
   });
-  logAction(room, `${room.players[bigBlindIndex].name} posts big blind ${BIG_BLIND}.`, {
+  logAction(room, `${room.players[bigBlindIndex].name} posts big blind ${bigBlind}.`, {
     playerId: room.players[bigBlindIndex].id,
-    action: `Posts big blind ${BIG_BLIND}`,
+    action: `Posts big blind ${bigBlind}`,
   });
   room.currentBet = Math.max(...room.players.map((player) => player.bet));
 
   const firstToAct = nextIndex(room, bigBlindIndex, (p) => !p.folded && !p.allIn && p.stack > 0);
   room.turn = firstToAct >= 0 ? room.players[firstToAct].id : null;
-  room.message = `Hand ${room.handNumber}: blinds are ${SMALL_BLIND}/${BIG_BLIND}.`;
+  room.message = `Hand ${room.handNumber}: blinds are ${smallBlind}/${bigBlind}.`;
   maybeAdvance(room);
 }
 
@@ -607,7 +630,7 @@ function restartGame(room) {
   room.dealer = 0;
   room.turn = null;
   room.currentBet = 0;
-  room.minRaise = BIG_BLIND;
+  room.minRaise = DEFAULT_BIG_BLIND;
   room.deadPot = 0;
   room.acted = new Set();
   room.winners = [];
@@ -617,9 +640,10 @@ function restartGame(room) {
 }
 
 function dealStreet(room) {
+  const { bigBlind } = currentBlinds(room);
   for (const player of room.players) player.bet = 0;
   room.currentBet = 0;
-  room.minRaise = BIG_BLIND;
+  room.minRaise = bigBlind;
   room.acted = new Set();
 
   if (room.phase === "preflop") {
@@ -903,16 +927,18 @@ function estimateComputerConfidence(room, player) {
 }
 
 function chooseComputerRaiseTo(room, player, minRaiseTo, confidence) {
+  const { bigBlind } = currentBlinds(room);
   const maxBet = player.bet + player.stack;
   const pot = collectPot(room);
-  const pressureRaise = minRaiseTo + BIG_BLIND * (confidence > 0.72 ? 2 : 1);
-  const potRaise = room.currentBet + Math.ceil(pot * (confidence > 0.66 ? 0.42 : 0.28) / BIG_BLIND) * BIG_BLIND;
+  const pressureRaise = minRaiseTo + bigBlind * (confidence > 0.72 ? 2 : 1);
+  const potRaise = room.currentBet + Math.ceil(pot * (confidence > 0.66 ? 0.42 : 0.28) / bigBlind) * bigBlind;
   const preferred = Math.max(minRaiseTo, Math.random() < 0.42 ? potRaise : pressureRaise);
   return Math.min(maxBet, preferred);
 }
 
 function preflopBlindCallChance(room, player, callAmount) {
-  if (room.phase !== "preflop" || room.community.length > 0 || callAmount > BIG_BLIND) return null;
+  const { bigBlind } = currentBlinds(room);
+  if (room.phase !== "preflop" || room.community.length > 0 || callAmount > bigBlind) return null;
 
   const holeValues = player.hand.map(cardRankValue).sort((a, b) => b - a);
   const highCard = holeValues[0] || 0;
@@ -924,7 +950,7 @@ function preflopBlindCallChance(room, player, callAmount) {
   const connected = gap <= 1;
   const nearConnected = gap === 2;
 
-  let callChance = callAmount < BIG_BLIND ? 0.86 : 0.68;
+  let callChance = callAmount < bigBlind ? 0.86 : 0.68;
   if (paired) callChance += highCard >= 10 ? 0.22 : 0.16;
   if (hasBroadway) callChance += 0.08;
   if (suited) callChance += 0.08;
@@ -936,6 +962,7 @@ function preflopBlindCallChance(room, player, callAmount) {
 }
 
 function chooseComputerAction(room, player) {
+  const { bigBlind } = currentBlinds(room);
   const callAmount = Math.max(0, room.currentBet - player.bet);
   const maxBet = player.bet + player.stack;
   const canRaise = maxBet > room.currentBet;
@@ -957,7 +984,7 @@ function chooseComputerAction(room, player) {
     return { type: "fold" };
   }
 
-  const potPressure = callAmount / Math.max(BIG_BLIND, collectPot(room) + callAmount);
+  const potPressure = callAmount / Math.max(bigBlind, collectPot(room) + callAmount);
   const stackPressure = callAmount / Math.max(1, player.stack + callAmount);
   const callChance = Math.max(0.12, Math.min(0.96, confidence + 0.29 - potPressure * 0.55 - stackPressure * 0.44));
   if (Math.random() < callChance) return { type: "call" };
@@ -988,6 +1015,7 @@ function serializeRoom(room, viewerId) {
   const viewer = room.players.find((player) => player.id === viewerId);
   const toCall = viewer && !viewer.folded && !viewer.allIn ? Math.max(0, room.currentBet - viewer.bet) : 0;
   const minRaiseTo = room.currentBet + room.minRaise;
+  const { smallBlind, bigBlind } = currentBlinds(room);
 
   return {
     id: room.id,
@@ -1000,8 +1028,8 @@ function serializeRoom(room, viewerId) {
     currentBet: room.currentBet,
     minRaise: room.minRaise,
     minRaiseTo,
-    smallBlind: SMALL_BLIND,
-    bigBlind: BIG_BLIND,
+    smallBlind,
+    bigBlind,
     playerColors: PLAYER_COLORS,
     handNumber: room.handNumber,
     turn: room.turn,
@@ -1332,18 +1360,25 @@ io.on("connection", (socket) => {
   });
 });
 
-loadRooms();
+if (require.main === module) {
+  loadRooms();
 
-process.once("SIGINT", () => {
-  saveRoomsNow();
-  process.exit(0);
-});
+  process.once("SIGINT", () => {
+    saveRoomsNow();
+    process.exit(0);
+  });
 
-process.once("SIGTERM", () => {
-  saveRoomsNow();
-  process.exit(0);
-});
+  process.once("SIGTERM", () => {
+    saveRoomsNow();
+    process.exit(0);
+  });
 
-server.listen(PORT, () => {
-  console.log(`Texas Hold'em server listening on http://localhost:${PORT}`);
-});
+  server.listen(PORT, () => {
+    console.log(`Texas Hold'em server listening on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = {
+  BLIND_LEVELS,
+  blindLevelForHand,
+};
