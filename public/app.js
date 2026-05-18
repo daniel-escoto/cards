@@ -81,32 +81,11 @@ function updateTableActionLabel() {
   tableSizeLabel.classList.toggle("hidden", isJoining);
 }
 
-function cardImageUrl(card) {
-  const suitCodes = {
-    "♣": "C",
-    "♦": "D",
-    "♥": "H",
-    "♠": "S",
-  };
-  const rankCodes = {
-    A: "A",
-    J: "J",
-    Q: "Q",
-    K: "K",
-    10: "0",
-  };
-  const suit = suitCodes[card.suit];
-  const rank = rankCodes[card.rank] || card.rank;
-  return suit && rank ? `https://deckofcardsapi.com/static/img/${rank}${suit}.png` : "";
-}
-
 function cardTemplate(card) {
   if (!card) return '<div class="card back"><span></span><span></span></div>';
-  const imageUrl = cardImageUrl(card);
   const cardName = `${card.rank}${card.suit}`;
   return `
-    <div class="card ${card.color === "red" ? "red" : ""}">
-      ${imageUrl ? `<img class="card-image" src="${imageUrl}" alt="${escapeHtml(cardName)}" loading="eager" draggable="false" />` : ""}
+    <div class="card ${card.color === "red" ? "red" : ""}" aria-label="${escapeHtml(cardName)}">
       <span class="card-corner card-corner-top">
         <span class="card-rank">${card.rank}</span>
       </span>

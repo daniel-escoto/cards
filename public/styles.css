@@ -376,10 +376,6 @@ select:focus {
   font-size: 12px;
 }
 
-.shown-hand .card .card-image {
-  display: none;
-}
-
 .shown-hand .card .card-corner-bottom {
   transform: none;
 }
@@ -561,15 +557,6 @@ select:focus {
   color: var(--black-card);
   font-weight: 950;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.24);
-}
-
-.card-image {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: none;
 }
 
 .card.red {
@@ -919,10 +906,6 @@ select:focus {
 .hero-hand .card {
   width: 38px;
   padding: 6px;
-}
-
-.hero-hand .card-image {
-  display: none;
 }
 
 .hero-hand .card .card-corner {
@@ -1341,10 +1324,6 @@ select:focus {
 
   .community .card {
     width: clamp(44px, 11.5vw, 56px);
-  }
-
-  .card .card-image {
-    display: none;
   }
 
   .card .card-corner-bottom {
