@@ -507,6 +507,7 @@ function resetHandState(room) {
   room.deadPot = 0;
   room.acted = new Set();
   room.winners = [];
+  room.actionLog = [];
   for (const player of room.players) {
     player.hand = [];
     player.folded = false;

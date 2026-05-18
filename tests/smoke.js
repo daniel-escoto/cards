@@ -174,11 +174,10 @@ function waitFor(predicate, label, timeout = 5000) {
     throw new Error("Expected shown hand to be visible to other players");
   }
   const completedHandNumber = alice.state.handNumber;
-  const completedHandLogIds = new Set(alice.state.actionLog.map((entry) => entry.id));
   await emit(alice.socket, "game:next");
   await waitFor(() => alice.state?.phase === "preflop" && alice.state?.handNumber === completedHandNumber + 1, "next hand start");
-  if (!alice.state.actionLog.some((entry) => completedHandLogIds.has(entry.id))) {
-    throw new Error("Expected previous hand history to remain after starting a new hand");
+  if (alice.state.actionLog.some((entry) => !entry.id.startsWith(`${alice.state.handNumber}-`))) {
+    throw new Error("Expected next hand to reset previous hand history");
   }
   if (!alice.state.actionLog.some((entry) => entry.id.startsWith(`${alice.state.handNumber}-`) && entry.text.includes("blind"))) {
     throw new Error("Expected new hand history to include blind posts");

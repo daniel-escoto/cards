@@ -528,7 +528,7 @@ function renderActionFeed() {
     lastPhase = phase;
     return `
       ${phaseDivider}
-      <article class="action-feed-card ${player?.folded ? "folded" : ""} ${player?.isYou ? "you" : ""}" ${playerColorStyle(player)}>
+      <article class="action-feed-card action-history-card ${player?.folded ? "folded" : ""} ${player?.isYou ? "you" : ""}" ${playerColorStyle(player)}>
         <div class="action-card-head">
           <span class="seat-name">${escapeHtml(player?.name || "Table")}${player?.isYou ? " (you)" : ""}</span>
           <span class="seat-badges">
@@ -612,7 +612,8 @@ function render() {
     ? state.community.map(cardTemplate).join("")
     : Array.from({ length: 5 }, () => cardTemplate(null)).join("");
 
-  const shouldStickPlayersToBottom = !hasRenderedRoom
+  const actionEntries = (state.actionLog || []).filter((entry) => entry.phase !== "lobby");
+  const shouldStickPlayersToFeedEnd = !hasRenderedRoom
     || players.scrollHeight - players.scrollTop - players.clientHeight < 48;
   players.innerHTML = renderActionFeed();
 
@@ -624,12 +625,23 @@ function render() {
 
   renderControls(hero);
   if (!gameMenuModal.classList.contains("hidden")) renderMenuPlayers();
-  requestAnimationFrame(() => scrollPlayersToBottom(shouldStickPlayersToBottom));
+  requestAnimationFrame(() => scrollActionFeed(shouldStickPlayersToFeedEnd, actionEntries.length > 0));
 }
 
-function scrollPlayersToBottom(shouldScroll) {
+function scrollActionFeed(shouldScroll, hasActionEntries = false) {
   if (!shouldScroll) return;
   if (players.scrollHeight <= players.clientHeight) return;
+  if (hasActionEntries) {
+    const actionCards = players.querySelectorAll(".action-history-card");
+    const latestAction = actionCards[actionCards.length - 1];
+    if (latestAction) {
+      players.scrollTo({
+        top: Math.max(0, latestAction.offsetTop + latestAction.offsetHeight - players.clientHeight),
+        behavior: "auto",
+      });
+      return;
+    }
+  }
   players.scrollTo({ top: players.scrollHeight, behavior: hasRenderedRoom ? "smooth" : "auto" });
 }
 
@@ -935,10 +947,10 @@ document.addEventListener("visibilitychange", () => {
 
 window.addEventListener("resize", () => {
   if (document.body.classList.contains("game-open")) setGameViewportHeight();
-  requestAnimationFrame(scrollPlayersToBottom);
+  requestAnimationFrame(() => scrollActionFeed(true, Boolean(state?.actionLog?.length)));
 });
 
 window.visualViewport?.addEventListener("resize", () => {
   if (document.body.classList.contains("game-open")) setGameViewportHeight();
-  requestAnimationFrame(scrollPlayersToBottom);
+  requestAnimationFrame(() => scrollActionFeed(true, Boolean(state?.actionLog?.length)));
 });
