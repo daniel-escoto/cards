@@ -8,6 +8,9 @@ const nameInput = document.querySelector("#nameInput");
 const roomInput = document.querySelector("#roomInput");
 const computerPlayerCount = document.querySelector("#computerPlayerCount");
 const tableSizeLabel = computerPlayerCount.closest("label");
+const moneyModeInput = document.querySelector("#moneyModeInput");
+const buyInLabel = document.querySelector("#buyInLabel");
+const buyInInput = document.querySelector("#buyInInput");
 const tableActionBtn = document.querySelector("#tableActionBtn");
 const joinError = document.querySelector("#joinError");
 const roomCode = document.querySelector("#roomCode");
@@ -24,6 +27,9 @@ const sharePanel = document.querySelector("#sharePanel");
 const shareQr = document.querySelector("#shareQr");
 const shareLink = document.querySelector("#shareLink");
 const copyShareBtn = document.querySelector("#copyShareBtn");
+const moneyPanel = document.querySelector("#moneyPanel");
+const cashInInput = document.querySelector("#cashInInput");
+const cashOutBtn = document.querySelector("#cashOutBtn");
 const potValue = document.querySelector("#potValue");
 const community = document.querySelector("#community");
 const players = document.querySelector("#players");
@@ -78,7 +84,9 @@ function updateTableActionLabel() {
   const isJoining = Boolean(roomInput.value.trim());
   if (!joinPending) tableActionBtn.textContent = isJoining ? "Join table" : "Host table";
   tableActionBtn.disabled = joinPending || !socket.connected;
-  tableSizeLabel.classList.toggle("hidden", isJoining);
+  tableSizeLabel.classList.toggle("hidden", isJoining || moneyModeInput.checked);
+  moneyModeInput.closest("label").classList.toggle("hidden", isJoining);
+  buyInLabel.classList.toggle("hidden", isJoining || !moneyModeInput.checked);
 }
 
 function cardTemplate(card) {
@@ -112,6 +120,35 @@ function phaseLabel(phase) {
     gameover: "Game over",
   };
   return labels[phase] || phase;
+}
+
+function moneyCentsFromInput(input, fallback = 20) {
+  const dollars = Number(input.value);
+  if (!Number.isFinite(dollars) || dollars <= 0) return Math.round(fallback * 100);
+  return Math.max(100, Math.min(1000000, Math.round(dollars * 100)));
+}
+
+function formatMoney(cents) {
+  const amount = (Math.round(Number(cents) || 0) / 100).toFixed(2);
+  return `$${amount}`;
+}
+
+function formatSignedMoney(cents) {
+  const amount = Math.round(Number(cents) || 0);
+  if (amount === 0) return "$0.00";
+  return `${amount > 0 ? "+" : "-"}${formatMoney(Math.abs(amount))}`;
+}
+
+function formatAmount(chips, cents) {
+  return state?.moneyMode ? formatMoney(cents) : String(chips);
+}
+
+function playerStackLabel(player) {
+  return formatAmount(player.stack, player.stackCents);
+}
+
+function playerInvestedLabel(player) {
+  return formatAmount(player.invested, player.investedCents);
 }
 
 function showTable(room) {
@@ -163,7 +200,8 @@ function renderMenuPlayers() {
         </span>
       </div>
       <div class="menu-player-stats">
-        <span>Stack <strong>${player.stack}</strong></span>
+        <span>${state.moneyMode ? "Bankroll" : "Stack"} <strong>${playerStackLabel(player)}</strong></span>
+        ${state.moneyMode ? `<span>Net <strong>${formatSignedMoney(player.netCents)}</strong></span>` : ""}
         <em>${escapeHtml(roundStatus(player))}</em>
       </div>
       ${player.isYou && !player.isBot ? `
@@ -201,6 +239,8 @@ function renderMenuPlayers() {
 
 function showGameMenu() {
   renderMenuPlayers();
+  moneyPanel.classList.toggle("hidden", !state?.moneyMode);
+  if (state?.moneyMode) cashInInput.value = (state.buyInCents / 100).toFixed(0);
   clearInterval(menuTimer);
   menuTimer = setInterval(renderMenuPlayers, 1000);
   gameMenuModal.classList.remove("hidden");
@@ -222,7 +262,11 @@ function showWelcome(status = "") {
 }
 
 function showScoreScreen(room) {
-  const standings = [...room.players].sort((a, b) => b.stack - a.stack || a.name.localeCompare(b.name));
+  const standings = [...room.players].sort((a, b) => (
+    room.moneyMode
+      ? b.netCents - a.netCents || a.name.localeCompare(b.name)
+      : b.stack - a.stack || a.name.localeCompare(b.name)
+  ));
   state = null;
   hasRenderedRoom = false;
   lastActionFeedSignature = "";
@@ -236,9 +280,19 @@ function showScoreScreen(room) {
     <div class="score-row ${player.isYou ? "you" : ""}" ${playerColorStyle(player)}>
       <span class="score-rank">${index + 1}</span>
       <span class="score-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
-      <strong>${player.stack}</strong>
+      <strong>${room.moneyMode ? formatSignedMoney(player.netCents) : player.stack}</strong>
     </div>
-  `).join("");
+  `).join("") + (room.moneyMode ? `
+    <div class="settlement-list">
+      <p class="eyebrow">Settle up</p>
+      ${(room.settlements || []).length ? room.settlements.map((item) => `
+        <div class="settlement-row">
+          <span>${escapeHtml(item.fromName)} pays ${escapeHtml(item.toName)}</span>
+          <strong>${formatMoney(item.amountCents)}</strong>
+        </div>
+      `).join("") : '<div class="settlement-row"><span>No transfers needed</span><strong>$0.00</strong></div>'}
+    </div>
+  ` : "");
   clearRoomUrl();
 }
 
@@ -296,14 +350,15 @@ function compactPlayerAction(entry, player) {
   const withoutName = player
     ? raw.replace(new RegExp(`^${escapeRegExp(player.name)}\\s+`, "i"), "").replace(/\.$/, "")
     : raw.replace(/\.$/, "");
+  const amount = (value) => formatAmount(Number(value), Math.round(Number(value) * (state?.chipValueCents || 0)));
   return withoutName
-    .replace(/^Posts small blind\s+/i, "SB ")
-    .replace(/^Posts big blind\s+/i, "BB ")
-    .replace(/^Calls\s+/i, "call ")
+    .replace(/^Posts small blind\s+(\d+)/i, (_, value) => `SB ${amount(value)}`)
+    .replace(/^Posts big blind\s+(\d+)/i, (_, value) => `BB ${amount(value)}`)
+    .replace(/^Calls\s+(\d+)/i, (_, value) => `call ${amount(value)}`)
     .replace(/^Checks$/i, "check")
     .replace(/^Folds$/i, "fold")
-    .replace(/^Raises to\s+/i, "raise ")
-    .replace(/^Wins\s+/i, "+");
+    .replace(/^Raises to\s+(\d+)/i, (_, value) => `raise ${amount(value)}`)
+    .replace(/^Wins\s+(\d+)/i, (_, value) => `+${amount(value)}`);
 }
 
 function actionTokenClass(entry, player) {
@@ -340,8 +395,8 @@ function renderSeatCard(player, isActiveTurn = player.isTurn) {
           ${player.isHost ? '<span class="pill">Host</span>' : ""}
           ${player.isBot ? '<span class="pill">CPU</span>' : ""}
         </span>
-        <span class="state-stack">Stack <strong>${player.stack}</strong></span>
-        <span class="state-pot">${player.invested ? `Pot <strong>${player.invested}</strong>` : ""}</span>
+        <span class="state-stack">${state.moneyMode ? "Bankroll" : "Stack"} <strong>${playerStackLabel(player)}</strong></span>
+        <span class="state-pot">${player.invested ? `Pot <strong>${playerInvestedLabel(player)}</strong>` : ""}</span>
         <em class="state-status">${status}</em>
       </div>
     </article>
@@ -358,7 +413,7 @@ function renderShownHandCard(player) {
       </div>
       <div class="shown-hand">${player.cards.map(cardTemplate).join("")}</div>
       <div class="action-card-stats">
-        <span>Stack <strong>${player.stack}</strong></span>
+        <span>${state.moneyMode ? "Bankroll" : "Stack"} <strong>${playerStackLabel(player)}</strong></span>
         <em>${escapeHtml(status)}</em>
       </div>
     </article>
@@ -395,7 +450,7 @@ function renderActionFeed() {
           <em>${showPhase && compactStreetLabel(phase) ? escapeHtml(compactStreetLabel(phase)) : ""}</em>
           <span class="seat-name">${escapeHtml(player?.name || "Table")}${player?.isYou ? " (you)" : ""}</span>
           <strong class="action-token${actionTokenClass(entry, player)}">${escapeHtml(compactPlayerAction(entry, player))}</strong>
-          ${player ? `<span class="stack-chip">${player.stack}</span>` : ""}
+          ${player ? `<span class="stack-chip">${playerStackLabel(player)}</span>` : ""}
         </div>
       </article>
     `;
@@ -439,7 +494,7 @@ function render() {
   if (!state) return;
   showTable(state);
   roomCode.textContent = state.id;
-  potValue.textContent = state.pot;
+  potValue.textContent = formatAmount(state.pot, state.potCents);
   community.innerHTML = Array.from({ length: 5 }, (_, index) => cardTemplate(state.community[index] || null)).join("");
 
   const actionEntries = (state.actionLog || []).filter((entry) => entry.phase !== "lobby");
@@ -453,7 +508,7 @@ function render() {
     const winnerPlayer = state.players.find((player) => player.id === winner.playerId || player.name === winner.name);
     return `
       <div ${playerColorStyle(winnerPlayer)}>
-        <span class="seat-name">${escapeHtml(winner.name)}</span> wins ${winner.amount} with ${escapeHtml(winner.hand)}
+        <span class="seat-name">${escapeHtml(winner.name)}</span> wins ${formatAmount(winner.amount, winner.amountCents)} with ${escapeHtml(winner.hand)}
       </div>
     `;
   }).join("");
@@ -487,20 +542,20 @@ function renderControls(hero) {
   if (!state.isYourTurn || !hero) {
     const currentIndex = findLastIndex(state.players, (player) => player.id === state.turn);
     const current = currentIndex >= 0 ? state.players[currentIndex] : null;
-    turnInfo.textContent = current ? `Pot ${state.pot}. ${current.name} is acting.` : "Waiting for the host.";
+    turnInfo.textContent = current ? `Pot ${formatAmount(state.pot, state.potCents)}. ${current.name} is acting.` : "Waiting for the host.";
     if (hero && isBettingPhase(state.phase) && !hero.folded && !hero.allIn) {
       addActionButton("Fold", { type: "fold" }, "danger", true);
-      addActionButton(state.toCall > 0 ? `Call ${state.toCall}` : "Check", { type: state.toCall > 0 ? "call" : "check" }, "", true);
+      addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" }, "", true);
       configureRaiseControls(hero, true);
     }
     return;
   }
 
   turnInfo.textContent = state.toCall > 0
-    ? `Pot ${state.pot}. Call ${state.toCall} to continue.`
-    : `Pot ${state.pot}. Your turn: check or bet.`;
+    ? `Pot ${formatAmount(state.pot, state.potCents)}. Call ${formatAmount(state.toCall, state.toCallCents)} to continue.`
+    : `Pot ${formatAmount(state.pot, state.potCents)}. Your turn: check or bet.`;
   addActionButton("Fold", { type: "fold" }, "danger");
-  addActionButton(state.toCall > 0 ? `Call ${state.toCall}` : "Check", { type: state.toCall > 0 ? "call" : "check" });
+  addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" });
 
   const maxRaise = hero.bet + hero.stack;
   if (maxRaise > state.currentBet) {
@@ -536,7 +591,7 @@ function setRaiseState(next) {
     ...next,
   };
   raiseState.value = clampRaise(raiseState.value);
-  raiseAmount.textContent = raiseState.value;
+  raiseAmount.textContent = formatAmount(raiseState.value, Math.round(raiseState.value * (state?.chipValueCents || 0)));
   raiseMinus.disabled = raiseState.value <= raiseState.min;
   raisePlus.disabled = raiseState.value >= raiseState.max;
 }
@@ -624,7 +679,9 @@ function joinOrCreate(mode) {
   const selectedTableSize = Math.max(2, Math.min(8, Math.floor(Number(computerPlayerCount.value) || 2)));
   const payload = { name, roomId, deviceId: getDeviceId() };
   if (mode !== "join") {
-    payload.tableSize = selectedTableSize;
+    payload.moneyMode = moneyModeInput.checked;
+    payload.buyInCents = moneyCentsFromInput(buyInInput);
+    if (!payload.moneyMode) payload.tableSize = selectedTableSize;
   }
   joinPending = true;
   tableActionBtn.textContent = mode === "join" ? "Joining..." : "Hosting...";
@@ -660,6 +717,7 @@ function escapeRegExp(value) {
 }
 
 roomInput.addEventListener("input", updateTableActionLabel);
+moneyModeInput.addEventListener("change", updateTableActionLabel);
 joinForm.addEventListener("submit", (event) => {
   event.preventDefault();
   joinOrCreate(roomInput.value.trim() ? "join" : "create");
@@ -711,6 +769,11 @@ gameMenuModal.addEventListener("click", (event) => {
 });
 
 gameMenuModal.addEventListener("submit", (event) => {
+  if (event.target === moneyPanel) {
+    event.preventDefault();
+    emitWithAck("money:cashIn", { amountCents: moneyCentsFromInput(cashInInput, state?.buyInCents ? state.buyInCents / 100 : 20) });
+    return;
+  }
   const nameForm = event.target.closest("[data-name-form]");
   if (!nameForm) return;
   event.preventDefault();
@@ -721,6 +784,10 @@ gameMenuModal.addEventListener("submit", (event) => {
   localStorage.setItem("holdem:name", name);
   input.blur();
   emitWithAck("player:setName", { name });
+});
+
+cashOutBtn.addEventListener("click", () => {
+  emitWithAck("money:cashOut", {});
 });
 
 restartGameBtn.addEventListener("click", () => {

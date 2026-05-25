@@ -38,6 +38,14 @@
               <option value="8">8 players</option>
             </select>
           </label>
+          <label class="checkbox-label">
+            <input id="moneyModeInput" type="checkbox" />
+            <span>Money mode, no CPU players</span>
+          </label>
+          <label id="buyInLabel" class="hidden">
+            Buy-in
+            <input id="buyInInput" type="number" min="1" max="10000" step="1" value="20" inputmode="decimal" />
+          </label>
           <div class="actions-row">
             <button id="tableActionBtn" type="submit">Host table</button>
           </div>
@@ -112,6 +120,16 @@
               <button id="copyShareBtn" type="button" class="secondary">Copy</button>
             </div>
           </div>
+          <form id="moneyPanel" class="money-panel hidden">
+            <label>
+              Cash in amount
+              <input id="cashInInput" type="number" min="1" max="10000" step="1" value="20" inputmode="decimal" />
+            </label>
+            <div class="money-actions">
+              <button id="cashInBtn" type="submit">Cash in</button>
+              <button id="cashOutBtn" type="button" class="secondary">Cash out</button>
+            </div>
+          </form>
           <div class="modal-actions">
             <button id="restartGameBtn" type="button">Restart game</button>
             <button id="endGameBtn" type="button" class="danger">End game</button>

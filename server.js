@@ -14,6 +14,7 @@ const makeId = customAlphabet("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", 6);
 
 const PORT = process.env.PORT || 3000;
 const STARTING_STACK = 1000;
+const DEFAULT_BUY_IN_CENTS = 2000;
 const BLIND_LEVELS = [
   { smallBlind: 10, bigBlind: 20, hands: 6 },
   { smallBlind: 20, bigBlind: 40, hands: 6 },
@@ -112,6 +113,8 @@ function serializePlayerForStorage(player) {
     replacedPlayerId: player.replacedPlayerId || null,
     replacedPlayerName: player.replacedPlayerName || null,
     replacedPlayerColor: player.replacedPlayerColor || null,
+    buyInsCents: Math.max(0, Math.floor(Number(player.buyInsCents) || 0)),
+    cashOutCents: Math.max(0, Math.floor(Number(player.cashOutCents) || 0)),
   };
 }
 
@@ -134,6 +137,9 @@ function serializeRoomForStorage(room) {
     winners: room.winners,
     actionLog: room.actionLog,
     handNumber: room.handNumber,
+    moneyMode: Boolean(room.moneyMode),
+    buyInCents: cleanMoneyCents(room.buyInCents, DEFAULT_BUY_IN_CENTS),
+    settlements: Array.isArray(room.settlements) ? room.settlements : [],
     players: room.players.map(serializePlayerForStorage),
   };
 }
@@ -182,6 +188,8 @@ function restorePlayer(raw) {
     replacedPlayerId: raw.replacedPlayerId || null,
     replacedPlayerName: raw.replacedPlayerName || null,
     replacedPlayerColor: cleanPlayerColor(raw.replacedPlayerColor),
+    buyInsCents: Math.max(0, Math.floor(Number(raw.buyInsCents) || 0)),
+    cashOutCents: Math.max(0, Math.floor(Number(raw.cashOutCents) || 0)),
     disconnectTimer: null,
   };
 }
@@ -221,6 +229,9 @@ function restoreRoom(raw) {
     winners: Array.isArray(raw.winners) ? raw.winners : [],
     actionLog: Array.isArray(raw.actionLog) ? raw.actionLog : [],
     handNumber: Math.max(0, Math.floor(Number(raw.handNumber) || 0)),
+    moneyMode: Boolean(raw.moneyMode),
+    buyInCents: cleanMoneyCents(raw.buyInCents, DEFAULT_BUY_IN_CENTS),
+    settlements: Array.isArray(raw.settlements) ? raw.settlements : [],
     players: Array.isArray(raw.players) ? raw.players.map(restorePlayer) : [],
     botTimer: null,
   };
@@ -228,7 +239,7 @@ function restoreRoom(raw) {
   dedupePlayersById(room);
   assignMissingPlayerColors(room);
 
-  if (room.tableSize) {
+  if (room.tableSize && !room.moneyMode) {
     for (const player of room.players) {
       if (!player.isBot) markRestoredHumanAsBot(room, player);
     }
@@ -280,12 +291,32 @@ function loadRooms() {
   }
 }
 
-function makeRoom(hostId, hostName, socketId, tableSize = 0) {
+function cleanMoneyCents(value, fallback = DEFAULT_BUY_IN_CENTS) {
+  const cents = Math.round(Number(value) || 0);
+  if (!Number.isFinite(cents) || cents <= 0) return fallback;
+  return Math.max(100, Math.min(1000000, cents));
+}
+
+function chipValueCents(room) {
+  return cleanMoneyCents(room?.buyInCents, DEFAULT_BUY_IN_CENTS) / STARTING_STACK;
+}
+
+function centsToChips(room, cents) {
+  return Math.max(1, Math.round(cleanMoneyCents(cents, room.buyInCents) / chipValueCents(room)));
+}
+
+function chipsToCents(room, chips) {
+  return Math.round(Math.max(0, Math.floor(Number(chips) || 0)) * chipValueCents(room));
+}
+
+function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
   const id = makeId();
+  const moneyMode = Boolean(options.moneyMode);
+  const buyInCents = cleanMoneyCents(options.buyInCents, DEFAULT_BUY_IN_CENTS);
   const room = {
     id,
     hostId,
-    tableSize: cleanTableSize(tableSize),
+    tableSize: moneyMode ? 0 : cleanTableSize(tableSize),
     status: "lobby",
     phase: "lobby",
     deck: [],
@@ -300,6 +331,9 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0) {
     winners: [],
     actionLog: [],
     handNumber: 0,
+    moneyMode,
+    buyInCents,
+    settlements: [],
     players: [
       {
         id: hostId,
@@ -318,6 +352,8 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0) {
         replacedPlayerId: null,
         replacedPlayerName: null,
         replacedPlayerColor: null,
+        buyInsCents: moneyMode ? buyInCents : 0,
+        cashOutCents: 0,
         disconnectExpiresAt: null,
         disconnectTimer: null,
       },
@@ -376,12 +412,15 @@ function makePlayer({ id, name, socketId = null, isBot = false }) {
     replacedPlayerId: null,
     replacedPlayerName: null,
     replacedPlayerColor: null,
+    buyInsCents: 0,
+    cashOutCents: 0,
     disconnectExpiresAt: null,
     disconnectTimer: null,
   };
 }
 
 function addComputerPlayers(room, totalPlayers) {
+  if (room.moneyMode) return;
   const target = cleanTableSize(totalPlayers) || cleanComputerPlayers(totalPlayers);
   if (target > 0) room.tableSize = target;
   const needed = Math.max(0, Math.min(MAX_PLAYERS, target) - room.players.length);
@@ -399,6 +438,7 @@ function addComputerPlayers(room, totalPlayers) {
 function makeHumanPlayer(room, { id, socketId, name }) {
   const player = makePlayer({ id, socketId, name });
   player.color = defaultPlayerColor(room);
+  if (room.moneyMode) player.buyInsCents = room.buyInCents;
   return player;
 }
 
@@ -548,6 +588,7 @@ function playersWithChips(room) {
 }
 
 function maybeEndGame(room) {
+  if (room.moneyMode) return false;
   const remaining = playersWithChips(room);
   if (remaining.length >= 2 || room.phase !== "complete") return false;
   room.status = "complete";
@@ -617,6 +658,17 @@ function startNextHand(room) {
 }
 
 function endGame(room) {
+  if (room.moneyMode) {
+    settleMoneyGame(room);
+    resetHandState(room);
+    room.status = "complete";
+    room.phase = "gameover";
+    room.turn = null;
+    room.actionLog = [];
+    room.message = "Money game ended. Settle up from the final screen.";
+    return;
+  }
+
   if (isHandInProgress(room)) {
     for (const player of room.players) {
       player.stack += player.invested;
@@ -635,6 +687,8 @@ function restartGame(room) {
   clearTimeout(room.botTimer);
   for (const player of room.players) {
     player.stack = STARTING_STACK;
+    player.buyInsCents = room.moneyMode ? room.buyInCents : 0;
+    player.cashOutCents = 0;
     player.hand = [];
     player.folded = false;
     player.allIn = false;
@@ -653,9 +707,99 @@ function restartGame(room) {
   room.deadPot = 0;
   room.acted = new Set();
   room.winners = [];
+  room.settlements = [];
   room.actionLog = [];
   room.handNumber = 0;
   room.message = "Game restarted. Start a new hand when ready.";
+}
+
+function optimizeSettlements(players) {
+  const debtors = players
+    .map((player) => ({
+      playerId: player.id,
+      name: player.name,
+      amountCents: Math.max(0, player.buyInsCents - player.cashOutCents),
+    }))
+    .filter((item) => item.amountCents > 0)
+    .sort((a, b) => b.amountCents - a.amountCents);
+  const creditors = players
+    .map((player) => ({
+      playerId: player.id,
+      name: player.name,
+      amountCents: Math.max(0, player.cashOutCents - player.buyInsCents),
+    }))
+    .filter((item) => item.amountCents > 0)
+    .sort((a, b) => b.amountCents - a.amountCents);
+  const settlements = [];
+  let debtorIndex = 0;
+  let creditorIndex = 0;
+  while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
+    const debtor = debtors[debtorIndex];
+    const creditor = creditors[creditorIndex];
+    const amountCents = Math.min(debtor.amountCents, creditor.amountCents);
+    if (amountCents > 0) {
+      settlements.push({
+        fromPlayerId: debtor.playerId,
+        fromName: debtor.name,
+        toPlayerId: creditor.playerId,
+        toName: creditor.name,
+        amountCents,
+      });
+    }
+    debtor.amountCents -= amountCents;
+    creditor.amountCents -= amountCents;
+    if (debtor.amountCents === 0) debtorIndex += 1;
+    if (creditor.amountCents === 0) creditorIndex += 1;
+  }
+  return settlements;
+}
+
+function settleMoneyGame(room) {
+  if (!room.moneyMode) return;
+  const refundActiveInvestments = isHandInProgress(room);
+  for (const player of room.players) {
+    if (refundActiveInvestments && player.invested > 0) {
+      player.stack += player.invested;
+      player.invested = 0;
+      player.bet = 0;
+    }
+    if (player.stack > 0) {
+      player.cashOutCents += chipsToCents(room, player.stack);
+      player.stack = 0;
+    }
+  }
+  room.settlements = optimizeSettlements(room.players);
+}
+
+function cashInPlayer(room, playerId, amountCents) {
+  const player = room?.players.find((item) => item.id === playerId);
+  if (!room?.moneyMode) return { ok: false, error: "This room is not using money mode." };
+  if (!player || player.isBot) return { ok: false, error: "Player not found." };
+  if (isHandInProgress(room)) return { ok: false, error: "Cash in between hands." };
+  const cents = cleanMoneyCents(amountCents, room.buyInCents);
+  player.buyInsCents += cents;
+  player.stack += centsToChips(room, cents);
+  player.allIn = false;
+  room.settlements = [];
+  room.message = `${player.name} cashed in.`;
+  return { ok: true };
+}
+
+function cashOutPlayer(room, playerId) {
+  const player = room?.players.find((item) => item.id === playerId);
+  if (!room?.moneyMode) return { ok: false, error: "This room is not using money mode." };
+  if (!player || player.isBot) return { ok: false, error: "Player not found." };
+  if (isHandInProgress(room)) return { ok: false, error: "Cash out between hands." };
+  if (player.stack <= 0) return { ok: false, error: "You do not have chips to cash out." };
+  player.cashOutCents += chipsToCents(room, player.stack);
+  player.stack = 0;
+  player.bet = 0;
+  player.invested = 0;
+  player.folded = true;
+  player.allIn = true;
+  room.settlements = optimizeSettlements(room.players);
+  room.message = `${player.name} cashed out.`;
+  return { ok: true };
 }
 
 function dealStreet(room) {
@@ -1046,31 +1190,48 @@ function serializeRoom(room, viewerId) {
     tableSize: room.tableSize || room.players.length,
     message: room.message,
     pot,
+    potCents: chipsToCents(room, pot),
     currentBet: room.currentBet,
+    currentBetCents: chipsToCents(room, room.currentBet),
     minRaise: room.minRaise,
     minRaiseTo,
+    minRaiseToCents: chipsToCents(room, minRaiseTo),
     smallBlind,
     bigBlind,
     playerColors: PLAYER_COLORS,
     handNumber: room.handNumber,
+    moneyMode: Boolean(room.moneyMode),
+    buyInCents: room.buyInCents,
+    chipValueCents: chipValueCents(room),
+    settlements: room.settlements || [],
     turn: room.turn,
     isYourTurn: room.turn === viewerId,
     toCall,
+    toCallCents: chipsToCents(room, toCall),
     canShowHand: room.phase === "complete" && Boolean(viewer?.hand?.length) && !viewer.showCards,
     canStart: room.hostId === viewerId && playersWithChips(room).length >= 2 && !isHandInProgress(room) && room.phase !== "gameover",
     canNextHand: room.hostId === viewerId && room.phase === "complete" && playersWithChips(room).length >= 2,
     canRestartGame: room.hostId === viewerId,
-    canEndGame: room.hostId === viewerId && room.phase !== "lobby",
+    canEndGame: room.hostId === viewerId && (room.moneyMode || room.phase !== "lobby"),
     community: room.community.map(publicCard),
-    winners: room.winners,
+    winners: room.winners.map((winner) => ({
+      ...winner,
+      amountCents: chipsToCents(room, winner.amount),
+    })),
     actionLog: room.actionLog,
     players: room.players.map((player, index) => ({
       id: player.id,
       name: player.name,
       color: player.color || null,
       stack: player.stack,
+      stackCents: chipsToCents(room, player.stack),
+      buyInsCents: player.buyInsCents || 0,
+      cashOutCents: player.cashOutCents || 0,
+      netCents: (player.cashOutCents || 0) + chipsToCents(room, player.stack) - (player.buyInsCents || 0),
       bet: player.bet,
+      betCents: chipsToCents(room, player.bet),
       invested: player.invested,
+      investedCents: chipsToCents(room, player.invested),
       folded: player.folded,
       allIn: player.allIn,
       connected: player.connected,
@@ -1220,11 +1381,14 @@ function kickPlayerFromRoom(room, playerId) {
 }
 
 io.on("connection", (socket) => {
-  socket.on("room:create", ({ name, deviceId, computerPlayers, tableSize }, ack) => {
+  socket.on("room:create", ({ name, deviceId, computerPlayers, tableSize, moneyMode, buyInCents }, ack) => {
     const playerId = cleanDeviceId(deviceId, socket.id);
-    const requestedSize = cleanTableSize(tableSize) || cleanTableSize(computerPlayers);
-    const room = makeRoom(playerId, cleanName(name), socket.id, requestedSize);
-    addComputerPlayers(room, requestedSize || computerPlayers);
+    const requestedSize = moneyMode ? 0 : cleanTableSize(tableSize) || cleanTableSize(computerPlayers);
+    const room = makeRoom(playerId, cleanName(name), socket.id, requestedSize, {
+      moneyMode,
+      buyInCents,
+    });
+    if (!room.moneyMode) addComputerPlayers(room, requestedSize || computerPlayers);
     attachSocketToPlayer(socket, room, room.players[0]);
     ack?.({ ok: true, roomId: room.id });
     emitRoom(room);
@@ -1320,7 +1484,7 @@ io.on("connection", (socket) => {
     const room = rooms.get(socketRoom.get(socket.id));
     const playerId = socketPlayer.get(socket.id);
     if (!room || room.hostId !== playerId) return ack?.({ ok: false, error: "Only the host can end the game." });
-    if (room.phase === "lobby") return ack?.({ ok: false, error: "No game is in progress." });
+    if (room.phase === "lobby" && !room.moneyMode) return ack?.({ ok: false, error: "No game is in progress." });
     endGame(room);
     ack?.({ ok: true });
     emitRoom(room);
@@ -1332,6 +1496,24 @@ io.on("connection", (socket) => {
     if (!room || room.hostId !== playerId) return ack?.({ ok: false, error: "Only the host can restart." });
     restartGame(room);
     ack?.({ ok: true });
+    emitRoom(room);
+  });
+
+  socket.on("money:cashIn", ({ amountCents }, ack) => {
+    const room = rooms.get(socketRoom.get(socket.id));
+    const playerId = socketPlayer.get(socket.id);
+    const result = cashInPlayer(room, playerId, amountCents);
+    if (!result.ok) return ack?.(result);
+    ack?.(result);
+    emitRoom(room);
+  });
+
+  socket.on("money:cashOut", (_, ack) => {
+    const room = rooms.get(socketRoom.get(socket.id));
+    const playerId = socketPlayer.get(socket.id);
+    const result = cashOutPlayer(room, playerId);
+    if (!result.ok) return ack?.(result);
+    ack?.(result);
     emitRoom(room);
   });
 
