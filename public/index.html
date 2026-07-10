@@ -10,21 +10,26 @@
     <main class="app">
       <section id="welcome" class="welcome">
         <div class="brand">
-          <span class="mark">♠</span>
+          <span class="mark" aria-hidden="true">♠</span>
           <div>
-            <h1>Table Stakes Hold'em</h1>
-            <p>Private real-time Texas hold'em rooms for friends.</p>
+            <p class="eyebrow">Your table. Your rules.</p>
+            <h1>Table Stakes</h1>
+            <p>Deal a private Hold’em game in seconds.</p>
           </div>
         </div>
 
         <form id="joinForm" class="join-panel">
+          <div class="mode-switch" role="tablist" aria-label="Table action">
+            <button id="hostModeBtn" class="mode-option selected" type="button" role="tab" aria-selected="true">Host a table</button>
+            <button id="joinModeBtn" class="mode-option" type="button" role="tab" aria-selected="false">Join a table</button>
+          </div>
           <label>
             Display name
             <input id="nameInput" autocomplete="nickname" maxlength="18" placeholder="Your name" required />
           </label>
-          <label>
+          <label id="roomCodeLabel" class="hidden">
             Room code
-            <input id="roomInput" maxlength="6" placeholder="Leave blank to host" />
+            <input id="roomInput" maxlength="6" placeholder="ABC123" autocapitalize="characters" spellcheck="false" />
           </label>
           <label>
             Players per room
@@ -49,16 +54,22 @@
           <div class="actions-row">
             <button id="tableActionBtn" type="submit">Host table</button>
           </div>
+          <p id="formHint" class="form-hint">You’ll get a private code to share with friends.</p>
           <p id="joinError" class="error" role="alert"></p>
         </form>
       </section>
 
       <section id="tableView" class="table-view hidden">
         <header class="topbar">
-          <div>
-            <h2 class="room-heading">Room <span id="roomCode"></span></h2>
+          <div class="room-summary">
+            <button id="roomCodeBtn" class="room-code-btn" type="button" aria-label="Copy room code">
+              <span class="eyebrow">Room</span>
+              <strong id="roomCode"></strong>
+              <span class="copy-icon" aria-hidden="true">⧉</span>
+            </button>
+            <span id="phaseBadge" class="phase-badge">Lobby</span>
           </div>
-          <button id="menuBtn" class="ghost menu-btn" type="button" aria-haspopup="dialog" aria-controls="gameMenuModal">Menu</button>
+          <button id="menuBtn" class="ghost menu-btn" type="button" aria-haspopup="dialog" aria-controls="gameMenuModal"><span aria-hidden="true">•••</span> Menu</button>
         </header>
 
         <section class="felt">
@@ -77,6 +88,7 @@
             <div id="turnInfo" class="turn-info"></div>
             <div id="gameButtons" class="game-buttons"></div>
             <div id="betControls" class="bet-controls hidden">
+              <div id="betPresets" class="bet-presets" aria-label="Quick bet amounts"></div>
               <div class="raise-stepper" aria-label="Raise amount">
                 <button id="raiseMinus" type="button" class="secondary" aria-label="Decrease raise">-</button>
                 <div class="raise-display">
@@ -138,6 +150,7 @@
           </div>
         </div>
       </div>
+      <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
     </main>
 
     <script src="/socket.io/socket.io.js"></script>

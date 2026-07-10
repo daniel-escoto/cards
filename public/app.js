@@ -6,6 +6,10 @@ const scoreView = document.querySelector("#scoreView");
 const joinForm = document.querySelector("#joinForm");
 const nameInput = document.querySelector("#nameInput");
 const roomInput = document.querySelector("#roomInput");
+const roomCodeLabel = document.querySelector("#roomCodeLabel");
+const hostModeBtn = document.querySelector("#hostModeBtn");
+const joinModeBtn = document.querySelector("#joinModeBtn");
+const formHint = document.querySelector("#formHint");
 const computerPlayerCount = document.querySelector("#computerPlayerCount");
 const tableSizeLabel = computerPlayerCount.closest("label");
 const moneyModeInput = document.querySelector("#moneyModeInput");
@@ -14,6 +18,8 @@ const buyInInput = document.querySelector("#buyInInput");
 const tableActionBtn = document.querySelector("#tableActionBtn");
 const joinError = document.querySelector("#joinError");
 const roomCode = document.querySelector("#roomCode");
+const roomCodeBtn = document.querySelector("#roomCodeBtn");
+const phaseBadge = document.querySelector("#phaseBadge");
 const menuBtn = document.querySelector("#menuBtn");
 const gameMenuModal = document.querySelector("#gameMenuModal");
 const closeMenuBtn = document.querySelector("#closeMenuBtn");
@@ -43,8 +49,10 @@ const raisePlus = document.querySelector("#raisePlus");
 const raiseLabel = document.querySelector("#raiseLabel");
 const raiseAmount = document.querySelector("#raiseAmount");
 const raiseBtn = document.querySelector("#raiseBtn");
+const betPresets = document.querySelector("#betPresets");
 const scoreList = document.querySelector("#scoreList");
 const scoreMenuBtn = document.querySelector("#scoreMenuBtn");
+const toast = document.querySelector("#toast");
 
 let state = null;
 let raiseState = { value: 0, min: 0, max: 0, step: 20 };
@@ -60,6 +68,8 @@ if (initialRoomId) roomInput.value = initialRoomId;
 nameInput.value = localStorage.getItem("holdem:name") || "";
 let joinPending = false;
 let didAutoJoinInitialRoom = false;
+let tableMode = initialRoomId ? "join" : "host";
+let toastTimer = null;
 
 function getDeviceId() {
   let deviceId = localStorage.getItem("holdem:deviceId");
@@ -81,12 +91,34 @@ function setKeyboardMode(isOpen) {
 }
 
 function updateTableActionLabel() {
-  const isJoining = Boolean(roomInput.value.trim());
+  const isJoining = tableMode === "join";
   if (!joinPending) tableActionBtn.textContent = isJoining ? "Join table" : "Host table";
   tableActionBtn.disabled = joinPending || !socket.connected;
   tableSizeLabel.classList.toggle("hidden", isJoining || moneyModeInput.checked);
   moneyModeInput.closest("label").classList.toggle("hidden", isJoining);
   buyInLabel.classList.toggle("hidden", isJoining || !moneyModeInput.checked);
+  roomCodeLabel.classList.toggle("hidden", !isJoining);
+  hostModeBtn.classList.toggle("selected", !isJoining);
+  joinModeBtn.classList.toggle("selected", isJoining);
+  hostModeBtn.setAttribute("aria-selected", String(!isJoining));
+  joinModeBtn.setAttribute("aria-selected", String(isJoining));
+  formHint.textContent = isJoining
+    ? "Enter the six-character code from your host."
+    : "You’ll get a private code to share with friends.";
+}
+
+function setTableMode(mode, focusRoom = false) {
+  tableMode = mode;
+  joinError.textContent = "";
+  updateTableActionLabel();
+  if (focusRoom && mode === "join") roomInput.focus();
+}
+
+function showToast(message) {
+  clearTimeout(toastTimer);
+  toast.textContent = message;
+  toast.classList.remove("hidden");
+  toastTimer = setTimeout(() => toast.classList.add("hidden"), 1800);
 }
 
 function cardTemplate(card) {
@@ -167,6 +199,7 @@ function hideGameMenu() {
   sharePanel.classList.add("hidden");
   clearInterval(menuTimer);
   menuTimer = null;
+  if (!tableView.classList.contains("hidden")) menuBtn.focus({ preventScroll: true });
 }
 
 function roundStatus(player) {
@@ -244,6 +277,7 @@ function showGameMenu() {
   clearInterval(menuTimer);
   menuTimer = setInterval(renderMenuPlayers, 1000);
   gameMenuModal.classList.remove("hidden");
+  closeMenuBtn.focus({ preventScroll: true });
 }
 
 function showWelcome(status = "") {
@@ -316,6 +350,7 @@ function inviteUrl() {
 function clearRoomUrl() {
   localStorage.removeItem("holdem:lastRoom");
   roomInput.value = "";
+  tableMode = "host";
   updateTableActionLabel();
   const url = new URL(window.location.href);
   url.searchParams.delete("room");
@@ -494,6 +529,7 @@ function render() {
   if (!state) return;
   showTable(state);
   roomCode.textContent = state.id;
+  phaseBadge.textContent = phaseLabel(state.phase);
   potValue.textContent = formatAmount(state.pot, state.potCents);
   community.innerHTML = Array.from({ length: 5 }, (_, index) => cardTemplate(state.community[index] || null)).join("");
 
@@ -528,6 +564,8 @@ function renderControls(hero) {
   betControls.classList.add("hidden");
   raiseBtn.disabled = false;
   turnInfo.textContent = "";
+  turnInfo.classList.remove("your-turn");
+  betPresets.innerHTML = "";
 
   if (state.canStart && state.phase !== "complete") {
     addButton("Start game", "game:start");
@@ -554,6 +592,7 @@ function renderControls(hero) {
   turnInfo.textContent = state.toCall > 0
     ? `Pot ${formatAmount(state.pot, state.potCents)}. Call ${formatAmount(state.toCall, state.toCallCents)} to continue.`
     : `Pot ${formatAmount(state.pot, state.potCents)}. Your turn: check or bet.`;
+  turnInfo.classList.add("your-turn");
   addActionButton("Fold", { type: "fold" }, "danger");
   addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" });
 
@@ -578,11 +617,31 @@ function configureRaiseControls(hero, disabled = false) {
   const isRaise = state.currentBet > 0;
   raiseLabel.textContent = isRaise ? "Raise to" : "Bet";
   raiseBtn.textContent = isRaise ? "Raise" : "Bet";
+  renderBetPresets(hero, disabled);
   if (disabled) {
     raiseMinus.disabled = true;
     raisePlus.disabled = true;
     raiseBtn.disabled = true;
   }
+}
+
+function renderBetPresets(hero, disabled) {
+  const options = [
+    { label: "Min", value: raiseState.min },
+    { label: "½ pot", value: state.currentBet + Math.max(state.bigBlind, Math.round(state.pot / 2)) },
+    { label: "Pot", value: state.currentBet + Math.max(state.bigBlind, state.pot) },
+    { label: "All in", value: hero.bet + hero.stack },
+  ];
+  const unique = options.filter((option, index) => options.findIndex((item) => clampRaise(item.value) === clampRaise(option.value)) === index);
+  betPresets.innerHTML = "";
+  unique.forEach((option) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = option.label;
+    button.disabled = disabled;
+    button.addEventListener("click", () => setRaiseState({ value: option.value }));
+    betPresets.appendChild(button);
+  });
 }
 
 function setRaiseState(next) {
@@ -634,6 +693,7 @@ async function copyText(text, button) {
   await navigator.clipboard.writeText(text);
   const original = button.textContent;
   button.textContent = "Copied";
+  showToast("Copied to clipboard");
   setTimeout(() => { button.textContent = original; }, 1200);
 }
 
@@ -716,11 +776,13 @@ function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-roomInput.addEventListener("input", updateTableActionLabel);
+roomInput.addEventListener("input", () => { roomInput.value = roomInput.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
+hostModeBtn.addEventListener("click", () => setTableMode("host"));
+joinModeBtn.addEventListener("click", () => setTableMode("join", true));
 moneyModeInput.addEventListener("change", updateTableActionLabel);
 joinForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  joinOrCreate(roomInput.value.trim() ? "join" : "create");
+  joinOrCreate(tableMode === "join" ? "join" : "create");
 });
 updateTableActionLabel();
 
@@ -745,6 +807,12 @@ raiseBtn.addEventListener("click", () => {
 
 menuBtn.addEventListener("click", () => {
   showGameMenu();
+});
+
+roomCodeBtn.addEventListener("click", async () => {
+  if (!state?.id) return;
+  await navigator.clipboard.writeText(state.id);
+  showToast(`Room ${state.id} copied`);
 });
 
 closeMenuBtn.addEventListener("click", hideGameMenu);
@@ -791,11 +859,13 @@ cashOutBtn.addEventListener("click", () => {
 });
 
 restartGameBtn.addEventListener("click", () => {
+  if (!window.confirm("Restart the game and reset every player’s stack?")) return;
   hideGameMenu();
   emitWithAck("game:restart", {});
 });
 
 endGameBtn.addEventListener("click", () => {
+  if (!window.confirm("End this game for everyone and show final standings?")) return;
   hideGameMenu();
   emitWithAck("game:end", {});
 });
@@ -804,6 +874,7 @@ shareGameBtn.addEventListener("click", showSharePanel);
 copyShareBtn.addEventListener("click", () => copyText(shareLink.value, copyShareBtn));
 
 backToMenuBtn.addEventListener("click", () => {
+  if (state && !window.confirm("Leave this table? You can rejoin later with the room code.")) return;
   hideGameMenu();
   socket.emit("room:leave");
   showWelcome();
@@ -881,4 +952,19 @@ window.addEventListener("resize", () => {
 window.visualViewport?.addEventListener("resize", () => {
   if (document.body.classList.contains("game-open")) setGameViewportHeight();
   requestAnimationFrame(() => scrollActionFeed());
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !gameMenuModal.classList.contains("hidden")) {
+    hideGameMenu();
+    return;
+  }
+  if (!state || !gameMenuModal.classList.contains("hidden") || event.metaKey || event.ctrlKey || event.altKey) return;
+  if (event.target.matches("input, select, textarea")) return;
+  if (event.key.toLowerCase() === "m") showGameMenu();
+  if (!state.isYourTurn) return;
+  const key = event.key.toLowerCase();
+  if (key === "f") emitWithAck("game:action", { type: "fold" });
+  if (key === "c") emitWithAck("game:action", { type: state.toCall > 0 ? "call" : "check" });
+  if (key === "r" && !betControls.classList.contains("hidden")) raiseBtn.click();
 });

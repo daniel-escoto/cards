@@ -1,15 +1,16 @@
 :root {
   color-scheme: dark;
   --game-vh: 100dvh;
-  --bg: #101418;
-  --panel: #1b2228;
-  --panel-2: #222b31;
-  --felt: #11614f;
-  --felt-dark: #0b473b;
+  --bg: #090d10;
+  --panel: #161d21;
+  --panel-2: #202a2f;
+  --felt: #116853;
+  --felt-dark: #083d33;
   --line: rgba(255, 255, 255, 0.13);
   --text: #f3f5f1;
   --muted: #aeb8b0;
-  --accent: #e0b15a;
+  --accent: #f1bd62;
+  --accent-hover: #ffd17c;
   --danger: #ef6b63;
   --black-card: #20262b;
   --red-card: #b83d35;
@@ -33,7 +34,9 @@ html.game-open-root {
 body {
   margin: 0;
   min-height: 100vh;
-  background: radial-gradient(circle at top, #20313a 0, var(--bg) 52%);
+  background:
+    radial-gradient(circle at 50% -20%, rgba(45, 92, 91, 0.46), transparent 44%),
+    linear-gradient(145deg, #10171b 0, var(--bg) 68%);
   color: var(--text);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
@@ -49,7 +52,7 @@ select {
 button {
   min-height: 44px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 10px;
   padding: 0 16px;
   color: #15130d;
   background: var(--accent);
@@ -58,7 +61,13 @@ button {
   touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
+  transition: transform 120ms ease, background 160ms ease, border-color 160ms ease, opacity 160ms ease;
 }
+
+button:not(:disabled):hover { background: var(--accent-hover); }
+button:not(:disabled):active { transform: translateY(1px) scale(0.985); }
+.secondary:not(:disabled):hover, .ghost:not(:disabled):hover { background: rgba(255, 255, 255, 0.16); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgba(241, 189, 98, 0.34); outline-offset: 2px; }
 
 button:disabled {
   cursor: not-allowed;
@@ -97,13 +106,15 @@ button:disabled {
   min-height: calc(100dvh - 40px);
   display: grid;
   place-items: center;
-  gap: 28px;
+  grid-template-columns: minmax(0, 460px) minmax(360px, 480px);
+  justify-content: center;
+  gap: clamp(40px, 8vw, 110px);
 }
 
 .brand {
   width: min(520px, 100%);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 18px;
 }
 
@@ -112,10 +123,11 @@ button:disabled {
   width: 64px;
   height: 64px;
   place-items: center;
-  border-radius: 8px;
+  border-radius: 18px;
   background: var(--accent);
   color: #17120a;
   font-size: 38px;
+  box-shadow: 0 12px 34px rgba(241, 189, 98, 0.2);
 }
 
 h1,
@@ -127,8 +139,11 @@ p {
 h1 {
   font-size: clamp(32px, 8vw, 60px);
   line-height: 0.98;
-  letter-spacing: 0;
+  letter-spacing: -0.045em;
 }
+
+.brand .eyebrow { margin-bottom: 8px; color: var(--accent); }
+.brand > div > p:last-child { max-width: 380px; margin-top: 14px; font-size: 17px; line-height: 1.55; }
 
 .brand p,
 .eyebrow,
@@ -141,12 +156,19 @@ label {
 .join-panel {
   width: min(520px, 100%);
   display: grid;
-  gap: 14px;
-  padding: 18px;
+  gap: 16px;
+  padding: 22px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(27, 34, 40, 0.94);
+  border-radius: 18px;
+  background: linear-gradient(160deg, rgba(30, 39, 44, 0.98), rgba(20, 27, 31, 0.98));
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.34);
 }
+
+.mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: rgba(0,0,0,.28); }
+.mode-option { min-height: 40px; padding: 0 10px; color: var(--muted); background: transparent; font-size: 13px; }
+.mode-option:not(:disabled):hover { color: var(--text); background: rgba(255,255,255,.06); }
+.mode-option.selected { color: #17120a; background: var(--accent); box-shadow: 0 4px 12px rgba(0,0,0,.22); }
+.form-hint { color: var(--muted); font-size: 12px; line-height: 1.4; text-align: center; }
 
 label {
   display: grid;
@@ -172,9 +194,9 @@ select {
   width: 100%;
   min-height: 46px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 10px;
   padding: 0 12px;
-  background: #10161a;
+  background: rgba(7, 12, 14, 0.72);
   color: var(--text);
   font-size: 16px;
   outline: none;
@@ -183,6 +205,7 @@ select {
 input:focus,
 select:focus {
   border-color: var(--accent);
+  background: #0b1114;
 }
 
 .actions-row,
@@ -316,6 +339,14 @@ select:focus {
   gap: 12px;
 }
 
+.room-summary { display: flex; align-items: center; gap: 10px; }
+.room-code-btn { min-height: 44px; display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; column-gap: 7px; align-items: center; padding: 5px 11px; color: var(--text); border: 1px solid var(--line); background: rgba(255,255,255,.055); text-align: left; }
+.room-code-btn:not(:disabled):hover { background: rgba(255,255,255,.1); border-color: rgba(241,189,98,.42); }
+.room-code-btn .eyebrow { grid-column: 1 / -1; font-size: 9px; line-height: 1; }
+.room-code-btn strong { font-size: 17px; letter-spacing: .12em; line-height: 1; }
+.copy-icon { color: var(--muted); font-size: 14px; }
+.phase-badge { padding: 7px 10px; border: 1px solid rgba(241,189,98,.2); border-radius: 999px; color: var(--accent); background: rgba(241,189,98,.1); font-size: 11px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+
 .topbar > div {
   min-height: inherit;
   display: flex;
@@ -342,7 +373,8 @@ select:focus {
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgba(6, 10, 12, 0.68);
+  background: rgba(3, 7, 9, 0.78);
+  backdrop-filter: blur(8px);
 }
 
 .modal-panel {
@@ -353,7 +385,7 @@ select:focus {
   gap: 18px;
   padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 18px;
   background: var(--panel);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.46);
 }
@@ -544,12 +576,12 @@ select:focus {
   position: relative;
   min-height: 560px;
   overflow: hidden;
-  border: 8px solid #523826;
-  border-radius: 22px;
+  border: 8px solid #493323;
+  border-radius: 30px;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.06), transparent 28%),
     radial-gradient(circle, var(--felt) 0, var(--felt-dark) 72%);
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.1), 0 18px 54px rgba(0, 0, 0, 0.38);
+  box-shadow: inset 0 0 60px rgba(0,0,0,.2), inset 0 0 0 2px rgba(255, 255, 255, 0.1), 0 18px 54px rgba(0, 0, 0, 0.38);
 }
 
 .table-meta {
@@ -596,7 +628,7 @@ select:focus {
   display: grid;
   grid-template-rows: auto 1fr auto;
   padding: 8px;
-  border-radius: 7px;
+  border-radius: 9px;
   background: #f7f1e6;
   color: var(--black-card);
   font-weight: 950;
@@ -904,14 +936,18 @@ select:focus {
   gap: 12px;
   padding: 14px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
+  border-radius: 14px;
+  background: linear-gradient(155deg, rgba(28, 37, 41, .98), rgba(17, 24, 27, .98));
+  box-shadow: 0 14px 32px rgba(0,0,0,.22);
 }
 
 .turn-info {
   margin-top: -3px;
   line-height: 1.25;
+  min-height: 18px;
 }
+
+.turn-info.your-turn { color: var(--accent); font-weight: 850; }
 
 .hero-hand {
   display: flex;
@@ -972,6 +1008,16 @@ select:focus {
   align-items: stretch;
   gap: 10px;
 }
+
+.bet-presets { grid-column: 1 / -1; display: flex; gap: 6px; }
+.bet-presets:empty { display: none; }
+.bet-presets button { flex: 1; min-height: 32px; padding: 0 8px; color: var(--muted); border: 1px solid var(--line); background: rgba(255,255,255,.055); font-size: 11px; }
+.bet-presets button:not(:disabled):hover { color: var(--text); background: rgba(255,255,255,.12); }
+
+.toast { position: fixed; z-index: 50; left: 50%; bottom: max(22px, env(safe-area-inset-bottom)); transform: translateX(-50%); max-width: calc(100% - 32px); padding: 10px 14px; border: 1px solid rgba(241,189,98,.35); border-radius: 999px; color: var(--text); background: rgba(18,25,28,.96); box-shadow: 0 10px 30px rgba(0,0,0,.35); font-size: 13px; font-weight: 800; white-space: nowrap; animation: toast-in 180ms ease-out; }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
 
 .raise-stepper {
   min-height: 0;
@@ -1158,6 +1204,7 @@ select:focus {
 
   .welcome {
     min-height: calc(100dvh - 24px);
+    grid-template-columns: 1fr;
     align-content: center;
     justify-items: center;
     gap: clamp(16px, 4vh, 28px);
@@ -1174,6 +1221,9 @@ select:focus {
   .brand {
     gap: 14px;
   }
+
+  .brand > div > p:last-child { margin-top: 7px; font-size: 14px; }
+  .brand .eyebrow { display: none; }
 
   .mark {
     width: 54px;
@@ -1268,7 +1318,7 @@ select:focus {
   }
 
   .topbar .ghost {
-    width: 112px;
+    width: auto;
     min-height: 40px;
     padding: 0 10px;
   }
@@ -1288,7 +1338,7 @@ select:focus {
     align-self: stretch;
     padding: 18px 10px 10px;
     border-width: 5px;
-    border-radius: 16px;
+    border-radius: 20px;
   }
 
   .table-meta {
