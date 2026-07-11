@@ -278,6 +278,9 @@ function waitFor(predicate, label, timeout = 5000) {
   if (solo.state.players.filter((player) => player.isBot).length !== 3) {
     throw new Error("Expected three computer players");
   }
+  if (new Set(solo.state.players.filter((player) => player.isBot).map((player) => player.botStyle)).size !== 3) {
+    throw new Error("Expected CPU players to have distinct poker personalities");
+  }
   if (solo.state.players.some((player) => player.isBot && !player.connected)) {
     throw new Error("Expected CPU players to be connected");
   }
@@ -324,7 +327,7 @@ function waitFor(predicate, label, timeout = 5000) {
   }
 
   if (solo.state.phase !== "complete") throw new Error(`Expected computer hand to complete, got ${solo.state.phase}`);
-  if (!solo.state.actionLog?.some((entry) => entry.text.includes("CPU"))) {
+  if (!solo.state.actionLog?.some((entry) => String(entry.playerId).startsWith("bot:"))) {
     throw new Error("Expected computer players to take actions");
   }
   if (solo.state.players.reduce((sum, player) => sum + player.stack, 0) !== 4000) {

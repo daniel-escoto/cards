@@ -25,9 +25,16 @@ const BLIND_LEVELS = [
 ];
 const DEFAULT_BIG_BLIND = BLIND_LEVELS[0].bigBlind;
 const MAX_PLAYERS = 8;
-const BOT_DELAY_MS = 350;
+const BOT_PROFILES = [
+  { tag: "RiverRat", style: "Loose cannon", aggression: 1.28, looseness: 1.24, bluff: 0.13, skill: 0.58, minDelay: 420, maxDelay: 1250 },
+  { tag: "nitKnight", style: "Patient grinder", aggression: 0.72, looseness: 0.74, bluff: 0.025, skill: 0.82, minDelay: 700, maxDelay: 1700 },
+  { tag: "Moxie", style: "Balanced regular", aggression: 1.02, looseness: 1.0, bluff: 0.065, skill: 0.76, minDelay: 520, maxDelay: 1450 },
+  { tag: "JamJar", style: "Pressure player", aggression: 1.48, looseness: 1.08, bluff: 0.1, skill: 0.68, minDelay: 300, maxDelay: 1050 },
+  { tag: "SundayDriver", style: "Casual caller", aggression: 0.64, looseness: 1.3, bluff: 0.02, skill: 0.48, minDelay: 800, maxDelay: 1900 },
+  { tag: "PixelRead", style: "Sharp and tricky", aggression: 1.12, looseness: 0.94, bluff: 0.09, skill: 0.9, minDelay: 650, maxDelay: 1650 },
+  { tag: "SnapFold", style: "Tight and quick", aggression: 0.84, looseness: 0.68, bluff: 0.035, skill: 0.7, minDelay: 260, maxDelay: 800 },
+];
 const DISCONNECT_GRACE_MS = Math.max(0, Number(process.env.DISCONNECT_GRACE_MS) || 30000);
-const BOT_NAMES = ["Ada", "Ben", "Cy", "Dee", "Eli", "Fay", "Gus"];
 const PLAYER_COLORS = ["#e0b15a", "#5ec2ff", "#7ddc85", "#f472b6", "#a78bfa", "#fb7185", "#f97316", "#2dd4bf"];
 const DEFAULT_DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DATA_DIR || path.join(__dirname, ".data");
 const STATE_FILE = process.env.GAME_STATE_FILE || path.join(DEFAULT_DATA_DIR, "rooms.json");
@@ -199,7 +206,7 @@ function markRestoredHumanAsBot(room, player) {
   const oldName = player.name;
   const botNumber = nextBotNumber(room);
   player.id = `bot:${room.id}:${botNumber}`;
-  player.name = `${BOT_NAMES[(botNumber - 1) % BOT_NAMES.length]} CPU`;
+  player.name = computerProfile(player).tag;
   player.isBot = true;
   player.connected = true;
   player.replacedPlayerId = oldId;
@@ -420,6 +427,11 @@ function makePlayer({ id, name, socketId = null, isBot = false }) {
   };
 }
 
+function computerProfile(player) {
+  const number = Number(/:(\d+)$/.exec(player?.id || "")?.[1]) || 1;
+  return BOT_PROFILES[(number - 1) % BOT_PROFILES.length];
+}
+
 function addComputerPlayers(room, totalPlayers) {
   if (room.moneyMode) return;
   const target = cleanTableSize(totalPlayers) || cleanComputerPlayers(totalPlayers);
@@ -429,7 +441,7 @@ function addComputerPlayers(room, totalPlayers) {
     const botNumber = nextBotNumber(room);
     room.players.push(makePlayer({
       id: `bot:${room.id}:${botNumber}`,
-      name: `${BOT_NAMES[(botNumber - 1) % BOT_NAMES.length]} CPU`,
+      name: computerProfile({ id: `bot:${room.id}:${botNumber}` }).tag,
       isBot: true,
     }));
   }
@@ -498,7 +510,7 @@ function convertHumanToBot(room, player) {
   const oldName = player.name;
   const botNumber = nextBotNumber(room);
   player.id = `bot:${room.id}:${botNumber}`;
-  player.name = `${BOT_NAMES[(botNumber - 1) % BOT_NAMES.length]} CPU`;
+  player.name = computerProfile(player).tag;
   player.replacedPlayerId = oldId;
   player.replacedPlayerName = oldName;
   player.replacedPlayerColor = player.color || null;
@@ -1098,7 +1110,8 @@ function chooseComputerRaiseTo(room, player, minRaiseTo, confidence) {
   const pot = collectPot(room);
   const pressureRaise = minRaiseTo + bigBlind * (confidence > 0.72 ? 2 : 1);
   const potRaise = room.currentBet + Math.ceil(pot * (confidence > 0.66 ? 0.42 : 0.28) / bigBlind) * bigBlind;
-  const preferred = Math.max(minRaiseTo, Math.random() < 0.42 ? potRaise : pressureRaise);
+  const profile = computerProfile(player);
+  const preferred = Math.max(minRaiseTo, Math.random() < 0.3 + profile.aggression * 0.16 ? potRaise : pressureRaise);
   return Math.min(maxBet, preferred);
 }
 
@@ -1133,11 +1146,14 @@ function chooseComputerAction(room, player) {
   const maxBet = player.bet + player.stack;
   const canRaise = maxBet > room.currentBet;
   const minRaiseTo = Math.min(maxBet, room.currentBet + room.minRaise);
-  const confidence = estimateComputerConfidence(room, player);
+  const profile = computerProfile(player);
+  const rawConfidence = estimateComputerConfidence(room, player);
+  const judgmentNoise = (Math.random() - 0.5) * (1 - profile.skill) * 0.42;
+  const confidence = Math.max(0.04, Math.min(0.96, rawConfidence + judgmentNoise));
 
   if (callAmount === 0) {
-    const valueRaiseChance = confidence > 0.48 ? confidence * 0.36 : 0;
-    const bluffRaiseChance = confidence < 0.34 && room.community.length >= 3 ? 0.06 : 0.025;
+    const valueRaiseChance = confidence > 0.48 ? confidence * 0.36 * profile.aggression : 0;
+    const bluffRaiseChance = confidence < 0.38 ? profile.bluff : profile.bluff * 0.25;
     if (canRaise && minRaiseTo <= maxBet && Math.random() < valueRaiseChance + bluffRaiseChance) {
       return { type: "raise", raiseTo: chooseComputerRaiseTo(room, player, minRaiseTo, confidence) };
     }
@@ -1146,13 +1162,17 @@ function chooseComputerAction(room, player) {
 
   const blindCallChance = preflopBlindCallChance(room, player, callAmount);
   if (blindCallChance !== null) {
-    if (Math.random() < blindCallChance) return { type: "call" };
+    if (Math.random() < Math.min(0.98, blindCallChance * profile.looseness)) return { type: "call" };
     return { type: "fold" };
   }
 
   const potPressure = callAmount / Math.max(bigBlind, collectPot(room) + callAmount);
   const stackPressure = callAmount / Math.max(1, player.stack + callAmount);
-  const callChance = Math.max(0.12, Math.min(0.96, confidence + 0.29 - potPressure * 0.55 - stackPressure * 0.44));
+  const callChance = Math.max(0.08, Math.min(0.97, (confidence + 0.29 - potPressure * 0.55 - stackPressure * 0.44) * profile.looseness));
+  const reraiseChance = confidence > 0.66 ? (confidence - 0.58) * 0.42 * profile.aggression : profile.bluff * 0.12;
+  if (canRaise && minRaiseTo <= maxBet && Math.random() < reraiseChance) {
+    return { type: "raise", raiseTo: chooseComputerRaiseTo(room, player, minRaiseTo, confidence) };
+  }
   if (Math.random() < callChance) return { type: "call" };
   return { type: "fold" };
 }
@@ -1166,13 +1186,16 @@ function scheduleComputerTurn(room) {
   if (!hasConnectedHuman(room)) return;
   const player = room.players.find((item) => item.id === room.turn);
   if (!player?.isBot || !isHandInProgress(room)) return;
+  const profile = computerProfile(player);
+  const baseDelay = profile.minDelay + Math.random() * (profile.maxDelay - profile.minDelay);
+  const decisionDelay = Math.round(baseDelay + (Math.random() < 0.08 ? 900 + Math.random() * 1000 : 0));
   room.botTimer = setTimeout(() => {
     const currentRoom = rooms.get(room.id);
     const currentPlayer = currentRoom?.players.find((item) => item.id === currentRoom.turn);
     if (!currentRoom || !hasConnectedHuman(currentRoom) || !currentPlayer?.isBot || !isHandInProgress(currentRoom)) return;
     applyPlayerAction(currentRoom, currentPlayer.id, chooseComputerAction(currentRoom, currentPlayer));
     emitRoom(currentRoom);
-  }, BOT_DELAY_MS);
+  }, decisionDelay);
 }
 
 function serializeRoom(room, viewerId) {
@@ -1238,6 +1261,7 @@ function serializeRoom(room, viewerId) {
       allIn: player.allIn,
       connected: player.connected,
       isBot: player.isBot,
+      botStyle: player.isBot ? computerProfile(player).style : null,
       showCards: Boolean(player.showCards),
       disconnectExpiresAt: player.disconnectExpiresAt || null,
       isHost: player.id === room.hostId,

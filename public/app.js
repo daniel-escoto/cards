@@ -299,7 +299,7 @@ function renderMenuPlayers() {
         <span class="seat-badges">
           ${player.dealer ? '<span class="pill">D</span>' : ""}
           ${player.isHost ? '<span class="pill">Host</span>' : ""}
-          ${player.isBot ? '<span class="pill">CPU</span>' : ""}
+          ${player.isBot ? `<span class="pill bot-pill" title="${escapeHtml(player.botStyle || "CPU player")}">CPU · ${escapeHtml(player.botStyle || "Bot")}</span>` : ""}
         </span>
       </div>
       <div class="menu-player-stats">
@@ -503,7 +503,7 @@ function renderSeatCard(player, isActiveTurn = player.isTurn) {
         <span class="seat-badges">
           ${player.dealer ? '<span class="pill">D</span>' : ""}
           ${player.isHost ? '<span class="pill">Host</span>' : ""}
-          ${player.isBot ? '<span class="pill">CPU</span>' : ""}
+          ${player.isBot ? `<span class="pill bot-pill" title="${escapeHtml(player.botStyle || "CPU player")}">CPU · ${escapeHtml(player.botStyle || "Bot")}</span>` : ""}
         </span>
         <span class="state-stack">${state.moneyMode ? "Bankroll" : "Stack"} <strong>${playerStackLabel(player)}</strong></span>
         <span class="state-pot">${player.invested ? `Pot <strong>${playerInvestedLabel(player)}</strong>` : ""}</span>

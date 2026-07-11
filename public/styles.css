@@ -868,6 +868,9 @@ select:focus {
   font-weight: 900;
 }
 
+.bot-pill { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.add-bot-btn { width: 100%; border-style: dashed; }
+
 .action-card-move em {
   flex: 0 0 auto;
   color: var(--accent);
