@@ -227,13 +227,6 @@ function waitFor(predicate, label, timeout = 5000) {
   if (hiddenOpponent?.cards.some((card) => card?.code)) {
     throw new Error("Expected opponent cards to stay hidden after hand completion");
   }
-  if (!alice.state.canRevealBestHand) throw new Error("Expected best-hand reveal after hand completion");
-  await emit(bobAgain.socket, "game:revealBestHand");
-  await waitFor(() => alice.state?.bestHandReveal?.winners?.length, "objective best hand reveal");
-  if (alice.state.bestHandReveal.board.length !== 5 || alice.state.bestHandReveal.winners.some((winner) => winner.cards.length !== 2)) {
-    throw new Error("Expected best-hand reveal to include a full board and winning hole cards");
-  }
-  if (alice.state.canRevealBestHand) throw new Error("Expected best-hand reveal action to hide after use");
   await emit(alice.socket, "game:showCards");
   await waitFor(() => alice.state.players.find((player) => player.isYou)?.showCards, "show hand");
   if (!bobAgain.state.players.find((player) => player.name === "Alice")?.cards.every((card) => card?.code)) {

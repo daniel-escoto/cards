@@ -36,8 +36,6 @@ const menuRoomCode = document.querySelector("#menuRoomCode");
 const menuPlayers = document.querySelector("#menuPlayers");
 const feltChoices = document.querySelector("#feltChoices");
 const deckChoices = document.querySelector("#deckChoices");
-const soundToggle = document.querySelector("#soundToggle");
-const soundToggleLabel = document.querySelector("#soundToggleLabel");
 const sharePanel = document.querySelector("#sharePanel");
 const shareQr = document.querySelector("#shareQr");
 const shareLink = document.querySelector("#shareLink");
@@ -50,7 +48,6 @@ const community = document.querySelector("#community");
 const players = document.querySelector("#players");
 const heroHand = document.querySelector("#heroHand");
 const winnerList = document.querySelector("#winnerList");
-const bestHandPanel = document.querySelector("#bestHandPanel");
 const turnInfo = document.querySelector("#turnInfo");
 const gameButtons = document.querySelector("#gameButtons");
 const betControls = document.querySelector("#betControls");
@@ -76,10 +73,6 @@ let lastHeroSignature = "";
 let lastWinnerSignature = "";
 let lastPhase = "";
 let lastPot = null;
-let lastYourTurn = false;
-let soundEnabled = localStorage.getItem("holdem:sound") !== "off";
-let audioContext = null;
-const SOUND_VOLUME = 0.42;
 const params = new URLSearchParams(window.location.search);
 const initialRoomParam = (params.get("room") || "").toUpperCase();
 const initialRoomId = (initialRoomParam || localStorage.getItem("holdem:lastRoom") || "").toUpperCase();
@@ -156,80 +149,6 @@ function renderAppearanceChoices() {
 }
 
 applyTableAppearance(localStorage.getItem("holdem:felt"), localStorage.getItem("holdem:deck"));
-
-function updateSoundToggle() {
-  soundToggle.setAttribute("aria-pressed", String(soundEnabled));
-  soundToggleLabel.textContent = soundEnabled ? "On" : "Off";
-  soundToggle.classList.toggle("selected", soundEnabled);
-}
-
-function ensureAudioContext() {
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextClass || !soundEnabled) return null;
-  audioContext ||= new AudioContextClass();
-  if (audioContext.state === "suspended") audioContext.resume().catch(() => {});
-  return audioContext;
-}
-
-function tone(frequency, duration, volume = 0.035, delay = 0, type = "sine") {
-  const context = ensureAudioContext();
-  if (!context) return;
-  const start = context.currentTime + delay;
-  const oscillator = context.createOscillator();
-  const gain = context.createGain();
-  oscillator.type = type;
-  oscillator.frequency.setValueAtTime(frequency, start);
-  gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.exponentialRampToValueAtTime(volume * SOUND_VOLUME, start + 0.008);
-  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-  oscillator.connect(gain).connect(context.destination);
-  oscillator.start(start);
-  oscillator.stop(start + duration + 0.02);
-}
-
-function noiseBurst(duration, volume, delay = 0, highpass = 700) {
-  const context = ensureAudioContext();
-  if (!context) return;
-  const frames = Math.ceil(context.sampleRate * duration);
-  const buffer = context.createBuffer(1, frames, context.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let index = 0; index < frames; index += 1) data[index] = Math.random() * 2 - 1;
-  const source = context.createBufferSource();
-  const filter = context.createBiquadFilter();
-  const gain = context.createGain();
-  const start = context.currentTime + delay;
-  source.buffer = buffer;
-  filter.type = "highpass";
-  filter.frequency.value = highpass;
-  gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.exponentialRampToValueAtTime(volume * SOUND_VOLUME, start + 0.004);
-  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-  source.connect(filter).connect(gain).connect(context.destination);
-  source.start(start);
-}
-
-function playGameSound(type, count = 1) {
-  if (!soundEnabled) return;
-  if (type === "card") {
-    for (let index = 0; index < Math.min(5, count); index += 1) {
-      const delay = index * 0.085;
-      noiseBurst(0.075, 0.13, delay, 850);
-      tone(105 + index * 4, 0.055, 0.04, delay, "triangle");
-    }
-  }
-  if (type === "chip") {
-    tone(920, 0.065, 0.055, 0, "triangle");
-    tone(1380, 0.045, 0.038, 0.025, "sine");
-    noiseBurst(0.035, 0.035, 0.01, 1800);
-  }
-  if (type === "turn") { tone(440, 0.11, 0.028); tone(660, 0.15, 0.025, 0.09); }
-  if (type === "suspense") { tone(196, 0.38, 0.022, 0, "sine"); tone(247, 0.42, 0.018, 0.16, "sine"); }
-  if (type === "win") { tone(392, 0.18, 0.025); tone(494, 0.2, 0.025, 0.1); tone(587, 0.24, 0.025, 0.2); }
-}
-
-updateSoundToggle();
-
-document.addEventListener("pointerdown", () => ensureAudioContext(), { passive: true });
 
 function getDeviceId() {
   let deviceId = localStorage.getItem("holdem:deviceId");
@@ -436,7 +355,6 @@ function showWelcome(status = "") {
   lastWinnerSignature = "";
   lastPhase = "";
   lastPot = null;
-  lastYourTurn = false;
   leavingEndedRoom = false;
   hideGameMenu();
   document.documentElement.classList.remove("game-open-root");
@@ -718,21 +636,17 @@ function render() {
   potValue.textContent = formatAmount(state.pot, state.potCents);
   if (lastPot !== null && lastPot !== state.pot) {
     replayAnimation(potValue.closest("div"), "value-changed", 480);
-    playGameSound("chip");
   }
   lastPot = state.pot;
 
   const communitySignature = state.community.map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`).join("|");
   if (communitySignature !== lastCommunitySignature) {
-    const previousCommunityCount = lastCommunitySignature ? lastCommunitySignature.split("|").filter(Boolean).length : 0;
     community.innerHTML = Array.from({ length: 5 }, (_, index) => cardTemplate(state.community[index] || null)).join("");
     replayAnimation(community, "cards-entering", 900);
-    if (lastCommunitySignature !== null) playGameSound("card", Math.max(1, state.community.length - previousCommunityCount));
     lastCommunitySignature = communitySignature;
   }
   const feltElement = document.querySelector(".felt");
   if (lastPhase && lastPhase !== state.phase) replayAnimation(feltElement, "street-change", 650);
-  if (lastPhase !== "showdown" && state.phase === "showdown") playGameSound("suspense");
   feltElement.classList.toggle("showdown-wait", state.phase === "showdown");
   lastPhase = state.phase;
 
@@ -747,7 +661,6 @@ function render() {
   if (heroSignature !== lastHeroSignature) {
     heroHand.innerHTML = hero?.cards?.length ? hero.cards.map(cardTemplate).join("") : "";
     replayAnimation(heroHand, "cards-entering", 720);
-    if (heroSignature && !lastHeroSignature) playGameSound("card", hero?.cards?.length || 2);
     lastHeroSignature = heroSignature;
   }
   const winnerMarkup = state.winners.map((winner) => {
@@ -762,13 +675,9 @@ function render() {
     winnerList.innerHTML = winnerMarkup;
     if (winnerMarkup) {
       replayAnimation(winnerList, "winner-entering", 800);
-      if (!lastWinnerSignature) playGameSound("win");
     }
     lastWinnerSignature = winnerMarkup;
   }
-  renderBestHand();
-  if (state.isYourTurn && !lastYourTurn) playGameSound("turn");
-  lastYourTurn = state.isYourTurn;
 
   renderControls(hero);
   if (!gameMenuModal.classList.contains("hidden")) {
@@ -776,29 +685,6 @@ function render() {
     addBotBtn.classList.toggle("hidden", !state?.canAddBot);
   }
   requestAnimationFrame(() => scrollActionFeed());
-}
-
-function renderBestHand() {
-  const reveal = state.bestHandReveal;
-  bestHandPanel.classList.toggle("hidden", !reveal);
-  if (!reveal) {
-    bestHandPanel.innerHTML = "";
-    return;
-  }
-  bestHandPanel.innerHTML = `
-    <div class="best-hand-head">
-      <div><span class="eyebrow">Objective result</span><strong>Best hand</strong></div>
-      <span class="pill">Full runout</span>
-    </div>
-    <div class="best-board" aria-label="Complete board">${reveal.board.map(cardTemplate).join("")}</div>
-    ${reveal.winners.map((winner) => `
-      <div class="best-hand-winner" ${playerColorStyle(state.players.find((player) => player.id === winner.playerId))}>
-        <div class="best-hole-cards">${winner.cards.map(cardTemplate).join("")}</div>
-        <div><span class="seat-name">${escapeHtml(winner.name)}</span><strong>${escapeHtml(winner.hand)}</strong>${winner.folded ? "<em>Folded earlier</em>" : ""}</div>
-      </div>
-    `).join("")}
-  `;
-  replayAnimation(bestHandPanel, "winner-entering", 800);
 }
 
 function scrollActionFeed() {
@@ -829,9 +715,6 @@ function renderControls(hero) {
   }
   if (state.canShowHand) {
     addButton("Show hand", "game:showCards", "secondary");
-  }
-  if (state.canRevealBestHand) {
-    addButton("Reveal best hand", "game:revealBestHand", "secondary");
   }
 
   if (!state.isYourTurn || !hero) {
@@ -1085,13 +968,6 @@ roomCodeBtn.addEventListener("click", async () => {
 closeMenuBtn.addEventListener("click", hideGameMenu);
 
 addBotBtn.addEventListener("click", () => emitWithAck("room:addBot", {}));
-
-soundToggle.addEventListener("click", () => {
-  soundEnabled = !soundEnabled;
-  localStorage.setItem("holdem:sound", soundEnabled ? "on" : "off");
-  updateSoundToggle();
-  if (soundEnabled) playGameSound("card", 2);
-});
 
 gameMenuModal.addEventListener("click", (event) => {
   const feltButton = event.target.closest("button[data-felt]");
