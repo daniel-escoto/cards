@@ -1,6 +1,9 @@
 const socket = io();
 
 const welcome = document.querySelector("#welcome");
+const themeToggle = document.querySelector("#themeToggle");
+const themeIcon = document.querySelector("#themeIcon");
+const themeLabel = document.querySelector("#themeLabel");
 const tableView = document.querySelector("#tableView");
 const scoreView = document.querySelector("#scoreView");
 const joinForm = document.querySelector("#joinForm");
@@ -70,6 +73,24 @@ let joinPending = false;
 let didAutoJoinInitialRoom = false;
 let tableMode = initialRoomId ? "join" : "host";
 let toastTimer = null;
+
+function preferredTheme() {
+  const saved = localStorage.getItem("holdem:theme");
+  if (saved === "light" || saved === "dark") return saved;
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
+function applyTheme(theme, persist = false) {
+  const nextTheme = theme === "light" ? "light" : "dark";
+  document.documentElement.dataset.theme = nextTheme;
+  const nextLabel = nextTheme === "dark" ? "Light" : "Dark";
+  themeIcon.textContent = nextTheme === "dark" ? "☀" : "☾";
+  themeLabel.textContent = nextLabel;
+  themeToggle.setAttribute("aria-label", `Switch to ${nextLabel.toLowerCase()} mode`);
+  if (persist) localStorage.setItem("holdem:theme", nextTheme);
+}
+
+applyTheme(preferredTheme());
 
 function getDeviceId() {
   let deviceId = localStorage.getItem("holdem:deviceId");
@@ -455,6 +476,30 @@ function renderShownHandCard(player) {
   `;
 }
 
+function renderRoundRoster() {
+  if (!isBettingPhase(state.phase) && state.phase !== "showdown") return "";
+  const dealtPlayers = state.players.filter((player) => player.cards?.length || player.invested || player.folded || player.allIn);
+  const activeCount = dealtPlayers.filter((player) => !player.folded).length;
+  return `
+    <section class="round-roster" aria-label="Players still in this hand">
+      <div class="round-roster-head">
+        <span>Still in</span>
+        <strong>${activeCount} of ${dealtPlayers.length}</strong>
+      </div>
+      <div class="round-roster-players">
+        ${dealtPlayers.map((player) => {
+          const status = player.folded ? "folded" : player.allIn ? "all-in" : player.isTurn ? "acting" : "active";
+          const statusLabel = status === "all-in" ? "All in" : status[0].toUpperCase() + status.slice(1);
+          return `<span class="round-player ${status}" ${playerColorStyle(player)} title="${escapeHtml(statusLabel)}">
+            <i aria-hidden="true"></i>${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}
+            <em>${escapeHtml(statusLabel)}</em>
+          </span>`;
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function currentTurnPlayer() {
   const index = findLastIndex(state.players, (player) => player.id === state.turn);
   return index >= 0 ? state.players[index] : null;
@@ -470,7 +515,7 @@ function renderActionFeed() {
   const activeSeatIndex = findLastIndex(state.players, (player) => player.id === activePlayer?.id);
   const seatMarkup = () => state.players.map((player, index) => renderSeatCard(player, index === activeSeatIndex)).join("");
   if (!entries.length) {
-    return seatMarkup();
+    return `${renderRoundRoster()}${seatMarkup()}`;
   }
 
   let lastPhase = "";
@@ -493,7 +538,7 @@ function renderActionFeed() {
   const shownHands = state.phase === "complete"
     ? state.players.filter((player) => player.showCards).map(renderShownHandCard).join("")
     : "";
-  const markup = `${historyMarkup}${shownHands}${activePlayer ? renderSeatCard(activePlayer, true) : ""}`.trim();
+  const markup = `${renderRoundRoster()}${historyMarkup}${shownHands}${activePlayer ? renderSeatCard(activePlayer, true) : ""}`.trim();
   return markup || seatMarkup();
 }
 
@@ -775,6 +820,14 @@ function escapeHtml(value) {
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+themeToggle.addEventListener("click", () => {
+  applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark", true);
+});
+
+window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", (event) => {
+  if (!localStorage.getItem("holdem:theme")) applyTheme(event.matches ? "light" : "dark");
+});
 
 roomInput.addEventListener("input", () => { roomInput.value = roomInput.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
 hostModeBtn.addEventListener("click", () => setTableMode("host"));

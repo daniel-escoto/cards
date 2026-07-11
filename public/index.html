@@ -4,10 +4,18 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
     <title>Table Stakes Hold'em</title>
+    <script>
+      const savedTheme = localStorage.getItem("holdem:theme");
+      document.documentElement.dataset.theme = savedTheme || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    </script>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <main class="app">
+      <button id="themeToggle" class="theme-toggle ghost" type="button" aria-label="Switch to light mode" title="Switch theme">
+        <span id="themeIcon" aria-hidden="true">☀</span>
+        <span id="themeLabel">Light</span>
+      </button>
       <section id="welcome" class="welcome">
         <div class="brand">
           <span class="mark" aria-hidden="true">♠</span>
