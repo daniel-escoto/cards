@@ -371,6 +371,9 @@ function waitFor(predicate, label, timeout = 5000) {
       }
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
+    if (finalA.state.phase === "showdown") {
+      await waitFor(() => ["complete", "gameover"].includes(finalA.state?.phase), "showdown reveal", 4000);
+    }
   }
 
   await waitFor(() => finalA.state?.phase === "gameover", "natural game over");

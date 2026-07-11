@@ -1218,6 +1218,8 @@ select:focus {
 .table-meta div.value-changed { animation: value-pop 440ms ease-out; }
 .winner-entering > * { animation: winner-reveal 620ms cubic-bezier(.2,.8,.2,1) both; }
 .felt.street-change { animation: street-pulse 620ms ease-out; }
+.felt.showdown-wait::after { content: ""; position: absolute; inset: 0; z-index: 8; border-radius: inherit; background: radial-gradient(circle at 75% 45%, transparent 20%, rgba(3,10,8,.2)); pointer-events: none; animation: showdown-breathe 900ms ease-in-out infinite alternate; }
+.showdown-message { color: var(--accent); font-weight: 900; letter-spacing: .01em; animation: suspense-text 800ms ease-in-out infinite alternate; }
 .modal:not(.hidden) { animation: modal-fade 180ms ease-out; }
 .modal:not(.hidden) .modal-panel { animation: modal-rise 260ms cubic-bezier(.2,.8,.2,1); }
 
@@ -1230,6 +1232,8 @@ select:focus {
 @keyframes value-pop { 45% { transform: scale(1.07); border-color: var(--accent); } }
 @keyframes winner-reveal { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
 @keyframes street-pulse { 45% { box-shadow: inset 0 0 90px rgba(241,189,98,.18), inset 0 0 0 2px rgba(255,255,255,.13), 0 18px 54px rgba(0,0,0,.38); } }
+@keyframes showdown-breathe { from { opacity: .35; } to { opacity: .78; } }
+@keyframes suspense-text { from { opacity: .62; } to { opacity: 1; } }
 @keyframes modal-fade { from { opacity: 0; } }
 @keyframes modal-rise { from { opacity: 0; transform: translateY(14px) scale(.985); } }
 

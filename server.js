@@ -39,6 +39,7 @@ const PLAYER_COLORS = ["#e0b15a", "#5ec2ff", "#7ddc85", "#f472b6", "#a78bfa", "#
 const DEFAULT_DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DATA_DIR || path.join(__dirname, ".data");
 const STATE_FILE = process.env.GAME_STATE_FILE || path.join(DEFAULT_DATA_DIR, "rooms.json");
 const SAVE_DEBOUNCE_MS = 150;
+const SHOWDOWN_DELAY_MS = 1600;
 
 app.use(express.static("public"));
 
@@ -243,6 +244,7 @@ function restoreRoom(raw) {
     settlements: Array.isArray(raw.settlements) ? raw.settlements : [],
     players: Array.isArray(raw.players) ? raw.players.map(restorePlayer) : [],
     botTimer: null,
+    showdownTimer: null,
   };
 
   for (const player of room.players) {
@@ -296,7 +298,10 @@ function loadRooms() {
     const restoredRooms = Array.isArray(payload.rooms) ? payload.rooms : [];
     for (const rawRoom of restoredRooms) {
       const room = restoreRoom(rawRoom);
-      if (room) rooms.set(room.id, room);
+      if (room) {
+        rooms.set(room.id, room);
+        if (room.phase === "showdown") beginShowdown(room);
+      }
     }
     if (rooms.size > 0) console.log(`Restored ${rooms.size} room(s) from ${STATE_FILE}`);
   } catch (error) {
@@ -579,6 +584,8 @@ function logAction(room, text, metadata = {}) {
 }
 
 function resetHandState(room) {
+  clearTimeout(room.showdownTimer);
+  room.showdownTimer = null;
   const { bigBlind } = currentBlinds(room);
   room.community = [];
   room.deck = makeDeck();
@@ -705,6 +712,8 @@ function endGame(room) {
 
 function restartGame(room) {
   clearTimeout(room.botTimer);
+  clearTimeout(room.showdownTimer);
+  room.showdownTimer = null;
   for (const player of room.players) {
     player.stack = STARTING_STACK;
     player.buyInsCents = room.moneyMode ? room.buyInCents : 0;
@@ -842,7 +851,7 @@ function dealStreet(room) {
     room.community.push(room.deck.pop());
     room.phase = "river";
   } else {
-    settleShowdown(room);
+    beginShowdown(room);
     return;
   }
 
@@ -876,7 +885,7 @@ function maybeAdvance(room) {
   }
 
   if (room.phase === "river") {
-    settleShowdown(room);
+    beginShowdown(room);
   } else {
     dealStreet(room);
   }
@@ -985,7 +994,8 @@ function combineWinnerSummaries(summaries) {
 }
 
 function settleShowdown(room) {
-  room.phase = "showdown";
+  clearTimeout(room.showdownTimer);
+  room.showdownTimer = null;
   room.turn = null;
   const summaries = [];
 
@@ -1023,6 +1033,20 @@ function settleShowdown(room) {
     });
   }
   maybeEndGame(room);
+}
+
+function beginShowdown(room) {
+  if (room.showdownTimer) return;
+  room.phase = "showdown";
+  room.turn = null;
+  room.message = "Cards down. Revealing the winner…";
+  emitRoom(room);
+  room.showdownTimer = setTimeout(() => {
+    const currentRoom = rooms.get(room.id);
+    if (!currentRoom || currentRoom.phase !== "showdown") return;
+    settleShowdown(currentRoom);
+    emitRoom(currentRoom);
+  }, SHOWDOWN_DELAY_MS);
 }
 
 function applyPlayerAction(room, playerId, { type, raiseTo }) {

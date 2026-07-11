@@ -79,6 +79,7 @@ let lastPot = null;
 let lastYourTurn = false;
 let soundEnabled = localStorage.getItem("holdem:sound") !== "off";
 let audioContext = null;
+const SOUND_VOLUME = 0.42;
 const params = new URLSearchParams(window.location.search);
 const initialRoomParam = (params.get("room") || "").toUpperCase();
 const initialRoomId = (initialRoomParam || localStorage.getItem("holdem:lastRoom") || "").toUpperCase();
@@ -179,7 +180,7 @@ function tone(frequency, duration, volume = 0.035, delay = 0, type = "sine") {
   oscillator.type = type;
   oscillator.frequency.setValueAtTime(frequency, start);
   gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.exponentialRampToValueAtTime(volume, start + 0.008);
+  gain.gain.exponentialRampToValueAtTime(volume * SOUND_VOLUME, start + 0.008);
   gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
   oscillator.connect(gain).connect(context.destination);
   oscillator.start(start);
@@ -201,7 +202,7 @@ function noiseBurst(duration, volume, delay = 0, highpass = 700) {
   filter.type = "highpass";
   filter.frequency.value = highpass;
   gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.exponentialRampToValueAtTime(volume, start + 0.004);
+  gain.gain.exponentialRampToValueAtTime(volume * SOUND_VOLUME, start + 0.004);
   gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
   source.connect(filter).connect(gain).connect(context.destination);
   source.start(start);
@@ -222,6 +223,7 @@ function playGameSound(type, count = 1) {
     noiseBurst(0.035, 0.035, 0.01, 1800);
   }
   if (type === "turn") { tone(440, 0.11, 0.028); tone(660, 0.15, 0.025, 0.09); }
+  if (type === "suspense") { tone(196, 0.38, 0.022, 0, "sine"); tone(247, 0.42, 0.018, 0.16, "sine"); }
   if (type === "win") { tone(392, 0.18, 0.025); tone(494, 0.2, 0.025, 0.1); tone(587, 0.24, 0.025, 0.2); }
 }
 
@@ -728,7 +730,10 @@ function render() {
     if (lastCommunitySignature !== null) playGameSound("card", Math.max(1, state.community.length - previousCommunityCount));
     lastCommunitySignature = communitySignature;
   }
-  if (lastPhase && lastPhase !== state.phase) replayAnimation(document.querySelector(".felt"), "street-change", 650);
+  const feltElement = document.querySelector(".felt");
+  if (lastPhase && lastPhase !== state.phase) replayAnimation(feltElement, "street-change", 650);
+  if (lastPhase !== "showdown" && state.phase === "showdown") playGameSound("suspense");
+  feltElement.classList.toggle("showdown-wait", state.phase === "showdown");
   lastPhase = state.phase;
 
   const actionEntries = (state.actionLog || []).filter((entry) => entry.phase !== "lobby");
@@ -808,6 +813,13 @@ function renderControls(hero) {
   turnInfo.textContent = "";
   turnInfo.classList.remove("your-turn");
   betPresets.innerHTML = "";
+
+  if (state.phase === "showdown") {
+    turnInfo.textContent = "Cards down. Revealing the winner…";
+    turnInfo.classList.add("showdown-message");
+    return;
+  }
+  turnInfo.classList.remove("showdown-message");
 
   if (state.canStart && state.phase !== "complete") {
     addButton("Start game", "game:start");
