@@ -36,6 +36,8 @@ const menuRoomCode = document.querySelector("#menuRoomCode");
 const menuPlayers = document.querySelector("#menuPlayers");
 const feltChoices = document.querySelector("#feltChoices");
 const deckChoices = document.querySelector("#deckChoices");
+const soundToggle = document.querySelector("#soundToggle");
+const soundToggleLabel = document.querySelector("#soundToggleLabel");
 const sharePanel = document.querySelector("#sharePanel");
 const shareQr = document.querySelector("#shareQr");
 const shareLink = document.querySelector("#shareLink");
@@ -48,6 +50,7 @@ const community = document.querySelector("#community");
 const players = document.querySelector("#players");
 const heroHand = document.querySelector("#heroHand");
 const winnerList = document.querySelector("#winnerList");
+const bestHandPanel = document.querySelector("#bestHandPanel");
 const turnInfo = document.querySelector("#turnInfo");
 const gameButtons = document.querySelector("#gameButtons");
 const betControls = document.querySelector("#betControls");
@@ -73,6 +76,9 @@ let lastHeroSignature = "";
 let lastWinnerSignature = "";
 let lastPhase = "";
 let lastPot = null;
+let lastYourTurn = false;
+let soundEnabled = localStorage.getItem("holdem:sound") !== "off";
+let audioContext = null;
 const params = new URLSearchParams(window.location.search);
 const initialRoomParam = (params.get("room") || "").toUpperCase();
 const initialRoomId = (initialRoomParam || localStorage.getItem("holdem:lastRoom") || "").toUpperCase();
@@ -149,6 +155,40 @@ function renderAppearanceChoices() {
 }
 
 applyTableAppearance(localStorage.getItem("holdem:felt"), localStorage.getItem("holdem:deck"));
+
+function updateSoundToggle() {
+  soundToggle.setAttribute("aria-pressed", String(soundEnabled));
+  soundToggleLabel.textContent = soundEnabled ? "On" : "Off";
+  soundToggle.classList.toggle("selected", soundEnabled);
+}
+
+function tone(frequency, duration, volume = 0.035, delay = 0) {
+  if (!soundEnabled) return;
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+  audioContext ||= new AudioContextClass();
+  const start = audioContext.currentTime + delay;
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(frequency, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.008);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  oscillator.connect(gain).connect(audioContext.destination);
+  oscillator.start(start);
+  oscillator.stop(start + duration + 0.02);
+}
+
+function playGameSound(type) {
+  if (!soundEnabled) return;
+  if (type === "card") { tone(220, 0.07, 0.025); tone(160, 0.08, 0.018, 0.045); }
+  if (type === "chip") { tone(520, 0.055, 0.025); }
+  if (type === "turn") { tone(440, 0.11, 0.028); tone(660, 0.15, 0.025, 0.09); }
+  if (type === "win") { tone(392, 0.18, 0.025); tone(494, 0.2, 0.025, 0.1); tone(587, 0.24, 0.025, 0.2); }
+}
+
+updateSoundToggle();
 
 function getDeviceId() {
   let deviceId = localStorage.getItem("holdem:deviceId");
@@ -355,6 +395,7 @@ function showWelcome(status = "") {
   lastWinnerSignature = "";
   lastPhase = "";
   lastPot = null;
+  lastYourTurn = false;
   leavingEndedRoom = false;
   hideGameMenu();
   document.documentElement.classList.remove("game-open-root");
@@ -634,13 +675,17 @@ function render() {
   roomCode.textContent = state.id;
   phaseBadge.textContent = phaseLabel(state.phase);
   potValue.textContent = formatAmount(state.pot, state.potCents);
-  if (lastPot !== null && lastPot !== state.pot) replayAnimation(potValue.closest("div"), "value-changed", 480);
+  if (lastPot !== null && lastPot !== state.pot) {
+    replayAnimation(potValue.closest("div"), "value-changed", 480);
+    playGameSound("chip");
+  }
   lastPot = state.pot;
 
   const communitySignature = state.community.map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`).join("|");
   if (communitySignature !== lastCommunitySignature) {
     community.innerHTML = Array.from({ length: 5 }, (_, index) => cardTemplate(state.community[index] || null)).join("");
     replayAnimation(community, "cards-entering", 900);
+    if (lastCommunitySignature !== null) playGameSound("card");
     lastCommunitySignature = communitySignature;
   }
   if (lastPhase && lastPhase !== state.phase) replayAnimation(document.querySelector(".felt"), "street-change", 650);
@@ -669,9 +714,15 @@ function render() {
   }).join("");
   if (winnerMarkup !== lastWinnerSignature) {
     winnerList.innerHTML = winnerMarkup;
-    if (winnerMarkup) replayAnimation(winnerList, "winner-entering", 800);
+    if (winnerMarkup) {
+      replayAnimation(winnerList, "winner-entering", 800);
+      if (!lastWinnerSignature) playGameSound("win");
+    }
     lastWinnerSignature = winnerMarkup;
   }
+  renderBestHand();
+  if (state.isYourTurn && !lastYourTurn) playGameSound("turn");
+  lastYourTurn = state.isYourTurn;
 
   renderControls(hero);
   if (!gameMenuModal.classList.contains("hidden")) {
@@ -679,6 +730,29 @@ function render() {
     addBotBtn.classList.toggle("hidden", !state?.canAddBot);
   }
   requestAnimationFrame(() => scrollActionFeed());
+}
+
+function renderBestHand() {
+  const reveal = state.bestHandReveal;
+  bestHandPanel.classList.toggle("hidden", !reveal);
+  if (!reveal) {
+    bestHandPanel.innerHTML = "";
+    return;
+  }
+  bestHandPanel.innerHTML = `
+    <div class="best-hand-head">
+      <div><span class="eyebrow">Objective result</span><strong>Best hand</strong></div>
+      <span class="pill">Full runout</span>
+    </div>
+    <div class="best-board" aria-label="Complete board">${reveal.board.map(cardTemplate).join("")}</div>
+    ${reveal.winners.map((winner) => `
+      <div class="best-hand-winner" ${playerColorStyle(state.players.find((player) => player.id === winner.playerId))}>
+        <div class="best-hole-cards">${winner.cards.map(cardTemplate).join("")}</div>
+        <div><span class="seat-name">${escapeHtml(winner.name)}</span><strong>${escapeHtml(winner.hand)}</strong>${winner.folded ? "<em>Folded earlier</em>" : ""}</div>
+      </div>
+    `).join("")}
+  `;
+  replayAnimation(bestHandPanel, "winner-entering", 800);
 }
 
 function scrollActionFeed() {
@@ -702,6 +776,9 @@ function renderControls(hero) {
   }
   if (state.canShowHand) {
     addButton("Show hand", "game:showCards", "secondary");
+  }
+  if (state.canRevealBestHand) {
+    addButton("Reveal best hand", "game:revealBestHand", "secondary");
   }
 
   if (!state.isYourTurn || !hero) {
@@ -955,6 +1032,13 @@ roomCodeBtn.addEventListener("click", async () => {
 closeMenuBtn.addEventListener("click", hideGameMenu);
 
 addBotBtn.addEventListener("click", () => emitWithAck("room:addBot", {}));
+
+soundToggle.addEventListener("click", () => {
+  soundEnabled = !soundEnabled;
+  localStorage.setItem("holdem:sound", soundEnabled ? "on" : "off");
+  updateSoundToggle();
+  if (soundEnabled) playGameSound("turn");
+});
 
 gameMenuModal.addEventListener("click", (event) => {
   const feltButton = event.target.closest("button[data-felt]");

@@ -142,6 +142,7 @@ function serializeRoomForStorage(room) {
     acted: [...(room.acted || [])],
     message: room.message,
     winners: room.winners,
+    bestHandReveal: room.bestHandReveal || null,
     actionLog: room.actionLog,
     handNumber: room.handNumber,
     moneyMode: Boolean(room.moneyMode),
@@ -234,6 +235,7 @@ function restoreRoom(raw) {
     acted: new Set(Array.isArray(raw.acted) ? raw.acted : []),
     message: raw.message || "Room restored after update.",
     winners: Array.isArray(raw.winners) ? raw.winners : [],
+    bestHandReveal: raw.bestHandReveal || null,
     actionLog: Array.isArray(raw.actionLog) ? raw.actionLog : [],
     handNumber: Math.max(0, Math.floor(Number(raw.handNumber) || 0)),
     moneyMode: Boolean(raw.moneyMode),
@@ -585,6 +587,7 @@ function resetHandState(room) {
   room.deadPot = 0;
   room.acted = new Set();
   room.winners = [];
+  room.bestHandReveal = null;
   room.actionLog = [];
   for (const player of room.players) {
     player.hand = [];
@@ -893,6 +896,42 @@ function revealComputerHands(room) {
   for (const player of room.players) {
     if (player.isBot && player.hand.length) player.showCards = true;
   }
+}
+
+function fullAnalysisBoard(room) {
+  const board = [...room.community];
+  const deck = [...room.deck];
+  while (board.length < 5 && deck.length) {
+    deck.pop();
+    const cardsToDeal = board.length === 0 ? 3 : 1;
+    for (let index = 0; index < cardsToDeal && board.length < 5 && deck.length; index += 1) {
+      board.push(deck.pop());
+    }
+  }
+  return board;
+}
+
+function revealBestHand(room) {
+  if (!room || room.phase !== "complete") return { ok: false, error: "The best hand is available after the hand ends." };
+  if (room.bestHandReveal) return { ok: true };
+  const board = fullAnalysisBoard(room);
+  const solved = room.players
+    .filter((player) => player.hand.length === 2)
+    .map((player) => ({ player, hand: Hand.solve([...player.hand, ...board]) }));
+  if (!solved.length || board.length < 5) return { ok: false, error: "There are not enough cards to compare hands." };
+  const winningHands = Hand.winners(solved.map((entry) => entry.hand));
+  room.bestHandReveal = {
+    board,
+    winners: solved.filter((entry) => winningHands.includes(entry.hand)).map((entry) => ({
+      playerId: entry.player.id,
+      name: entry.player.name,
+      cards: entry.player.hand,
+      hand: entry.hand.descr,
+      folded: entry.player.folded,
+    })),
+  };
+  room.message = "The objectively best hand was revealed.";
+  return { ok: true };
 }
 
 function awardUncontested(room, winner) {
@@ -1237,6 +1276,14 @@ function serializeRoom(room, viewerId) {
     toCall,
     toCallCents: chipsToCents(room, toCall),
     canShowHand: room.phase === "complete" && Boolean(viewer?.hand?.length) && !viewer.showCards,
+    canRevealBestHand: room.phase === "complete" && !room.bestHandReveal,
+    bestHandReveal: room.bestHandReveal ? {
+      board: room.bestHandReveal.board.map(publicCard),
+      winners: room.bestHandReveal.winners.map((winner) => ({
+        ...winner,
+        cards: winner.cards.map(publicCard),
+      })),
+    } : null,
     canStart: room.hostId === viewerId && playersWithChips(room).length >= 2 && !isHandInProgress(room) && room.phase !== "gameover",
     canNextHand: room.hostId === viewerId && room.phase === "complete" && playersWithChips(room).length >= 2,
     canRestartGame: room.hostId === viewerId,
@@ -1551,6 +1598,14 @@ io.on("connection", (socket) => {
     const room = rooms.get(socketRoom.get(socket.id));
     const playerId = socketPlayer.get(socket.id);
     const result = showPlayerCards(room, playerId);
+    if (!result.ok) return ack?.(result);
+    ack?.(result);
+    emitRoom(room);
+  });
+
+  socket.on("game:revealBestHand", (_, ack) => {
+    const room = rooms.get(socketRoom.get(socket.id));
+    const result = revealBestHand(room);
     if (!result.ok) return ack?.(result);
     ack?.(result);
     emitRoom(room);

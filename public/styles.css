@@ -1040,6 +1040,9 @@ select:focus {
 .appearance-choice { min-width: 0; min-height: 58px; display: grid; place-items: center; gap: 3px; padding: 6px 3px; border: 1px solid var(--line); color: var(--muted); background: color-mix(in srgb, var(--panel) 72%, transparent); font-size: 9px; }
 .appearance-choice:not(:disabled):hover { color: var(--text); background: var(--panel-2); }
 .appearance-choice.selected { border-color: var(--accent); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent); }
+.sound-toggle { min-height: 42px; display: flex; align-items: center; justify-content: space-between; color: var(--text); }
+.sound-toggle strong { color: var(--muted); font-size: 12px; }
+.sound-toggle.selected strong { color: var(--accent); }
 .felt-choice i { width: 24px; height: 24px; border: 2px solid rgba(255,255,255,.45); border-radius: 50%; background: var(--choice-color); box-shadow: inset 0 0 9px rgba(0,0,0,.2); }
 .deck-preview { width: 22px; height: 30px; border: 2px solid rgba(255,255,255,.45); border-radius: 4px; background: repeating-linear-gradient(45deg, #27333b 0 4px, #1a232a 4px 8px); }
 .deck-choice[data-deck="midnight"] .deck-preview { background: radial-gradient(circle, #6ba5c7 0 2px, transparent 3px), #101820; background-size: 8px 8px; }
@@ -1181,6 +1184,18 @@ select:focus {
   font-weight: 800;
 }
 
+.best-hand-panel { display: grid; gap: 10px; padding: 10px; border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
+.best-hand-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.best-hand-head > div { display: grid; gap: 2px; }
+.best-hand-head strong { font-size: 16px; }
+.best-board, .best-hole-cards { display: flex; gap: 4px; }
+.best-board .card, .best-hole-cards .card { width: 30px; padding: 4px; border-radius: 5px; }
+.best-board .card-rank, .best-board .card-corner-suit, .best-hole-cards .card-rank, .best-hole-cards .card-corner-suit { font-size: 12px; }
+.best-hand-winner { display: grid; grid-template-columns: auto minmax(0,1fr); align-items: center; gap: 9px; }
+.best-hand-winner > div:last-child { display: grid; gap: 1px; }
+.best-hand-winner strong { font-size: 13px; }
+.best-hand-winner em { color: var(--muted); font-size: 10px; font-style: normal; text-transform: uppercase; }
+
 .cards-entering .card { animation: deal-card 520ms cubic-bezier(.2,.8,.2,1) both; }
 .cards-entering .card:nth-child(2) { animation-delay: 70ms; }
 .cards-entering .card:nth-child(3) { animation-delay: 140ms; }
@@ -1257,16 +1272,18 @@ select:focus {
     grid-row: 2;
   }
 
-  .turn-info {
-    grid-row: 3;
-  }
+  .best-hand-panel { grid-row: 3; }
 
-  .game-buttons {
+  .turn-info {
     grid-row: 4;
   }
 
-  .bet-controls {
+  .game-buttons {
     grid-row: 5;
+  }
+
+  .bet-controls {
+    grid-row: 6;
   }
 
   .hero-hand {
