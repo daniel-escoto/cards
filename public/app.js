@@ -4,6 +4,7 @@ const welcome = document.querySelector("#welcome");
 const themeToggle = document.querySelector("#themeToggle");
 const themeIcon = document.querySelector("#themeIcon");
 const themeLabel = document.querySelector("#themeLabel");
+const themeToggles = document.querySelectorAll("#themeToggle, [data-theme-toggle]");
 const tableView = document.querySelector("#tableView");
 const scoreView = document.querySelector("#scoreView");
 const joinForm = document.querySelector("#joinForm");
@@ -33,6 +34,8 @@ const shareGameBtn = document.querySelector("#shareGameBtn");
 const backToMenuBtn = document.querySelector("#backToMenuBtn");
 const menuRoomCode = document.querySelector("#menuRoomCode");
 const menuPlayers = document.querySelector("#menuPlayers");
+const feltChoices = document.querySelector("#feltChoices");
+const deckChoices = document.querySelector("#deckChoices");
 const sharePanel = document.querySelector("#sharePanel");
 const shareQr = document.querySelector("#shareQr");
 const shareLink = document.querySelector("#shareLink");
@@ -74,6 +77,18 @@ let joinPending = false;
 let didAutoJoinInitialRoom = false;
 let tableMode = initialRoomId ? "join" : "host";
 let toastTimer = null;
+const FELT_OPTIONS = [
+  { id: "emerald", label: "Emerald", color: "#116853" },
+  { id: "navy", label: "Navy", color: "#24527a" },
+  { id: "wine", label: "Wine", color: "#7b3043" },
+  { id: "violet", label: "Violet", color: "#58448b" },
+];
+const DECK_OPTIONS = [
+  { id: "classic", label: "Classic" },
+  { id: "midnight", label: "Midnight" },
+  { id: "ruby", label: "Ruby" },
+  { id: "minimal", label: "Minimal" },
+];
 
 function preferredTheme() {
   const saved = localStorage.getItem("holdem:theme");
@@ -88,10 +103,43 @@ function applyTheme(theme, persist = false) {
   themeIcon.textContent = nextTheme === "dark" ? "☀" : "☾";
   themeLabel.textContent = nextLabel;
   themeToggle.setAttribute("aria-label", `Switch to ${nextLabel.toLowerCase()} mode`);
+  themeToggles.forEach((button) => {
+    button.querySelector("[data-theme-icon]")?.replaceChildren(nextTheme === "dark" ? "☀" : "☾");
+    button.querySelector("[data-theme-label]")?.replaceChildren(nextLabel);
+    button.setAttribute("aria-label", `Switch to ${nextLabel.toLowerCase()} mode`);
+  });
   if (persist) localStorage.setItem("holdem:theme", nextTheme);
 }
 
 applyTheme(preferredTheme());
+
+function applyTableAppearance(felt, deck, persist = false) {
+  const nextFelt = FELT_OPTIONS.some((option) => option.id === felt) ? felt : "emerald";
+  const nextDeck = DECK_OPTIONS.some((option) => option.id === deck) ? deck : "classic";
+  document.documentElement.dataset.felt = nextFelt;
+  document.documentElement.dataset.deck = nextDeck;
+  if (persist) {
+    localStorage.setItem("holdem:felt", nextFelt);
+    localStorage.setItem("holdem:deck", nextDeck);
+  }
+  renderAppearanceChoices();
+}
+
+function renderAppearanceChoices() {
+  if (!feltChoices || !deckChoices) return;
+  feltChoices.innerHTML = FELT_OPTIONS.map((option) => `
+    <button type="button" class="appearance-choice felt-choice ${document.documentElement.dataset.felt === option.id ? "selected" : ""}" data-felt="${option.id}" aria-label="${option.label} felt" aria-pressed="${document.documentElement.dataset.felt === option.id}">
+      <i style="--choice-color:${option.color}" aria-hidden="true"></i><span>${option.label}</span>
+    </button>
+  `).join("");
+  deckChoices.innerHTML = DECK_OPTIONS.map((option) => `
+    <button type="button" class="appearance-choice deck-choice ${document.documentElement.dataset.deck === option.id ? "selected" : ""}" data-deck="${option.id}" aria-pressed="${document.documentElement.dataset.deck === option.id}">
+      <i class="deck-preview" aria-hidden="true"></i><span>${option.label}</span>
+    </button>
+  `).join("");
+}
+
+applyTableAppearance(localStorage.getItem("holdem:felt"), localStorage.getItem("holdem:deck"));
 
 function getDeviceId() {
   let deviceId = localStorage.getItem("holdem:deviceId");
@@ -280,6 +328,10 @@ function renderMenuPlayers() {
               aria-pressed="${player.color === color ? "true" : "false"}"
             ></button>
           `).join("")}
+          <label class="custom-color" title="Choose a custom player color">
+            <input type="color" data-custom-player-color value="${escapeHtml(player.color || "#e0b15a")}" aria-label="Custom player color" />
+            <span>Custom</span>
+          </label>
         </div>
       ` : ""}
       ${player.canMakeHost || player.canKick ? `
@@ -828,9 +880,9 @@ function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-themeToggle.addEventListener("click", () => {
+themeToggles.forEach((button) => button.addEventListener("click", () => {
   applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark", true);
-});
+}));
 
 window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", (event) => {
   if (!localStorage.getItem("holdem:theme")) applyTheme(event.matches ? "light" : "dark");
@@ -880,6 +932,18 @@ closeMenuBtn.addEventListener("click", hideGameMenu);
 addBotBtn.addEventListener("click", () => emitWithAck("room:addBot", {}));
 
 gameMenuModal.addEventListener("click", (event) => {
+  const feltButton = event.target.closest("button[data-felt]");
+  if (feltButton) {
+    applyTableAppearance(feltButton.dataset.felt, document.documentElement.dataset.deck, true);
+    showToast(`${feltButton.textContent.trim()} felt selected`);
+    return;
+  }
+  const deckButton = event.target.closest("button[data-deck]");
+  if (deckButton) {
+    applyTableAppearance(document.documentElement.dataset.felt, deckButton.dataset.deck, true);
+    showToast(`${deckButton.textContent.trim()} deck selected`);
+    return;
+  }
   const colorButton = event.target.closest("[data-player-color]");
   if (colorButton) {
     emitWithAck("player:setColor", { color: colorButton.dataset.playerColor });
@@ -914,6 +978,12 @@ gameMenuModal.addEventListener("submit", (event) => {
   localStorage.setItem("holdem:name", name);
   input.blur();
   emitWithAck("player:setName", { name });
+});
+
+gameMenuModal.addEventListener("change", (event) => {
+  if (!event.target.matches("[data-custom-player-color]")) return;
+  emitWithAck("player:setColor", { color: event.target.value });
+  showToast("Player color updated");
 });
 
 cashOutBtn.addEventListener("click", () => {

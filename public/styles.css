@@ -17,6 +17,8 @@
   --input-bg: rgba(7, 12, 14, 0.72);
   --input-focus: #0b1114;
   --overlay: rgba(3, 7, 9, 0.78);
+  --toast-bg: #f7f3e8;
+  --toast-text: #17120a;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -34,7 +36,13 @@
   --input-bg: rgba(245, 247, 243, 0.96);
   --input-focus: #ffffff;
   --overlay: rgba(16, 25, 21, 0.48);
+  --toast-bg: #17201c;
+  --toast-text: #ffffff;
 }
+
+:root[data-felt="navy"] { --felt: #245f86; --felt-dark: #123b5b; }
+:root[data-felt="wine"] { --felt: #8a3a50; --felt-dark: #542234; }
+:root[data-felt="violet"] { --felt: #66509a; --felt-dark: #3d306d; }
 
 * {
   box-sizing: border-box;
@@ -137,7 +145,11 @@ button:disabled {
   backdrop-filter: blur(10px);
 }
 
-body.game-open .theme-toggle { right: 132px; }
+body.game-open > .theme-toggle,
+body.game-open .app > .theme-toggle { display: none; }
+
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
+.table-theme-toggle { min-height: 40px; display: flex; align-items: center; gap: 6px; padding: 0 11px; color: var(--text); }
 
 .hidden {
   display: none !important;
@@ -612,6 +624,9 @@ select:focus {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--swatch-color) 56%, transparent);
 }
 
+.custom-color { width: auto; display: flex; grid-template-columns: none; align-items: center; gap: 5px; color: var(--muted); font-size: 10px; cursor: pointer; }
+.custom-color input { width: 28px; height: 28px; min-height: 0; padding: 2px; border-radius: 50%; cursor: pointer; }
+
 .eyebrow {
   font-size: 12px;
   font-weight: 900;
@@ -1029,6 +1044,27 @@ select:focus {
 :root[data-theme="light"] .score-row,
 :root[data-theme="light"] .settlement-row { background: rgba(255, 255, 255, 0.88); }
 :root[data-theme="light"] .raise-display { background: var(--input-bg); }
+:root[data-theme="light"] .table-meta div { background: rgba(255,255,255,.82); border-color: rgba(24,38,33,.16); }
+:root[data-theme="light"] .table-meta strong { color: #17201c; }
+:root[data-theme="light"] .seat-name { color: color-mix(in srgb, var(--player-color, var(--text)) 66%, #101713); }
+
+.appearance-panel { display: grid; gap: 13px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--panel-2) 72%, transparent); }
+.appearance-panel h3 { margin: 2px 0 0; font-size: 16px; }
+.appearance-group { display: grid; gap: 7px; }
+.appearance-group > span { color: var(--muted); font-size: 11px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
+.appearance-choices { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.appearance-choice { min-width: 0; min-height: 58px; display: grid; place-items: center; gap: 3px; padding: 6px 3px; border: 1px solid var(--line); color: var(--muted); background: color-mix(in srgb, var(--panel) 72%, transparent); font-size: 9px; }
+.appearance-choice:not(:disabled):hover { color: var(--text); background: var(--panel-2); }
+.appearance-choice.selected { border-color: var(--accent); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent); }
+.felt-choice i { width: 24px; height: 24px; border: 2px solid rgba(255,255,255,.45); border-radius: 50%; background: var(--choice-color); box-shadow: inset 0 0 9px rgba(0,0,0,.2); }
+.deck-preview { width: 22px; height: 30px; border: 2px solid rgba(255,255,255,.45); border-radius: 4px; background: repeating-linear-gradient(45deg, #27333b 0 4px, #1a232a 4px 8px); }
+.deck-choice[data-deck="midnight"] .deck-preview { background: radial-gradient(circle, #6ba5c7 0 2px, transparent 3px), #101820; background-size: 8px 8px; }
+.deck-choice[data-deck="ruby"] .deck-preview { background: repeating-linear-gradient(135deg, #a92d3f 0 4px, #711c2a 4px 8px); }
+.deck-choice[data-deck="minimal"] .deck-preview { border-color: #485650; background: #f6f1e7; box-shadow: inset 0 0 0 3px #d5a542; }
+
+:root[data-deck="midnight"] .card.back { background: radial-gradient(circle, #6ba5c7 0 3px, transparent 3.5px), #101820; background-size: 13px 13px; border: 2px solid #7ca9bd; }
+:root[data-deck="ruby"] .card.back { background: repeating-linear-gradient(135deg, #a92d3f 0 8px, #711c2a 8px 16px); border: 2px solid #d9a0a8; }
+:root[data-deck="minimal"] .card.back { background: #f6f1e7; border: 3px solid #d5a542; box-shadow: inset 0 0 0 3px #f6f1e7, inset 0 0 0 5px #485650, 0 8px 20px rgba(0,0,0,.2); }
 
 .turn-info {
   margin-top: -3px;
@@ -1103,7 +1139,7 @@ select:focus {
 .bet-presets button { flex: 1; min-height: 32px; padding: 0 8px; color: var(--muted); border: 1px solid var(--line); background: rgba(255,255,255,.055); font-size: 11px; }
 .bet-presets button:not(:disabled):hover { color: var(--text); background: rgba(255,255,255,.12); }
 
-.toast { position: fixed; z-index: 50; left: 50%; bottom: max(22px, env(safe-area-inset-bottom)); transform: translateX(-50%); max-width: calc(100% - 32px); padding: 10px 14px; border: 1px solid rgba(241,189,98,.35); border-radius: 999px; color: var(--text); background: rgba(18,25,28,.96); box-shadow: 0 10px 30px rgba(0,0,0,.35); font-size: 13px; font-weight: 800; white-space: nowrap; animation: toast-in 180ms ease-out; }
+.toast { position: fixed; z-index: 50; left: 50%; bottom: max(22px, env(safe-area-inset-bottom)); transform: translateX(-50%); max-width: calc(100% - 32px); padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--accent) 52%, transparent); border-radius: 999px; color: var(--toast-text); background: var(--toast-bg); box-shadow: 0 10px 30px rgba(0,0,0,.3); font-size: 13px; font-weight: 800; white-space: nowrap; animation: toast-in 180ms ease-out; }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
@@ -1292,9 +1328,8 @@ select:focus {
   }
 
   .theme-toggle { top: 12px; right: 12px; min-height: 40px; }
-  body.game-open .theme-toggle { right: 118px; }
-  body.game-open .theme-toggle #themeLabel { display: none; }
-  body.game-open .theme-toggle { width: 40px; justify-content: center; padding: 0; }
+  .table-theme-toggle [data-theme-label] { display: none; }
+  .table-theme-toggle { width: 40px; justify-content: center; padding: 0; }
 
   .welcome {
     min-height: calc(100dvh - 24px);

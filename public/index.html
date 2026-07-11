@@ -77,7 +77,12 @@
             </button>
             <span id="phaseBadge" class="phase-badge">Lobby</span>
           </div>
-          <button id="menuBtn" class="ghost menu-btn" type="button" aria-haspopup="dialog" aria-controls="gameMenuModal"><span aria-hidden="true">•••</span> Menu</button>
+          <div class="topbar-actions">
+            <button class="table-theme-toggle ghost" type="button" data-theme-toggle aria-label="Switch to light mode" title="Switch theme">
+              <span data-theme-icon aria-hidden="true">☀</span><span data-theme-label>Light</span>
+            </button>
+            <button id="menuBtn" class="ghost menu-btn" type="button" aria-haspopup="dialog" aria-controls="gameMenuModal"><span aria-hidden="true">•••</span> Menu</button>
+          </div>
         </header>
 
         <section class="felt">
@@ -133,6 +138,20 @@
             <button id="closeMenuBtn" class="ghost icon-btn" type="button" aria-label="Close menu">×</button>
           </div>
           <div id="menuPlayers" class="menu-players"></div>
+          <section class="appearance-panel" aria-labelledby="appearanceTitle">
+            <div>
+              <p class="eyebrow">Personalize</p>
+              <h3 id="appearanceTitle">Table appearance</h3>
+            </div>
+            <div class="appearance-group">
+              <span>Felt color</span>
+              <div id="feltChoices" class="appearance-choices color-choices" aria-label="Felt color"></div>
+            </div>
+            <div class="appearance-group">
+              <span>Deck</span>
+              <div id="deckChoices" class="appearance-choices" aria-label="Deck style"></div>
+            </div>
+          </section>
           <div id="sharePanel" class="share-panel hidden">
             <img id="shareQr" alt="Room invite QR code" />
             <div class="share-link-row">

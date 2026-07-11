@@ -386,7 +386,8 @@ function cleanTableSize(count) {
 }
 
 function cleanPlayerColor(color) {
-  return PLAYER_COLORS.includes(String(color || "").toLowerCase()) ? String(color).toLowerCase() : null;
+  const normalized = String(color || "").toLowerCase();
+  return /^#[0-9a-f]{6}$/.test(normalized) ? normalized : null;
 }
 
 function defaultPlayerColor(room) {
