@@ -608,29 +608,6 @@ select:focus {
   gap: 8px;
 }
 
-.color-swatches {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-}
-
-.color-swatch {
-  width: 28px;
-  min-height: 28px;
-  padding: 0;
-  border: 2px solid rgba(255, 255, 255, 0.18);
-  border-radius: 999px;
-  background: var(--swatch-color);
-}
-
-.color-swatch.selected {
-  border-color: var(--text);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--swatch-color) 56%, transparent);
-}
-
-.custom-color { width: auto; display: flex; grid-template-columns: none; align-items: center; gap: 5px; color: var(--muted); font-size: 10px; cursor: pointer; }
-.custom-color input { width: 28px; height: 28px; min-height: 0; padding: 2px; border-radius: 50%; cursor: pointer; }
-
 .eyebrow {
   font-size: 12px;
   font-weight: 900;

@@ -320,24 +320,6 @@ function renderMenuPlayers() {
           <button type="submit" class="secondary">Save</button>
         </form>
       ` : ""}
-      ${player.isYou && !player.isBot ? `
-        <div class="color-swatches" aria-label="Player color">
-          ${(state.playerColors || []).map((color) => `
-            <button
-              type="button"
-              class="color-swatch ${player.color === color ? "selected" : ""}"
-              style="--swatch-color: ${escapeHtml(color)}"
-              data-player-color="${escapeHtml(color)}"
-              aria-label="Choose ${escapeHtml(color)}"
-              aria-pressed="${player.color === color ? "true" : "false"}"
-            ></button>
-          `).join("")}
-          <label class="custom-color" title="Choose a custom player color">
-            <input type="color" data-custom-player-color value="${escapeHtml(player.color || "#e0b15a")}" aria-label="Custom player color" />
-            <span>Custom</span>
-          </label>
-        </div>
-      ` : ""}
       ${player.canMakeHost || player.canKick ? `
         <div class="menu-player-actions">
           ${player.canMakeHost ? `<button type="button" class="secondary" data-make-host="${escapeHtml(player.id)}">Make host</button>` : ""}
@@ -948,11 +930,6 @@ gameMenuModal.addEventListener("click", (event) => {
     showToast(`${deckButton.textContent.trim()} deck selected`);
     return;
   }
-  const colorButton = event.target.closest("[data-player-color]");
-  if (colorButton) {
-    emitWithAck("player:setColor", { color: colorButton.dataset.playerColor });
-    return;
-  }
   const hostButton = event.target.closest("[data-make-host]");
   if (hostButton) {
     makeHost(hostButton.dataset.makeHost);
@@ -982,12 +959,6 @@ gameMenuModal.addEventListener("submit", (event) => {
   localStorage.setItem("holdem:name", name);
   input.blur();
   emitWithAck("player:setName", { name });
-});
-
-gameMenuModal.addEventListener("change", (event) => {
-  if (!event.target.matches("[data-custom-player-color]")) return;
-  emitWithAck("player:setColor", { color: event.target.value });
-  showToast("Player color updated");
 });
 
 cashOutBtn.addEventListener("click", () => {
