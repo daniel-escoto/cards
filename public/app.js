@@ -82,6 +82,10 @@ const FELT_OPTIONS = [
   { id: "navy", label: "Navy", color: "#24527a" },
   { id: "wine", label: "Wine", color: "#7b3043" },
   { id: "violet", label: "Violet", color: "#58448b" },
+  { id: "mint", label: "Mint", color: "#72bca4" },
+  { id: "sky", label: "Sky", color: "#75aeca" },
+  { id: "sand", label: "Sand", color: "#c3a875" },
+  { id: "blush", label: "Blush", color: "#c98791" },
 ];
 const DECK_OPTIONS = [
   { id: "classic", label: "Classic" },
@@ -299,7 +303,7 @@ function renderMenuPlayers() {
         <span class="seat-badges">
           ${player.dealer ? '<span class="pill">D</span>' : ""}
           ${player.isHost ? '<span class="pill">Host</span>' : ""}
-          ${player.isBot ? `<span class="pill bot-pill" title="${escapeHtml(player.botStyle || "CPU player")}">CPU · ${escapeHtml(player.botStyle || "Bot")}</span>` : ""}
+          ${player.isBot ? '<span class="pill bot-pill">Bot</span>' : ""}
         </span>
       </div>
       <div class="menu-player-stats">
@@ -503,7 +507,7 @@ function renderSeatCard(player, isActiveTurn = player.isTurn) {
         <span class="seat-badges">
           ${player.dealer ? '<span class="pill">D</span>' : ""}
           ${player.isHost ? '<span class="pill">Host</span>' : ""}
-          ${player.isBot ? `<span class="pill bot-pill" title="${escapeHtml(player.botStyle || "CPU player")}">CPU · ${escapeHtml(player.botStyle || "Bot")}</span>` : ""}
+          ${player.isBot ? '<span class="pill bot-pill">Bot</span>' : ""}
         </span>
         <span class="state-stack">${state.moneyMode ? "Bankroll" : "Stack"} <strong>${playerStackLabel(player)}</strong></span>
         <span class="state-pot">${player.invested ? `Pot <strong>${playerInvestedLabel(player)}</strong>` : ""}</span>

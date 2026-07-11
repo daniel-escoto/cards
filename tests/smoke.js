@@ -278,8 +278,8 @@ function waitFor(predicate, label, timeout = 5000) {
   if (solo.state.players.filter((player) => player.isBot).length !== 3) {
     throw new Error("Expected three computer players");
   }
-  if (new Set(solo.state.players.filter((player) => player.isBot).map((player) => player.botStyle)).size !== 3) {
-    throw new Error("Expected CPU players to have distinct poker personalities");
+  if (!solo.state.players.filter((player) => player.isBot).every((player) => player.name.endsWith("_bot") && player.name === player.name.toLowerCase())) {
+    throw new Error("Expected lowercase bot gamer tags ending in _bot");
   }
   if (solo.state.players.some((player) => player.isBot && !player.connected)) {
     throw new Error("Expected CPU players to be connected");

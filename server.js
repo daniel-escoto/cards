@@ -26,13 +26,13 @@ const BLIND_LEVELS = [
 const DEFAULT_BIG_BLIND = BLIND_LEVELS[0].bigBlind;
 const MAX_PLAYERS = 8;
 const BOT_PROFILES = [
-  { tag: "RiverRat", style: "Loose cannon", aggression: 1.28, looseness: 1.24, bluff: 0.13, skill: 0.58, minDelay: 420, maxDelay: 1250 },
-  { tag: "nitKnight", style: "Patient grinder", aggression: 0.72, looseness: 0.74, bluff: 0.025, skill: 0.82, minDelay: 700, maxDelay: 1700 },
-  { tag: "Moxie", style: "Balanced regular", aggression: 1.02, looseness: 1.0, bluff: 0.065, skill: 0.76, minDelay: 520, maxDelay: 1450 },
-  { tag: "JamJar", style: "Pressure player", aggression: 1.48, looseness: 1.08, bluff: 0.1, skill: 0.68, minDelay: 300, maxDelay: 1050 },
-  { tag: "SundayDriver", style: "Casual caller", aggression: 0.64, looseness: 1.3, bluff: 0.02, skill: 0.48, minDelay: 800, maxDelay: 1900 },
-  { tag: "PixelRead", style: "Sharp and tricky", aggression: 1.12, looseness: 0.94, bluff: 0.09, skill: 0.9, minDelay: 650, maxDelay: 1650 },
-  { tag: "SnapFold", style: "Tight and quick", aggression: 0.84, looseness: 0.68, bluff: 0.035, skill: 0.7, minDelay: 260, maxDelay: 800 },
+  { tag: "riverrat", style: "Loose cannon", aggression: 1.28, looseness: 1.24, bluff: 0.13, skill: 0.58, minDelay: 420, maxDelay: 1250 },
+  { tag: "nitknight", style: "Patient grinder", aggression: 0.72, looseness: 0.74, bluff: 0.025, skill: 0.82, minDelay: 700, maxDelay: 1700 },
+  { tag: "moxie", style: "Balanced regular", aggression: 1.02, looseness: 1.0, bluff: 0.065, skill: 0.76, minDelay: 520, maxDelay: 1450 },
+  { tag: "jamjar", style: "Pressure player", aggression: 1.48, looseness: 1.08, bluff: 0.1, skill: 0.68, minDelay: 300, maxDelay: 1050 },
+  { tag: "sundaydriver", style: "Casual caller", aggression: 0.64, looseness: 1.3, bluff: 0.02, skill: 0.48, minDelay: 800, maxDelay: 1900 },
+  { tag: "pixelread", style: "Sharp and tricky", aggression: 1.12, looseness: 0.94, bluff: 0.09, skill: 0.9, minDelay: 650, maxDelay: 1650 },
+  { tag: "snapfold", style: "Tight and quick", aggression: 0.84, looseness: 0.68, bluff: 0.035, skill: 0.7, minDelay: 260, maxDelay: 800 },
 ];
 const DISCONNECT_GRACE_MS = Math.max(0, Number(process.env.DISCONNECT_GRACE_MS) || 30000);
 const PLAYER_COLORS = ["#e0b15a", "#5ec2ff", "#7ddc85", "#f472b6", "#a78bfa", "#fb7185", "#f97316", "#2dd4bf"];
@@ -206,7 +206,7 @@ function markRestoredHumanAsBot(room, player) {
   const oldName = player.name;
   const botNumber = nextBotNumber(room);
   player.id = `bot:${room.id}:${botNumber}`;
-  player.name = computerProfile(player).tag;
+  player.name = `${computerProfile(player).tag}_bot`;
   player.isBot = true;
   player.connected = true;
   player.replacedPlayerId = oldId;
@@ -242,6 +242,10 @@ function restoreRoom(raw) {
     players: Array.isArray(raw.players) ? raw.players.map(restorePlayer) : [],
     botTimer: null,
   };
+
+  for (const player of room.players) {
+    if (player.isBot) player.name = `${computerProfile(player).tag}_bot`;
+  }
 
   dedupePlayersById(room);
   assignMissingPlayerColors(room);
@@ -441,7 +445,7 @@ function addComputerPlayers(room, totalPlayers) {
     const botNumber = nextBotNumber(room);
     room.players.push(makePlayer({
       id: `bot:${room.id}:${botNumber}`,
-      name: computerProfile({ id: `bot:${room.id}:${botNumber}` }).tag,
+      name: `${computerProfile({ id: `bot:${room.id}:${botNumber}` }).tag}_bot`,
       isBot: true,
     }));
   }
@@ -510,7 +514,7 @@ function convertHumanToBot(room, player) {
   const oldName = player.name;
   const botNumber = nextBotNumber(room);
   player.id = `bot:${room.id}:${botNumber}`;
-  player.name = computerProfile(player).tag;
+  player.name = `${computerProfile(player).tag}_bot`;
   player.replacedPlayerId = oldId;
   player.replacedPlayerName = oldName;
   player.replacedPlayerColor = player.color || null;
@@ -1261,7 +1265,6 @@ function serializeRoom(room, viewerId) {
       allIn: player.allIn,
       connected: player.connected,
       isBot: player.isBot,
-      botStyle: player.isBot ? computerProfile(player).style : null,
       showCards: Boolean(player.showCards),
       disconnectExpiresAt: player.disconnectExpiresAt || null,
       isHost: player.id === room.hostId,

@@ -43,6 +43,10 @@
 :root[data-felt="navy"] { --felt: #245f86; --felt-dark: #123b5b; }
 :root[data-felt="wine"] { --felt: #8a3a50; --felt-dark: #542234; }
 :root[data-felt="violet"] { --felt: #66509a; --felt-dark: #3d306d; }
+:root[data-felt="mint"] { --felt: #72bca4; --felt-dark: #3f806c; }
+:root[data-felt="sky"] { --felt: #75aeca; --felt-dark: #426f8a; }
+:root[data-felt="sand"] { --felt: #c3a875; --felt-dark: #856e45; }
+:root[data-felt="blush"] { --felt: #c98791; --felt-dark: #89545e; }
 
 * {
   box-sizing: border-box;
