@@ -299,7 +299,7 @@ function renderMenuPlayers() {
   if (!state) return;
   if (document.activeElement?.matches("[data-player-name]")) return;
   menuRoomCode.textContent = state.id;
-  restartGameBtn.classList.toggle("hidden", !state.canRestartGame);
+  restartGameBtn.classList.toggle("hidden", !state.canRestartGame || state.phase === "lobby");
   endGameBtn.classList.toggle("hidden", !state.canEndGame);
   menuPlayers.innerHTML = state.players.map((player) => `
     <article class="menu-player ${player.isYou ? "you" : ""} ${player.folded ? "folded" : ""}" ${playerColorStyle(player)}>
@@ -641,7 +641,9 @@ function render() {
 
   const communitySignature = state.community.map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`).join("|");
   if (communitySignature !== lastCommunitySignature) {
-    community.innerHTML = Array.from({ length: 5 }, (_, index) => cardTemplate(state.community[index] || null)).join("");
+    community.innerHTML = state.phase === "lobby"
+      ? ""
+      : Array.from({ length: 5 }, (_, index) => cardTemplate(state.community[index] || null)).join("");
     replayAnimation(community, "cards-entering", 900);
     lastCommunitySignature = communitySignature;
   }
@@ -650,7 +652,6 @@ function render() {
   feltElement.classList.toggle("showdown-wait", state.phase === "showdown");
   lastPhase = state.phase;
 
-  const actionEntries = (state.actionLog || []).filter((entry) => entry.phase !== "lobby");
   const nextFeedSignature = actionFeedSignature(state);
   players.innerHTML = renderActionFeed();
   if (nextFeedSignature !== lastActionFeedSignature) replayAnimation(players, "feed-updated", 520);
@@ -718,6 +719,10 @@ function renderControls(hero) {
   }
 
   if (!state.isYourTurn || !hero) {
+    if (state.phase === "lobby") {
+      turnInfo.textContent = state.canStart ? "Ready to deal." : "Waiting for the host to start.";
+      return;
+    }
     const currentIndex = findLastIndex(state.players, (player) => player.id === state.turn);
     const current = currentIndex >= 0 ? state.players[currentIndex] : null;
     turnInfo.textContent = current ? `Pot ${formatAmount(state.pot, state.potCents)}. ${current.name} is acting.` : "Waiting for the host.";

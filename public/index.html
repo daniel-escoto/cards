@@ -81,7 +81,7 @@
             <button class="table-theme-toggle ghost" type="button" data-theme-toggle aria-label="Switch to light mode" title="Switch theme">
               <span data-theme-icon aria-hidden="true">☀</span><span data-theme-label>Light</span>
             </button>
-            <button id="menuBtn" class="ghost menu-btn" type="button" aria-haspopup="dialog" aria-controls="gameMenuModal"><span aria-hidden="true">•••</span> Menu</button>
+            <button id="menuBtn" class="ghost menu-btn" type="button" aria-haspopup="dialog" aria-controls="gameMenuModal">Menu</button>
           </div>
         </header>
 
@@ -139,11 +139,8 @@
           </div>
           <div id="menuPlayers" class="menu-players"></div>
           <button id="addBotBtn" class="secondary add-bot-btn hidden" type="button">+ Add bot player</button>
-          <section class="appearance-panel" aria-labelledby="appearanceTitle">
-            <div>
-              <p class="eyebrow">Personalize</p>
-              <h3 id="appearanceTitle">Table appearance</h3>
-            </div>
+          <details class="appearance-panel">
+            <summary>Table appearance</summary>
             <div class="appearance-group">
               <span>Felt color</span>
               <div id="feltChoices" class="appearance-choices color-choices" aria-label="Felt color"></div>
@@ -152,7 +149,7 @@
               <span>Deck</span>
               <div id="deckChoices" class="appearance-choices" aria-label="Deck style"></div>
             </div>
-          </section>
+          </details>
           <div id="sharePanel" class="share-panel hidden">
             <img id="shareQr" alt="Room invite QR code" />
             <div class="share-link-row">
