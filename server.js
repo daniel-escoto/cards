@@ -26,16 +26,16 @@ const BLIND_LEVELS = [
 const DEFAULT_BIG_BLIND = BLIND_LEVELS[0].bigBlind;
 const MAX_PLAYERS = 8;
 const BOT_PROFILES = [
-  { tag: "riverrat", style: "Loose cannon", aggression: 1.28, looseness: 1.24, bluff: 0.13, skill: 0.58, minDelay: 420, maxDelay: 1250 },
-  { tag: "nitknight", style: "Patient grinder", aggression: 0.72, looseness: 0.74, bluff: 0.025, skill: 0.82, minDelay: 700, maxDelay: 1700 },
-  { tag: "moxie", style: "Balanced regular", aggression: 1.02, looseness: 1.0, bluff: 0.065, skill: 0.76, minDelay: 520, maxDelay: 1450 },
-  { tag: "jamjar", style: "Pressure player", aggression: 1.48, looseness: 1.08, bluff: 0.1, skill: 0.68, minDelay: 300, maxDelay: 1050 },
-  { tag: "sundaydriver", style: "Casual caller", aggression: 0.64, looseness: 1.3, bluff: 0.02, skill: 0.48, minDelay: 800, maxDelay: 1900 },
-  { tag: "pixelread", style: "Sharp and tricky", aggression: 1.12, looseness: 0.94, bluff: 0.09, skill: 0.9, minDelay: 650, maxDelay: 1650 },
-  { tag: "snapfold", style: "Tight and quick", aggression: 0.84, looseness: 0.68, bluff: 0.035, skill: 0.7, minDelay: 260, maxDelay: 800 },
+  { tag: "cpu_7f3a", style: "Loose cannon", aggression: 1.28, looseness: 1.24, bluff: 0.13, skill: 0.58, minDelay: 420, maxDelay: 1250 },
+  { tag: "cpu_b204", style: "Patient grinder", aggression: 0.72, looseness: 0.74, bluff: 0.025, skill: 0.82, minDelay: 700, maxDelay: 1700 },
+  { tag: "cpu_19d8", style: "Balanced regular", aggression: 1.02, looseness: 1.0, bluff: 0.065, skill: 0.76, minDelay: 520, maxDelay: 1450 },
+  { tag: "cpu_e621", style: "Pressure player", aggression: 1.48, looseness: 1.08, bluff: 0.1, skill: 0.68, minDelay: 300, maxDelay: 1050 },
+  { tag: "cpu_04ac", style: "Casual caller", aggression: 0.64, looseness: 1.3, bluff: 0.02, skill: 0.48, minDelay: 800, maxDelay: 1900 },
+  { tag: "cpu_c97e", style: "Sharp and tricky", aggression: 1.12, looseness: 0.94, bluff: 0.09, skill: 0.9, minDelay: 650, maxDelay: 1650 },
+  { tag: "cpu_52b1", style: "Tight and quick", aggression: 0.84, looseness: 0.68, bluff: 0.035, skill: 0.7, minDelay: 260, maxDelay: 800 },
 ];
 const DISCONNECT_GRACE_MS = Math.max(0, Number(process.env.DISCONNECT_GRACE_MS) || 30000);
-const PLAYER_COLORS = ["#e0b15a", "#5ec2ff", "#7ddc85", "#f472b6", "#a78bfa", "#fb7185", "#f97316", "#2dd4bf"];
+const PLAYER_COLORS = ["#60a5fa", "#38bdf8", "#7ddc85", "#f472b6", "#a78bfa", "#fb7185", "#818cf8", "#2dd4bf"];
 const DEFAULT_DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DATA_DIR || path.join(__dirname, ".data");
 const STATE_FILE = process.env.GAME_STATE_FILE || path.join(DEFAULT_DATA_DIR, "rooms.json");
 const SAVE_DEBOUNCE_MS = 150;
@@ -208,7 +208,7 @@ function markRestoredHumanAsBot(room, player) {
   const oldName = player.name;
   const botNumber = nextBotNumber(room);
   player.id = `bot:${room.id}:${botNumber}`;
-  player.name = `${computerProfile(player).tag}_bot`;
+  player.name = computerName(player);
   player.isBot = true;
   player.connected = true;
   player.replacedPlayerId = oldId;
@@ -248,7 +248,7 @@ function restoreRoom(raw) {
   };
 
   for (const player of room.players) {
-    if (player.isBot) player.name = `${computerProfile(player).tag}_bot`;
+    if (player.isBot) player.name = computerName(player);
   }
 
   dedupePlayersById(room);
@@ -443,6 +443,22 @@ function computerProfile(player) {
   return BOT_PROFILES[(number - 1) % BOT_PROFILES.length];
 }
 
+function computerName(player) {
+  const seed = String(player?.id || "cpu");
+  let hash = 2166136261;
+  for (const character of seed) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  const value = hash >>> 0;
+  const prefixes = ["neon", "quant", "logic", "pixel", "servo", "nano", "vector", "turbo"];
+  const units = ["byte", "core", "node", "chip", "grid", "loop", "cache", "flux"];
+  const prefix = prefixes[value % prefixes.length];
+  const unit = units[Math.floor(value / prefixes.length) % units.length];
+  const serial = ((value >>> 8) & 0xff).toString(16).padStart(2, "0");
+  return `${prefix}_${unit}_${serial}_bot`;
+}
+
 function addComputerPlayers(room, totalPlayers) {
   if (room.moneyMode) return;
   const target = cleanTableSize(totalPlayers) || cleanComputerPlayers(totalPlayers);
@@ -452,7 +468,7 @@ function addComputerPlayers(room, totalPlayers) {
     const botNumber = nextBotNumber(room);
     room.players.push(makePlayer({
       id: `bot:${room.id}:${botNumber}`,
-      name: `${computerProfile({ id: `bot:${room.id}:${botNumber}` }).tag}_bot`,
+      name: computerName({ id: `bot:${room.id}:${botNumber}` }),
       isBot: true,
     }));
   }
@@ -521,7 +537,7 @@ function convertHumanToBot(room, player) {
   const oldName = player.name;
   const botNumber = nextBotNumber(room);
   player.id = `bot:${room.id}:${botNumber}`;
-  player.name = `${computerProfile(player).tag}_bot`;
+  player.name = computerName(player);
   player.replacedPlayerId = oldId;
   player.replacedPlayerName = oldName;
   player.replacedPlayerColor = player.color || null;

@@ -9,8 +9,8 @@
   --line: rgba(255, 255, 255, 0.13);
   --text: #f3f5f1;
   --muted: #aeb8b0;
-  --accent: #f1bd62;
-  --accent-hover: #ffd17c;
+  --accent: #60a5fa;
+  --accent-hover: #83b9fb;
   --danger: #ef6b63;
   --black-card: #20262b;
   --red-card: #b83d35;
@@ -30,8 +30,8 @@
   --line: rgba(24, 38, 33, 0.16);
   --text: #17201c;
   --muted: #65716a;
-  --accent: #b47718;
-  --accent-hover: #ca8b2b;
+  --accent: #2563b9;
+  --accent-hover: #3475ce;
   --danger: #d9564f;
   --input-bg: rgba(245, 247, 243, 0.96);
   --input-focus: #ffffff;
@@ -104,7 +104,7 @@ button {
 button:not(:disabled):hover { background: var(--accent-hover); }
 button:not(:disabled):active { transform: translateY(1px) scale(0.985); }
 .secondary:not(:disabled):hover, .ghost:not(:disabled):hover { background: rgba(255, 255, 255, 0.16); }
-button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgba(241, 189, 98, 0.34); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgba(96, 165, 250, 0.34); outline-offset: 2px; }
 
 button:disabled {
   cursor: not-allowed;
@@ -185,7 +185,7 @@ body.game-open .app > .theme-toggle { display: none; }
   background: var(--accent);
   color: #17120a;
   font-size: 38px;
-  box-shadow: 0 12px 34px rgba(241, 189, 98, 0.2);
+  box-shadow: 0 12px 34px rgba(96, 165, 250, 0.2);
 }
 
 h1,
@@ -409,7 +409,7 @@ select:focus {
 .room-code-btn .eyebrow { grid-column: 1 / -1; font-size: 9px; line-height: 1; }
 .room-code-btn strong { font-size: 17px; letter-spacing: .12em; line-height: 1; }
 .copy-icon { color: var(--muted); font-size: 14px; }
-.phase-badge { padding: 7px 10px; border: 1px solid rgba(241,189,98,.2); border-radius: 999px; color: var(--accent); background: rgba(241,189,98,.1); font-size: 11px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+.phase-badge { padding: 7px 10px; border: 1px solid rgba(96,165,250,.2); border-radius: 999px; color: var(--accent); background: rgba(96,165,250,.1); font-size: 11px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
 
 .topbar > div {
   min-height: inherit;
@@ -782,7 +782,7 @@ select:focus {
 .round-player { min-width: 0; display: flex; align-items: center; gap: 5px; padding: 4px 7px; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; color: #fff; background: rgba(255,255,255,.08); font-size: 11px; font-weight: 850; }
 .round-player i { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--player-color, #b9c3bd); box-shadow: 0 0 0 2px color-mix(in srgb, var(--player-color, #b9c3bd) 24%, transparent); }
 .round-player em { color: rgba(255,255,255,.62); font-size: 9px; font-style: normal; text-transform: uppercase; }
-.round-player.acting { border-color: var(--accent); background: rgba(241,189,98,.17); box-shadow: 0 0 0 1px rgba(241,189,98,.2); }
+.round-player.acting { border-color: var(--accent); background: rgba(96,165,250,.17); box-shadow: 0 0 0 1px rgba(96,165,250,.2); }
 .round-player.acting em { color: var(--accent); }
 .round-player.all-in { border-color: rgba(94,194,255,.55); }
 .round-player.folded { opacity: .45; text-decoration: line-through; }
@@ -1569,7 +1569,7 @@ select:focus {
 
   .action-feed-card.turn {
     border-color: var(--accent);
-    box-shadow: inset 4px 0 0 var(--accent), 0 0 0 1px rgba(224, 177, 90, 0.32);
+    box-shadow: inset 4px 0 0 var(--accent), 0 0 0 1px rgba(96, 165, 250, 0.32);
   }
 
   .action-card-stats {
