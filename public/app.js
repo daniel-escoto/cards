@@ -162,33 +162,72 @@ function updateSoundToggle() {
   soundToggle.classList.toggle("selected", soundEnabled);
 }
 
-function tone(frequency, duration, volume = 0.035, delay = 0) {
-  if (!soundEnabled) return;
+function ensureAudioContext() {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextClass) return;
+  if (!AudioContextClass || !soundEnabled) return null;
   audioContext ||= new AudioContextClass();
-  const start = audioContext.currentTime + delay;
-  const oscillator = audioContext.createOscillator();
-  const gain = audioContext.createGain();
-  oscillator.type = "sine";
+  if (audioContext.state === "suspended") audioContext.resume().catch(() => {});
+  return audioContext;
+}
+
+function tone(frequency, duration, volume = 0.035, delay = 0, type = "sine") {
+  const context = ensureAudioContext();
+  if (!context) return;
+  const start = context.currentTime + delay;
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = type;
   oscillator.frequency.setValueAtTime(frequency, start);
   gain.gain.setValueAtTime(0.0001, start);
   gain.gain.exponentialRampToValueAtTime(volume, start + 0.008);
   gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-  oscillator.connect(gain).connect(audioContext.destination);
+  oscillator.connect(gain).connect(context.destination);
   oscillator.start(start);
   oscillator.stop(start + duration + 0.02);
 }
 
-function playGameSound(type) {
+function noiseBurst(duration, volume, delay = 0, highpass = 700) {
+  const context = ensureAudioContext();
+  if (!context) return;
+  const frames = Math.ceil(context.sampleRate * duration);
+  const buffer = context.createBuffer(1, frames, context.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let index = 0; index < frames; index += 1) data[index] = Math.random() * 2 - 1;
+  const source = context.createBufferSource();
+  const filter = context.createBiquadFilter();
+  const gain = context.createGain();
+  const start = context.currentTime + delay;
+  source.buffer = buffer;
+  filter.type = "highpass";
+  filter.frequency.value = highpass;
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.004);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  source.connect(filter).connect(gain).connect(context.destination);
+  source.start(start);
+}
+
+function playGameSound(type, count = 1) {
   if (!soundEnabled) return;
-  if (type === "card") { tone(220, 0.07, 0.025); tone(160, 0.08, 0.018, 0.045); }
-  if (type === "chip") { tone(520, 0.055, 0.025); }
+  if (type === "card") {
+    for (let index = 0; index < Math.min(5, count); index += 1) {
+      const delay = index * 0.085;
+      noiseBurst(0.075, 0.13, delay, 850);
+      tone(105 + index * 4, 0.055, 0.04, delay, "triangle");
+    }
+  }
+  if (type === "chip") {
+    tone(920, 0.065, 0.055, 0, "triangle");
+    tone(1380, 0.045, 0.038, 0.025, "sine");
+    noiseBurst(0.035, 0.035, 0.01, 1800);
+  }
   if (type === "turn") { tone(440, 0.11, 0.028); tone(660, 0.15, 0.025, 0.09); }
   if (type === "win") { tone(392, 0.18, 0.025); tone(494, 0.2, 0.025, 0.1); tone(587, 0.24, 0.025, 0.2); }
 }
 
 updateSoundToggle();
+
+document.addEventListener("pointerdown", () => ensureAudioContext(), { passive: true });
 
 function getDeviceId() {
   let deviceId = localStorage.getItem("holdem:deviceId");
@@ -683,9 +722,10 @@ function render() {
 
   const communitySignature = state.community.map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`).join("|");
   if (communitySignature !== lastCommunitySignature) {
+    const previousCommunityCount = lastCommunitySignature ? lastCommunitySignature.split("|").filter(Boolean).length : 0;
     community.innerHTML = Array.from({ length: 5 }, (_, index) => cardTemplate(state.community[index] || null)).join("");
     replayAnimation(community, "cards-entering", 900);
-    if (lastCommunitySignature !== null) playGameSound("card");
+    if (lastCommunitySignature !== null) playGameSound("card", Math.max(1, state.community.length - previousCommunityCount));
     lastCommunitySignature = communitySignature;
   }
   if (lastPhase && lastPhase !== state.phase) replayAnimation(document.querySelector(".felt"), "street-change", 650);
@@ -702,6 +742,7 @@ function render() {
   if (heroSignature !== lastHeroSignature) {
     heroHand.innerHTML = hero?.cards?.length ? hero.cards.map(cardTemplate).join("") : "";
     replayAnimation(heroHand, "cards-entering", 720);
+    if (heroSignature && !lastHeroSignature) playGameSound("card", hero?.cards?.length || 2);
     lastHeroSignature = heroSignature;
   }
   const winnerMarkup = state.winners.map((winner) => {
@@ -1037,7 +1078,7 @@ soundToggle.addEventListener("click", () => {
   soundEnabled = !soundEnabled;
   localStorage.setItem("holdem:sound", soundEnabled ? "on" : "off");
   updateSoundToggle();
-  if (soundEnabled) playGameSound("turn");
+  if (soundEnabled) playGameSound("card", 2);
 });
 
 gameMenuModal.addEventListener("click", (event) => {
