@@ -68,6 +68,11 @@ let leavingEndedRoom = false;
 let menuTimer = null;
 let lastAutoRejoinKey = "";
 let lastActionFeedSignature = "";
+let lastCommunitySignature = null;
+let lastHeroSignature = "";
+let lastWinnerSignature = "";
+let lastPhase = "";
+let lastPot = null;
 const params = new URLSearchParams(window.location.search);
 const initialRoomParam = (params.get("room") || "").toUpperCase();
 const initialRoomId = (initialRoomParam || localStorage.getItem("holdem:lastRoom") || "").toUpperCase();
@@ -345,6 +350,11 @@ function showWelcome(status = "") {
   state = null;
   hasRenderedRoom = false;
   lastActionFeedSignature = "";
+  lastCommunitySignature = null;
+  lastHeroSignature = "";
+  lastWinnerSignature = "";
+  lastPhase = "";
+  lastPot = null;
   leavingEndedRoom = false;
   hideGameMenu();
   document.documentElement.classList.remove("game-open-root");
@@ -389,6 +399,14 @@ function showScoreScreen(room) {
     </div>
   ` : "");
   clearRoomUrl();
+}
+
+function replayAnimation(element, className, duration = 700) {
+  element.classList.remove(className);
+  requestAnimationFrame(() => {
+    element.classList.add(className);
+    setTimeout(() => element.classList.remove(className), duration);
+  });
 }
 
 function setRoomUrl(roomId) {
@@ -616,16 +634,32 @@ function render() {
   roomCode.textContent = state.id;
   phaseBadge.textContent = phaseLabel(state.phase);
   potValue.textContent = formatAmount(state.pot, state.potCents);
-  community.innerHTML = Array.from({ length: 5 }, (_, index) => cardTemplate(state.community[index] || null)).join("");
+  if (lastPot !== null && lastPot !== state.pot) replayAnimation(potValue.closest("div"), "value-changed", 480);
+  lastPot = state.pot;
+
+  const communitySignature = state.community.map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`).join("|");
+  if (communitySignature !== lastCommunitySignature) {
+    community.innerHTML = Array.from({ length: 5 }, (_, index) => cardTemplate(state.community[index] || null)).join("");
+    replayAnimation(community, "cards-entering", 900);
+    lastCommunitySignature = communitySignature;
+  }
+  if (lastPhase && lastPhase !== state.phase) replayAnimation(document.querySelector(".felt"), "street-change", 650);
+  lastPhase = state.phase;
 
   const actionEntries = (state.actionLog || []).filter((entry) => entry.phase !== "lobby");
   const nextFeedSignature = actionFeedSignature(state);
   players.innerHTML = renderActionFeed();
+  if (nextFeedSignature !== lastActionFeedSignature) replayAnimation(players, "feed-updated", 520);
   lastActionFeedSignature = nextFeedSignature;
 
   const hero = activeHero();
-  heroHand.innerHTML = hero?.cards?.length ? hero.cards.map(cardTemplate).join("") : "";
-  winnerList.innerHTML = state.winners.map((winner) => {
+  const heroSignature = hero?.cards?.map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`).join("|") || "";
+  if (heroSignature !== lastHeroSignature) {
+    heroHand.innerHTML = hero?.cards?.length ? hero.cards.map(cardTemplate).join("") : "";
+    replayAnimation(heroHand, "cards-entering", 720);
+    lastHeroSignature = heroSignature;
+  }
+  const winnerMarkup = state.winners.map((winner) => {
     const winnerPlayer = state.players.find((player) => player.id === winner.playerId || player.name === winner.name);
     return `
       <div ${playerColorStyle(winnerPlayer)}>
@@ -633,6 +667,11 @@ function render() {
       </div>
     `;
   }).join("");
+  if (winnerMarkup !== lastWinnerSignature) {
+    winnerList.innerHTML = winnerMarkup;
+    if (winnerMarkup) replayAnimation(winnerList, "winner-entering", 800);
+    lastWinnerSignature = winnerMarkup;
+  }
 
   renderControls(hero);
   if (!gameMenuModal.classList.contains("hidden")) {
