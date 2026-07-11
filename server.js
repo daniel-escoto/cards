@@ -456,7 +456,13 @@ function computerName(player) {
   const prefix = prefixes[value % prefixes.length];
   const unit = units[Math.floor(value / prefixes.length) % units.length];
   const serial = ((value >>> 8) & 0xff).toString(16).padStart(2, "0");
-  return `${prefix}_${unit}_${serial}_bot`;
+  const formats = [
+    () => `${prefix}_${unit}_${serial}`,
+    () => `${prefix}-${serial}-${unit}`,
+    () => `${unit}.${prefix}${serial}`,
+    () => `${prefix}${serial}_${unit}`,
+  ];
+  return formats[(value >>> 16) % formats.length]();
 }
 
 function addComputerPlayers(room, totalPlayers) {

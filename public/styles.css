@@ -91,7 +91,7 @@ button {
   border: 0;
   border-radius: 10px;
   padding: 0 16px;
-  color: #15130d;
+  color: #ffffff;
   background: var(--accent);
   font-weight: 800;
   cursor: pointer;
@@ -122,7 +122,7 @@ button:disabled {
 }
 
 .danger {
-  color: #170d0c;
+  color: #ffffff;
   background: var(--danger);
 }
 
@@ -231,7 +231,7 @@ label {
 .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: rgba(0,0,0,.28); }
 .mode-option { min-height: 40px; padding: 0 10px; color: var(--muted); background: transparent; font-size: 13px; }
 .mode-option:not(:disabled):hover { color: var(--text); background: rgba(255,255,255,.06); }
-.mode-option.selected { color: #17120a; background: var(--accent); box-shadow: 0 4px 12px rgba(0,0,0,.22); }
+.mode-option.selected { color: #ffffff; background: var(--accent); box-shadow: 0 4px 12px rgba(0,0,0,.22); }
 .form-hint { color: var(--muted); font-size: 12px; line-height: 1.4; text-align: center; }
 
 label {
@@ -1138,6 +1138,8 @@ select:focus {
 .bet-presets:empty { display: none; }
 .bet-presets button { flex: 1; min-height: 32px; padding: 0 8px; color: var(--muted); border: 1px solid var(--line); background: rgba(255,255,255,.055); font-size: 11px; }
 .bet-presets button:not(:disabled):hover { color: var(--text); background: rgba(255,255,255,.12); }
+:root[data-theme="light"] .bet-presets button { color: #46534c; border-color: rgba(24,38,33,.24); background: #f7f9f6; }
+:root[data-theme="light"] .bet-presets button:not(:disabled):hover { color: #17201c; background: #e8ede8; }
 
 .toast { position: fixed; z-index: 50; left: 50%; bottom: max(22px, env(safe-area-inset-bottom)); transform: translateX(-50%); max-width: calc(100% - 32px); padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--accent) 52%, transparent); border-radius: 999px; color: var(--toast-text); background: var(--toast-bg); box-shadow: 0 10px 30px rgba(0,0,0,.3); font-size: 13px; font-weight: 800; white-space: nowrap; animation: toast-in 180ms ease-out; }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
