@@ -26,6 +26,7 @@ const phaseBadge = document.querySelector("#phaseBadge");
 const menuBtn = document.querySelector("#menuBtn");
 const gameMenuModal = document.querySelector("#gameMenuModal");
 const closeMenuBtn = document.querySelector("#closeMenuBtn");
+const addBotBtn = document.querySelector("#addBotBtn");
 const restartGameBtn = document.querySelector("#restartGameBtn");
 const endGameBtn = document.querySelector("#endGameBtn");
 const shareGameBtn = document.querySelector("#shareGameBtn");
@@ -293,6 +294,7 @@ function renderMenuPlayers() {
 
 function showGameMenu() {
   renderMenuPlayers();
+  addBotBtn.classList.toggle("hidden", !state?.canAddBot);
   moneyPanel.classList.toggle("hidden", !state?.moneyMode);
   if (state?.moneyMode) cashInInput.value = (state.buyInCents / 100).toFixed(0);
   clearInterval(menuTimer);
@@ -595,7 +597,10 @@ function render() {
   }).join("");
 
   renderControls(hero);
-  if (!gameMenuModal.classList.contains("hidden")) renderMenuPlayers();
+  if (!gameMenuModal.classList.contains("hidden")) {
+    renderMenuPlayers();
+    addBotBtn.classList.toggle("hidden", !state?.canAddBot);
+  }
   requestAnimationFrame(() => scrollActionFeed());
 }
 
@@ -730,6 +735,8 @@ function makeHost(playerId) {
 }
 
 function kickPlayer(playerId) {
+  const player = state?.players.find((item) => item.id === playerId);
+  if (!window.confirm(`Remove ${player?.name || "this player"} from the table?`)) return;
   emitWithAck("room:kick", { playerId });
 }
 
@@ -869,6 +876,8 @@ roomCodeBtn.addEventListener("click", async () => {
 });
 
 closeMenuBtn.addEventListener("click", hideGameMenu);
+
+addBotBtn.addEventListener("click", () => emitWithAck("room:addBot", {}));
 
 gameMenuModal.addEventListener("click", (event) => {
   const colorButton = event.target.closest("[data-player-color]");

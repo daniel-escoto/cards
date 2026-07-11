@@ -112,6 +112,15 @@ function waitFor(predicate, label, timeout = 5000) {
   if (opsNextHost.state.players.some((player) => player.canMakeHost || player.canKick)) {
     throw new Error("Expected non-host to lack host management controls");
   }
+  if (!opsHost.state.canAddBot || opsNextHost.state.canAddBot) {
+    throw new Error("Expected only the host to be able to add CPU players between hands");
+  }
+  await emit(opsHost.socket, "room:addBot");
+  await waitFor(() => opsHost.state?.players.length === 4, "host adds CPU player");
+  const addedBot = opsHost.state.players.find((player) => player.isBot);
+  if (!addedBot?.canKick) throw new Error("Expected host to be able to kick CPU players");
+  await emit(opsHost.socket, "room:kick", { playerId: addedBot.id });
+  await waitFor(() => opsHost.state?.players.length === 3 && !opsHost.state.players.some((player) => player.isBot), "host kicks CPU player");
   await emit(opsHost.socket, "room:makeHost", { playerId: nextHostId });
   await waitFor(() => opsNextHost.state?.players.find((player) => player.name === "OpsNextHost")?.isHost, "host ops transfer");
   await emit(opsNextHost.socket, "room:kick", { playerId: kickedId });

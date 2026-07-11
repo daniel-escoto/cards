@@ -1213,6 +1213,7 @@ function serializeRoom(room, viewerId) {
     canNextHand: room.hostId === viewerId && room.phase === "complete" && playersWithChips(room).length >= 2,
     canRestartGame: room.hostId === viewerId,
     canEndGame: room.hostId === viewerId && (room.moneyMode || room.phase !== "lobby"),
+    canAddBot: room.hostId === viewerId && !room.moneyMode && !isHandInProgress(room) && room.players.length < MAX_PLAYERS,
     community: room.community.map(publicCard),
     winners: room.winners.map((winner) => ({
       ...winner,
@@ -1243,7 +1244,7 @@ function serializeRoom(room, viewerId) {
       isTurn: room.turn === player.id,
       isYou: player.id === viewerId,
       canMakeHost: room.hostId === viewerId && player.id !== viewerId && !player.isBot && player.connected,
-      canKick: room.hostId === viewerId && player.id !== viewerId && !player.isBot && !isHandInProgress(room),
+      canKick: room.hostId === viewerId && player.id !== viewerId && !isHandInProgress(room),
       cards: player.id === viewerId || player.showCards
         ? player.hand.map(publicCard)
         : player.hand.map(() => null),
@@ -1359,16 +1360,8 @@ function leaveCurrentRoom(socket, { removeAfterGrace = true } = {}) {
 function kickPlayerFromRoom(room, playerId) {
   const index = playerIndex(room, playerId);
   if (index < 0) return null;
-  if (room.tableSize && !room.players[index].isBot) {
-    const player = room.players[index];
-    for (const socketId of player.socketIds || []) {
-      io.to(socketId).emit("room:kicked");
-      detachSocketFromRoom(socketId, room.id);
-    }
-    convertHumanToBot(room, player);
-    return player;
-  }
   const [removed] = room.players.splice(index, 1);
+  if (room.tableSize) room.tableSize = room.players.length >= 2 ? room.players.length : 0;
   clearTimeout(removed.disconnectTimer);
   for (const socketId of removed.socketIds || []) {
     io.to(socketId).emit("room:kicked");
@@ -1444,11 +1437,20 @@ io.on("connection", (socket) => {
     if (!room || room.hostId !== hostId) return ack?.({ ok: false, error: "Only the host can kick players." });
     if (isHandInProgress(room)) return ack?.({ ok: false, error: "Players can only be kicked between hands." });
     if (playerId === hostId) return ack?.({ ok: false, error: "Host cannot kick themselves." });
-    if (room.tableSize && room.players.find((player) => player.id === playerId)?.isBot) {
-      return ack?.({ ok: false, error: "CPU seats are kept for drop-in players." });
-    }
     const removed = kickPlayerFromRoom(room, playerId);
     if (!removed) return ack?.({ ok: false, error: "Player not found." });
+    ack?.({ ok: true });
+    emitRoom(room);
+  });
+
+  socket.on("room:addBot", (_, ack) => {
+    const room = rooms.get(socketRoom.get(socket.id));
+    const hostId = socketPlayer.get(socket.id);
+    if (!room || room.hostId !== hostId) return ack?.({ ok: false, error: "Only the host can add CPU players." });
+    if (room.moneyMode) return ack?.({ ok: false, error: "CPU players are unavailable in money mode." });
+    if (isHandInProgress(room)) return ack?.({ ok: false, error: "CPU players can only be added between hands." });
+    if (room.players.length >= MAX_PLAYERS) return ack?.({ ok: false, error: "The table is full." });
+    addComputerPlayers(room, room.players.length + 1);
     ack?.({ ok: true });
     emitRoom(room);
   });
