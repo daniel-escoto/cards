@@ -257,10 +257,6 @@ function playerStackLabel(player) {
   return formatAmount(player.stack, player.stackCents);
 }
 
-function playerInvestedLabel(player) {
-  return formatAmount(player.invested, player.investedCents);
-}
-
 function showTable(room) {
   setGameViewportHeight();
   document.documentElement.classList.add("game-open-root");
@@ -446,16 +442,6 @@ function activeHero() {
   return heroIndex >= 0 ? state.players[heroIndex] : null;
 }
 
-function compactStreetLabel(phase) {
-  const labels = {
-    preflop: "PF",
-    flop: "F",
-    turn: "T",
-    river: "R",
-  };
-  return labels[phase] || "";
-}
-
 function compactPlayerAction(entry, player) {
   const raw = entry.action || entry.text || "";
   const withoutName = player
@@ -494,26 +480,6 @@ function playerForAction(entry) {
   return byNameIndex >= 0 ? state.players[byNameIndex] : null;
 }
 
-function renderSeatCard(player, isActiveTurn = player.isTurn) {
-  const status = playerTableStatus(player, isActiveTurn);
-  return `
-    <article class="action-feed-card state-card ${isActiveTurn ? "turn" : ""} ${player.folded ? "folded" : ""} ${player.isYou ? "you" : ""}" ${playerColorStyle(player)}>
-      <div class="state-card-grid">
-        <span class="state-card-spacer"></span>
-        <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
-        <span class="seat-badges">
-          ${player.dealer ? '<span class="pill">D</span>' : ""}
-          ${player.isHost ? '<span class="pill">Host</span>' : ""}
-          ${player.isBot ? '<span class="pill bot-pill">Bot</span>' : ""}
-        </span>
-        <span class="state-stack">${state.moneyMode ? "Bankroll" : "Stack"} <strong>${playerStackLabel(player)}</strong></span>
-        <span class="state-pot">${player.invested ? `Pot <strong>${playerInvestedLabel(player)}</strong>` : ""}</span>
-        <em class="state-status">${status}</em>
-      </div>
-    </article>
-  `;
-}
-
 function renderShownHandCard(player) {
   const status = roundStatus(player);
   return `
@@ -531,30 +497,6 @@ function renderShownHandCard(player) {
   `;
 }
 
-function renderRoundRoster() {
-  if (!isBettingPhase(state.phase) && state.phase !== "showdown") return "";
-  const dealtPlayers = state.players.filter((player) => player.cards?.length || player.invested || player.folded || player.allIn);
-  const activeCount = dealtPlayers.filter((player) => !player.folded).length;
-  return `
-    <section class="round-roster" aria-label="Players still in this hand">
-      <div class="round-roster-head">
-        <span>Still in</span>
-        <strong>${activeCount} of ${dealtPlayers.length}</strong>
-      </div>
-      <div class="round-roster-players">
-        ${dealtPlayers.map((player) => {
-          const status = player.folded ? "folded" : player.allIn ? "all-in" : player.isTurn ? "acting" : "active";
-          const statusLabel = status === "all-in" ? "All in" : status[0].toUpperCase() + status.slice(1);
-          return `<span class="round-player ${status}" ${playerColorStyle(player)} title="${escapeHtml(statusLabel)}">
-            <i aria-hidden="true"></i>${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}
-            <em>${escapeHtml(statusLabel)}</em>
-          </span>`;
-        }).join("")}
-      </div>
-    </section>
-  `;
-}
-
 function currentTurnPlayer() {
   const index = findLastIndex(state.players, (player) => player.id === state.turn);
   return index >= 0 ? state.players[index] : null;
@@ -567,34 +509,28 @@ function isBettingPhase(phase) {
 function renderActionFeed(newEntryId = "") {
   const entries = (state.actionLog || []).filter((entry) => entry.phase !== "lobby");
   const activePlayer = currentTurnPlayer();
-  const activeSeatIndex = findLastIndex(state.players, (player) => player.id === activePlayer?.id);
-  const seatMarkup = () => state.players.map((player, index) => renderSeatCard(player, index === activeSeatIndex)).join("");
-  if (!entries.length) {
-    return `${renderRoundRoster()}${seatMarkup()}`;
-  }
-
-  let lastPhase = "";
-  const historyMarkup = entries.map((entry) => {
+  const latestByPlayer = new Map();
+  entries.forEach((entry) => {
     const player = playerForAction(entry);
-    const phase = entry.phase || "preflop";
-    const showPhase = phase !== lastPhase;
-    lastPhase = phase;
+    if (player) latestByPlayer.set(player.id, entry);
+  });
+  const tableMarkup = state.players.map((player) => {
+    const entry = latestByPlayer.get(player.id);
+    const isActing = player.id === activePlayer?.id;
+    const action = entry ? compactPlayerAction(entry, player) : playerTableStatus(player, isActing);
     return `
-      <article class="action-feed-card action-history-card ${entry.id === newEntryId ? "new-action" : ""} ${player?.folded ? "folded" : ""} ${player?.isYou ? "you" : ""}" ${playerColorStyle(player)}>
-        <div class="action-card-move">
-          <em>${showPhase && compactStreetLabel(phase) ? escapeHtml(compactStreetLabel(phase)) : ""}</em>
-          <span class="seat-name">${escapeHtml(player?.name || "Table")}${player?.isYou ? " (you)" : ""}</span>
-          <strong class="action-token${actionTokenClass(entry, player)}">${escapeHtml(compactPlayerAction(entry, player))}</strong>
-          ${player ? `<span class="stack-chip">${playerStackLabel(player)}</span>` : ""}
-        </div>
+      <article class="table-player-row ${isActing ? "turn" : ""} ${player.folded ? "folded" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}" ${playerColorStyle(player)}>
+        <i class="player-dot" aria-hidden="true"></i>
+        <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
+        <span class="player-action${entry ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}</span>
+        <strong class="player-stack">${playerStackLabel(player)}</strong>
       </article>
     `;
   }).join("");
   const shownHands = state.phase === "complete"
     ? state.players.filter((player) => player.showCards).map(renderShownHandCard).join("")
     : "";
-  const markup = `${renderRoundRoster()}${historyMarkup}${shownHands}${activePlayer ? renderSeatCard(activePlayer, true) : ""}`.trim();
-  return markup || seatMarkup();
+  return `${tableMarkup}${shownHands}`;
 }
 
 function isEndedGameReturn(previous, next) {
@@ -617,7 +553,8 @@ function render() {
   lastPot = state.pot;
 
   const communitySignature = state.community.map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`).join("|");
-  if (communitySignature !== lastCommunitySignature) {
+  const expectedCommunityCards = state.phase === "lobby" ? 0 : 5;
+  if (communitySignature !== lastCommunitySignature || community.children.length !== expectedCommunityCards) {
     community.innerHTML = state.phase === "lobby"
       ? ""
       : Array.from({ length: 5 }, (_, index) => cardTemplate(state.community[index] || null)).join("");
@@ -767,7 +704,6 @@ function configureRaiseControls(hero, disabled = false) {
 
 function renderBetPresets(hero, disabled) {
   const options = [
-    { label: "Min", value: raiseState.min },
     { label: "½ pot", value: state.currentBet + Math.max(state.bigBlind, Math.round(state.pot / 2)) },
     { label: "Pot", value: state.currentBet + Math.max(state.bigBlind, state.pot) },
     { label: "All in", value: hero.bet + hero.stack },

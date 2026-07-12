@@ -625,12 +625,12 @@ select:focus {
   position: relative;
   min-height: 560px;
   overflow: hidden;
-  border: 8px solid #493323;
-  border-radius: 30px;
+  border: 5px solid color-mix(in srgb, var(--felt-dark) 72%, #111);
+  border-radius: 24px;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.06), transparent 28%),
     radial-gradient(circle, var(--felt) 0, var(--felt-dark) 72%);
-  box-shadow: inset 0 0 60px rgba(0,0,0,.2), inset 0 0 0 2px rgba(255, 255, 255, 0.1), 0 18px 54px rgba(0, 0, 0, 0.38);
+  box-shadow: inset 0 0 48px rgba(0,0,0,.18), inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 14px 40px rgba(0, 0, 0, 0.28);
 }
 
 .table-meta {
@@ -753,6 +753,26 @@ select:focus {
 }
 
 .players > .round-roster { margin-top: 0; }
+
+.table-player-row {
+  min-height: 46px;
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) minmax(72px, auto) 64px;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 10px;
+  background: rgba(7, 22, 18, 0.36);
+}
+
+.table-player-row.you { background: rgba(255, 255, 255, 0.11); }
+.table-player-row.turn { border-color: rgba(255,255,255,.58); box-shadow: inset 3px 0 0 var(--player-color, #fff); }
+.table-player-row.folded { opacity: .46; }
+.table-player-row .seat-name { color: #fff; }
+.player-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--player-color, #fff); }
+.player-action { overflow: hidden; color: rgba(255,255,255,.72); font-size: 12px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.player-stack { padding: 4px 7px; border-radius: 999px; color: #fff; background: rgba(0,0,0,.18); font-size: 12px; text-align: center; }
 
 .round-roster {
   position: sticky;
@@ -1019,9 +1039,9 @@ select:focus {
   gap: 12px;
   padding: 14px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 16px;
   background: linear-gradient(155deg, rgba(28, 37, 41, .98), rgba(17, 24, 27, .98));
-  box-shadow: 0 14px 32px rgba(0,0,0,.22);
+  box-shadow: 0 10px 28px rgba(0,0,0,.18);
 }
 
 :root[data-theme="light"] .control-panel {
@@ -1351,7 +1371,7 @@ select:focus {
 @media (max-width: 779px) {
   .app {
     min-height: 100dvh;
-    padding: 12px;
+    padding: 10px;
   }
 
   .theme-toggle { top: 12px; right: 12px; min-height: 40px; }
@@ -1460,11 +1480,11 @@ select:focus {
   }
 
   .table-view {
-    height: calc(var(--game-vh) - 24px);
+    height: calc(var(--game-vh) - 20px);
     min-height: 0;
     grid-template-rows: auto minmax(0, 1fr) auto;
     align-content: start;
-    gap: 8px;
+    gap: 7px;
     overflow: hidden;
   }
 
@@ -1479,6 +1499,10 @@ select:focus {
     padding: 0 10px;
   }
 
+  .room-code-btn { border: 0; padding-left: 4px; background: transparent; }
+  .phase-badge { padding: 6px 9px; border: 0; }
+  .menu-btn { min-width: 64px; }
+
   .modal {
     align-items: end;
     padding: 12px;
@@ -1487,14 +1511,14 @@ select:focus {
   .felt {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto;
-    gap: 12px;
+    gap: 10px;
     align-content: stretch;
     min-height: 0;
     height: 100%;
     align-self: stretch;
-    padding: 18px 10px 10px;
-    border-width: 5px;
-    border-radius: 20px;
+    padding: 14px 9px 9px;
+    border-width: 3px;
+    border-radius: 18px;
   }
 
   .table-meta {
@@ -1526,7 +1550,7 @@ select:focus {
     display: flex;
     flex-direction: column;
     align-self: stretch;
-    gap: 6px;
+    gap: 5px;
     overflow-y: auto;
     max-height: 100%;
     overscroll-behavior: contain;
@@ -1535,6 +1559,21 @@ select:focus {
     -webkit-overflow-scrolling: touch;
     grid-row: 2;
   }
+
+  .table-player-row {
+    min-height: 39px;
+    grid-template-columns: 8px minmax(0, 1fr) minmax(62px, auto) 58px;
+    gap: 7px;
+    padding: 6px 8px;
+    border-color: rgba(255,255,255,.08);
+    border-radius: 8px;
+    background: rgba(5,18,15,.26);
+  }
+
+  .table-player-row.you { background: rgba(255,255,255,.13); }
+  .table-player-row .seat-name { font-size: 13px; }
+  .player-action { font-size: 11px; }
+  .player-stack { padding: 3px 5px; font-size: 11px; }
 
   .action-feed-card:not(.action-history-card) {
     width: 100%;
@@ -1591,8 +1630,10 @@ select:focus {
 
   .control-panel {
     grid-row: 3;
-    gap: 6px;
-    padding: 8px 8px max(8px, env(safe-area-inset-bottom));
+    gap: 7px;
+    padding: 9px 9px max(9px, env(safe-area-inset-bottom));
+    border: 0;
+    background: color-mix(in srgb, var(--panel) 96%, transparent);
   }
 
   .hero-hand {
@@ -1611,7 +1652,7 @@ select:focus {
 
   .turn-info,
   .winner-list {
-    font-size: 13px;
+    font-size: 12px;
   }
 
   .game-buttons {
