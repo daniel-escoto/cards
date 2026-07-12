@@ -174,6 +174,7 @@ function serializeRoomForStorage(room) {
     baseSmallBlind: room.baseSmallBlind || DEFAULT_SMALL_BLIND,
     baseBigBlind: room.baseBigBlind || DEFAULT_BIG_BLIND,
     settlements: Array.isArray(room.settlements) ? room.settlements : [],
+    moneyLedger: Array.isArray(room.moneyLedger) ? room.moneyLedger : [],
     players: room.players.map(serializePlayerForStorage),
   };
 }
@@ -274,6 +275,12 @@ function restoreRoom(raw) {
     baseSmallBlind: Math.max(1, Math.floor(Number(raw.baseSmallBlind) || DEFAULT_SMALL_BLIND)),
     baseBigBlind: Math.max(2, Math.floor(Number(raw.baseBigBlind) || DEFAULT_BIG_BLIND)),
     settlements: Array.isArray(raw.settlements) ? raw.settlements : [],
+    moneyLedger: Array.isArray(raw.moneyLedger) ? raw.moneyLedger.map((entry) => ({
+      playerId: String(entry.playerId),
+      name: cleanName(entry.name),
+      buyInsCents: Math.max(0, Math.floor(Number(entry.buyInsCents) || 0)),
+      cashOutCents: Math.max(0, Math.floor(Number(entry.cashOutCents) || 0)),
+    })) : [],
     players: Array.isArray(raw.players) ? raw.players.map(restorePlayer) : [],
     botTimer: null,
     showdownTimer: null,
@@ -281,6 +288,7 @@ function restoreRoom(raw) {
 
   for (const player of room.players) {
     if (player.isBot) player.name = computerName(player);
+    if (room.moneyMode) syncPlayerToMoneyLedger(room, player);
   }
 
   dedupePlayersById(room);
@@ -394,6 +402,7 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
     baseSmallBlind,
     baseBigBlind,
     settlements: [],
+    moneyLedger: [],
     players: [
       {
         id: hostId,
@@ -422,6 +431,7 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
     ],
   };
   rooms.set(id, room);
+  if (moneyMode) syncPlayerToMoneyLedger(room, room.players[0]);
   return room;
 }
 
@@ -535,7 +545,7 @@ function makeHumanPlayer(room, { id, socketId, name, reconnectTokenHash }) {
   const player = makePlayer({ id, socketId, name });
   player.reconnectTokenHash = reconnectTokenHash || null;
   player.color = defaultPlayerColor(room);
-  if (room.moneyMode) player.buyInsCents = room.buyInCents;
+  if (room.moneyMode) addMoneyBuyIn(room, player, room.buyInCents);
   return player;
 }
 
@@ -805,6 +815,7 @@ function restartGame(room) {
   clearTimeout(room.botTimer);
   clearTimeout(room.showdownTimer);
   room.showdownTimer = null;
+  if (room.moneyMode) room.moneyLedger = [];
   for (const player of room.players) {
     player.stack = STARTING_STACK;
     player.buyInsCents = room.moneyMode ? room.buyInCents : 0;
@@ -815,6 +826,7 @@ function restartGame(room) {
     player.bet = 0;
     player.invested = 0;
     player.showCards = false;
+    if (room.moneyMode) syncPlayerToMoneyLedger(room, player);
   }
   room.status = "lobby";
   room.phase = "lobby";
@@ -834,20 +846,42 @@ function restartGame(room) {
   room.message = "Game restarted. Start a new hand when ready.";
 }
 
-function optimizeSettlements(players) {
-  const debtors = players
-    .map((player) => ({
-      playerId: player.id,
-      name: player.name,
-      amountCents: Math.max(0, player.buyInsCents - player.cashOutCents),
+function syncPlayerToMoneyLedger(room, player) {
+  if (!room?.moneyMode || !player || player.isBot) return null;
+  if (!Array.isArray(room.moneyLedger)) room.moneyLedger = [];
+  let entry = room.moneyLedger.find((item) => item.playerId === player.id);
+  if (!entry) {
+    entry = { playerId: player.id, name: player.name, buyInsCents: 0, cashOutCents: 0 };
+    room.moneyLedger.push(entry);
+  }
+  entry.name = player.name;
+  entry.buyInsCents = Math.max(entry.buyInsCents, player.buyInsCents || 0);
+  entry.cashOutCents = Math.max(entry.cashOutCents, player.cashOutCents || 0);
+  return entry;
+}
+
+function addMoneyBuyIn(room, player, cents) {
+  if (!room?.moneyMode || !player) return;
+  const entry = syncPlayerToMoneyLedger(room, player);
+  entry.buyInsCents += cents;
+  player.buyInsCents = entry.buyInsCents;
+  player.cashOutCents = entry.cashOutCents;
+}
+
+function optimizeSettlements(entries) {
+  const debtors = entries
+    .map((entry) => ({
+      playerId: entry.playerId || entry.id,
+      name: entry.name,
+      amountCents: Math.max(0, entry.buyInsCents - entry.cashOutCents),
     }))
     .filter((item) => item.amountCents > 0)
     .sort((a, b) => b.amountCents - a.amountCents);
-  const creditors = players
-    .map((player) => ({
-      playerId: player.id,
-      name: player.name,
-      amountCents: Math.max(0, player.cashOutCents - player.buyInsCents),
+  const creditors = entries
+    .map((entry) => ({
+      playerId: entry.playerId || entry.id,
+      name: entry.name,
+      amountCents: Math.max(0, entry.cashOutCents - entry.buyInsCents),
     }))
     .filter((item) => item.amountCents > 0)
     .sort((a, b) => b.amountCents - a.amountCents);
@@ -888,8 +922,9 @@ function settleMoneyGame(room) {
       player.cashOutCents += chipsToCents(room, player.stack);
       player.stack = 0;
     }
+    syncPlayerToMoneyLedger(room, player);
   }
-  room.settlements = optimizeSettlements(room.players);
+  room.settlements = optimizeSettlements(room.moneyLedger);
 }
 
 function cashInPlayer(room, playerId, amountCents) {
@@ -905,6 +940,7 @@ function cashInPlayer(room, playerId, amountCents) {
   player.buyInsCents += cents;
   player.stack += centsToChips(room, cents);
   player.allIn = false;
+  syncPlayerToMoneyLedger(room, player);
   room.settlements = [];
   room.message = `${player.name} cashed in.`;
   return { ok: true };
@@ -922,7 +958,8 @@ function cashOutPlayer(room, playerId) {
   player.invested = 0;
   player.folded = true;
   player.allIn = true;
-  room.settlements = optimizeSettlements(room.players);
+  syncPlayerToMoneyLedger(room, player);
+  room.settlements = optimizeSettlements(room.moneyLedger);
   room.message = `${player.name} cashed out.`;
   return { ok: true };
 }
@@ -1384,6 +1421,12 @@ function serializeRoom(room, viewerId) {
     buyInCents: room.buyInCents,
     chipValueCents: chipValueCents(room),
     settlements: room.settlements || [],
+    ledger: room.moneyMode ? (room.moneyLedger || []).map((entry) => ({
+      ...entry,
+      netCents: entry.cashOutCents - entry.buyInsCents,
+      isYou: entry.playerId === viewerId,
+      color: room.players.find((player) => player.id === entry.playerId)?.color || null,
+    })) : [],
     turn: room.turn,
     isYourTurn: room.turn === viewerId,
     canRaise: Boolean(viewer && room.raiseEligible?.has(viewer.id)),
@@ -1480,6 +1523,14 @@ function removePlayerAfterDisconnect(room, player) {
   clearTimeout(player.disconnectTimer);
   player.disconnectTimer = null;
   player.disconnectExpiresAt = null;
+  if (room.moneyMode && player.stack > 0) {
+    player.cashOutCents += chipsToCents(room, player.stack);
+    player.stack = 0;
+  }
+  if (room.moneyMode) {
+    syncPlayerToMoneyLedger(room, player);
+    room.settlements = optimizeSettlements(room.moneyLedger);
+  }
   room.deadPot += player.invested;
   player.bet = 0;
   player.invested = 0;

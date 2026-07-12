@@ -426,6 +426,23 @@ function waitFor(predicate, label, timeout = 5000) {
     throw new Error("Expected money-mode blinds to preserve dollar amounts");
   }
   await expectReject(cashHost.socket, "money:cashIn", { amountCents: 101 }, "inexact cash-in conversion");
+  const cashGuest = connectPlayer("CashGuest");
+  await waitFor(() => cashGuest.socket.connected, "cash guest connection");
+  await emit(cashGuest.socket, "room:join", {
+    roomId: cashRoom.roomId,
+    name: cashGuest.name,
+    deviceId: cashGuest.deviceId,
+  });
+  await waitFor(() => cashHost.state?.players.length === 2, "cash guest seated");
+  await emit(cashGuest.socket, "money:cashOut");
+  await emit(cashGuest.socket, "room:leave");
+  await waitFor(() => cashHost.state?.players.length === 1, "cash guest seat removal", 35000);
+  await emit(cashHost.socket, "game:end");
+  await waitFor(() => cashHost.state?.phase === "gameover", "cash game settlement");
+  const departedLedger = cashHost.state.ledger.find((entry) => entry.name === "CashGuest");
+  if (!departedLedger || departedLedger.buyInsCents !== 2000 || departedLedger.cashOutCents !== 2000) {
+    throw new Error("Expected departed cash player to remain in the final ledger");
+  }
 
   players.forEach((player) => player.socket.disconnect());
   idleReturn.socket.disconnect();
@@ -435,6 +452,7 @@ function waitFor(predicate, label, timeout = 5000) {
   finalA.socket.disconnect();
   finalB.socket.disconnect();
   cashHost.socket.disconnect();
+  cashGuest.socket.disconnect();
   console.log(`Smoke test passed for room ${created.roomId}`);
 })().catch((error) => {
   console.error(error);

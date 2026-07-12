@@ -404,7 +404,7 @@ function showWelcome(status = "") {
 }
 
 function showScoreScreen(room) {
-  const standings = [...room.players].sort((a, b) => (
+  const standings = [...(room.moneyMode ? room.ledger || [] : room.players)].sort((a, b) => (
     room.moneyMode
       ? b.netCents - a.netCents || a.name.localeCompare(b.name)
       : b.stack - a.stack || a.name.localeCompare(b.name)
