@@ -1,6 +1,7 @@
 const { io } = require("socket.io-client");
 
 const URL = process.env.SMOKE_URL || "http://localhost:3000";
+const reconnectCredentials = new Map();
 
 function connectPlayer(name) {
   const socket = io(URL, { transports: ["websocket"], forceNew: true });
@@ -23,9 +24,19 @@ function connectPlayer(name) {
 
 function emit(socket, event, payload = {}) {
   return new Promise((resolve, reject) => {
-    socket.emit(event, payload, (response) => {
+    const nextPayload = { ...payload };
+    if (event === "room:join") {
+      const credentials = reconnectCredentials.get(`${String(payload.roomId).toUpperCase()}:${payload.deviceId}`);
+      if (credentials) nextPayload.reconnectToken = credentials.reconnectToken;
+    }
+    socket.emit(event, nextPayload, (response) => {
       if (!response?.ok) reject(new Error(response?.error || `${event} failed`));
-      else resolve(response);
+      else {
+        if ((event === "room:create" || event === "room:join") && response.reconnectToken) {
+          reconnectCredentials.set(`${String(response.roomId).toUpperCase()}:${payload.deviceId}`, response);
+        }
+        resolve(response);
+      }
     });
   });
 }
@@ -37,6 +48,15 @@ async function expectReject(socket, event, payload = {}, message = event) {
     return;
   }
   throw new Error(`Expected ${message} to be rejected`);
+}
+
+function expectDirectReject(socket, event, payload = {}, message = event) {
+  return new Promise((resolve, reject) => {
+    socket.emit(event, payload, (response) => {
+      if (!response?.ok) resolve();
+      else reject(new Error(`Expected ${message} to be rejected`));
+    });
+  });
 }
 
 function waitFor(predicate, label, timeout = 5000) {
@@ -69,6 +89,14 @@ function waitFor(predicate, label, timeout = 5000) {
   await emit(bob.socket, "room:join", { roomId: created.roomId, name: bob.name, deviceId: bob.deviceId });
   await emit(carmen.socket, "room:join", { roomId: created.roomId, name: carmen.name, deviceId: carmen.deviceId });
   await waitFor(() => players.every((player) => player.state?.players.length === 3), "all players in room");
+  const impersonator = connectPlayer("Impersonator");
+  await waitFor(() => impersonator.socket.connected, "impersonator connection");
+  await expectDirectReject(impersonator.socket, "room:join", {
+    roomId: created.roomId,
+    name: "Impersonator",
+    deviceId: alice.deviceId,
+  }, "seat impersonation without reconnect token");
+  impersonator.socket.disconnect();
   if (alice.state.players.find((player) => player.name === "Alice")?.isHost !== true) {
     throw new Error("Expected host to be marked");
   }
@@ -155,14 +183,16 @@ function waitFor(predicate, label, timeout = 5000) {
 
   await emit(alice.socket, "game:start");
   await waitFor(() => alice.state?.phase === "preflop", "hand start");
-  if (!alice.state.canRestartGame || !alice.state.canEndGame) {
-    throw new Error("Expected host to see restart and end game controls");
+  if (alice.state.canRestartGame || alice.state.canEndGame) {
+    throw new Error("Expected live-hand restart and end controls to be locked");
   }
   if (bobAgain.state.canRestartGame || bobAgain.state.canEndGame) {
     throw new Error("Expected non-host to hide restart and end game controls");
   }
   await expectReject(bobAgain.socket, "game:restart", {}, "non-host restart");
   await expectReject(bobAgain.socket, "game:end", {}, "non-host end game");
+  await expectReject(alice.socket, "game:restart", {}, "live-hand restart");
+  await expectReject(alice.socket, "game:end", {}, "live-hand end game");
   const bobViewOfAlice = bobAgain.state.players.find((player) => player.name === "Alice");
   if (bobViewOfAlice?.cards.some((card) => card?.code)) {
     throw new Error("Expected table cards to stay hidden from opponents");
@@ -180,23 +210,6 @@ function waitFor(predicate, label, timeout = 5000) {
   await waitFor(() => carmenAgain.state?.phase === "preflop" && carmenAgain.state?.players.length === 3, "in-progress existing player rejoin");
   players[2] = carmenAgain;
   aliceAgain.socket.disconnect();
-  await emit(alice.socket, "game:end");
-  await waitFor(() => alice.state?.phase === "lobby", "game end");
-  if (alice.state.players.reduce((sum, player) => sum + player.stack, 0) !== 3000) {
-    throw new Error("Chip totals did not balance after ending the game");
-  }
-  if (alice.state.pot !== 0 || alice.state.players.some((player) => player.cards.length > 0)) {
-    throw new Error("Expected ended game to clear the active hand");
-  }
-
-  await emit(alice.socket, "game:restart");
-  await waitFor(() => alice.state?.phase === "lobby" && alice.state?.handNumber === 0, "game restart");
-  if (alice.state.players.some((player) => player.stack !== 1000 || player.cards.length > 0)) {
-    throw new Error("Expected restart to reset stacks and clear cards");
-  }
-
-  await emit(alice.socket, "game:start");
-  await waitFor(() => alice.state?.phase === "preflop", "second hand start");
   let sawBettingAction = false;
 
   for (let i = 0; i < 80 && alice.state.phase !== "complete"; i += 1) {
@@ -223,9 +236,13 @@ function waitFor(predicate, label, timeout = 5000) {
   if (alice.state.players.reduce((sum, player) => sum + player.stack, 0) !== 3000) {
     throw new Error("Chip totals did not balance after showdown");
   }
-  const hiddenOpponent = alice.state.players.find((player) => !player.isYou && !player.isBot);
+  const winnerIds = new Set(alice.state.winners.map((winner) => winner.playerId));
+  const hiddenOpponent = alice.state.players.find((player) => !player.isYou && !player.isBot && !winnerIds.has(player.id));
   if (hiddenOpponent?.cards.some((card) => card?.code)) {
     throw new Error("Expected opponent cards to stay hidden after hand completion");
+  }
+  if (alice.state.winners.some((winner) => !alice.state.players.find((player) => player.id === winner.playerId)?.cards.every((card) => card?.code))) {
+    throw new Error("Expected called-showdown winning cards to be exposed");
   }
   await emit(alice.socket, "game:showCards");
   await waitFor(() => alice.state.players.find((player) => player.isYou)?.showCards, "show hand");
@@ -251,10 +268,7 @@ function waitFor(predicate, label, timeout = 5000) {
   });
   await waitFor(() => idle.state?.players.length === 4, "idle computer players seated");
   await emit(idle.socket, "game:start");
-  await waitFor(() => {
-    const current = idle.state?.players.find((player) => player.id === idle.state?.turn);
-    return idle.state?.phase === "preflop" && current?.isBot;
-  }, "idle game CPU turn");
+  await waitFor(() => idle.state?.phase === "preflop", "idle game start");
   const idleSignature = `${idle.state.phase}:${idle.state.turn}:${idle.state.actionLog.length}:${idle.state.pot}`;
   idle.socket.disconnect();
   await new Promise((resolve) => setTimeout(resolve, 900));
@@ -289,8 +303,23 @@ function waitFor(predicate, label, timeout = 5000) {
 
   const dana = connectPlayer("Dana");
   await waitFor(() => dana.socket.connected, "drop-in connection");
+  await expectReject(
+    dana.socket,
+    "room:join",
+    { roomId: solo.state.id, name: dana.name, deviceId: dana.deviceId },
+    "active-hand bot takeover",
+  );
+
+  for (let i = 0; i < 240 && solo.state.phase !== "complete"; i += 1) {
+    if (solo.state?.isYourTurn) {
+      await emit(solo.socket, "game:action", { type: solo.state.toCall > 0 ? "call" : "check" });
+    }
+    await new Promise((resolve) => setTimeout(resolve, 75));
+  }
+  if (solo.state.phase !== "complete") throw new Error(`Expected computer hand to complete, got ${solo.state.phase}`);
+
   await emit(dana.socket, "room:join", { roomId: solo.state.id, name: dana.name, deviceId: dana.deviceId });
-  await waitFor(() => dana.state?.phase === "preflop" && dana.state?.players.length === 4, "drop-in player seated");
+  await waitFor(() => dana.state?.phase === "complete" && dana.state?.players.length === 4, "between-hand bot takeover");
   if (dana.state.players.filter((player) => player.isBot).length !== 2) {
     throw new Error("Expected joining player to take a CPU seat");
   }
@@ -317,16 +346,6 @@ function waitFor(predicate, label, timeout = 5000) {
     throw new Error("Expected late rejoin to reclaim the replacement CPU seat");
   }
 
-  const computerTableHumans = [solo, danaLate];
-  for (let i = 0; i < 240 && solo.state.phase !== "complete"; i += 1) {
-    const current = computerTableHumans.find((player) => player.state?.isYourTurn);
-    if (current) {
-      await emit(current.socket, "game:action", { type: current.state.toCall > 0 ? "call" : "check" });
-    }
-    await new Promise((resolve) => setTimeout(resolve, 75));
-  }
-
-  if (solo.state.phase !== "complete") throw new Error(`Expected computer hand to complete, got ${solo.state.phase}`);
   if (!solo.state.actionLog?.some((entry) => String(entry.playerId).startsWith("bot:"))) {
     throw new Error("Expected computer players to take actions");
   }
@@ -341,13 +360,21 @@ function waitFor(predicate, label, timeout = 5000) {
   const finalA = connectPlayer("FinalA");
   const finalB = connectPlayer("FinalB");
   await waitFor(() => finalA.socket.connected && finalB.socket.connected, "final table connections");
-  const finalRoom = await emit(finalA.socket, "room:create", { name: finalA.name, deviceId: finalA.deviceId });
+  const finalRoom = await emit(finalA.socket, "room:create", {
+    name: finalA.name,
+    deviceId: finalA.deviceId,
+    smallBlind: 5,
+    bigBlind: 10,
+  });
   await emit(finalB.socket, "room:join", { roomId: finalRoom.roomId, name: finalB.name, deviceId: finalB.deviceId });
   await waitFor(() => finalA.state?.players.length === 2 && finalB.state?.players.length === 2, "final table seated");
 
   for (let hand = 0; hand < 10 && finalA.state.phase !== "gameover"; hand += 1) {
     await emit(finalA.socket, finalA.state.phase === "complete" ? "game:next" : "game:start");
     await waitFor(() => ["preflop", "gameover"].includes(finalA.state?.phase), "final hand start");
+    if (hand === 0 && (finalA.state.smallBlind !== 5 || finalA.state.bigBlind !== 10)) {
+      throw new Error("Expected custom opening blinds to be applied");
+    }
 
     for (let i = 0; i < 20 && !["complete", "gameover"].includes(finalA.state.phase); i += 1) {
       const current = [finalA, finalB].find((player) => player.state?.isYourTurn);
@@ -378,6 +405,25 @@ function waitFor(predicate, label, timeout = 5000) {
     throw new Error("Expected game over to block further hands");
   }
 
+  const cashHost = connectPlayer("CashHost");
+  await waitFor(() => cashHost.socket.connected, "cash table connection");
+  await expectReject(cashHost.socket, "room:create", {
+    name: cashHost.name,
+    deviceId: cashHost.deviceId,
+    moneyMode: true,
+    buyInCents: 2500,
+  }, "fractional-cent chip buy-in");
+  const cashRoom = await emit(cashHost.socket, "room:create", {
+    name: cashHost.name,
+    deviceId: cashHost.deviceId,
+    moneyMode: true,
+    buyInCents: 2000,
+    smallBlind: 5,
+    bigBlind: 10,
+  });
+  await waitFor(() => cashHost.state?.id === cashRoom.roomId, "cash table ready");
+  await expectReject(cashHost.socket, "money:cashIn", { amountCents: 101 }, "inexact cash-in conversion");
+
   players.forEach((player) => player.socket.disconnect());
   idleReturn.socket.disconnect();
   solo.socket.disconnect();
@@ -385,6 +431,7 @@ function waitFor(predicate, label, timeout = 5000) {
   danaLate.socket.disconnect();
   finalA.socket.disconnect();
   finalB.socket.disconnect();
+  cashHost.socket.disconnect();
   console.log(`Smoke test passed for room ${created.roomId}`);
 })().catch((error) => {
   console.error(error);

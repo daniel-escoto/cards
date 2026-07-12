@@ -51,13 +51,23 @@
               <option value="8">8 players</option>
             </select>
           </label>
+          <div id="blindFields" class="blind-fields">
+            <label>
+              Small blind
+              <input id="smallBlindInput" type="number" min="1" max="100000" step="1" value="10" inputmode="numeric" />
+            </label>
+            <label>
+              Big blind
+              <input id="bigBlindInput" type="number" min="2" max="100000" step="1" value="20" inputmode="numeric" />
+            </label>
+          </div>
           <label class="checkbox-label">
             <input id="moneyModeInput" type="checkbox" />
             <span>Money mode, no CPU players</span>
           </label>
           <label id="buyInLabel" class="hidden">
             Buy-in
-            <input id="buyInInput" type="number" min="1" max="10000" step="1" value="20" inputmode="decimal" />
+            <input id="buyInInput" type="number" min="10" max="10000" step="10" value="20" inputmode="decimal" />
           </label>
           <div class="actions-row">
             <button id="tableActionBtn" type="submit">Host table</button>

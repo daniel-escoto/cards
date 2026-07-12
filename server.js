@@ -1,4 +1,5 @@
 const express = require("express");
+const crypto = require("crypto");
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
@@ -24,6 +25,7 @@ const BLIND_LEVELS = [
   { smallBlind: 200, bigBlind: 400, hands: Infinity },
 ];
 const DEFAULT_BIG_BLIND = BLIND_LEVELS[0].bigBlind;
+const DEFAULT_SMALL_BLIND = BLIND_LEVELS[0].smallBlind;
 const MAX_PLAYERS = 8;
 const BOT_PROFILES = [
   { tag: "cpu_7f3a", style: "Loose cannon", aggression: 1.28, looseness: 1.24, bluff: 0.13, skill: 0.58, minDelay: 420, maxDelay: 1250 },
@@ -79,14 +81,33 @@ function blindLevelForHand(handNumber) {
 }
 
 function currentBlinds(room) {
-  return blindLevelForHand(room?.handNumber || 1);
+  const baseSmallBlind = Math.max(1, Math.floor(Number(room?.baseSmallBlind) || DEFAULT_SMALL_BLIND));
+  const baseBigBlind = Math.max(baseSmallBlind + 1, Math.floor(Number(room?.baseBigBlind) || DEFAULT_BIG_BLIND));
+  if (room?.moneyMode) return { smallBlind: baseSmallBlind, bigBlind: baseBigBlind };
+  const level = blindLevelForHand(room?.handNumber || 1);
+  return {
+    smallBlind: Math.max(1, Math.round(baseSmallBlind * level.smallBlind / DEFAULT_SMALL_BLIND)),
+    bigBlind: Math.max(2, Math.round(baseBigBlind * level.bigBlind / DEFAULT_BIG_BLIND)),
+  };
+}
+
+function newReconnectCredentials() {
+  const token = crypto.randomBytes(32).toString("base64url");
+  return { token, tokenHash: crypto.createHash("sha256").update(token).digest("hex") };
+}
+
+function reconnectTokenMatches(player, token) {
+  if (!player?.reconnectTokenHash || !token) return false;
+  const actual = crypto.createHash("sha256").update(String(token)).digest();
+  const expected = Buffer.from(player.reconnectTokenHash, "hex");
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
 }
 
 function makeDeck() {
   const deck = [];
   for (const rank of ranks) for (const suit of suits) deck.push(`${rank}${suit}`);
   for (let i = deck.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = crypto.randomInt(i + 1);
     [deck[i], deck[j]] = [deck[j], deck[i]];
   }
   return deck;
@@ -106,6 +127,7 @@ function publicCard(card) {
 function serializePlayerForStorage(player) {
   return {
     id: player.id,
+    reconnectTokenHash: player.reconnectTokenHash || null,
     name: player.name,
     color: player.color || null,
     stack: player.stack,
@@ -121,6 +143,7 @@ function serializePlayerForStorage(player) {
     replacedPlayerId: player.replacedPlayerId || null,
     replacedPlayerName: player.replacedPlayerName || null,
     replacedPlayerColor: player.replacedPlayerColor || null,
+    replacedReconnectTokenHash: player.replacedReconnectTokenHash || null,
     buyInsCents: Math.max(0, Math.floor(Number(player.buyInsCents) || 0)),
     cashOutCents: Math.max(0, Math.floor(Number(player.cashOutCents) || 0)),
   };
@@ -141,12 +164,15 @@ function serializeRoomForStorage(room) {
     minRaise: room.minRaise,
     deadPot: room.deadPot || 0,
     acted: [...(room.acted || [])],
+    raiseEligible: [...(room.raiseEligible || [])],
     message: room.message,
     winners: room.winners,
     actionLog: room.actionLog,
     handNumber: room.handNumber,
     moneyMode: Boolean(room.moneyMode),
     buyInCents: cleanMoneyCents(room.buyInCents, DEFAULT_BUY_IN_CENTS),
+    baseSmallBlind: room.baseSmallBlind || DEFAULT_SMALL_BLIND,
+    baseBigBlind: room.baseBigBlind || DEFAULT_BIG_BLIND,
     settlements: Array.isArray(room.settlements) ? room.settlements : [],
     players: room.players.map(serializePlayerForStorage),
   };
@@ -180,6 +206,7 @@ function scheduleSave() {
 function restorePlayer(raw) {
   return {
     id: String(raw.id),
+    reconnectTokenHash: raw.reconnectTokenHash || null,
     socketIds: new Set(),
     name: cleanName(raw.name),
     color: cleanPlayerColor(raw.color),
@@ -196,6 +223,7 @@ function restorePlayer(raw) {
     replacedPlayerId: raw.replacedPlayerId || null,
     replacedPlayerName: raw.replacedPlayerName || null,
     replacedPlayerColor: cleanPlayerColor(raw.replacedPlayerColor),
+    replacedReconnectTokenHash: raw.replacedReconnectTokenHash || null,
     buyInsCents: Math.max(0, Math.floor(Number(raw.buyInsCents) || 0)),
     cashOutCents: Math.max(0, Math.floor(Number(raw.cashOutCents) || 0)),
     disconnectTimer: null,
@@ -213,9 +241,12 @@ function markRestoredHumanAsBot(room, player) {
   player.replacedPlayerId = oldId;
   player.replacedPlayerName = oldName;
   player.replacedPlayerColor = player.color || null;
+  player.replacedReconnectTokenHash = player.reconnectTokenHash || null;
+  player.reconnectTokenHash = null;
   player.color = null;
   if (room.turn === oldId) room.turn = player.id;
   replaceActedId(room, oldId, player.id);
+  replaceRaiseEligibleId(room, oldId, player.id);
 }
 
 function restoreRoom(raw) {
@@ -230,15 +261,18 @@ function restoreRoom(raw) {
     dealer: Math.max(0, Math.floor(Number(raw.dealer) || 0)),
     turn: raw.turn || null,
     currentBet: Math.max(0, Math.floor(Number(raw.currentBet) || 0)),
-    minRaise: Math.max(blindLevelForHand(raw.handNumber).bigBlind, Math.floor(Number(raw.minRaise) || DEFAULT_BIG_BLIND)),
+    minRaise: Math.max(1, Math.floor(Number(raw.minRaise) || DEFAULT_BIG_BLIND)),
     deadPot: Math.max(0, Math.floor(Number(raw.deadPot) || 0)),
     acted: new Set(Array.isArray(raw.acted) ? raw.acted : []),
+    raiseEligible: new Set(Array.isArray(raw.raiseEligible) ? raw.raiseEligible : []),
     message: raw.message || "Room restored after update.",
     winners: Array.isArray(raw.winners) ? raw.winners : [],
     actionLog: Array.isArray(raw.actionLog) ? raw.actionLog : [],
     handNumber: Math.max(0, Math.floor(Number(raw.handNumber) || 0)),
     moneyMode: Boolean(raw.moneyMode),
     buyInCents: cleanMoneyCents(raw.buyInCents, DEFAULT_BUY_IN_CENTS),
+    baseSmallBlind: Math.max(1, Math.floor(Number(raw.baseSmallBlind) || DEFAULT_SMALL_BLIND)),
+    baseBigBlind: Math.max(2, Math.floor(Number(raw.baseBigBlind) || DEFAULT_BIG_BLIND)),
     settlements: Array.isArray(raw.settlements) ? raw.settlements : [],
     players: Array.isArray(raw.players) ? raw.players.map(restorePlayer) : [],
     botTimer: null,
@@ -261,6 +295,11 @@ function restoreRoom(raw) {
   }
 
   if (!room.players.length) return null;
+  if (!Array.isArray(raw.raiseEligible) && isHandInProgress(room)) {
+    room.raiseEligible = new Set(canActPlayers(room)
+      .filter((player) => !room.acted.has(player.id))
+      .map((player) => player.id));
+  }
   if (room.dealer >= room.players.length) room.dealer = 0;
   return room;
 }
@@ -329,6 +368,8 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
   const id = makeId();
   const moneyMode = Boolean(options.moneyMode);
   const buyInCents = cleanMoneyCents(options.buyInCents, DEFAULT_BUY_IN_CENTS);
+  const baseSmallBlind = cleanBlind(options.smallBlind, DEFAULT_SMALL_BLIND);
+  const baseBigBlind = cleanBlind(options.bigBlind, DEFAULT_BIG_BLIND);
   const room = {
     id,
     hostId,
@@ -340,19 +381,23 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
     dealer: 0,
     turn: null,
     currentBet: 0,
-    minRaise: DEFAULT_BIG_BLIND,
+    minRaise: baseBigBlind,
     deadPot: 0,
     acted: new Set(),
+    raiseEligible: new Set(),
     message: "Invite friends with this room link.",
     winners: [],
     actionLog: [],
     handNumber: 0,
     moneyMode,
     buyInCents,
+    baseSmallBlind,
+    baseBigBlind,
     settlements: [],
     players: [
       {
         id: hostId,
+        reconnectTokenHash: options.reconnectTokenHash || null,
         socketIds: new Set([socketId]),
         name: hostName,
         color: PLAYER_COLORS[0],
@@ -368,6 +413,7 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
         replacedPlayerId: null,
         replacedPlayerName: null,
         replacedPlayerColor: null,
+        replacedReconnectTokenHash: null,
         buyInsCents: moneyMode ? buyInCents : 0,
         cashOutCents: 0,
         disconnectExpiresAt: null,
@@ -389,6 +435,11 @@ function cleanName(name) {
 
 function cleanDeviceId(deviceId, fallback) {
   return String(deviceId || fallback || "").trim().slice(0, 80) || fallback;
+}
+
+function cleanBlind(value, fallback) {
+  const blind = Math.floor(Number(value));
+  return Number.isFinite(blind) && blind > 0 ? Math.min(100000, blind) : fallback;
 }
 
 function cleanComputerPlayers(count) {
@@ -414,6 +465,7 @@ function defaultPlayerColor(room) {
 function makePlayer({ id, name, socketId = null, isBot = false }) {
   return {
     id,
+    reconnectTokenHash: null,
     socketIds: socketId ? new Set([socketId]) : new Set(),
     name,
     color: isBot ? null : PLAYER_COLORS[0],
@@ -429,6 +481,7 @@ function makePlayer({ id, name, socketId = null, isBot = false }) {
     replacedPlayerId: null,
     replacedPlayerName: null,
     replacedPlayerColor: null,
+    replacedReconnectTokenHash: null,
     buyInsCents: 0,
     cashOutCents: 0,
     disconnectExpiresAt: null,
@@ -478,8 +531,9 @@ function addComputerPlayers(room, totalPlayers) {
   if (needed > 0) room.message = `Computer table ready with ${room.players.length} players.`;
 }
 
-function makeHumanPlayer(room, { id, socketId, name }) {
+function makeHumanPlayer(room, { id, socketId, name, reconnectTokenHash }) {
   const player = makePlayer({ id, socketId, name });
+  player.reconnectTokenHash = reconnectTokenHash || null;
   player.color = defaultPlayerColor(room);
   if (room.moneyMode) player.buyInsCents = room.buyInCents;
   return player;
@@ -514,22 +568,31 @@ function replaceActedId(room, oldId, newId) {
   room.acted.add(newId);
 }
 
-function convertBotToHuman(socket, room, bot, playerId, name) {
+function replaceRaiseEligibleId(room, oldId, newId) {
+  if (!room.raiseEligible?.has(oldId)) return;
+  room.raiseEligible.delete(oldId);
+  room.raiseEligible.add(newId);
+}
+
+function convertBotToHuman(socket, room, bot, playerId, name, reconnectTokenHash) {
   const oldId = bot.id;
   const hadHumanBefore = room.players.some((player) => !player.isBot);
   bot.id = playerId;
+  bot.reconnectTokenHash = reconnectTokenHash || bot.replacedReconnectTokenHash || null;
   bot.name = cleanName(name);
   bot.color = bot.replacedPlayerColor || defaultPlayerColor(room);
   bot.isBot = false;
   bot.replacedPlayerId = null;
   bot.replacedPlayerName = null;
   bot.replacedPlayerColor = null;
+  bot.replacedReconnectTokenHash = null;
   bot.connected = true;
   bot.socketIds = new Set();
   bot.disconnectTimer = null;
   if (room.turn === oldId) room.turn = playerId;
   if (room.hostId === oldId || !hadHumanBefore) room.hostId = playerId;
   replaceActedId(room, oldId, playerId);
+  replaceRaiseEligibleId(room, oldId, playerId);
   attachSocketToPlayer(socket, room, bot);
   room.message = `${bot.name} took over a CPU seat.`;
   return bot;
@@ -544,6 +607,8 @@ function convertHumanToBot(room, player) {
   player.replacedPlayerId = oldId;
   player.replacedPlayerName = oldName;
   player.replacedPlayerColor = player.color || null;
+  player.replacedReconnectTokenHash = player.reconnectTokenHash || null;
+  player.reconnectTokenHash = null;
   player.color = null;
   player.socketIds = new Set();
   player.connected = true;
@@ -553,6 +618,7 @@ function convertHumanToBot(room, player) {
   player.disconnectExpiresAt = null;
   if (room.turn === oldId) room.turn = player.id;
   replaceActedId(room, oldId, player.id);
+  replaceRaiseEligibleId(room, oldId, player.id);
   if (room.hostId === oldId) chooseNextHost(room);
   room.message = `${player.name} took over ${oldName}'s seat.`;
   return player;
@@ -612,6 +678,7 @@ function resetHandState(room) {
   room.minRaise = bigBlind;
   room.deadPot = 0;
   room.acted = new Set();
+  room.raiseEligible = new Set();
   room.winners = [];
   room.actionLog = [];
   for (const player of room.players) {
@@ -626,6 +693,10 @@ function resetHandState(room) {
 
 function isHandInProgress(room) {
   return ["preflop", "flop", "turn", "river", "showdown"].includes(room.phase);
+}
+
+function canAdministerGame(room) {
+  return ["lobby", "complete", "gameover"].includes(room?.phase);
 }
 
 function playersWithChips(room) {
@@ -661,6 +732,7 @@ function startHand(room) {
   room.status = "playing";
   room.phase = "preflop";
   room.handNumber += 1;
+  if (room.handNumber === 1) room.dealer = crypto.randomInt(room.players.length);
   const { smallBlind, bigBlind } = currentBlinds(room);
   room.minRaise = bigBlind;
 
@@ -689,6 +761,7 @@ function startHand(room) {
     action: `Posts big blind ${bigBlind}`,
   });
   room.currentBet = Math.max(...room.players.map((player) => player.bet));
+  room.raiseEligible = new Set(canActPlayers(room).map((player) => player.id));
 
   const firstToAct = nextIndex(room, bigBlindIndex, (p) => !p.folded && !p.allIn && p.stack > 0);
   room.turn = firstToAct >= 0 ? room.players[firstToAct].id : null;
@@ -750,13 +823,14 @@ function restartGame(room) {
   room.dealer = 0;
   room.turn = null;
   room.currentBet = 0;
-  room.minRaise = DEFAULT_BIG_BLIND;
+  room.handNumber = 0;
+  room.minRaise = currentBlinds(room).bigBlind;
   room.deadPot = 0;
   room.acted = new Set();
+  room.raiseEligible = new Set();
   room.winners = [];
   room.settlements = [];
   room.actionLog = [];
-  room.handNumber = 0;
   room.message = "Game restarted. Start a new hand when ready.";
 }
 
@@ -824,6 +898,10 @@ function cashInPlayer(room, playerId, amountCents) {
   if (!player || player.isBot) return { ok: false, error: "Player not found." };
   if (isHandInProgress(room)) return { ok: false, error: "Cash in between hands." };
   const cents = cleanMoneyCents(amountCents, room.buyInCents);
+  const chipCents = chipValueCents(room);
+  if (!Number.isInteger(chipCents) || cents % chipCents !== 0) {
+    return { ok: false, error: `Cash-in must be a multiple of $${(chipCents / 100).toFixed(2)}.` };
+  }
   player.buyInsCents += cents;
   player.stack += centsToChips(room, cents);
   player.allIn = false;
@@ -874,6 +952,7 @@ function dealStreet(room) {
   }
 
   const first = nextIndex(room, room.dealer, (p) => !p.folded && !p.allIn && p.stack > 0);
+  room.raiseEligible = new Set(canActPlayers(room).map((player) => player.id));
   room.turn = first >= 0 ? room.players[first].id : null;
   room.message = `${room.phase[0].toUpperCase()}${room.phase.slice(1)} betting.`;
   logAction(room, `${room.phase[0].toUpperCase()}${room.phase.slice(1)} dealt.`);
@@ -987,7 +1066,15 @@ function settleShowdown(room) {
       hand: Hand.solve([...player.hand, ...room.community]),
     }));
     const winningHands = Hand.winners(solved.map((entry) => entry.hand));
-    const winners = solved.filter((entry) => winningHands.includes(entry.hand));
+    const winners = solved
+      .filter((entry) => winningHands.includes(entry.hand))
+      .sort((a, b) => {
+        const aIndex = playerIndex(room, a.player.id);
+        const bIndex = playerIndex(room, b.player.id);
+        const aDistance = (aIndex - room.dealer + room.players.length) % room.players.length || room.players.length;
+        const bDistance = (bIndex - room.dealer + room.players.length) % room.players.length || room.players.length;
+        return aDistance - bDistance;
+      });
     const share = Math.floor(pot.amount / winners.length);
     let remainder = pot.amount % winners.length;
 
@@ -995,6 +1082,7 @@ function settleShowdown(room) {
       const payout = share + (remainder > 0 ? 1 : 0);
       remainder -= 1;
       winner.player.stack += payout;
+      winner.player.showCards = true;
       summaries.push({
         playerId: winner.player.id,
         name: winner.player.name,
@@ -1041,6 +1129,7 @@ function applyPlayerAction(room, playerId, { type, raiseTo }) {
   if (type === "fold") {
     player.folded = true;
     room.acted.add(player.id);
+    room.raiseEligible.delete(player.id);
     room.message = `${player.name} folds.`;
     logAction(room, room.message, { playerId: player.id, action: "Folds" });
   } else if (type === "call" || type === "check") {
@@ -1051,12 +1140,16 @@ function applyPlayerAction(room, playerId, { type, raiseTo }) {
     player.invested += paid;
     if (player.stack === 0) player.allIn = true;
     room.acted.add(player.id);
+    room.raiseEligible.delete(player.id);
     room.message = paid > 0 ? `${player.name} calls ${paid}.` : `${player.name} checks.`;
     logAction(room, room.message, {
       playerId: player.id,
       action: paid > 0 ? `Calls ${paid}` : "Checks",
     });
   } else if (type === "raise") {
+    if (!room.raiseEligible.has(player.id)) {
+      return { ok: false, error: "The previous short all-in did not reopen raising." };
+    }
     const target = Math.floor(Number(raiseTo));
     if (!Number.isFinite(target)) return { ok: false, error: "Invalid raise." };
     const maxBet = player.bet + player.stack;
@@ -1071,9 +1164,15 @@ function applyPlayerAction(room, playerId, { type, raiseTo }) {
     const raiseSize = target - room.currentBet;
     player.bet = target;
     if (player.stack === 0) player.allIn = true;
-    if (raiseSize >= room.minRaise) room.minRaise = raiseSize;
+    const isFullRaise = raiseSize >= room.minRaise;
+    if (isFullRaise) room.minRaise = raiseSize;
     room.currentBet = Math.max(room.currentBet, target);
     room.acted = new Set([player.id]);
+    if (isFullRaise) {
+      room.raiseEligible = new Set(canActPlayers(room).filter((item) => item.id !== player.id).map((item) => item.id));
+    } else {
+      room.raiseEligible.delete(player.id);
+    }
     room.message = `${player.name} raises to ${target}.`;
     logAction(room, room.message, { playerId: player.id, action: `Raises to ${target}` });
   } else {
@@ -1287,13 +1386,14 @@ function serializeRoom(room, viewerId) {
     settlements: room.settlements || [],
     turn: room.turn,
     isYourTurn: room.turn === viewerId,
+    canRaise: Boolean(viewer && room.raiseEligible?.has(viewer.id)),
     toCall,
     toCallCents: chipsToCents(room, toCall),
     canShowHand: room.phase === "complete" && Boolean(viewer?.hand?.length) && !viewer.showCards,
     canStart: room.hostId === viewerId && playersWithChips(room).length >= 2 && !isHandInProgress(room) && room.phase !== "gameover",
     canNextHand: room.hostId === viewerId && room.phase === "complete" && playersWithChips(room).length >= 2,
-    canRestartGame: room.hostId === viewerId,
-    canEndGame: room.hostId === viewerId && (room.moneyMode || room.phase !== "lobby"),
+    canRestartGame: room.hostId === viewerId && canAdministerGame(room),
+    canEndGame: room.hostId === viewerId && canAdministerGame(room) && (room.moneyMode || room.phase !== "lobby"),
     canAddBot: room.hostId === viewerId && !room.moneyMode && !isHandInProgress(room) && room.players.length < MAX_PLAYERS,
     community: room.community.map(publicCard),
     winners: room.winners.map((winner) => ({
@@ -1455,30 +1555,38 @@ function kickPlayerFromRoom(room, playerId) {
 }
 
 io.on("connection", (socket) => {
-  socket.on("room:create", ({ name, deviceId, computerPlayers, tableSize, moneyMode, buyInCents }, ack) => {
+  socket.on("room:create", ({ name, deviceId, computerPlayers, tableSize, moneyMode, buyInCents, smallBlind, bigBlind }, ack) => {
     const playerId = cleanDeviceId(deviceId, socket.id);
+    const cleanSmall = cleanBlind(smallBlind, DEFAULT_SMALL_BLIND);
+    const cleanBig = cleanBlind(bigBlind, DEFAULT_BIG_BLIND);
+    if (cleanBig <= cleanSmall) return ack?.({ ok: false, error: "Big blind must be greater than small blind." });
+    if (moneyMode && cleanMoneyCents(buyInCents, DEFAULT_BUY_IN_CENTS) % STARTING_STACK !== 0) {
+      return ack?.({ ok: false, error: "Money-mode buy-in must be in $10 increments." });
+    }
+    const credentials = newReconnectCredentials();
     const requestedSize = moneyMode ? 0 : cleanTableSize(tableSize) || cleanTableSize(computerPlayers);
     const room = makeRoom(playerId, cleanName(name), socket.id, requestedSize, {
       moneyMode,
       buyInCents,
+      smallBlind: cleanSmall,
+      bigBlind: cleanBig,
+      reconnectTokenHash: credentials.tokenHash,
     });
     if (!room.moneyMode) addComputerPlayers(room, requestedSize || computerPlayers);
     attachSocketToPlayer(socket, room, room.players[0]);
-    ack?.({ ok: true, roomId: room.id });
+    ack?.({ ok: true, roomId: room.id, playerId, reconnectToken: credentials.token });
     emitRoom(room);
   });
 
-  socket.on("room:join", ({ roomId, name, deviceId }, ack) => {
+  socket.on("room:join", ({ roomId, name, deviceId, reconnectToken }, ack) => {
     const room = getRoom(roomId);
     if (!room) return ack?.({ ok: false, error: "Room not found." });
     const playerId = cleanDeviceId(deviceId, socket.id);
     const existing = room.players.find((player) => player.id === playerId);
     if (existing) {
-      if (existing.isBot) {
-        convertBotToHuman(socket, room, existing, playerId, name);
-        ack?.({ ok: true, roomId: room.id });
-        emitRoom(room);
-        return;
+      if (existing.isBot) return ack?.({ ok: false, error: "That seat is not available." });
+      if (!reconnectTokenMatches(existing, reconnectToken)) {
+        return ack?.({ ok: false, error: "This seat belongs to another session." });
       }
       existing.name = cleanName(name);
       attachSocketToPlayer(socket, room, existing);
@@ -1488,15 +1596,21 @@ io.on("connection", (socket) => {
     }
     const reservedBotSeat = room.players.find((player) => player.isBot && player.replacedPlayerId === playerId);
     if (reservedBotSeat) {
-      convertBotToHuman(socket, room, reservedBotSeat, playerId, name);
+      const reservedIdentity = { reconnectTokenHash: reservedBotSeat.replacedReconnectTokenHash };
+      if (!reconnectTokenMatches(reservedIdentity, reconnectToken)) {
+        return ack?.({ ok: false, error: "This reserved seat belongs to another session." });
+      }
+      convertBotToHuman(socket, room, reservedBotSeat, playerId, name, reservedBotSeat.replacedReconnectTokenHash);
       ack?.({ ok: true, roomId: room.id });
       emitRoom(room);
       return;
     }
     const botSeat = room.players.find((player) => player.isBot);
     if (botSeat) {
-      convertBotToHuman(socket, room, botSeat, playerId, name);
-      ack?.({ ok: true, roomId: room.id });
+      if (isHandInProgress(room)) return ack?.({ ok: false, error: "This hand is in progress. Join after it ends." });
+      const credentials = newReconnectCredentials();
+      convertBotToHuman(socket, room, botSeat, playerId, name, credentials.tokenHash);
+      ack?.({ ok: true, roomId: room.id, playerId, reconnectToken: credentials.token });
       emitRoom(room);
       return;
     }
@@ -1505,10 +1619,11 @@ io.on("connection", (socket) => {
     if (room.phase !== "lobby" && room.phase !== "complete") {
       return ack?.({ ok: false, error: "This hand is in progress. Join after it ends." });
     }
-    room.players.push(makeHumanPlayer(room, { id: playerId, socketId: socket.id, name: cleanName(name) }));
+    const credentials = newReconnectCredentials();
+    room.players.push(makeHumanPlayer(room, { id: playerId, socketId: socket.id, name: cleanName(name), reconnectTokenHash: credentials.tokenHash }));
     attachSocketToPlayer(socket, room, room.players[room.players.length - 1]);
     if (room.tableSize) addComputerPlayers(room, room.tableSize);
-    ack?.({ ok: true, roomId: room.id });
+    ack?.({ ok: true, roomId: room.id, playerId, reconnectToken: credentials.token });
     emitRoom(room);
   });
 
@@ -1567,6 +1682,7 @@ io.on("connection", (socket) => {
     const room = rooms.get(socketRoom.get(socket.id));
     const playerId = socketPlayer.get(socket.id);
     if (!room || room.hostId !== playerId) return ack?.({ ok: false, error: "Only the host can end the game." });
+    if (!canAdministerGame(room)) return ack?.({ ok: false, error: "Finish the current hand before ending the game." });
     if (room.phase === "lobby" && !room.moneyMode) return ack?.({ ok: false, error: "No game is in progress." });
     endGame(room);
     ack?.({ ok: true });
@@ -1577,6 +1693,7 @@ io.on("connection", (socket) => {
     const room = rooms.get(socketRoom.get(socket.id));
     const playerId = socketPlayer.get(socket.id);
     if (!room || room.hostId !== playerId) return ack?.({ ok: false, error: "Only the host can restart." });
+    if (!canAdministerGame(room)) return ack?.({ ok: false, error: "Finish the current hand before restarting." });
     restartGame(room);
     ack?.({ ok: true });
     emitRoom(room);

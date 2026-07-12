@@ -16,6 +16,9 @@ const joinModeBtn = document.querySelector("#joinModeBtn");
 const formHint = document.querySelector("#formHint");
 const computerPlayerCount = document.querySelector("#computerPlayerCount");
 const tableSizeLabel = computerPlayerCount.closest("label");
+const blindFields = document.querySelector("#blindFields");
+const smallBlindInput = document.querySelector("#smallBlindInput");
+const bigBlindInput = document.querySelector("#bigBlindInput");
 const moneyModeInput = document.querySelector("#moneyModeInput");
 const buyInLabel = document.querySelector("#buyInLabel");
 const buyInInput = document.querySelector("#buyInInput");
@@ -158,6 +161,22 @@ function getDeviceId() {
   return deviceId;
 }
 
+function roomCredentials(roomId) {
+  try {
+    return JSON.parse(localStorage.getItem(`holdem:credentials:${String(roomId || "").toUpperCase()}`) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function saveRoomCredentials(roomId, response) {
+  if (!roomId || !response?.reconnectToken) return;
+  localStorage.setItem(`holdem:credentials:${String(roomId).toUpperCase()}`, JSON.stringify({
+    playerId: response.playerId || getDeviceId(),
+    reconnectToken: response.reconnectToken,
+  }));
+}
+
 function setGameViewportHeight() {
   const height = window.visualViewport?.height || window.innerHeight;
   document.documentElement.style.setProperty("--game-vh", `${Math.floor(height)}px`);
@@ -173,6 +192,7 @@ function updateTableActionLabel() {
   if (!joinPending) tableActionBtn.textContent = isJoining ? "Join table" : "Host table";
   tableActionBtn.disabled = joinPending || !socket.connected;
   tableSizeLabel.classList.toggle("hidden", isJoining || moneyModeInput.checked);
+  blindFields.classList.toggle("hidden", isJoining);
   moneyModeInput.closest("label").classList.toggle("hidden", isJoining);
   buyInLabel.classList.toggle("hidden", isJoining || !moneyModeInput.checked);
   roomCodeLabel.classList.toggle("hidden", !isJoining);
@@ -668,7 +688,7 @@ function renderControls(hero) {
     if (hero && isBettingPhase(state.phase) && !hero.folded && !hero.allIn) {
       addActionButton("Fold", { type: "fold" }, "danger", true);
       addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" }, "", true);
-      configureRaiseControls(hero, true);
+      if (state.canRaise) configureRaiseControls(hero, true);
     }
     return;
   }
@@ -681,7 +701,7 @@ function renderControls(hero) {
   addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" });
 
   const maxRaise = hero.bet + hero.stack;
-  if (maxRaise > state.currentBet) {
+  if (state.canRaise && maxRaise > state.currentBet) {
     configureRaiseControls(hero);
   }
 }
@@ -820,10 +840,18 @@ function joinOrCreate(mode) {
   const roomId = roomInput.value.trim().toUpperCase();
   const eventName = mode === "join" ? "room:join" : "room:create";
   const selectedTableSize = Math.max(2, Math.min(8, Math.floor(Number(computerPlayerCount.value) || 2)));
-  const payload = { name, roomId, deviceId: getDeviceId() };
+  const credentials = roomCredentials(roomId);
+  const payload = {
+    name,
+    roomId,
+    deviceId: credentials?.playerId || getDeviceId(),
+    reconnectToken: credentials?.reconnectToken,
+  };
   if (mode !== "join") {
     payload.moneyMode = moneyModeInput.checked;
     payload.buyInCents = moneyCentsFromInput(buyInInput);
+    payload.smallBlind = Math.max(1, Math.floor(Number(smallBlindInput.value) || 10));
+    payload.bigBlind = Math.max(2, Math.floor(Number(bigBlindInput.value) || 20));
     if (!payload.moneyMode) payload.tableSize = selectedTableSize;
   }
   joinPending = true;
@@ -841,6 +869,7 @@ function joinOrCreate(mode) {
       return;
     }
     lastAutoRejoinKey = `${socket.id}:${response.roomId || roomId}`;
+    saveRoomCredentials(response.roomId || roomId, response);
     setRoomUrl(response.roomId || roomId);
   });
 }
@@ -1009,12 +1038,19 @@ function attemptAutoRejoin() {
   const rejoinKey = `${socket.id}:${roomId}`;
   if (socket.connected && roomId && rejoinKey !== lastAutoRejoinKey && !leavingEndedRoom) {
     lastAutoRejoinKey = rejoinKey;
-    socket.emit("room:join", { roomId, name, deviceId: getDeviceId() }, (response) => {
+    const credentials = roomCredentials(roomId);
+    socket.emit("room:join", {
+      roomId,
+      name,
+      deviceId: credentials?.playerId || getDeviceId(),
+      reconnectToken: credentials?.reconnectToken,
+    }, (response) => {
       if (!response?.ok) {
         lastAutoRejoinKey = "";
         joinError.textContent = response?.error || "Could not rejoin table.";
         return;
       }
+      saveRoomCredentials(response.roomId || roomId, response);
       setRoomUrl(response.roomId || roomId);
     });
   }
