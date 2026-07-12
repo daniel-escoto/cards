@@ -42,6 +42,7 @@ const DEFAULT_DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DA
 const STATE_FILE = process.env.GAME_STATE_FILE || path.join(DEFAULT_DATA_DIR, "rooms.json");
 const SAVE_DEBOUNCE_MS = 150;
 const SHOWDOWN_DELAY_MS = 1600;
+const CPU_ACTION_DELAY_MS = 250;
 
 app.use(express.static("public"));
 
@@ -1412,7 +1413,7 @@ function scheduleComputerTurn(room) {
     if (!currentRoom || !hasConnectedHuman(currentRoom) || !currentPlayer?.isBot || !isHandInProgress(currentRoom)) return;
     applyPlayerAction(currentRoom, currentPlayer.id, chooseComputerAction(currentRoom, currentPlayer));
     emitRoom(currentRoom);
-  }, 0);
+  }, CPU_ACTION_DELAY_MS);
 }
 
 function serializeRoom(room, viewerId) {
