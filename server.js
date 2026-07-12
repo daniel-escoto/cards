@@ -28,13 +28,13 @@ const DEFAULT_BIG_BLIND = BLIND_LEVELS[0].bigBlind;
 const DEFAULT_SMALL_BLIND = BLIND_LEVELS[0].smallBlind;
 const MAX_PLAYERS = 8;
 const BOT_PROFILES = [
-  { tag: "cpu_7f3a", style: "Loose cannon", aggression: 1.28, looseness: 1.24, bluff: 0.13, skill: 0.58, minDelay: 420, maxDelay: 1250 },
-  { tag: "cpu_b204", style: "Patient grinder", aggression: 0.72, looseness: 0.74, bluff: 0.025, skill: 0.82, minDelay: 700, maxDelay: 1700 },
-  { tag: "cpu_19d8", style: "Balanced regular", aggression: 1.02, looseness: 1.0, bluff: 0.065, skill: 0.76, minDelay: 520, maxDelay: 1450 },
-  { tag: "cpu_e621", style: "Pressure player", aggression: 1.48, looseness: 1.08, bluff: 0.1, skill: 0.68, minDelay: 300, maxDelay: 1050 },
-  { tag: "cpu_04ac", style: "Casual caller", aggression: 0.64, looseness: 1.3, bluff: 0.02, skill: 0.48, minDelay: 800, maxDelay: 1900 },
-  { tag: "cpu_c97e", style: "Sharp and tricky", aggression: 1.12, looseness: 0.94, bluff: 0.09, skill: 0.9, minDelay: 650, maxDelay: 1650 },
-  { tag: "cpu_52b1", style: "Tight and quick", aggression: 0.84, looseness: 0.68, bluff: 0.035, skill: 0.7, minDelay: 260, maxDelay: 800 },
+  { tag: "cpu_7f3a", style: "Loose cannon", aggression: 1.28, looseness: 1.24, bluff: 0.13, skill: 0.58 },
+  { tag: "cpu_b204", style: "Patient grinder", aggression: 0.72, looseness: 0.74, bluff: 0.025, skill: 0.82 },
+  { tag: "cpu_19d8", style: "Balanced regular", aggression: 1.02, looseness: 1.0, bluff: 0.065, skill: 0.76 },
+  { tag: "cpu_e621", style: "Pressure player", aggression: 1.48, looseness: 1.08, bluff: 0.1, skill: 0.68 },
+  { tag: "cpu_04ac", style: "Casual caller", aggression: 0.64, looseness: 1.3, bluff: 0.02, skill: 0.48 },
+  { tag: "cpu_c97e", style: "Sharp and tricky", aggression: 1.12, looseness: 0.94, bluff: 0.09, skill: 0.9 },
+  { tag: "cpu_52b1", style: "Tight and quick", aggression: 0.84, looseness: 0.68, bluff: 0.035, skill: 0.7 },
 ];
 const DISCONNECT_GRACE_MS = Math.max(0, Number(process.env.DISCONNECT_GRACE_MS) || 30000);
 const PLAYER_COLORS = ["#60a5fa", "#38bdf8", "#7ddc85", "#f472b6", "#a78bfa", "#fb7185", "#818cf8", "#2dd4bf"];
@@ -1406,18 +1406,13 @@ function scheduleComputerTurn(room) {
   if (!hasConnectedHuman(room)) return;
   const player = room.players.find((item) => item.id === room.turn);
   if (!player?.isBot || !isHandInProgress(room)) return;
-  const profile = computerProfile(player);
-  const baseDelay = profile.minDelay + Math.random() * (profile.maxDelay - profile.minDelay);
-  const decisionDelay = isSoloHumanFolded(room)
-    ? 20
-    : Math.round(baseDelay + (Math.random() < 0.08 ? 900 + Math.random() * 1000 : 0));
   room.botTimer = setTimeout(() => {
     const currentRoom = rooms.get(room.id);
     const currentPlayer = currentRoom?.players.find((item) => item.id === currentRoom.turn);
     if (!currentRoom || !hasConnectedHuman(currentRoom) || !currentPlayer?.isBot || !isHandInProgress(currentRoom)) return;
     applyPlayerAction(currentRoom, currentPlayer.id, chooseComputerAction(currentRoom, currentPlayer));
     emitRoom(currentRoom);
-  }, decisionDelay);
+  }, 0);
 }
 
 function serializeRoom(room, viewerId) {
