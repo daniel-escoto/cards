@@ -761,18 +761,20 @@ select:focus {
   align-items: center;
   gap: 9px;
   padding: 8px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.11);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 10px;
-  background: rgba(7, 22, 18, 0.36);
+  background: rgba(5, 20, 17, 0.68);
 }
 
-.table-player-row.you { background: rgba(255, 255, 255, 0.11); }
-.table-player-row.turn { border-color: rgba(255,255,255,.58); box-shadow: inset 3px 0 0 var(--player-color, #fff); }
-.table-player-row.folded { opacity: .46; }
-.table-player-row .seat-name { color: #fff; }
+.table-player-row.you { background: rgba(8, 31, 27, 0.78); }
+.table-player-row.turn { border-color: rgba(255,255,255,.82); box-shadow: inset 4px 0 0 var(--player-color, #fff), 0 0 0 1px rgba(0,0,0,.16); }
+.table-player-row.folded { opacity: .62; }
+.table-player-row .seat-name,
+:root[data-theme="light"] .table-player-row .seat-name { color: #fff; }
 .player-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--player-color, #fff); }
-.player-action { overflow: hidden; color: rgba(255,255,255,.72); font-size: 12px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
-.player-stack { padding: 4px 7px; border-radius: 999px; color: #fff; background: rgba(0,0,0,.18); font-size: 12px; text-align: center; }
+.player-action { overflow: hidden; color: rgba(255,255,255,.9); font-size: 12px; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.player-stack { padding: 4px 7px; border-radius: 999px; color: #fff; background: rgba(0,0,0,.34); font-size: 12px; text-align: center; }
+.table-player-row .action-token-raise { color: #6ff0a0; }
 
 .round-roster {
   position: sticky;
@@ -1565,12 +1567,12 @@ select:focus {
     grid-template-columns: 8px minmax(0, 1fr) minmax(62px, auto) 58px;
     gap: 7px;
     padding: 6px 8px;
-    border-color: rgba(255,255,255,.08);
+    border-color: rgba(255,255,255,.16);
     border-radius: 8px;
-    background: rgba(5,18,15,.26);
+    background: rgba(5,18,15,.68);
   }
 
-  .table-player-row.you { background: rgba(255,255,255,.13); }
+  .table-player-row.you { background: rgba(8,31,27,.8); }
   .table-player-row .seat-name { font-size: 13px; }
   .player-action { font-size: 11px; }
   .player-stack { padding: 3px 5px; font-size: 11px; }
