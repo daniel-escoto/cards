@@ -43,6 +43,11 @@ const shareQr = document.querySelector("#shareQr");
 const shareLink = document.querySelector("#shareLink");
 const copyShareBtn = document.querySelector("#copyShareBtn");
 const moneyPanel = document.querySelector("#moneyPanel");
+const blindPanel = document.querySelector("#blindPanel");
+const menuSmallBlindLabel = document.querySelector("#menuSmallBlindLabel");
+const menuBigBlindLabel = document.querySelector("#menuBigBlindLabel");
+const menuSmallBlindInput = document.querySelector("#menuSmallBlindInput");
+const menuBigBlindInput = document.querySelector("#menuBigBlindInput");
 const cashInInput = document.querySelector("#cashInInput");
 const cashOutBtn = document.querySelector("#cashOutBtn");
 const potValue = document.querySelector("#potValue");
@@ -373,6 +378,18 @@ function showGameMenu() {
   renderMenuPlayers();
   addBotBtn.classList.toggle("hidden", !state?.canAddBot);
   moneyPanel.classList.toggle("hidden", !state?.moneyMode);
+  blindPanel.classList.toggle("hidden", !state?.canChangeBlinds);
+  if (state?.canChangeBlinds) {
+    const moneyMode = state.moneyMode;
+    menuSmallBlindLabel.textContent = moneyMode ? "Small blind ($)" : "Small blind";
+    menuBigBlindLabel.textContent = moneyMode ? "Big blind ($)" : "Big blind";
+    menuSmallBlindInput.value = moneyMode ? (state.smallBlindCents / 100).toFixed(2) : state.smallBlind;
+    menuBigBlindInput.value = moneyMode ? (state.bigBlindCents / 100).toFixed(2) : state.bigBlind;
+    menuSmallBlindInput.min = moneyMode ? "0.01" : "1";
+    menuBigBlindInput.min = moneyMode ? "0.02" : "2";
+    menuSmallBlindInput.step = moneyMode ? "0.01" : "1";
+    menuBigBlindInput.step = moneyMode ? "0.01" : "1";
+  }
   if (state?.moneyMode) cashInInput.value = (state.buyInCents / 100).toFixed(0);
   clearInterval(menuTimer);
   menuTimer = setInterval(renderMenuPlayers, 1000);
@@ -996,6 +1013,20 @@ gameMenuModal.addEventListener("click", (event) => {
 });
 
 gameMenuModal.addEventListener("submit", (event) => {
+  if (event.target === blindPanel) {
+    event.preventDefault();
+    const payload = state?.moneyMode
+      ? {
+        smallBlindCents: Math.round(Number(menuSmallBlindInput.value) * 100),
+        bigBlindCents: Math.round(Number(menuBigBlindInput.value) * 100),
+      }
+      : {
+        smallBlind: Math.floor(Number(menuSmallBlindInput.value)),
+        bigBlind: Math.floor(Number(menuBigBlindInput.value)),
+      };
+    emitWithAck("game:setBlinds", payload);
+    return;
+  }
   if (event.target === moneyPanel) {
     event.preventDefault();
     emitWithAck("money:cashIn", { amountCents: moneyCentsFromInput(cashInInput, state?.buyInCents ? state.buyInCents / 100 : 20) });

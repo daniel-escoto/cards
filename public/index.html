@@ -145,6 +145,19 @@
               <div id="deckChoices" class="appearance-choices" aria-label="Deck style"></div>
             </div>
           </details>
+          <form id="blindPanel" class="money-panel hidden">
+            <div class="blind-fields">
+              <label>
+                <span id="menuSmallBlindLabel">Small blind</span>
+                <input id="menuSmallBlindInput" type="number" min="1" step="1" inputmode="decimal" />
+              </label>
+              <label>
+                <span id="menuBigBlindLabel">Big blind</span>
+                <input id="menuBigBlindInput" type="number" min="2" step="1" inputmode="decimal" />
+              </label>
+            </div>
+            <button type="submit">Update blinds</button>
+          </form>
           <div id="sharePanel" class="share-panel hidden">
             <img id="shareQr" alt="Room invite QR code" />
             <div class="share-link-row">

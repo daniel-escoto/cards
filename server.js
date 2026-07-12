@@ -1497,6 +1497,7 @@ function serializeRoom(room, viewerId) {
     canNextHand: false,
     canReady: Boolean(viewer && !viewer.isBot && viewer.stack > 0 && canReadyForHand(room) && playersWithChips(room).length >= 2),
     isReady: Boolean(viewer?.ready),
+    canChangeBlinds: room.hostId === viewerId && canReadyForHand(room),
     canRestartGame: room.hostId === viewerId && canAdministerGame(room),
     canEndGame: room.hostId === viewerId && canAdministerGame(room) && (room.moneyMode || room.phase !== "lobby"),
     canAddBot: room.hostId === viewerId && !room.moneyMode && !isHandInProgress(room) && room.players.length < MAX_PLAYERS,
@@ -1811,6 +1812,46 @@ io.on("connection", (socket) => {
     player.ready = ready === undefined ? !player.ready : Boolean(ready);
     room.message = player.ready ? `${player.name} is ready.` : `${player.name} is not ready.`;
     maybeStartReadyHand(room);
+    ack?.({ ok: true });
+    emitRoom(room);
+  });
+
+  socket.on("game:setBlinds", ({ smallBlind, bigBlind, smallBlindCents, bigBlindCents } = {}, ack) => {
+    const room = rooms.get(socketRoom.get(socket.id));
+    const playerId = socketPlayer.get(socket.id);
+    if (!room || room.hostId !== playerId) return ack?.({ ok: false, error: "Only the host can change blinds." });
+    if (!canReadyForHand(room)) return ack?.({ ok: false, error: "Change blinds between hands." });
+
+    let nextSmall;
+    let nextBig;
+    let nextBaseSmall;
+    let nextBaseBig;
+    if (room.moneyMode) {
+      const chipCents = chipValueCents(room);
+      const smallCents = Math.round(Number(smallBlindCents));
+      const bigCents = Math.round(Number(bigBlindCents));
+      if (!Number.isFinite(smallCents) || smallCents <= 0 || smallCents % chipCents !== 0
+        || !Number.isFinite(bigCents) || bigCents <= 0 || bigCents % chipCents !== 0) {
+        return ack?.({ ok: false, error: `Blinds must be exact multiples of $${(chipCents / 100).toFixed(2)}.` });
+      }
+      nextSmall = smallCents / chipCents;
+      nextBig = bigCents / chipCents;
+      nextBaseSmall = nextSmall;
+      nextBaseBig = nextBig;
+    } else {
+      nextSmall = cleanBlind(smallBlind, 0);
+      nextBig = cleanBlind(bigBlind, 0);
+      const nextHand = room.phase === "complete" ? room.handNumber + 1 : 1;
+      const level = blindLevelForHand(nextHand);
+      nextBaseSmall = Math.max(1, Math.round(nextSmall * DEFAULT_SMALL_BLIND / level.smallBlind));
+      nextBaseBig = Math.max(2, Math.round(nextBig * DEFAULT_BIG_BLIND / level.bigBlind));
+    }
+    if (nextBig <= nextSmall) return ack?.({ ok: false, error: "Big blind must be greater than small blind." });
+    room.baseSmallBlind = nextBaseSmall;
+    room.baseBigBlind = nextBaseBig;
+    resetReadiness(room);
+    room.minRaise = nextBig;
+    room.message = `Blinds updated to ${room.moneyMode ? `$${(smallBlindCents / 100).toFixed(2)}/$${(bigBlindCents / 100).toFixed(2)}` : `${nextSmall}/${nextBig}`}.`;
     ack?.({ ok: true });
     emitRoom(room);
   });

@@ -205,6 +205,7 @@ async function readyUp(players) {
   await expectReject(bobAgain.socket, "game:end", {}, "non-host end game");
   await expectReject(alice.socket, "game:restart", {}, "live-hand restart");
   await expectReject(alice.socket, "game:end", {}, "live-hand end game");
+  await expectReject(alice.socket, "game:setBlinds", { smallBlind: 20, bigBlind: 40 }, "live-hand blind change");
   const bobViewOfAlice = bobAgain.state.players.find((player) => player.name === "Alice");
   if (bobViewOfAlice?.cards.some((card) => card?.code)) {
     throw new Error("Expected table cards to stay hidden from opponents");
@@ -380,11 +381,14 @@ async function readyUp(players) {
   });
   await emit(finalB.socket, "room:join", { roomId: finalRoom.roomId, name: finalB.name, deviceId: finalB.deviceId });
   await waitFor(() => finalA.state?.players.length === 2 && finalB.state?.players.length === 2, "final table seated");
+  await expectReject(finalB.socket, "game:setBlinds", { smallBlind: 6, bigBlind: 12 }, "non-host blind change");
+  await emit(finalA.socket, "game:setBlinds", { smallBlind: 6, bigBlind: 12 });
+  await waitFor(() => finalA.state?.smallBlind === 6 && finalA.state?.bigBlind === 12, "host blind change");
 
   for (let hand = 0; hand < 10 && finalA.state.phase !== "gameover"; hand += 1) {
     await readyUp([finalA, finalB]);
     await waitFor(() => ["preflop", "gameover"].includes(finalA.state?.phase), "final hand start");
-    if (hand === 0 && (finalA.state.smallBlind !== 5 || finalA.state.bigBlind !== 10)) {
+    if (hand === 0 && (finalA.state.smallBlind !== 6 || finalA.state.bigBlind !== 12)) {
       throw new Error("Expected custom opening blinds to be applied");
     }
 
@@ -437,6 +441,8 @@ async function readyUp(players) {
   if (cashHost.state.smallBlindCents !== 10 || cashHost.state.bigBlindCents !== 20) {
     throw new Error("Expected money-mode blinds to preserve dollar amounts");
   }
+  await emit(cashHost.socket, "game:setBlinds", { smallBlindCents: 12, bigBlindCents: 24 });
+  await waitFor(() => cashHost.state?.smallBlindCents === 12 && cashHost.state?.bigBlindCents === 24, "cash blind change");
   await expectReject(cashHost.socket, "money:cashIn", { amountCents: 101 }, "inexact cash-in conversion");
   const cashGuest = connectPlayer("CashGuest");
   await waitFor(() => cashGuest.socket.connected, "cash guest connection");
