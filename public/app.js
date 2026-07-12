@@ -199,11 +199,12 @@ function showToast(message) {
   toastTimer = setTimeout(() => toast.classList.add("hidden"), 1800);
 }
 
-function cardTemplate(card) {
-  if (!card) return '<div class="card back"><span></span><span></span></div>';
+function cardTemplate(card, extraClass = "") {
+  const className = extraClass ? ` ${extraClass}` : "";
+  if (!card) return `<div class="card back${className}"><span></span><span></span></div>`;
   const cardName = `${card.rank}${card.suit}`;
   return `
-    <div class="card ${card.color === "red" ? "red" : ""}" aria-label="${escapeHtml(cardName)}">
+    <div class="card ${card.color === "red" ? "red" : ""}${className}" aria-label="${escapeHtml(cardName)}">
       <span class="card-corner card-corner-top">
         <span class="card-rank">${card.rank}</span>
       </span>
@@ -555,10 +556,16 @@ function render() {
   const communitySignature = state.community.map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`).join("|");
   const expectedCommunityCards = state.phase === "lobby" ? 0 : 5;
   if (communitySignature !== lastCommunitySignature || community.children.length !== expectedCommunityCards) {
+    const previousCommunity = lastCommunitySignature ? lastCommunitySignature.split("|") : [];
+    const isInitialBoard = community.children.length === 0 && state.phase !== "lobby";
     community.innerHTML = state.phase === "lobby"
       ? ""
-      : Array.from({ length: 5 }, (_, index) => cardTemplate(state.community[index] || null)).join("");
-    replayAnimation(community, "cards-entering", 900);
+      : Array.from({ length: 5 }, (_, index) => {
+        const card = state.community[index] || null;
+        const cardCode = card?.code || `${card?.rank || ""}${card?.suit || ""}`;
+        const isNewCard = isInitialBoard || Boolean(card && previousCommunity[index] !== cardCode);
+        return cardTemplate(card, isNewCard ? "card-entering" : "");
+      }).join("");
     lastCommunitySignature = communitySignature;
   }
   const feltElement = document.querySelector(".felt");
