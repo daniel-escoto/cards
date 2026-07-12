@@ -278,8 +278,8 @@ function waitFor(predicate, label, timeout = 5000) {
   if (solo.state.players.filter((player) => player.isBot).length !== 3) {
     throw new Error("Expected three computer players");
   }
-  if (!solo.state.players.filter((player) => player.isBot).every((player) => !player.name.endsWith("_bot") && player.name === player.name.toLowerCase())) {
-    throw new Error("Expected lowercase generated CPU names without a bot suffix");
+  if (!solo.state.players.filter((player) => player.isBot).every((player) => /^[A-Z][a-z]+ [A-Z][a-z]+$/.test(player.name))) {
+    throw new Error("Expected natural procedural names for CPU players");
   }
   if (solo.state.players.some((player) => player.isBot && !player.connected)) {
     throw new Error("Expected CPU players to be connected");

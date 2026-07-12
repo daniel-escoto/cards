@@ -1262,8 +1262,8 @@ select:focus {
   100% { opacity: 1; transform: none; }
 }
 @keyframes action-arrive {
-  from { opacity: .2; transform: translateY(4px); background: rgba(255, 255, 255, .1); }
-  to { opacity: 1; transform: none; background: transparent; }
+  from { opacity: .72; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
 }
 @keyframes value-pop { 45% { transform: scale(1.07); border-color: var(--accent); } }
 @keyframes winner-reveal { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }

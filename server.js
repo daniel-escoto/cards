@@ -449,18 +449,17 @@ function computerName(player) {
     hash = Math.imul(hash, 16777619);
   }
   const value = hash >>> 0;
-  const prefixes = ["neon", "quant", "logic", "pixel", "servo", "nano", "vector", "turbo"];
-  const units = ["byte", "core", "node", "chip", "grid", "loop", "cache", "flux"];
-  const prefix = prefixes[value % prefixes.length];
-  const unit = units[Math.floor(value / prefixes.length) % units.length];
-  const serial = ((value >>> 8) & 0xff).toString(16).padStart(2, "0");
-  const formats = [
-    () => `${prefix}_${unit}_${serial}`,
-    () => `${prefix}-${serial}-${unit}`,
-    () => `${unit}.${prefix}${serial}`,
-    () => `${prefix}${serial}_${unit}`,
+  const firstNames = [
+    "Avery", "Caleb", "Elena", "Felix", "Hannah", "Isaac", "Jade", "Jonah",
+    "Layla", "Leo", "Maya", "Miles", "Nina", "Noah", "Owen", "Ruby",
   ];
-  return formats[(value >>> 16) % formats.length]();
+  const lastNames = [
+    "Bennett", "Brooks", "Carter", "Ellis", "Foster", "Hayes", "Jordan", "Lane",
+    "Morgan", "Parker", "Quinn", "Reed", "Rivera", "Sawyer", "Turner", "Wells",
+  ];
+  const firstName = firstNames[value % firstNames.length];
+  const lastName = lastNames[Math.floor(value / firstNames.length) % lastNames.length];
+  return `${firstName} ${lastName}`;
 }
 
 function addComputerPlayers(room, totalPlayers) {
