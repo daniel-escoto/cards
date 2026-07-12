@@ -710,7 +710,7 @@ function renderControls(hero) {
     if (hero && isBettingPhase(state.phase) && !hero.folded && !hero.allIn) {
       addActionButton("Fold", { type: "fold" }, "danger", true);
       addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" }, "", true);
-      if (state.canRaise) configureRaiseControls(hero, true);
+      configureRaiseControls(hero, true);
     }
     return;
   }
