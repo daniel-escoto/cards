@@ -137,6 +137,7 @@ function serializePlayerForStorage(player) {
     bet: player.bet,
     invested: player.invested,
     showCards: Boolean(player.showCards),
+    ready: Boolean(player.ready),
     disconnectExpiresAt: player.disconnectExpiresAt || null,
     connected: false,
     isBot: player.isBot,
@@ -218,6 +219,7 @@ function restorePlayer(raw) {
     bet: Math.max(0, Math.floor(Number(raw.bet) || 0)),
     invested: Math.max(0, Math.floor(Number(raw.invested) || 0)),
     showCards: Boolean(raw.showCards),
+    ready: Boolean(raw.ready),
     disconnectExpiresAt: null,
     connected: Boolean(raw.isBot),
     isBot: Boolean(raw.isBot),
@@ -417,6 +419,7 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
         bet: 0,
         invested: 0,
         showCards: false,
+        ready: false,
         connected: true,
         isBot: false,
         replacedPlayerId: null,
@@ -486,6 +489,7 @@ function makePlayer({ id, name, socketId = null, isBot = false }) {
     bet: 0,
     invested: 0,
     showCards: false,
+    ready: false,
     connected: true,
     isBot,
     replacedPlayerId: null,
@@ -698,6 +702,7 @@ function resetHandState(room) {
     player.bet = 0;
     player.invested = 0;
     player.showCards = false;
+    player.ready = false;
   }
 }
 
@@ -707,6 +712,27 @@ function isHandInProgress(room) {
 
 function canAdministerGame(room) {
   return ["lobby", "complete", "gameover"].includes(room?.phase);
+}
+
+function canReadyForHand(room) {
+  return ["lobby", "complete"].includes(room?.phase);
+}
+
+function resetReadiness(room) {
+  for (const player of room?.players || []) {
+    if (!player.isBot) player.ready = false;
+  }
+}
+
+function maybeStartReadyHand(room) {
+  if (!canReadyForHand(room)) return false;
+  const seated = playersWithChips(room);
+  const humans = seated.filter((player) => !player.isBot);
+  if (seated.length < 2 || humans.length === 0) return false;
+  if (!humans.every((player) => player.connected && player.ready)) return false;
+  if (room.phase === "complete") startNextHand(room);
+  else startHand(room);
+  return true;
 }
 
 function playersWithChips(room) {
@@ -826,6 +852,7 @@ function restartGame(room) {
     player.bet = 0;
     player.invested = 0;
     player.showCards = false;
+    player.ready = false;
     if (room.moneyMode) syncPlayerToMoneyLedger(room, player);
   }
   room.status = "lobby";
@@ -940,6 +967,7 @@ function cashInPlayer(room, playerId, amountCents) {
   player.buyInsCents += cents;
   player.stack += centsToChips(room, cents);
   player.allIn = false;
+  resetReadiness(room);
   syncPlayerToMoneyLedger(room, player);
   room.settlements = [];
   room.message = `${player.name} cashed in.`;
@@ -958,6 +986,7 @@ function cashOutPlayer(room, playerId) {
   player.invested = 0;
   player.folded = true;
   player.allIn = true;
+  resetReadiness(room);
   syncPlayerToMoneyLedger(room, player);
   room.settlements = optimizeSettlements(room.moneyLedger);
   room.message = `${player.name} cashed out.`;
@@ -1433,8 +1462,10 @@ function serializeRoom(room, viewerId) {
     toCall,
     toCallCents: chipsToCents(room, toCall),
     canShowHand: room.phase === "complete" && Boolean(viewer?.hand?.length) && !viewer.showCards,
-    canStart: room.hostId === viewerId && playersWithChips(room).length >= 2 && !isHandInProgress(room) && room.phase !== "gameover",
-    canNextHand: room.hostId === viewerId && room.phase === "complete" && playersWithChips(room).length >= 2,
+    canStart: false,
+    canNextHand: false,
+    canReady: Boolean(viewer && !viewer.isBot && viewer.stack > 0 && canReadyForHand(room) && playersWithChips(room).length >= 2),
+    isReady: Boolean(viewer?.ready),
     canRestartGame: room.hostId === viewerId && canAdministerGame(room),
     canEndGame: room.hostId === viewerId && canAdministerGame(room) && (room.moneyMode || room.phase !== "lobby"),
     canAddBot: room.hostId === viewerId && !room.moneyMode && !isHandInProgress(room) && room.players.length < MAX_PLAYERS,
@@ -1462,6 +1493,7 @@ function serializeRoom(room, viewerId) {
       connected: player.connected,
       isBot: player.isBot,
       showCards: Boolean(player.showCards),
+      ready: Boolean(player.ready || player.isBot),
       disconnectExpiresAt: player.disconnectExpiresAt || null,
       isHost: player.id === room.hostId,
       dealer: index === room.dealer,
@@ -1552,6 +1584,8 @@ function removePlayerAfterDisconnect(room, player) {
       room.turn = next >= 0 ? room.players[next].id : null;
     }
     maybeAdvance(room);
+  } else {
+    maybeStartReadyHand(room);
   }
   emitRoom(room);
 }
@@ -1675,6 +1709,7 @@ io.on("connection", (socket) => {
     if (botSeat) {
       if (isHandInProgress(room)) return ack?.({ ok: false, error: "This hand is in progress. Join after it ends." });
       const credentials = newReconnectCredentials();
+      resetReadiness(room);
       convertBotToHuman(socket, room, botSeat, playerId, name, credentials.tokenHash);
       ack?.({ ok: true, roomId: room.id, playerId, reconnectToken: credentials.token });
       emitRoom(room);
@@ -1686,6 +1721,7 @@ io.on("connection", (socket) => {
       return ack?.({ ok: false, error: "This hand is in progress. Join after it ends." });
     }
     const credentials = newReconnectCredentials();
+    resetReadiness(room);
     room.players.push(makeHumanPlayer(room, { id: playerId, socketId: socket.id, name: cleanName(name), reconnectTokenHash: credentials.tokenHash }));
     attachSocketToPlayer(socket, room, room.players[room.players.length - 1]);
     if (room.tableSize) addComputerPlayers(room, room.tableSize);
@@ -1727,19 +1763,23 @@ io.on("connection", (socket) => {
   });
 
   socket.on("game:start", (_, ack) => {
-    const room = rooms.get(socketRoom.get(socket.id));
-    const playerId = socketPlayer.get(socket.id);
-    if (!room || room.hostId !== playerId) return ack?.({ ok: false, error: "Only the host can start." });
-    startHand(room);
-    ack?.({ ok: true });
-    emitRoom(room);
+    ack?.({ ok: false, error: "Players must ready up before the hand starts." });
   });
 
   socket.on("game:next", (_, ack) => {
+    ack?.({ ok: false, error: "Players must ready up before the next hand." });
+  });
+
+  socket.on("game:ready", ({ ready } = {}, ack) => {
     const room = rooms.get(socketRoom.get(socket.id));
     const playerId = socketPlayer.get(socket.id);
-    if (!room || room.hostId !== playerId) return ack?.({ ok: false, error: "Only the host can deal the next hand." });
-    startNextHand(room);
+    const player = room?.players.find((item) => item.id === playerId);
+    if (!room || !player || player.isBot) return ack?.({ ok: false, error: "Player not found." });
+    if (!canReadyForHand(room)) return ack?.({ ok: false, error: "You can ready up between hands." });
+    if (player.stack <= 0) return ack?.({ ok: false, error: "Cash in before readying up." });
+    player.ready = ready === undefined ? !player.ready : Boolean(ready);
+    room.message = player.ready ? `${player.name} is ready.` : `${player.name} is not ready.`;
+    maybeStartReadyHand(room);
     ack?.({ ok: true });
     emitRoom(room);
   });

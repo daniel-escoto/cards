@@ -508,6 +508,7 @@ function actionTokenClass(entry, player) {
 }
 
 function playerTableStatus(player, isActiveTurn = player.isTurn) {
+  if (["lobby", "complete"].includes(state?.phase)) return player.ready || player.isBot ? "Ready" : "Not ready";
   if (player.folded) return "Folded";
   if (player.allIn) return "All in";
   if (isActiveTurn) return "Acting";
@@ -560,7 +561,8 @@ function renderActionFeed(newEntryId = "") {
   const tableMarkup = state.players.map((player) => {
     const entry = latestByPlayer.get(player.id);
     const isActing = player.id === activePlayer?.id;
-    const action = entry ? compactPlayerAction(entry, player) : playerTableStatus(player, isActing);
+    const betweenHands = ["lobby", "complete"].includes(state.phase);
+    const action = !betweenHands && entry ? compactPlayerAction(entry, player) : playerTableStatus(player, isActing);
     return `
       <article class="table-player-row ${isActing ? "turn" : ""} ${player.folded ? "folded" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}" ${playerColorStyle(player)}>
         <i class="player-dot" aria-hidden="true"></i>
@@ -689,19 +691,20 @@ function renderControls(hero) {
   }
   turnInfo.classList.remove("showdown-message");
 
-  if (state.canStart && state.phase !== "complete") {
-    addButton("Start game", "game:start");
-  }
-  if (state.canNextHand) {
-    addButton("Next hand", "game:next");
+  if (state.canReady) {
+    addButton(state.isReady ? "Not ready" : "Ready up", "game:ready", state.isReady ? "secondary" : "");
   }
   if (state.canShowHand) {
     addButton("Show hand", "game:showCards", "secondary");
   }
 
   if (!state.isYourTurn || !hero) {
-    if (state.phase === "lobby") {
-      turnInfo.textContent = state.canStart ? "Ready to deal." : "Waiting for the host to start.";
+    if (["lobby", "complete"].includes(state.phase)) {
+      const humans = state.players.filter((player) => !player.isBot && player.stack > 0);
+      const readyCount = humans.filter((player) => player.ready).length;
+      turnInfo.textContent = humans.length < 2 && state.players.filter((player) => player.stack > 0).length < 2
+        ? "Invite a player or add a CPU to begin."
+        : `${readyCount} of ${humans.length} players ready.`;
       return;
     }
     const currentIndex = findLastIndex(state.players, (player) => player.id === state.turn);

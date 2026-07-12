@@ -74,6 +74,14 @@ function waitFor(predicate, label, timeout = 5000) {
   });
 }
 
+async function readyUp(players) {
+  for (const player of players) {
+    if (player.state?.players.find((item) => item.isYou)?.stack > 0) {
+      await emit(player.socket, "game:ready", { ready: true });
+    }
+  }
+}
+
 (async () => {
   const alice = connectPlayer("Alice");
   const bob = connectPlayer("Bob");
@@ -181,7 +189,11 @@ function waitFor(predicate, label, timeout = 5000) {
   bob.socket.disconnect();
   players[1] = bobAgain;
 
-  await emit(alice.socket, "game:start");
+  await expectReject(alice.socket, "game:start", {}, "host bypassing readiness");
+  await emit(alice.socket, "game:ready", { ready: true });
+  await emit(bobAgain.socket, "game:ready", { ready: true });
+  await waitFor(() => alice.state?.phase === "lobby" && alice.state.players.filter((player) => player.ready).length === 2, "partial readiness");
+  await emit(carmen.socket, "game:ready", { ready: true });
   await waitFor(() => alice.state?.phase === "preflop", "hand start");
   if (alice.state.canRestartGame || alice.state.canEndGame) {
     throw new Error("Expected live-hand restart and end controls to be locked");
@@ -250,7 +262,7 @@ function waitFor(predicate, label, timeout = 5000) {
     throw new Error("Expected shown hand to be visible to other players");
   }
   const completedHandNumber = alice.state.handNumber;
-  await emit(alice.socket, "game:next");
+  await readyUp(players);
   await waitFor(() => alice.state?.phase === "preflop" && alice.state?.handNumber === completedHandNumber + 1, "next hand start");
   if (alice.state.actionLog.some((entry) => !entry.id.startsWith(`${alice.state.handNumber}-`))) {
     throw new Error("Expected next hand to reset previous hand history");
@@ -267,7 +279,7 @@ function waitFor(predicate, label, timeout = 5000) {
     computerPlayers: 4,
   });
   await waitFor(() => idle.state?.players.length === 4, "idle computer players seated");
-  await emit(idle.socket, "game:start");
+  await readyUp([idle]);
   await waitFor(() => idle.state?.phase === "preflop", "idle game start");
   const idleSignature = `${idle.state.phase}:${idle.state.turn}:${idle.state.actionLog.length}:${idle.state.pot}`;
   idle.socket.disconnect();
@@ -298,7 +310,7 @@ function waitFor(predicate, label, timeout = 5000) {
   if (solo.state.players.some((player) => player.isBot && !player.connected)) {
     throw new Error("Expected CPU players to be connected");
   }
-  await emit(solo.socket, "game:start");
+  await readyUp([solo]);
   await waitFor(() => solo.state?.phase === "preflop", "computer game hand start");
 
   const dana = connectPlayer("Dana");
@@ -370,7 +382,7 @@ function waitFor(predicate, label, timeout = 5000) {
   await waitFor(() => finalA.state?.players.length === 2 && finalB.state?.players.length === 2, "final table seated");
 
   for (let hand = 0; hand < 10 && finalA.state.phase !== "gameover"; hand += 1) {
-    await emit(finalA.socket, finalA.state.phase === "complete" ? "game:next" : "game:start");
+    await readyUp([finalA, finalB]);
     await waitFor(() => ["preflop", "gameover"].includes(finalA.state?.phase), "final hand start");
     if (hand === 0 && (finalA.state.smallBlind !== 5 || finalA.state.bigBlind !== 10)) {
       throw new Error("Expected custom opening blinds to be applied");
