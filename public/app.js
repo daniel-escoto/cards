@@ -63,11 +63,10 @@ const toast = document.querySelector("#toast");
 
 let state = null;
 let raiseState = { value: 0, min: 0, max: 0, step: 20 };
-let hasRenderedRoom = false;
 let leavingEndedRoom = false;
 let menuTimer = null;
 let lastAutoRejoinKey = "";
-let lastActionFeedSignature = "";
+let lastActionEntryId = "";
 let lastCommunitySignature = null;
 let lastHeroSignature = "";
 let lastWinnerSignature = "";
@@ -348,8 +347,7 @@ function showGameMenu() {
 
 function showWelcome(status = "") {
   state = null;
-  hasRenderedRoom = false;
-  lastActionFeedSignature = "";
+  lastActionEntryId = "";
   lastCommunitySignature = null;
   lastHeroSignature = "";
   lastWinnerSignature = "";
@@ -373,8 +371,7 @@ function showScoreScreen(room) {
       : b.stack - a.stack || a.name.localeCompare(b.name)
   ));
   state = null;
-  hasRenderedRoom = false;
-  lastActionFeedSignature = "";
+  lastActionEntryId = "";
   hideGameMenu();
   document.documentElement.classList.remove("game-open-root");
   document.body.classList.remove("game-open", "keyboard-open");
@@ -567,7 +564,7 @@ function isBettingPhase(phase) {
   return ["preflop", "flop", "turn", "river"].includes(phase);
 }
 
-function renderActionFeed() {
+function renderActionFeed(newEntryId = "") {
   const entries = (state.actionLog || []).filter((entry) => entry.phase !== "lobby");
   const activePlayer = currentTurnPlayer();
   const activeSeatIndex = findLastIndex(state.players, (player) => player.id === activePlayer?.id);
@@ -583,7 +580,7 @@ function renderActionFeed() {
     const showPhase = phase !== lastPhase;
     lastPhase = phase;
     return `
-      <article class="action-feed-card action-history-card ${player?.folded ? "folded" : ""} ${player?.isYou ? "you" : ""}" ${playerColorStyle(player)}>
+      <article class="action-feed-card action-history-card ${entry.id === newEntryId ? "new-action" : ""} ${player?.folded ? "folded" : ""} ${player?.isYou ? "you" : ""}" ${playerColorStyle(player)}>
         <div class="action-card-move">
           <em>${showPhase && compactStreetLabel(phase) ? escapeHtml(compactStreetLabel(phase)) : ""}</em>
           <span class="seat-name">${escapeHtml(player?.name || "Table")}${player?.isYou ? " (you)" : ""}</span>
@@ -598,26 +595,6 @@ function renderActionFeed() {
     : "";
   const markup = `${renderRoundRoster()}${historyMarkup}${shownHands}${activePlayer ? renderSeatCard(activePlayer, true) : ""}`.trim();
   return markup || seatMarkup();
-}
-
-function actionFeedSignature(room) {
-  const log = (room.actionLog || [])
-    .filter((entry) => entry.phase !== "lobby")
-    .map((entry) => `${entry.id}:${entry.playerId || ""}:${entry.phase || ""}:${entry.action || entry.text || ""}`)
-    .join("|");
-  const seats = room.players
-    .map((player) => [
-      player.id,
-      player.stack,
-      player.bet,
-      player.invested,
-      player.folded,
-      player.allIn,
-      player.showCards,
-      player.cards?.map((card) => card?.code || "").join(",") || "",
-    ].join(":"))
-    .join("|");
-  return `${room.handNumber}:${room.phase}:${room.turn}:${log}:${seats}`;
 }
 
 function isEndedGameReturn(previous, next) {
@@ -652,10 +629,14 @@ function render() {
   feltElement.classList.toggle("showdown-wait", state.phase === "showdown");
   lastPhase = state.phase;
 
-  const nextFeedSignature = actionFeedSignature(state);
-  players.innerHTML = renderActionFeed();
-  if (nextFeedSignature !== lastActionFeedSignature) replayAnimation(players, "feed-updated", 520);
-  lastActionFeedSignature = nextFeedSignature;
+  const entries = (state.actionLog || []).filter((entry) => entry.phase !== "lobby");
+  const latestEntryId = entries.at(-1)?.id || "";
+  const hasNewAction = Boolean(latestEntryId && latestEntryId !== lastActionEntryId);
+  const feedScroll = captureActionFeedScroll();
+  players.innerHTML = renderActionFeed(hasNewAction ? latestEntryId : "");
+  restoreActionFeedScroll(feedScroll);
+  if (hasNewAction) replayAnimation(players, "feed-updated", 420);
+  lastActionEntryId = latestEntryId;
 
   const hero = activeHero();
   const heroSignature = hero?.cards?.map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`).join("|") || "";
@@ -685,12 +666,26 @@ function render() {
     renderMenuPlayers();
     addBotBtn.classList.toggle("hidden", !state?.canAddBot);
   }
-  requestAnimationFrame(() => scrollActionFeed());
+  requestAnimationFrame(() => restoreActionFeedScroll(feedScroll));
+}
+
+function captureActionFeedScroll() {
+  const maxScrollTop = Math.max(0, players.scrollHeight - players.clientHeight);
+  return {
+    followBottom: maxScrollTop - players.scrollTop < 28,
+    top: players.scrollTop,
+  };
+}
+
+function restoreActionFeedScroll(snapshot) {
+  if (!snapshot || players.scrollHeight <= players.clientHeight) return;
+  const maxScrollTop = Math.max(0, players.scrollHeight - players.clientHeight);
+  players.scrollTop = snapshot.followBottom ? maxScrollTop : Math.min(snapshot.top, maxScrollTop);
 }
 
 function scrollActionFeed() {
-  if (players.scrollHeight <= players.clientHeight) return;
-  players.scrollTo({ top: players.scrollHeight, behavior: hasRenderedRoom ? "smooth" : "auto" });
+  const snapshot = captureActionFeedScroll();
+  requestAnimationFrame(() => restoreActionFeedScroll(snapshot));
 }
 
 function renderControls(hero) {
@@ -830,8 +825,6 @@ function makeHost(playerId) {
 }
 
 function kickPlayer(playerId) {
-  const player = state?.players.find((item) => item.id === playerId);
-  if (!window.confirm(`Remove ${player?.name || "this player"} from the table?`)) return;
   emitWithAck("room:kick", { playerId });
 }
 
@@ -1023,13 +1016,11 @@ cashOutBtn.addEventListener("click", () => {
 });
 
 restartGameBtn.addEventListener("click", () => {
-  if (!window.confirm("Restart the game and reset every player’s stack?")) return;
   hideGameMenu();
   emitWithAck("game:restart", {});
 });
 
 endGameBtn.addEventListener("click", () => {
-  if (!window.confirm("End this game for everyone and show final standings?")) return;
   hideGameMenu();
   emitWithAck("game:end", {});
 });
@@ -1038,7 +1029,6 @@ shareGameBtn.addEventListener("click", showSharePanel);
 copyShareBtn.addEventListener("click", () => copyText(shareLink.value, copyShareBtn));
 
 backToMenuBtn.addEventListener("click", () => {
-  if (state && !window.confirm("Leave this table? You can rejoin later with the room code.")) return;
   hideGameMenu();
   socket.emit("room:leave");
   showWelcome();
@@ -1063,7 +1053,6 @@ socket.on("room:update", (room) => {
   }
   joinError.textContent = "";
   render();
-  hasRenderedRoom = true;
 });
 
 socket.on("room:kicked", () => {

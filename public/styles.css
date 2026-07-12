@@ -761,24 +761,9 @@ select:focus {
   isolation: isolate;
   display: grid;
   gap: 7px;
-  padding: 9px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
-  background: rgba(8, 24, 20, 0.94);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(10px);
-}
-
-.round-roster::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  top: -12px;
-  right: -3px;
-  left: -3px;
-  height: 24px;
-  background: rgba(8, 24, 20, 0.98);
-  pointer-events: none;
+  padding: 7px 2px 9px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  background: var(--felt);
 }
 
 .round-roster-head { display: flex; align-items: center; justify-content: space-between; color: rgba(255,255,255,.68); font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
@@ -844,9 +829,14 @@ select:focus {
 }
 
 .action-history-card {
-  padding-block: 7px;
-  background: rgba(15, 22, 25, 0.58);
+  padding: 6px 8px;
+  border-color: transparent;
+  border-left-width: 2px;
+  border-radius: 6px;
+  background: transparent;
 }
+
+.action-history-card.you { box-shadow: none; }
 
 .seat-name {
   min-width: 0;
@@ -1045,6 +1035,7 @@ select:focus {
 :root[data-theme="light"] .action-feed-card,
 :root[data-theme="light"] .score-row,
 :root[data-theme="light"] .settlement-row { background: rgba(255, 255, 255, 0.88); }
+:root[data-theme="light"] .action-history-card { background: transparent; }
 :root[data-theme="light"] .raise-display { background: var(--input-bg); }
 :root[data-theme="light"] .table-meta div { background: rgba(255,255,255,.82); border-color: rgba(24,38,33,.16); }
 :root[data-theme="light"] .table-meta strong { color: #17201c; }
@@ -1207,7 +1198,7 @@ select:focus {
 .cards-entering .card:nth-child(3) { animation-delay: 140ms; }
 .cards-entering .card:nth-child(4) { animation-delay: 210ms; }
 .cards-entering .card:nth-child(5) { animation-delay: 280ms; }
-.feed-updated .action-feed-card:last-child { animation: action-arrive 360ms cubic-bezier(.2,.8,.2,1) both; }
+.feed-updated .new-action { animation: action-arrive 360ms cubic-bezier(.2,.8,.2,1) both; }
 .table-meta div.value-changed { animation: value-pop 440ms ease-out; }
 .winner-entering > * { animation: winner-reveal 620ms cubic-bezier(.2,.8,.2,1) both; }
 .felt.street-change { animation: street-pulse 620ms ease-out; }
@@ -1221,7 +1212,10 @@ select:focus {
   62% { opacity: 1; transform: translateY(2px) rotate(.6deg) scale(1.02); }
   100% { opacity: 1; transform: none; }
 }
-@keyframes action-arrive { from { opacity: .25; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes action-arrive {
+  from { opacity: .2; transform: translateY(4px); background: rgba(255, 255, 255, .1); }
+  to { opacity: 1; transform: none; background: transparent; }
+}
 @keyframes value-pop { 45% { transform: scale(1.07); border-color: var(--accent); } }
 @keyframes winner-reveal { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
 @keyframes street-pulse { 45% { box-shadow: inset 0 0 90px rgba(96,165,250,.18), inset 0 0 0 2px rgba(255,255,255,.13), 0 18px 54px rgba(0,0,0,.38); } }
@@ -1325,7 +1319,7 @@ select:focus {
     width: 38px;
   }
 
-  .action-feed-card {
+  .action-feed-card:not(.action-history-card) {
     gap: 10px;
     padding: 12px 14px;
   }
@@ -1344,7 +1338,7 @@ select:focus {
     padding-right: 4px;
   }
 
-  .action-feed-card {
+  .action-feed-card:not(.action-history-card) {
     width: 100%;
   }
 
@@ -1542,14 +1536,14 @@ select:focus {
     grid-row: 2;
   }
 
-  .action-feed-card {
+  .action-feed-card:not(.action-history-card) {
     width: 100%;
     gap: 7px;
     padding: 7px 9px;
     font-size: 13px;
   }
 
-  .round-roster { padding: 7px 8px; }
+  .round-roster { padding: 7px 2px 8px; }
   .round-player { padding: 3px 6px; }
   .round-player em { display: none; }
 
