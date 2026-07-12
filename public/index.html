@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>Table Stakes Hold'em</title>
+    <title>Texas Hold'em</title>
     <script>
       const savedTheme = localStorage.getItem("holdem:theme");
       document.documentElement.dataset.theme = savedTheme || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
@@ -20,9 +20,7 @@
         <div class="brand">
           <span class="mark" aria-hidden="true">♠</span>
           <div>
-            <p class="eyebrow">Your table. Your rules.</p>
-            <h1>Table Stakes</h1>
-            <p>Deal a private Hold’em game in seconds.</p>
+            <h1>Texas Hold’em</h1>
           </div>
         </div>
 
@@ -60,7 +58,6 @@
           <div class="actions-row">
             <button id="tableActionBtn" type="submit">Host table</button>
           </div>
-          <p id="formHint" class="form-hint">Invite friends or add CPU players from the table menu.</p>
           <p id="joinError" class="error" role="alert"></p>
         </form>
       </section>

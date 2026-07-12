@@ -241,8 +241,6 @@ label {
 .mode-option { min-height: 40px; padding: 0 10px; color: var(--muted); background: transparent; font-size: 13px; }
 .mode-option:not(:disabled):hover { color: var(--text); background: rgba(255,255,255,.06); }
 .mode-option.selected { color: #ffffff; background: var(--accent); box-shadow: 0 4px 12px rgba(0,0,0,.22); }
-.form-hint { color: var(--muted); font-size: 12px; line-height: 1.4; text-align: center; }
-
 label {
   display: grid;
   gap: 7px;

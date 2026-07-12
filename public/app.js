@@ -13,7 +13,6 @@ const roomInput = document.querySelector("#roomInput");
 const roomCodeLabel = document.querySelector("#roomCodeLabel");
 const hostModeBtn = document.querySelector("#hostModeBtn");
 const joinModeBtn = document.querySelector("#joinModeBtn");
-const formHint = document.querySelector("#formHint");
 const blindFields = document.querySelector("#blindFields");
 const smallBlindInput = document.querySelector("#smallBlindInput");
 const bigBlindInput = document.querySelector("#bigBlindInput");
@@ -199,9 +198,6 @@ function updateTableActionLabel() {
   joinModeBtn.classList.toggle("selected", isJoining);
   hostModeBtn.setAttribute("aria-selected", String(!isJoining));
   joinModeBtn.setAttribute("aria-selected", String(isJoining));
-  formHint.textContent = isJoining
-    ? "Enter the six-character code from your host."
-    : "Invite friends or add CPU players from the table menu.";
 }
 
 function syncBlindInputMode() {
