@@ -14,11 +14,11 @@ const roomCodeLabel = document.querySelector("#roomCodeLabel");
 const hostModeBtn = document.querySelector("#hostModeBtn");
 const joinModeBtn = document.querySelector("#joinModeBtn");
 const formHint = document.querySelector("#formHint");
-const computerPlayerCount = document.querySelector("#computerPlayerCount");
-const tableSizeLabel = computerPlayerCount.closest("label");
 const blindFields = document.querySelector("#blindFields");
 const smallBlindInput = document.querySelector("#smallBlindInput");
 const bigBlindInput = document.querySelector("#bigBlindInput");
+const smallBlindLabel = document.querySelector("#smallBlindLabel");
+const bigBlindLabel = document.querySelector("#bigBlindLabel");
 const moneyModeInput = document.querySelector("#moneyModeInput");
 const buyInLabel = document.querySelector("#buyInLabel");
 const buyInInput = document.querySelector("#buyInInput");
@@ -191,7 +191,6 @@ function updateTableActionLabel() {
   const isJoining = tableMode === "join";
   if (!joinPending) tableActionBtn.textContent = isJoining ? "Join table" : "Host table";
   tableActionBtn.disabled = joinPending || !socket.connected;
-  tableSizeLabel.classList.toggle("hidden", isJoining || moneyModeInput.checked);
   blindFields.classList.toggle("hidden", isJoining);
   moneyModeInput.closest("label").classList.toggle("hidden", isJoining);
   buyInLabel.classList.toggle("hidden", isJoining || !moneyModeInput.checked);
@@ -202,7 +201,30 @@ function updateTableActionLabel() {
   joinModeBtn.setAttribute("aria-selected", String(isJoining));
   formHint.textContent = isJoining
     ? "Enter the six-character code from your host."
-    : "You’ll get a private code to share with friends.";
+    : "Invite friends or add CPU players from the table menu.";
+}
+
+function syncBlindInputMode() {
+  const moneyMode = moneyModeInput.checked;
+  const previousMode = blindFields.dataset.mode || "chips";
+  if ((moneyMode ? "money" : "chips") !== previousMode) {
+    const buyInCents = moneyCentsFromInput(buyInInput);
+    const chipCents = buyInCents / 1000;
+    if (moneyMode) {
+      smallBlindInput.value = (Number(smallBlindInput.value || 10) * chipCents / 100).toFixed(2);
+      bigBlindInput.value = (Number(bigBlindInput.value || 20) * chipCents / 100).toFixed(2);
+    } else {
+      smallBlindInput.value = String(Math.max(1, Math.round(Number(smallBlindInput.value || 0.2) * 100 / chipCents)));
+      bigBlindInput.value = String(Math.max(2, Math.round(Number(bigBlindInput.value || 0.4) * 100 / chipCents)));
+    }
+  }
+  blindFields.dataset.mode = moneyMode ? "money" : "chips";
+  smallBlindLabel.textContent = moneyMode ? "Small blind ($)" : "Small blind";
+  bigBlindLabel.textContent = moneyMode ? "Big blind ($)" : "Big blind";
+  smallBlindInput.min = moneyMode ? "0.01" : "1";
+  bigBlindInput.min = moneyMode ? "0.02" : "2";
+  smallBlindInput.step = moneyMode ? "0.01" : "1";
+  bigBlindInput.step = moneyMode ? "0.01" : "1";
 }
 
 function setTableMode(mode, focusRoom = false) {
@@ -839,7 +861,6 @@ function joinOrCreate(mode) {
   localStorage.setItem("holdem:name", name);
   const roomId = roomInput.value.trim().toUpperCase();
   const eventName = mode === "join" ? "room:join" : "room:create";
-  const selectedTableSize = Math.max(2, Math.min(8, Math.floor(Number(computerPlayerCount.value) || 2)));
   const credentials = roomCredentials(roomId);
   const payload = {
     name,
@@ -850,9 +871,13 @@ function joinOrCreate(mode) {
   if (mode !== "join") {
     payload.moneyMode = moneyModeInput.checked;
     payload.buyInCents = moneyCentsFromInput(buyInInput);
-    payload.smallBlind = Math.max(1, Math.floor(Number(smallBlindInput.value) || 10));
-    payload.bigBlind = Math.max(2, Math.floor(Number(bigBlindInput.value) || 20));
-    if (!payload.moneyMode) payload.tableSize = selectedTableSize;
+    if (payload.moneyMode) {
+      payload.smallBlindCents = Math.round(Number(smallBlindInput.value) * 100);
+      payload.bigBlindCents = Math.round(Number(bigBlindInput.value) * 100);
+    } else {
+      payload.smallBlind = Math.max(1, Math.floor(Number(smallBlindInput.value) || 10));
+      payload.bigBlind = Math.max(2, Math.floor(Number(bigBlindInput.value) || 20));
+    }
   }
   joinPending = true;
   tableActionBtn.textContent = mode === "join" ? "Joining..." : "Hosting...";
@@ -899,11 +924,15 @@ window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", (e
 roomInput.addEventListener("input", () => { roomInput.value = roomInput.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
 hostModeBtn.addEventListener("click", () => setTableMode("host"));
 joinModeBtn.addEventListener("click", () => setTableMode("join", true));
-moneyModeInput.addEventListener("change", updateTableActionLabel);
+moneyModeInput.addEventListener("change", () => {
+  syncBlindInputMode();
+  updateTableActionLabel();
+});
 joinForm.addEventListener("submit", (event) => {
   event.preventDefault();
   joinOrCreate(tableMode === "join" ? "join" : "create");
 });
+syncBlindInputMode();
 updateTableActionLabel();
 
 joinForm.addEventListener("focusin", (event) => {
@@ -931,8 +960,10 @@ menuBtn.addEventListener("click", () => {
 
 roomCodeBtn.addEventListener("click", async () => {
   if (!state?.id) return;
-  await navigator.clipboard.writeText(state.id);
-  showToast(`Room ${state.id} copied`);
+  const inviteUrl = new URL(window.location.origin + window.location.pathname);
+  inviteUrl.searchParams.set("room", state.id);
+  await navigator.clipboard.writeText(inviteUrl.toString());
+  showToast("Invite link copied");
 });
 
 closeMenuBtn.addEventListener("click", hideGameMenu);

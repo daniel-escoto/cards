@@ -1555,19 +1555,34 @@ function kickPlayerFromRoom(room, playerId) {
 }
 
 io.on("connection", (socket) => {
-  socket.on("room:create", ({ name, deviceId, computerPlayers, tableSize, moneyMode, buyInCents, smallBlind, bigBlind }, ack) => {
+  socket.on("room:create", ({
+    name, deviceId, computerPlayers, tableSize, moneyMode, buyInCents,
+    smallBlind, bigBlind, smallBlindCents, bigBlindCents,
+  }, ack) => {
     const playerId = cleanDeviceId(deviceId, socket.id);
-    const cleanSmall = cleanBlind(smallBlind, DEFAULT_SMALL_BLIND);
-    const cleanBig = cleanBlind(bigBlind, DEFAULT_BIG_BLIND);
-    if (cleanBig <= cleanSmall) return ack?.({ ok: false, error: "Big blind must be greater than small blind." });
-    if (moneyMode && cleanMoneyCents(buyInCents, DEFAULT_BUY_IN_CENTS) % STARTING_STACK !== 0) {
-      return ack?.({ ok: false, error: "Money-mode buy-in must be in $10 increments." });
+    const cleanedBuyInCents = cleanMoneyCents(buyInCents, DEFAULT_BUY_IN_CENTS);
+    let cleanSmall = cleanBlind(smallBlind, DEFAULT_SMALL_BLIND);
+    let cleanBig = cleanBlind(bigBlind, DEFAULT_BIG_BLIND);
+    if (moneyMode) {
+      if (cleanedBuyInCents % STARTING_STACK !== 0) {
+        return ack?.({ ok: false, error: "Money-mode buy-in must be in $10 increments." });
+      }
+      const chipCents = cleanedBuyInCents / STARTING_STACK;
+      const requestedSmallCents = Math.round(Number(smallBlindCents));
+      const requestedBigCents = Math.round(Number(bigBlindCents));
+      if (!Number.isFinite(requestedSmallCents) || requestedSmallCents <= 0 || requestedSmallCents % chipCents !== 0
+        || !Number.isFinite(requestedBigCents) || requestedBigCents <= 0 || requestedBigCents % chipCents !== 0) {
+        return ack?.({ ok: false, error: `Blinds must be exact multiples of $${(chipCents / 100).toFixed(2)}.` });
+      }
+      cleanSmall = requestedSmallCents / chipCents;
+      cleanBig = requestedBigCents / chipCents;
     }
+    if (cleanBig <= cleanSmall) return ack?.({ ok: false, error: "Big blind must be greater than small blind." });
     const credentials = newReconnectCredentials();
     const requestedSize = moneyMode ? 0 : cleanTableSize(tableSize) || cleanTableSize(computerPlayers);
     const room = makeRoom(playerId, cleanName(name), socket.id, requestedSize, {
       moneyMode,
-      buyInCents,
+      buyInCents: cleanedBuyInCents,
       smallBlind: cleanSmall,
       bigBlind: cleanBig,
       reconnectTokenHash: credentials.tokenHash,

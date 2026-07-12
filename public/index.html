@@ -39,26 +39,14 @@
             Room code
             <input id="roomInput" maxlength="6" placeholder="ABC123" autocapitalize="characters" spellcheck="false" />
           </label>
-          <label>
-            Players per room
-            <select id="computerPlayerCount">
-              <option value="2">2 players</option>
-              <option value="3">3 players</option>
-              <option value="4">4 players</option>
-              <option value="5">5 players</option>
-              <option value="6">6 players</option>
-              <option value="7">7 players</option>
-              <option value="8">8 players</option>
-            </select>
-          </label>
           <div id="blindFields" class="blind-fields">
             <label>
-              Small blind
-              <input id="smallBlindInput" type="number" min="1" max="100000" step="1" value="10" inputmode="numeric" />
+              <span id="smallBlindLabel">Small blind</span>
+              <input id="smallBlindInput" type="number" min="1" max="100000" step="1" value="10" inputmode="decimal" />
             </label>
             <label>
-              Big blind
-              <input id="bigBlindInput" type="number" min="2" max="100000" step="1" value="20" inputmode="numeric" />
+              <span id="bigBlindLabel">Big blind</span>
+              <input id="bigBlindInput" type="number" min="2" max="100000" step="1" value="20" inputmode="decimal" />
             </label>
           </div>
           <label class="checkbox-label">
@@ -72,7 +60,7 @@
           <div class="actions-row">
             <button id="tableActionBtn" type="submit">Host table</button>
           </div>
-          <p id="formHint" class="form-hint">You’ll get a private code to share with friends.</p>
+          <p id="formHint" class="form-hint">Invite friends or add CPU players from the table menu.</p>
           <p id="joinError" class="error" role="alert"></p>
         </form>
       </section>

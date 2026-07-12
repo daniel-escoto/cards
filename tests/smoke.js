@@ -418,10 +418,13 @@ function waitFor(predicate, label, timeout = 5000) {
     deviceId: cashHost.deviceId,
     moneyMode: true,
     buyInCents: 2000,
-    smallBlind: 5,
-    bigBlind: 10,
+    smallBlindCents: 10,
+    bigBlindCents: 20,
   });
   await waitFor(() => cashHost.state?.id === cashRoom.roomId, "cash table ready");
+  if (cashHost.state.smallBlindCents !== 10 || cashHost.state.bigBlindCents !== 20) {
+    throw new Error("Expected money-mode blinds to preserve dollar amounts");
+  }
   await expectReject(cashHost.socket, "money:cashIn", { amountCents: 101 }, "inexact cash-in conversion");
 
   players.forEach((player) => player.socket.disconnect());
