@@ -449,17 +449,17 @@ function computerName(player) {
     hash = Math.imul(hash, 16777619);
   }
   const value = hash >>> 0;
-  const firstNames = [
-    "Avery", "Caleb", "Elena", "Felix", "Hannah", "Isaac", "Jade", "Jonah",
-    "Layla", "Leo", "Maya", "Miles", "Nina", "Noah", "Owen", "Ruby",
+  const adjectives = [
+    "Brave", "Chill", "Clever", "Cosmic", "Crimson", "Dusty", "Frosty", "Golden",
+    "Happy", "Lucky", "Mighty", "Neon", "Quiet", "Rapid", "Sunny", "Velvet",
   ];
-  const lastNames = [
-    "Bennett", "Brooks", "Carter", "Ellis", "Foster", "Hayes", "Jordan", "Lane",
-    "Morgan", "Parker", "Quinn", "Reed", "Rivera", "Sawyer", "Turner", "Wells",
+  const nouns = [
+    "Badger", "Cobra", "Comet", "Falcon", "Fox", "Gecko", "Moth", "Otter",
+    "Panda", "Raven", "Rook", "Shark", "Sloth", "Tiger", "Toast", "Wolf",
   ];
-  const firstName = firstNames[value % firstNames.length];
-  const lastName = lastNames[Math.floor(value / firstNames.length) % lastNames.length];
-  return `${firstName} ${lastName}`;
+  const adjective = adjectives[value % adjectives.length];
+  const noun = nouns[Math.floor(value / adjectives.length) % nouns.length];
+  return `${adjective}${noun}`;
 }
 
 function addComputerPlayers(room, totalPlayers) {
