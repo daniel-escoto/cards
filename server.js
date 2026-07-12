@@ -43,6 +43,7 @@ const STATE_FILE = process.env.GAME_STATE_FILE || path.join(DEFAULT_DATA_DIR, "r
 const SAVE_DEBOUNCE_MS = 150;
 const SHOWDOWN_DELAY_MS = 1600;
 const CPU_ACTION_DELAY_MS = 250;
+const DORMANT_ROOM_TTL_MS = Math.max(60000, Number(process.env.DORMANT_ROOM_TTL_MS) || 60 * 60 * 1000);
 
 app.use(express.static("public"));
 
@@ -177,6 +178,7 @@ function serializeRoomForStorage(room) {
     baseBigBlind: room.baseBigBlind || DEFAULT_BIG_BLIND,
     settlements: Array.isArray(room.settlements) ? room.settlements : [],
     moneyLedger: Array.isArray(room.moneyLedger) ? room.moneyLedger : [],
+    dormantSince: room.dormantSince || null,
     players: room.players.map(serializePlayerForStorage),
   };
 }
@@ -204,6 +206,32 @@ function scheduleSave() {
       console.error("Failed to save game state:", error);
     }
   }, SAVE_DEBOUNCE_MS);
+}
+
+function clearRoomDormancy(room) {
+  clearTimeout(room?.dormantTimer);
+  if (!room) return;
+  room.dormantTimer = null;
+  room.dormantSince = null;
+}
+
+function scheduleDormantRoomCleanup(room) {
+  clearTimeout(room?.dormantTimer);
+  if (!room || room.players.some((player) => !player.isBot)) {
+    clearRoomDormancy(room);
+    return;
+  }
+  if (!room.dormantSince) room.dormantSince = Date.now();
+  const remaining = Math.max(0, DORMANT_ROOM_TTL_MS - (Date.now() - room.dormantSince));
+  room.dormantTimer = setTimeout(() => {
+    const current = rooms.get(room.id);
+    if (!current || current.players.some((player) => !player.isBot)) return;
+    clearTimeout(current.botTimer);
+    clearTimeout(current.showdownTimer);
+    rooms.delete(current.id);
+    scheduleSave();
+  }, remaining);
+  scheduleSave();
 }
 
 function restorePlayer(raw) {
@@ -287,6 +315,8 @@ function restoreRoom(raw) {
     players: Array.isArray(raw.players) ? raw.players.map(restorePlayer) : [],
     botTimer: null,
     showdownTimer: null,
+    dormantSince: Number(raw.dormantSince) || null,
+    dormantTimer: null,
   };
 
   for (const player of room.players) {
@@ -348,6 +378,7 @@ function loadRooms() {
       const room = restoreRoom(rawRoom);
       if (room) {
         rooms.set(room.id, room);
+        scheduleDormantRoomCleanup(room);
         if (room.phase === "showdown") beginShowdown(room);
       }
     }
@@ -406,6 +437,8 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
     baseBigBlind,
     settlements: [],
     moneyLedger: [],
+    dormantSince: null,
+    dormantTimer: null,
     players: [
       {
         id: hostId,
@@ -572,6 +605,7 @@ function attachSocketToPlayer(socket, room, player) {
   player.disconnectExpiresAt = null;
   player.socketIds.add(socket.id);
   player.connected = true;
+  if (!player.isBot) clearRoomDormancy(room);
   socketRoom.set(socket.id, room.id);
   socketPlayer.set(socket.id, player.id);
   socket.join(room.id);
@@ -636,6 +670,7 @@ function convertHumanToBot(room, player) {
   replaceRaiseEligibleId(room, oldId, player.id);
   if (room.hostId === oldId) chooseNextHost(room);
   room.message = `${player.name} took over ${oldName}'s seat.`;
+  scheduleDormantRoomCleanup(room);
   return player;
 }
 
