@@ -1275,7 +1275,7 @@ select:focus {
 
 @media (min-width: 780px) {
   .table-view {
-    height: calc(100dvh - 40px);
+    height: min(calc(100dvh - 40px), 760px);
     min-height: 0;
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
