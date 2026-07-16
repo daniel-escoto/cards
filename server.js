@@ -1520,7 +1520,7 @@ function serializeRoom(room, viewerId) {
     canChangeBlinds: room.hostId === viewerId && canReadyForHand(room),
     canRestartGame: room.hostId === viewerId && canAdministerGame(room),
     canEndGame: room.hostId === viewerId && canAdministerGame(room) && (room.moneyMode || room.phase !== "lobby"),
-    canAddBot: room.hostId === viewerId && !room.moneyMode && !isHandInProgress(room) && room.players.length < MAX_PLAYERS,
+    canAddBot: room.hostId === viewerId && !room.moneyMode && room.handNumber === 0 && room.players.length < MAX_PLAYERS,
     community: room.community.map(publicCard),
     winners: room.winners.map((winner) => ({
       ...winner,
@@ -1801,7 +1801,7 @@ io.on("connection", (socket) => {
     const hostId = socketPlayer.get(socket.id);
     if (!room || room.hostId !== hostId) return ack?.({ ok: false, error: "Only the host can add CPU players." });
     if (room.moneyMode) return ack?.({ ok: false, error: "CPU players are unavailable in money mode." });
-    if (isHandInProgress(room)) return ack?.({ ok: false, error: "CPU players can only be added between hands." });
+    if (room.handNumber > 0) return ack?.({ ok: false, error: "CPU players can only be added before the game begins." });
     if (room.players.length >= MAX_PLAYERS) return ack?.({ ok: false, error: "The table is full." });
     addComputerPlayers(room, room.players.length + 1);
     ack?.({ ok: true });

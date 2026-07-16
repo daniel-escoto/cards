@@ -149,7 +149,7 @@ async function readyUp(players) {
     throw new Error("Expected non-host to lack host management controls");
   }
   if (!opsHost.state.canAddBot || opsNextHost.state.canAddBot) {
-    throw new Error("Expected only the host to be able to add CPU players between hands");
+    throw new Error("Expected only the host to be able to add CPU players before the game begins");
   }
   await emit(opsHost.socket, "room:addBot");
   await waitFor(() => opsHost.state?.players.length === 4, "host adds CPU player");
@@ -242,6 +242,8 @@ async function readyUp(players) {
   if (alice.state.phase !== "complete") throw new Error(`Expected complete hand, got ${alice.state.phase}`);
   if (!sawBettingAction) throw new Error("Expected action log to include betting actions");
   if (!alice.state.winners.length) throw new Error("Expected at least one winner");
+  if (alice.state.canAddBot) throw new Error("Expected add CPU player to stay hidden after the game begins");
+  await expectReject(alice.socket, "room:addBot", {}, "adding a CPU player after the game begins");
   const duplicateWinner = alice.state.winners.find((winner, index, list) => (
     list.findIndex((item) => item.playerId === winner.playerId && item.hand === winner.hand) !== index
   ));
