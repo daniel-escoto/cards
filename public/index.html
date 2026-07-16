@@ -72,7 +72,6 @@
               <strong id="roomCode"></strong>
               <span class="copy-icon" aria-hidden="true">⧉</span>
             </button>
-            <span id="phaseBadge" class="phase-badge">Lobby</span>
           </div>
           <div class="topbar-actions">
             <button id="menuBtn" class="ghost menu-btn" type="button" aria-haspopup="dialog" aria-controls="gameMenuModal">Menu</button>
@@ -95,13 +94,17 @@
             <div id="turnInfo" class="turn-info"></div>
             <div id="gameButtons" class="game-buttons"></div>
             <div id="betControls" class="bet-controls hidden">
-              <div class="raise-stepper" aria-label="Raise amount">
-                <button id="raiseMinus" type="button" class="secondary" aria-label="Decrease raise">-</button>
-                <div class="raise-display">
-                  <span id="raiseLabel">Raise to</span>
-                  <strong id="raiseAmount">40</strong>
+              <div id="betPresets" class="bet-presets" aria-label="Quick bet amounts"></div>
+              <div class="raise-row">
+                <div class="raise-stepper" aria-label="Raise amount">
+                  <button id="raiseMinus" type="button" class="secondary" aria-label="Decrease raise">-</button>
+                  <div class="raise-display">
+                    <span id="raiseLabel">Raise to</span>
+                    <strong id="raiseAmount">40</strong>
+                  </div>
+                  <button id="raisePlus" type="button" class="secondary" aria-label="Increase raise">+</button>
                 </div>
-                <button id="raisePlus" type="button" class="secondary" aria-label="Increase raise">+</button>
+                <button id="raiseActionBtn" type="button" class="raise-action">Raise</button>
               </div>
             </div>
           </section>

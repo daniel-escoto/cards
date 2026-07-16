@@ -222,7 +222,7 @@ label {
 
 .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 14px; background: rgba(4,9,12,.42); }
 .mode-option { min-height: 42px; padding: 0 10px; border-radius: 10px; color: var(--muted); background: transparent; font-size: 13px; }
-.mode-option:not(:disabled):hover { color: var(--text); background: rgba(255,255,255,.06); }
+.mode-option:not(.selected):not(:disabled):hover { color: var(--text); background: rgba(255,255,255,.06); }
 .mode-option.selected { color: #ffffff; background: linear-gradient(180deg, var(--accent-hover), var(--accent)); box-shadow: 0 5px 14px rgba(0,0,0,.24); }
 label {
   display: grid;
@@ -470,8 +470,6 @@ select:focus {
 .room-code-btn .eyebrow { grid-column: 1 / -1; font-size: 9px; line-height: 1; }
 .room-code-btn strong { font-size: 17px; letter-spacing: .12em; line-height: 1; }
 .copy-icon { color: var(--muted); font-size: 14px; }
-.phase-badge { padding: 7px 10px; border: 1px solid rgba(96,165,250,.2); border-radius: 999px; color: var(--accent); background: rgba(96,165,250,.1); font-size: 11px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
-
 .topbar > div {
   min-height: inherit;
   display: flex;
@@ -580,11 +578,6 @@ select:focus {
 .shown-hand-card .action-card-stats,
 .shown-hand-card .action-card-stats em {
   color: rgba(255, 255, 255, 0.76);
-}
-
-.shown-hand-card .pill {
-  color: #dbeafe;
-  background: rgba(37, 99, 185, 0.46);
 }
 
 .shown-hand .card {
@@ -1241,6 +1234,13 @@ select:focus {
   gap: 7px;
 }
 
+.bet-presets { display: flex; gap: 6px; }
+.bet-presets:empty { display: none; }
+.bet-presets button { flex: 1; min-height: 32px; padding: 0 8px; color: var(--muted); border: 1px solid var(--line); background: rgba(255,255,255,.055); font-size: 11px; }
+.bet-presets button:not(:disabled):hover { color: var(--text); background: rgba(255,255,255,.12); }
+:root[data-theme="light"] .bet-presets button { color: #46534c; border-color: rgba(24,38,33,.24); background: #f7f9f6; }
+:root[data-theme="light"] .bet-presets button:not(:disabled):hover { color: #17201c; background: #e8ede8; }
+
 .toast { position: fixed; z-index: 50; left: 50%; bottom: max(22px, env(safe-area-inset-bottom)); transform: translateX(-50%); max-width: calc(100% - 32px); padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--accent) 52%, transparent); border-radius: 999px; color: var(--toast-text); background: var(--toast-bg); box-shadow: 0 10px 30px rgba(0,0,0,.3); font-size: 13px; font-weight: 800; white-space: nowrap; }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
@@ -1250,6 +1250,20 @@ select:focus {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr) 48px;
   gap: 8px;
+}
+
+.raise-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(108px, auto);
+  gap: 8px;
+}
+
+.raise-action {
+  min-height: 0;
+  height: var(--raise-row-height);
+  padding: 0 14px;
+  white-space: nowrap;
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--accent) 24%, transparent);
 }
 
 .raise-stepper button {
@@ -1566,7 +1580,6 @@ select:focus {
   }
 
   .room-code-btn { border: 0; padding-left: 4px; background: transparent; }
-  .phase-badge { padding: 6px 9px; border: 0; }
   .menu-btn { min-width: 64px; }
 
   .modal {
@@ -1756,6 +1769,16 @@ select:focus {
   .raise-stepper {
     min-width: 0;
     grid-template-columns: 42px minmax(0, 1fr) 42px;
+  }
+
+  .raise-row {
+    grid-template-columns: minmax(0, 1fr) minmax(96px, auto);
+    gap: 6px;
+  }
+
+  .raise-action {
+    padding: 0 10px;
+    font-size: 12px;
   }
 
   .raise-stepper button {

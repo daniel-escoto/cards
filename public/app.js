@@ -27,7 +27,6 @@ const tableActionBtn = document.querySelector("#tableActionBtn");
 const joinError = document.querySelector("#joinError");
 const roomCode = document.querySelector("#roomCode");
 const roomCodeBtn = document.querySelector("#roomCodeBtn");
-const phaseBadge = document.querySelector("#phaseBadge");
 const menuBtn = document.querySelector("#menuBtn");
 const gameMenuModal = document.querySelector("#gameMenuModal");
 const closeMenuBtn = document.querySelector("#closeMenuBtn");
@@ -65,15 +64,14 @@ const raiseMinus = document.querySelector("#raiseMinus");
 const raisePlus = document.querySelector("#raisePlus");
 const raiseLabel = document.querySelector("#raiseLabel");
 const raiseAmount = document.querySelector("#raiseAmount");
+const raiseActionBtn = document.querySelector("#raiseActionBtn");
+const betPresets = document.querySelector("#betPresets");
 const scoreList = document.querySelector("#scoreList");
 const scoreMenuBtn = document.querySelector("#scoreMenuBtn");
 const toast = document.querySelector("#toast");
 
 let state = null;
 let raiseState = { value: 0, min: 0, max: 0, step: 20 };
-let primaryActionBtn = null;
-let primaryAction = { label: "", payload: null };
-let raiseModeActive = false;
 let raiseControlsDisabled = false;
 let leavingEndedRoom = false;
 let menuTimer = null;
@@ -268,20 +266,6 @@ function updateHeroCardVisibility() {
   });
 }
 
-function phaseLabel(phase) {
-  const labels = {
-    lobby: "Lobby",
-    preflop: "Preflop",
-    flop: "Flop",
-    turn: "Turn",
-    river: "River",
-    showdown: "Showdown",
-    complete: "Hand complete",
-    gameover: "Game over",
-  };
-  return labels[phase] || phase;
-}
-
 function moneyCentsFromInput(input, fallback = 20) {
   const dollars = Number(input.value);
   if (!Number.isFinite(dollars) || dollars <= 0) return Math.round(fallback * 100);
@@ -332,7 +316,7 @@ function roundStatus(player) {
     return seconds > 0 ? `Away ${seconds}s` : "Away";
   }
   if (!player.connected) return "Away";
-  if (["lobby", "complete"].includes(state?.phase)) return player.connected ? "Seated" : "Away";
+  if (["lobby", "complete"].includes(state?.phase)) return "";
   if (player.folded) return "Folded";
   if (player.allIn) return "All in";
   if (player.isTurn) return "Acting";
@@ -359,7 +343,7 @@ function renderMenuPlayers() {
       <div class="menu-player-stats">
         <span>${state.moneyMode ? "Bankroll" : "Stack"} <strong>${playerStackLabel(player)}</strong></span>
         ${state.moneyMode ? `<span>Net <strong>${formatSignedMoney(player.netCents)}</strong></span>` : ""}
-        <em>${escapeHtml(roundStatus(player))}</em>
+        ${roundStatus(player) ? `<em>${escapeHtml(roundStatus(player))}</em>` : ""}
       </div>
       ${player.isYou && !player.isBot ? `
         <form class="menu-name-form" data-name-form>
@@ -544,17 +528,14 @@ function playerForAction(entry) {
 }
 
 function renderShownHandCard(player) {
-  const status = roundStatus(player);
   return `
     <article class="action-feed-card shown-hand-card ${player.isYou ? "you" : ""}" ${playerColorStyle(player)}>
       <div class="action-card-head">
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
-        <span class="pill">Shown</span>
       </div>
       <div class="shown-hand">${player.cards.map(cardTemplate).join("")}</div>
       <div class="action-card-stats">
         <span>${state.moneyMode ? "Bankroll" : "Stack"} <strong>${playerStackLabel(player)}</strong></span>
-        <em>${escapeHtml(status)}</em>
       </div>
     </article>
   `;
@@ -609,7 +590,6 @@ function render() {
   if (!state) return;
   showTable(state);
   roomCode.textContent = state.id;
-  phaseBadge.textContent = phaseLabel(state.phase);
   potValue.textContent = formatAmount(state.pot, state.potCents);
   if (lastPot !== null && lastPot !== state.pot) {
     replayAnimation(potValue.closest("div"), "value-changed", 480);
@@ -700,10 +680,8 @@ function scrollActionFeed() {
 function renderControls(hero) {
   gameButtons.innerHTML = "";
   betControls.classList.add("hidden");
-  primaryActionBtn = null;
-  primaryAction = { label: "", payload: null };
-  raiseModeActive = false;
   raiseControlsDisabled = false;
+  betPresets.innerHTML = "";
   turnInfo.textContent = "";
   turnInfo.classList.remove("your-turn");
 
@@ -738,7 +716,7 @@ function renderControls(hero) {
     turnInfo.textContent = current ? `Pot ${formatAmount(state.pot, state.potCents)}. ${current.name} is acting.` : "Waiting for the host.";
     if (hero && isBettingPhase(state.phase) && !hero.folded && !hero.allIn) {
       addActionButton("Fold", { type: "fold" }, "danger", true);
-      addPrimaryActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" }, true);
+      addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" }, "", true);
       configureRaiseControls(hero, true);
     }
     return;
@@ -749,7 +727,7 @@ function renderControls(hero) {
     : `Pot ${formatAmount(state.pot, state.potCents)}. Your turn: check or bet.`;
   turnInfo.classList.add("your-turn");
   addActionButton("Fold", { type: "fold" }, "danger");
-  addPrimaryActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" });
+  addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" });
 
   const maxRaise = hero.bet + hero.stack;
   if (state.canRaise && maxRaise > state.currentBet) {
@@ -764,13 +742,33 @@ function configureRaiseControls(hero, disabled = false) {
   const minRaise = Math.min(maxRaise, state.minRaiseTo);
   const preferredRaise = Math.max(minRaise, state.currentBet + state.bigBlind);
   raiseLabel.textContent = state.currentBet > 0 ? "Raise to" : "Bet amount";
-  raiseModeActive = false;
   raiseControlsDisabled = disabled;
   setRaiseState({
     min: minRaise,
     max: maxRaise,
     step: state.bigBlind,
     value: Math.min(maxRaise, preferredRaise),
+  });
+  renderBetPresets(hero, disabled);
+}
+
+function renderBetPresets(hero, disabled) {
+  const options = [
+    { label: "½ pot", value: state.currentBet + Math.max(state.bigBlind, Math.round(state.pot / 2)) },
+    { label: "Pot", value: state.currentBet + Math.max(state.bigBlind, state.pot) },
+    { label: "All in", value: hero.bet + hero.stack },
+  ];
+  const unique = options.filter((option, index) => (
+    options.findIndex((item) => clampRaise(item.value) === clampRaise(option.value)) === index
+  ));
+  betPresets.innerHTML = "";
+  unique.forEach((option) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = option.label;
+    button.disabled = disabled;
+    button.addEventListener("click", () => setRaiseState({ value: option.value }));
+    betPresets.appendChild(button);
   });
 }
 
@@ -782,18 +780,10 @@ function setRaiseState(next) {
   raiseState.value = clampRaise(raiseState.value);
   const formattedAmount = formatAmount(raiseState.value, Math.round(raiseState.value * (state?.chipValueCents || 0)));
   raiseAmount.textContent = formattedAmount;
-  updatePrimaryActionButton();
-}
-
-function updatePrimaryActionButton() {
-  if (primaryActionBtn) {
-    const formattedAmount = formatAmount(raiseState.value, Math.round(raiseState.value * (state?.chipValueCents || 0)));
-    primaryActionBtn.textContent = raiseModeActive
-      ? `${state.currentBet > 0 ? "Raise to" : "Bet"} ${formattedAmount}`
-      : primaryAction.label;
-  }
-  raiseMinus.disabled = raiseControlsDisabled || (!raiseModeActive && raiseState.value <= raiseState.min);
-  raisePlus.disabled = raiseControlsDisabled || (raiseModeActive && raiseState.value >= raiseState.max);
+  raiseActionBtn.textContent = `${state.currentBet > 0 ? "Raise to" : "Bet"} ${formattedAmount}`;
+  raiseActionBtn.disabled = raiseControlsDisabled;
+  raiseMinus.disabled = raiseControlsDisabled || raiseState.value <= raiseState.min;
+  raisePlus.disabled = raiseControlsDisabled || raiseState.value >= raiseState.max;
 }
 
 function clampRaise(value) {
@@ -801,16 +791,6 @@ function clampRaise(value) {
 }
 
 function changeRaise(direction) {
-  if (direction > 0 && !raiseModeActive) {
-    raiseModeActive = true;
-    updatePrimaryActionButton();
-    return;
-  }
-  if (direction < 0 && raiseModeActive && raiseState.value <= raiseState.min) {
-    raiseModeActive = false;
-    updatePrimaryActionButton();
-    return;
-  }
   setRaiseState({ value: raiseState.value + direction * raiseState.step });
 }
 
@@ -828,20 +808,6 @@ function addActionButton(label, payload, className = "", disabled = false) {
   if (className) button.className = className;
   button.disabled = disabled;
   button.addEventListener("click", () => emitWithAck("game:action", payload));
-  gameButtons.appendChild(button);
-}
-
-function addPrimaryActionButton(label, payload, disabled = false) {
-  const button = document.createElement("button");
-  primaryAction = { label, payload };
-  primaryActionBtn = button;
-  button.textContent = label;
-  button.disabled = disabled;
-  button.addEventListener("click", () => {
-    emitWithAck("game:action", raiseModeActive
-      ? { type: "raise", raiseTo: raiseState.value }
-      : primaryAction.payload);
-  });
   gameButtons.appendChild(button);
 }
 
@@ -989,6 +955,9 @@ raiseMinus.addEventListener("click", () => changeRaise(-1));
 raisePlus.addEventListener("click", () => changeRaise(1));
 raiseMinus.addEventListener("dblclick", (event) => event.preventDefault());
 raisePlus.addEventListener("dblclick", (event) => event.preventDefault());
+raiseActionBtn.addEventListener("click", () => {
+  emitWithAck("game:action", { type: "raise", raiseTo: raiseState.value });
+});
 
 heroHand.addEventListener("click", () => {
   if (!heroHand.children.length) return;
@@ -1197,8 +1166,5 @@ document.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
   if (key === "f") emitWithAck("game:action", { type: "fold" });
   if (key === "c") emitWithAck("game:action", { type: state.toCall > 0 ? "call" : "check" });
-  if (key === "r" && !betControls.classList.contains("hidden")) {
-    if (raiseModeActive) primaryActionBtn?.click();
-    else changeRaise(1);
-  }
+  if (key === "r" && !betControls.classList.contains("hidden")) raiseActionBtn.click();
 });
