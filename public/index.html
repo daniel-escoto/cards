@@ -3,10 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta id="themeColor" name="theme-color" content="#090d10" />
     <title>Texas Hold'em</title>
     <script>
       const savedTheme = localStorage.getItem("holdem:theme");
-      document.documentElement.dataset.theme = savedTheme || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+      const initialTheme = savedTheme || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+      document.documentElement.dataset.theme = initialTheme;
+      document.querySelector("#themeColor").content = initialTheme === "light" ? "#eef1ec" : "#090d10";
     </script>
     <link rel="stylesheet" href="/styles.css" />
   </head>

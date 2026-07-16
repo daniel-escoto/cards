@@ -1,9 +1,15 @@
-const socket = io();
+const socket = io({
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 500,
+  reconnectionDelayMax: 4000,
+});
 
 const welcome = document.querySelector("#welcome");
 const themeToggle = document.querySelector("#themeToggle");
 const themeIcon = document.querySelector("#themeIcon");
 const themeLabel = document.querySelector("#themeLabel");
+const themeColor = document.querySelector("#themeColor");
 const themeToggles = document.querySelectorAll("#themeToggle, [data-theme-toggle]");
 const tableView = document.querySelector("#tableView");
 const scoreView = document.querySelector("#scoreView");
@@ -114,6 +120,7 @@ function preferredTheme() {
 function applyTheme(theme, persist = false) {
   const nextTheme = theme === "light" ? "light" : "dark";
   document.documentElement.dataset.theme = nextTheme;
+  themeColor?.setAttribute("content", nextTheme === "dark" ? "#090d10" : "#eef1ec");
   const nextLabel = nextTheme === "dark" ? "Light" : "Dark";
   themeIcon.textContent = nextTheme === "dark" ? "☀" : "☾";
   themeLabel.textContent = nextLabel;
@@ -181,14 +188,16 @@ function saveRoomCredentials(roomId, response) {
   }));
 }
 
-function setGameViewportHeight() {
+function setViewportHeight() {
   const height = window.visualViewport?.height || window.innerHeight;
-  document.documentElement.style.setProperty("--game-vh", `${Math.floor(height)}px`);
+  const value = `${Math.floor(height)}px`;
+  document.documentElement.style.setProperty("--viewport-height", value);
+  document.documentElement.style.setProperty("--game-vh", value);
 }
 
 function setKeyboardMode(isOpen) {
   document.body.classList.toggle("keyboard-open", isOpen && !welcome.classList.contains("hidden"));
-  if (isOpen) window.scrollTo(0, 0);
+  setViewportHeight();
 }
 
 function updateTableActionLabel() {
@@ -302,7 +311,7 @@ function playerStackLabel(player) {
 }
 
 function showTable(room) {
-  setGameViewportHeight();
+  setViewportHeight();
   document.documentElement.classList.add("game-open-root");
   document.body.classList.add("game-open");
   document.body.classList.remove("keyboard-open");
@@ -952,7 +961,13 @@ syncBlindInputMode();
 updateTableActionLabel();
 
 joinForm.addEventListener("focusin", (event) => {
-  if (event.target.matches("input")) setKeyboardMode(true);
+  if (event.target.matches("input")) {
+    setKeyboardMode(true);
+    setTimeout(() => {
+      setViewportHeight();
+      event.target.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 250);
+  }
 });
 
 joinForm.addEventListener("focusout", () => {
@@ -1133,19 +1148,31 @@ autoJoinInitialRoom();
 attemptAutoRejoin();
 
 window.addEventListener("focus", attemptAutoRejoin);
-document.addEventListener("visibilitychange", () => {
+function reportVisibility() {
+  if (state && socket.connected) socket.emit("room:presence", { hidden: document.hidden });
   if (!document.hidden) attemptAutoRejoin();
+}
+
+document.addEventListener("visibilitychange", reportVisibility);
+window.addEventListener("pagehide", () => {
+  if (state && socket.connected) socket.emit("room:presence", { hidden: true });
+});
+window.addEventListener("pageshow", () => {
+  setViewportHeight();
+  reportVisibility();
 });
 
 window.addEventListener("resize", () => {
-  if (document.body.classList.contains("game-open")) setGameViewportHeight();
+  setViewportHeight();
   requestAnimationFrame(() => scrollActionFeed());
 });
 
 window.visualViewport?.addEventListener("resize", () => {
-  if (document.body.classList.contains("game-open")) setGameViewportHeight();
+  setViewportHeight();
   requestAnimationFrame(() => scrollActionFeed());
 });
+
+setViewportHeight();
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !gameMenuModal.classList.contains("hidden")) {

@@ -1,6 +1,7 @@
 :root {
   color-scheme: dark;
   --game-vh: 100dvh;
+  --viewport-height: 100dvh;
   --bg: #090d10;
   --panel: #161d21;
   --panel-2: #202a2f;
@@ -55,6 +56,7 @@
 html {
   min-height: 100%;
   overflow-x: hidden;
+  background: var(--bg);
 }
 
 html.game-open-root {
@@ -1430,22 +1432,30 @@ select:focus {
 
   body.keyboard-open,
   body:has(.welcome:not(.hidden):focus-within) {
-    height: 100dvh;
+    height: var(--viewport-height);
+    min-height: 0;
     overflow: hidden;
   }
 
   body.keyboard-open .app,
   body:has(.welcome:not(.hidden):focus-within) .app {
-    height: 100dvh;
+    height: var(--viewport-height);
+    min-height: 0;
     overflow: hidden;
   }
 
   body.keyboard-open .welcome,
   .welcome:not(.hidden):focus-within {
+    height: calc(var(--viewport-height) - 20px);
     min-height: auto;
     align-content: start;
     padding-top: max(8px, env(safe-area-inset-top));
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
     gap: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   body.keyboard-open .brand,

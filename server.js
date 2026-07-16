@@ -37,6 +37,11 @@ const BOT_PROFILES = [
   { tag: "cpu_52b1", style: "Tight and quick", aggression: 0.84, looseness: 0.68, bluff: 0.035, skill: 0.7 },
 ];
 const DISCONNECT_GRACE_MS = Math.max(0, Number(process.env.DISCONNECT_GRACE_MS) || 30000);
+const BACKGROUND_DISCONNECT_GRACE_MS = Math.max(
+  DISCONNECT_GRACE_MS,
+  Number(process.env.BACKGROUND_DISCONNECT_GRACE_MS) || 5 * 60 * 1000,
+);
+const BACKGROUND_PRESENCE_TTL_MS = 10 * 60 * 1000;
 const PLAYER_COLORS = ["#60a5fa", "#38bdf8", "#7ddc85", "#f472b6", "#a78bfa", "#fb7185", "#818cf8", "#2dd4bf"];
 const DEFAULT_DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DATA_DIR || path.join(__dirname, ".data");
 const STATE_FILE = process.env.GAME_STATE_FILE || path.join(DEFAULT_DATA_DIR, "rooms.json");
@@ -603,6 +608,7 @@ function attachSocketToPlayer(socket, room, player) {
   clearTimeout(player.disconnectTimer);
   player.disconnectTimer = null;
   player.disconnectExpiresAt = null;
+  player.backgroundedUntil = null;
   player.socketIds.add(socket.id);
   player.connected = true;
   if (!player.isBot) clearRoomDormancy(room);
@@ -1391,11 +1397,20 @@ function preflopBlindCallChance(room, player, callAmount) {
   return Math.max(0.36, Math.min(0.96, callChance));
 }
 
+function preflopBlindRaiseChance(player, confidence) {
+  const profile = computerProfile(player);
+  const valueRaiseChance = confidence >= 0.5
+    ? (confidence - 0.34) * 0.9 * profile.aggression
+    : 0;
+  const bluffRaiseChance = confidence < 0.44 ? profile.bluff * 0.45 : profile.bluff * 0.12;
+  return Math.max(0, Math.min(0.62, valueRaiseChance + bluffRaiseChance));
+}
+
 function chooseComputerAction(room, player) {
   const { bigBlind } = currentBlinds(room);
   const callAmount = Math.max(0, room.currentBet - player.bet);
   const maxBet = player.bet + player.stack;
-  const canRaise = maxBet > room.currentBet;
+  const canRaise = room.raiseEligible.has(player.id) && maxBet > room.currentBet;
   const minRaiseTo = Math.min(maxBet, room.currentBet + room.minRaise);
   const profile = computerProfile(player);
   const rawConfidence = estimateComputerConfidence(room, player);
@@ -1403,7 +1418,7 @@ function chooseComputerAction(room, player) {
   const confidence = Math.max(0.04, Math.min(0.96, rawConfidence + judgmentNoise));
 
   if (callAmount === 0) {
-    const valueRaiseChance = confidence > 0.48 ? confidence * 0.36 * profile.aggression : 0;
+    const valueRaiseChance = confidence > 0.44 ? confidence * 0.42 * profile.aggression : 0;
     const bluffRaiseChance = confidence < 0.38 ? profile.bluff : profile.bluff * 0.25;
     if (canRaise && minRaiseTo <= maxBet && Math.random() < valueRaiseChance + bluffRaiseChance) {
       return { type: "raise", raiseTo: chooseComputerRaiseTo(room, player, minRaiseTo, confidence) };
@@ -1413,6 +1428,9 @@ function chooseComputerAction(room, player) {
 
   const blindCallChance = preflopBlindCallChance(room, player, callAmount);
   if (blindCallChance !== null) {
+    if (canRaise && minRaiseTo <= maxBet && Math.random() < preflopBlindRaiseChance(player, confidence)) {
+      return { type: "raise", raiseTo: chooseComputerRaiseTo(room, player, minRaiseTo, confidence) };
+    }
     if (Math.random() < Math.min(0.98, blindCallChance * profile.looseness)) return { type: "call" };
     return { type: "fold" };
   }
@@ -1420,7 +1438,7 @@ function chooseComputerAction(room, player) {
   const potPressure = callAmount / Math.max(bigBlind, collectPot(room) + callAmount);
   const stackPressure = callAmount / Math.max(1, player.stack + callAmount);
   const callChance = Math.max(0.08, Math.min(0.97, (confidence + 0.29 - potPressure * 0.55 - stackPressure * 0.44) * profile.looseness));
-  const reraiseChance = confidence > 0.66 ? (confidence - 0.58) * 0.42 * profile.aggression : profile.bluff * 0.12;
+  const reraiseChance = confidence > 0.6 ? (confidence - 0.52) * 0.62 * profile.aggression : profile.bluff * 0.16;
   if (canRaise && minRaiseTo <= maxBet && Math.random() < reraiseChance) {
     return { type: "raise", raiseTo: chooseComputerRaiseTo(room, player, minRaiseTo, confidence) };
   }
@@ -1475,6 +1493,8 @@ function serializeRoom(room, viewerId) {
     minRaiseToCents: chipsToCents(room, minRaiseTo),
     smallBlind,
     bigBlind,
+    smallBlindCents: chipsToCents(room, smallBlind),
+    bigBlindCents: chipsToCents(room, bigBlind),
     playerColors: PLAYER_COLORS,
     handNumber: room.handNumber,
     moneyMode: Boolean(room.moneyMode),
@@ -1622,7 +1642,7 @@ function removePlayerAfterDisconnect(room, player) {
   emitRoom(room);
 }
 
-function leaveCurrentRoom(socket, { removeAfterGrace = true } = {}) {
+function leaveCurrentRoom(socket, { removeAfterGrace = true, allowBackgroundGrace = true } = {}) {
   const roomId = socketRoom.get(socket.id);
   const playerId = socketPlayer.get(socket.id);
   if (!roomId) return;
@@ -1639,7 +1659,10 @@ function leaveCurrentRoom(socket, { removeAfterGrace = true } = {}) {
           convertHumanToBot(room, player);
         }
       } else {
-        player.disconnectExpiresAt = Date.now() + DISCONNECT_GRACE_MS;
+        const wasRecentlyBackgrounded = allowBackgroundGrace && player.backgroundedUntil > Date.now();
+        const graceMs = wasRecentlyBackgrounded ? BACKGROUND_DISCONNECT_GRACE_MS : DISCONNECT_GRACE_MS;
+        player.backgroundedUntil = null;
+        player.disconnectExpiresAt = Date.now() + graceMs;
         clearTimeout(player.disconnectTimer);
         player.disconnectTimer = setTimeout(() => {
           const latestRoom = rooms.get(room.id);
@@ -1647,7 +1670,7 @@ function leaveCurrentRoom(socket, { removeAfterGrace = true } = {}) {
           if (latestRoom && latestPlayer && !latestPlayer.connected) {
             removePlayerAfterDisconnect(latestRoom, latestPlayer);
           }
-        }, DISCONNECT_GRACE_MS);
+        }, graceMs);
       }
     }
   }
@@ -1932,8 +1955,16 @@ io.on("connection", (socket) => {
   });
 
   socket.on("room:leave", (_, ack) => {
-    leaveCurrentRoom(socket);
+    leaveCurrentRoom(socket, { allowBackgroundGrace: false });
     ack?.({ ok: true });
+  });
+
+  socket.on("room:presence", ({ hidden } = {}) => {
+    const room = rooms.get(socketRoom.get(socket.id));
+    const playerId = socketPlayer.get(socket.id);
+    const player = room?.players.find((item) => item.id === playerId);
+    if (!player || player.isBot) return;
+    player.backgroundedUntil = hidden ? Date.now() + BACKGROUND_PRESENCE_TTL_MS : null;
   });
 
   socket.on("disconnect", () => {
@@ -1962,4 +1993,5 @@ if (require.main === module) {
 module.exports = {
   BLIND_LEVELS,
   blindLevelForHand,
+  preflopBlindRaiseChance,
 };
