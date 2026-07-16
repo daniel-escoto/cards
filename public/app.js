@@ -65,14 +65,16 @@ const raiseMinus = document.querySelector("#raiseMinus");
 const raisePlus = document.querySelector("#raisePlus");
 const raiseLabel = document.querySelector("#raiseLabel");
 const raiseAmount = document.querySelector("#raiseAmount");
-const betPresets = document.querySelector("#betPresets");
 const scoreList = document.querySelector("#scoreList");
 const scoreMenuBtn = document.querySelector("#scoreMenuBtn");
 const toast = document.querySelector("#toast");
 
 let state = null;
 let raiseState = { value: 0, min: 0, max: 0, step: 20 };
-let raiseBtn = null;
+let primaryActionBtn = null;
+let primaryAction = { label: "", payload: null };
+let raiseModeActive = false;
+let raiseControlsDisabled = false;
 let leavingEndedRoom = false;
 let menuTimer = null;
 let lastAutoRejoinKey = "";
@@ -261,6 +263,7 @@ function updateHeroCardVisibility() {
   heroHand.setAttribute("aria-label", heroCardsHidden ? "Show your cards" : "Hide your cards");
   heroHand.title = heroCardsHidden ? "Show your cards" : "Hide your cards";
   heroHand.querySelectorAll(".card").forEach((card) => {
+    card.classList.toggle("back", heroCardsHidden);
     card.setAttribute("aria-hidden", String(heroCardsHidden));
   });
 }
@@ -697,10 +700,12 @@ function scrollActionFeed() {
 function renderControls(hero) {
   gameButtons.innerHTML = "";
   betControls.classList.add("hidden");
-  raiseBtn = null;
+  primaryActionBtn = null;
+  primaryAction = { label: "", payload: null };
+  raiseModeActive = false;
+  raiseControlsDisabled = false;
   turnInfo.textContent = "";
   turnInfo.classList.remove("your-turn");
-  betPresets.innerHTML = "";
 
   if (state.phase === "showdown") {
     turnInfo.textContent = "Cards down. Revealing the winner…";
@@ -733,7 +738,7 @@ function renderControls(hero) {
     turnInfo.textContent = current ? `Pot ${formatAmount(state.pot, state.potCents)}. ${current.name} is acting.` : "Waiting for the host.";
     if (hero && isBettingPhase(state.phase) && !hero.folded && !hero.allIn) {
       addActionButton("Fold", { type: "fold" }, "danger", true);
-      addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" }, "", true);
+      addPrimaryActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" }, true);
       configureRaiseControls(hero, true);
     }
     return;
@@ -744,7 +749,7 @@ function renderControls(hero) {
     : `Pot ${formatAmount(state.pot, state.potCents)}. Your turn: check or bet.`;
   turnInfo.classList.add("your-turn");
   addActionButton("Fold", { type: "fold" }, "danger");
-  addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" });
+  addPrimaryActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" });
 
   const maxRaise = hero.bet + hero.stack;
   if (state.canRaise && maxRaise > state.currentBet) {
@@ -758,44 +763,14 @@ function configureRaiseControls(hero, disabled = false) {
   betControls.classList.remove("hidden");
   const minRaise = Math.min(maxRaise, state.minRaiseTo);
   const preferredRaise = Math.max(minRaise, state.currentBet + state.bigBlind);
-  const isRaise = state.currentBet > 0;
-  raiseLabel.textContent = isRaise ? "Raise to" : "Bet amount";
-  raiseBtn = document.createElement("button");
-  raiseBtn.type = "button";
-  raiseBtn.className = "raise-action";
-  raiseBtn.disabled = disabled;
-  raiseBtn.addEventListener("click", () => {
-    emitWithAck("game:action", { type: "raise", raiseTo: raiseState.value });
-  });
-  gameButtons.appendChild(raiseBtn);
+  raiseLabel.textContent = state.currentBet > 0 ? "Raise to" : "Bet amount";
+  raiseModeActive = false;
+  raiseControlsDisabled = disabled;
   setRaiseState({
     min: minRaise,
     max: maxRaise,
     step: state.bigBlind,
     value: Math.min(maxRaise, preferredRaise),
-  });
-  renderBetPresets(hero, disabled);
-  if (disabled) {
-    raiseMinus.disabled = true;
-    raisePlus.disabled = true;
-  }
-}
-
-function renderBetPresets(hero, disabled) {
-  const options = [
-    { label: "½ pot", value: state.currentBet + Math.max(state.bigBlind, Math.round(state.pot / 2)) },
-    { label: "Pot", value: state.currentBet + Math.max(state.bigBlind, state.pot) },
-    { label: "All in", value: hero.bet + hero.stack },
-  ];
-  const unique = options.filter((option, index) => options.findIndex((item) => clampRaise(item.value) === clampRaise(option.value)) === index);
-  betPresets.innerHTML = "";
-  unique.forEach((option) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = option.label;
-    button.disabled = disabled;
-    button.addEventListener("click", () => setRaiseState({ value: option.value }));
-    betPresets.appendChild(button);
   });
 }
 
@@ -807,9 +782,18 @@ function setRaiseState(next) {
   raiseState.value = clampRaise(raiseState.value);
   const formattedAmount = formatAmount(raiseState.value, Math.round(raiseState.value * (state?.chipValueCents || 0)));
   raiseAmount.textContent = formattedAmount;
-  if (raiseBtn) raiseBtn.textContent = `${state.currentBet > 0 ? "Raise to" : "Bet"} ${formattedAmount}`;
-  raiseMinus.disabled = raiseState.value <= raiseState.min;
-  raisePlus.disabled = raiseState.value >= raiseState.max;
+  updatePrimaryActionButton();
+}
+
+function updatePrimaryActionButton() {
+  if (primaryActionBtn) {
+    const formattedAmount = formatAmount(raiseState.value, Math.round(raiseState.value * (state?.chipValueCents || 0)));
+    primaryActionBtn.textContent = raiseModeActive
+      ? `${state.currentBet > 0 ? "Raise to" : "Bet"} ${formattedAmount}`
+      : primaryAction.label;
+  }
+  raiseMinus.disabled = raiseControlsDisabled || (!raiseModeActive && raiseState.value <= raiseState.min);
+  raisePlus.disabled = raiseControlsDisabled || (raiseModeActive && raiseState.value >= raiseState.max);
 }
 
 function clampRaise(value) {
@@ -817,6 +801,16 @@ function clampRaise(value) {
 }
 
 function changeRaise(direction) {
+  if (direction > 0 && !raiseModeActive) {
+    raiseModeActive = true;
+    updatePrimaryActionButton();
+    return;
+  }
+  if (direction < 0 && raiseModeActive && raiseState.value <= raiseState.min) {
+    raiseModeActive = false;
+    updatePrimaryActionButton();
+    return;
+  }
   setRaiseState({ value: raiseState.value + direction * raiseState.step });
 }
 
@@ -834,6 +828,20 @@ function addActionButton(label, payload, className = "", disabled = false) {
   if (className) button.className = className;
   button.disabled = disabled;
   button.addEventListener("click", () => emitWithAck("game:action", payload));
+  gameButtons.appendChild(button);
+}
+
+function addPrimaryActionButton(label, payload, disabled = false) {
+  const button = document.createElement("button");
+  primaryAction = { label, payload };
+  primaryActionBtn = button;
+  button.textContent = label;
+  button.disabled = disabled;
+  button.addEventListener("click", () => {
+    emitWithAck("game:action", raiseModeActive
+      ? { type: "raise", raiseTo: raiseState.value }
+      : primaryAction.payload);
+  });
   gameButtons.appendChild(button);
 }
 
@@ -1189,5 +1197,8 @@ document.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
   if (key === "f") emitWithAck("game:action", { type: "fold" });
   if (key === "c") emitWithAck("game:action", { type: state.toCall > 0 ? "call" : "check" });
-  if (key === "r" && !betControls.classList.contains("hidden")) raiseBtn?.click();
+  if (key === "r" && !betControls.classList.contains("hidden")) {
+    if (raiseModeActive) primaryActionBtn?.click();
+    else changeRaise(1);
+  }
 });
