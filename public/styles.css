@@ -345,6 +345,10 @@ select:focus {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
+.game-buttons .raise-action {
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
 .error {
   min-height: 20px;
   color: var(--danger);
@@ -1174,7 +1178,21 @@ select:focus {
 .hero-hand {
   display: flex;
   gap: 6px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
+
+.hero-hand:empty { display: none; }
+.hero-hand:not(:disabled):hover { background: transparent; }
+.hero-hand:not(:disabled):active { transform: none; }
+.hero-hand.cards-concealed .card {
+  background: repeating-linear-gradient(45deg, #27333b 0 8px, #1a232a 8px 16px);
+  color: transparent;
+}
+.hero-hand.cards-concealed .card > * { visibility: hidden; }
 
 .hand-row {
   display: flex;
@@ -1226,12 +1244,12 @@ select:focus {
 .bet-controls {
   --raise-row-height: 46px;
   display: grid;
-  grid-template-columns: minmax(140px, 1fr) auto;
+  grid-template-columns: 1fr;
   align-items: stretch;
-  gap: 10px;
+  gap: 7px;
 }
 
-.bet-presets { grid-column: 1 / -1; display: flex; gap: 6px; }
+.bet-presets { display: flex; gap: 6px; }
 .bet-presets:empty { display: none; }
 .bet-presets button { flex: 1; min-height: 32px; padding: 0 8px; color: var(--muted); border: 1px solid var(--line); background: rgba(255,255,255,.055); font-size: 11px; }
 .bet-presets button:not(:disabled):hover { color: var(--text); background: rgba(255,255,255,.12); }
@@ -1266,13 +1284,6 @@ select:focus {
   border: 1px solid var(--line);
   border-radius: 7px;
   background: #10161a;
-}
-
-.bet-controls > button {
-  min-height: 0;
-  height: var(--raise-row-height);
-  align-self: stretch;
-  line-height: 1;
 }
 
 .raise-display span {
@@ -1753,7 +1764,7 @@ select:focus {
 
   .bet-controls {
     --raise-row-height: 40px;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr;
     gap: 6px;
   }
 

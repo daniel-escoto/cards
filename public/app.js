@@ -65,7 +65,6 @@ const raiseMinus = document.querySelector("#raiseMinus");
 const raisePlus = document.querySelector("#raisePlus");
 const raiseLabel = document.querySelector("#raiseLabel");
 const raiseAmount = document.querySelector("#raiseAmount");
-const raiseBtn = document.querySelector("#raiseBtn");
 const betPresets = document.querySelector("#betPresets");
 const scoreList = document.querySelector("#scoreList");
 const scoreMenuBtn = document.querySelector("#scoreMenuBtn");
@@ -73,12 +72,14 @@ const toast = document.querySelector("#toast");
 
 let state = null;
 let raiseState = { value: 0, min: 0, max: 0, step: 20 };
+let raiseBtn = null;
 let leavingEndedRoom = false;
 let menuTimer = null;
 let lastAutoRejoinKey = "";
 let lastActionEntryId = "";
 let lastCommunitySignature = null;
 let lastHeroSignature = "";
+let heroCardsHidden = false;
 let lastWinnerSignature = "";
 let lastPhase = "";
 let lastPot = null;
@@ -251,6 +252,17 @@ function cardTemplate(card, extraClass = "") {
 
 function playerColorStyle(player) {
   return player?.color ? `style="--player-color: ${escapeHtml(player.color)}"` : "";
+}
+
+function updateHeroCardVisibility() {
+  const hasCards = heroHand.children.length > 0;
+  heroHand.classList.toggle("cards-concealed", hasCards && heroCardsHidden);
+  heroHand.setAttribute("aria-pressed", String(hasCards && heroCardsHidden));
+  heroHand.setAttribute("aria-label", heroCardsHidden ? "Show your cards" : "Hide your cards");
+  heroHand.title = heroCardsHidden ? "Show your cards" : "Hide your cards";
+  heroHand.querySelectorAll(".card").forEach((card) => {
+    card.setAttribute("aria-hidden", String(heroCardsHidden));
+  });
 }
 
 function phaseLabel(phase) {
@@ -633,7 +645,9 @@ function render() {
   const hero = activeHero();
   const heroSignature = hero?.cards?.map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`).join("|") || "";
   if (heroSignature !== lastHeroSignature) {
+    heroCardsHidden = false;
     heroHand.innerHTML = hero?.cards?.length ? hero.cards.map(cardTemplate).join("") : "";
+    updateHeroCardVisibility();
     replayAnimation(heroHand, "cards-entering", 720);
     lastHeroSignature = heroSignature;
   }
@@ -683,7 +697,7 @@ function scrollActionFeed() {
 function renderControls(hero) {
   gameButtons.innerHTML = "";
   betControls.classList.add("hidden");
-  raiseBtn.disabled = false;
+  raiseBtn = null;
   turnInfo.textContent = "";
   turnInfo.classList.remove("your-turn");
   betPresets.innerHTML = "";
@@ -744,20 +758,26 @@ function configureRaiseControls(hero, disabled = false) {
   betControls.classList.remove("hidden");
   const minRaise = Math.min(maxRaise, state.minRaiseTo);
   const preferredRaise = Math.max(minRaise, state.currentBet + state.bigBlind);
+  const isRaise = state.currentBet > 0;
+  raiseLabel.textContent = isRaise ? "Raise to" : "Bet amount";
+  raiseBtn = document.createElement("button");
+  raiseBtn.type = "button";
+  raiseBtn.className = "raise-action";
+  raiseBtn.disabled = disabled;
+  raiseBtn.addEventListener("click", () => {
+    emitWithAck("game:action", { type: "raise", raiseTo: raiseState.value });
+  });
+  gameButtons.appendChild(raiseBtn);
   setRaiseState({
     min: minRaise,
     max: maxRaise,
     step: state.bigBlind,
     value: Math.min(maxRaise, preferredRaise),
   });
-  const isRaise = state.currentBet > 0;
-  raiseLabel.textContent = isRaise ? "Raise to" : "Bet";
-  raiseBtn.textContent = isRaise ? "Raise" : "Bet";
   renderBetPresets(hero, disabled);
   if (disabled) {
     raiseMinus.disabled = true;
     raisePlus.disabled = true;
-    raiseBtn.disabled = true;
   }
 }
 
@@ -785,7 +805,9 @@ function setRaiseState(next) {
     ...next,
   };
   raiseState.value = clampRaise(raiseState.value);
-  raiseAmount.textContent = formatAmount(raiseState.value, Math.round(raiseState.value * (state?.chipValueCents || 0)));
+  const formattedAmount = formatAmount(raiseState.value, Math.round(raiseState.value * (state?.chipValueCents || 0)));
+  raiseAmount.textContent = formattedAmount;
+  if (raiseBtn) raiseBtn.textContent = `${state.currentBet > 0 ? "Raise to" : "Bet"} ${formattedAmount}`;
   raiseMinus.disabled = raiseState.value <= raiseState.min;
   raisePlus.disabled = raiseState.value >= raiseState.max;
 }
@@ -960,8 +982,10 @@ raisePlus.addEventListener("click", () => changeRaise(1));
 raiseMinus.addEventListener("dblclick", (event) => event.preventDefault());
 raisePlus.addEventListener("dblclick", (event) => event.preventDefault());
 
-raiseBtn.addEventListener("click", () => {
-  emitWithAck("game:action", { type: "raise", raiseTo: raiseState.value });
+heroHand.addEventListener("click", () => {
+  if (!heroHand.children.length) return;
+  heroCardsHidden = !heroCardsHidden;
+  updateHeroCardVisibility();
 });
 
 menuBtn.addEventListener("click", () => {
@@ -1165,5 +1189,5 @@ document.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
   if (key === "f") emitWithAck("game:action", { type: "fold" });
   if (key === "c") emitWithAck("game:action", { type: state.toCall > 0 ? "call" : "check" });
-  if (key === "r" && !betControls.classList.contains("hidden")) raiseBtn.click();
+  if (key === "r" && !betControls.classList.contains("hidden")) raiseBtn?.click();
 });
