@@ -780,7 +780,7 @@ function setRaiseState(next) {
   raiseState.value = clampRaise(raiseState.value);
   const formattedAmount = formatAmount(raiseState.value, Math.round(raiseState.value * (state?.chipValueCents || 0)));
   raiseAmount.textContent = formattedAmount;
-  raiseActionBtn.textContent = `${state.currentBet > 0 ? "Raise to" : "Bet"} ${formattedAmount}`;
+  raiseActionBtn.textContent = "Raise";
   raiseActionBtn.disabled = raiseControlsDisabled;
   raiseMinus.disabled = raiseControlsDisabled || raiseState.value <= raiseState.min;
   raisePlus.disabled = raiseControlsDisabled || raiseState.value >= raiseState.max;
