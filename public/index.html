@@ -6,8 +6,7 @@
     <meta id="themeColor" name="theme-color" content="#090d10" />
     <title>Texas Hold'em</title>
     <script>
-      const savedTheme = localStorage.getItem("holdem:theme");
-      const initialTheme = savedTheme || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+      const initialTheme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
       document.documentElement.dataset.theme = initialTheme;
       document.querySelector("#themeColor").content = initialTheme === "light" ? "#eef1ec" : "#090d10";
     </script>
@@ -15,10 +14,6 @@
   </head>
   <body>
     <main class="app">
-      <button id="themeToggle" class="theme-toggle ghost" type="button" aria-label="Switch to light mode" title="Switch theme">
-        <span id="themeIcon" aria-hidden="true">☀</span>
-        <span id="themeLabel">Light</span>
-      </button>
       <section id="welcome" class="welcome">
         <div class="brand">
           <span class="mark" aria-hidden="true">♠</span>
@@ -32,30 +27,34 @@
             <button id="hostModeBtn" class="mode-option selected" type="button" role="tab" aria-selected="true">Host a table</button>
             <button id="joinModeBtn" class="mode-option" type="button" role="tab" aria-selected="false">Join a table</button>
           </div>
-          <label>
-            Display name
+          <label class="form-field name-field">
+            <span>Display name</span>
             <input id="nameInput" autocomplete="nickname" maxlength="18" placeholder="Your name" required />
           </label>
-          <label id="roomCodeLabel" class="hidden">
-            Room code
+          <label id="roomCodeLabel" class="form-field hidden">
+            <span>Room code</span>
             <input id="roomInput" maxlength="6" placeholder="ABC123" autocapitalize="characters" spellcheck="false" />
           </label>
           <div id="blindFields" class="blind-fields">
-            <label>
+            <label class="form-field">
               <span id="smallBlindLabel">Small blind</span>
               <input id="smallBlindInput" type="number" min="1" max="100000" step="1" value="10" inputmode="decimal" />
             </label>
-            <label>
+            <label class="form-field">
               <span id="bigBlindLabel">Big blind</span>
               <input id="bigBlindInput" type="number" min="2" max="100000" step="1" value="20" inputmode="decimal" />
             </label>
           </div>
           <label class="checkbox-label">
             <input id="moneyModeInput" type="checkbox" />
-            <span>Money mode, no CPU players</span>
+            <span class="switch-control" aria-hidden="true"></span>
+            <span class="checkbox-copy">
+              <strong>Money mode</strong>
+              <small>Track buy-ins in dollars, without CPU players</small>
+            </span>
           </label>
-          <label id="buyInLabel" class="hidden">
-            Buy-in
+          <label id="buyInLabel" class="form-field hidden">
+            <span>Buy-in</span>
             <input id="buyInInput" type="number" min="10" max="10000" step="10" value="20" inputmode="decimal" />
           </label>
           <div class="actions-row">
@@ -76,9 +75,6 @@
             <span id="phaseBadge" class="phase-badge">Lobby</span>
           </div>
           <div class="topbar-actions">
-            <button class="table-theme-toggle ghost" type="button" data-theme-toggle aria-label="Switch to light mode" title="Switch theme">
-              <span data-theme-icon aria-hidden="true">☀</span><span data-theme-label>Light</span>
-            </button>
             <button id="menuBtn" class="ghost menu-btn" type="button" aria-haspopup="dialog" aria-controls="gameMenuModal">Menu</button>
           </div>
         </header>
@@ -148,19 +144,22 @@
               <div id="deckChoices" class="appearance-choices" aria-label="Deck style"></div>
             </div>
           </details>
-          <form id="blindPanel" class="money-panel hidden">
-            <div class="blind-fields">
-              <label>
-                <span id="menuSmallBlindLabel">Small blind</span>
-                <input id="menuSmallBlindInput" type="number" min="1" step="1" inputmode="decimal" />
-              </label>
-              <label>
-                <span id="menuBigBlindLabel">Big blind</span>
-                <input id="menuBigBlindInput" type="number" min="2" step="1" inputmode="decimal" />
-              </label>
-            </div>
-            <button type="submit">Update blinds</button>
-          </form>
+          <details id="blindPanel" class="appearance-panel blind-settings-panel hidden">
+            <summary>Blind settings</summary>
+            <form id="blindForm" class="blind-settings-form">
+              <div class="blind-fields">
+                <label>
+                  <span id="menuSmallBlindLabel">Small blind</span>
+                  <input id="menuSmallBlindInput" type="number" min="1" step="1" inputmode="decimal" />
+                </label>
+                <label>
+                  <span id="menuBigBlindLabel">Big blind</span>
+                  <input id="menuBigBlindInput" type="number" min="2" step="1" inputmode="decimal" />
+                </label>
+              </div>
+              <button type="submit">Update blinds</button>
+            </form>
+          </details>
           <div id="sharePanel" class="share-panel hidden">
             <img id="shareQr" alt="Room invite QR code" />
             <div class="share-link-row">

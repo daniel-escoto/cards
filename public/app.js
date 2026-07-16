@@ -6,11 +6,7 @@ const socket = io({
 });
 
 const welcome = document.querySelector("#welcome");
-const themeToggle = document.querySelector("#themeToggle");
-const themeIcon = document.querySelector("#themeIcon");
-const themeLabel = document.querySelector("#themeLabel");
 const themeColor = document.querySelector("#themeColor");
-const themeToggles = document.querySelectorAll("#themeToggle, [data-theme-toggle]");
 const tableView = document.querySelector("#tableView");
 const scoreView = document.querySelector("#scoreView");
 const joinForm = document.querySelector("#joinForm");
@@ -50,6 +46,7 @@ const shareLink = document.querySelector("#shareLink");
 const copyShareBtn = document.querySelector("#copyShareBtn");
 const moneyPanel = document.querySelector("#moneyPanel");
 const blindPanel = document.querySelector("#blindPanel");
+const blindForm = document.querySelector("#blindForm");
 const menuSmallBlindLabel = document.querySelector("#menuSmallBlindLabel");
 const menuBigBlindLabel = document.querySelector("#menuBigBlindLabel");
 const menuSmallBlindInput = document.querySelector("#menuSmallBlindInput");
@@ -111,29 +108,14 @@ const DECK_OPTIONS = [
   { id: "minimal", label: "Minimal" },
 ];
 
-function preferredTheme() {
-  const saved = localStorage.getItem("holdem:theme");
-  if (saved === "light" || saved === "dark") return saved;
-  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-}
-
-function applyTheme(theme, persist = false) {
+function applyTheme(theme) {
   const nextTheme = theme === "light" ? "light" : "dark";
   document.documentElement.dataset.theme = nextTheme;
   themeColor?.setAttribute("content", nextTheme === "dark" ? "#090d10" : "#eef1ec");
-  const nextLabel = nextTheme === "dark" ? "Light" : "Dark";
-  themeIcon.textContent = nextTheme === "dark" ? "☀" : "☾";
-  themeLabel.textContent = nextLabel;
-  themeToggle.setAttribute("aria-label", `Switch to ${nextLabel.toLowerCase()} mode`);
-  themeToggles.forEach((button) => {
-    button.querySelector("[data-theme-icon]")?.replaceChildren(nextTheme === "dark" ? "☀" : "☾");
-    button.querySelector("[data-theme-label]")?.replaceChildren(nextLabel);
-    button.setAttribute("aria-label", `Switch to ${nextLabel.toLowerCase()} mode`);
-  });
-  if (persist) localStorage.setItem("holdem:theme", nextTheme);
 }
 
-applyTheme(preferredTheme());
+const deviceTheme = window.matchMedia("(prefers-color-scheme: light)");
+applyTheme(deviceTheme.matches ? "light" : "dark");
 
 function applyTableAppearance(felt, deck, persist = false) {
   const nextFelt = FELT_OPTIONS.some((option) => option.id === felt) ? felt : "emerald";
@@ -713,6 +695,9 @@ function renderControls(hero) {
   }
   turnInfo.classList.remove("showdown-message");
 
+  if (state.canAddBot) {
+    addButton("+ Add CPU player", "room:addBot", "secondary lobby-add-bot");
+  }
   if (state.canReady) {
     addButton(state.isReady ? "Not ready" : "Ready up", "game:ready", state.isReady ? "secondary" : "");
   }
@@ -938,13 +923,7 @@ function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-themeToggles.forEach((button) => button.addEventListener("click", () => {
-  applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark", true);
-}));
-
-window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", (event) => {
-  if (!localStorage.getItem("holdem:theme")) applyTheme(event.matches ? "light" : "dark");
-});
+deviceTheme.addEventListener("change", (event) => applyTheme(event.matches ? "light" : "dark"));
 
 roomInput.addEventListener("input", () => { roomInput.value = roomInput.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
 hostModeBtn.addEventListener("click", () => setTableMode("host"));
@@ -1028,7 +1007,7 @@ gameMenuModal.addEventListener("click", (event) => {
 });
 
 gameMenuModal.addEventListener("submit", (event) => {
-  if (event.target === blindPanel) {
+  if (event.target === blindForm) {
     event.preventDefault();
     const payload = state?.moneyMode
       ? {
