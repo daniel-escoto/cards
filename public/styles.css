@@ -1395,11 +1395,6 @@ select:focus {
   .game-buttons > button {
     flex: 1 1 30%;
   }
-
-  .bet-controls {
-    grid-template-columns: minmax(140px, 1fr) auto;
-  }
-
 }
 
 @media (min-width: 1040px) {
