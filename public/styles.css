@@ -61,7 +61,9 @@ html {
 
 html.game-open-root {
   height: var(--game-vh);
+  min-height: 0;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
