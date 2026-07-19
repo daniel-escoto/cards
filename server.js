@@ -1070,6 +1070,10 @@ function dealStreet(room) {
 function bettingComplete(room) {
   const actors = canActPlayers(room);
   if (actors.length === 0) return true;
+  // Once every other contender is all-in, the last player with chips only
+  // needs to respond to an outstanding bet. If they are already matched,
+  // there is nobody who could call another bet, so run out the board.
+  if (actors.length === 1 && actors[0].bet === room.currentBet) return true;
   return actors.every((player) => player.bet === room.currentBet && room.acted.has(player.id));
 }
 
@@ -1992,6 +1996,7 @@ if (require.main === module) {
 
 module.exports = {
   BLIND_LEVELS,
+  bettingComplete,
   blindLevelForHand,
   preflopBlindRaiseChance,
 };
