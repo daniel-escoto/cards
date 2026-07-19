@@ -245,10 +245,12 @@ const FELT_OPTIONS = [
   { id: "blush", label: "Blush", color: "#c98791" },
 ];
 const DECK_OPTIONS = [
-  { id: "classic", label: "Classic" },
-  { id: "midnight", label: "Midnight" },
-  { id: "ruby", label: "Ruby" },
-  { id: "minimal", label: "Minimal" },
+  { id: "classic", label: "Casino", description: "Crisp & familiar", rank: "A", suit: "♠" },
+  { id: "midnight", label: "Midnight", description: "Dark & modern", rank: "K", suit: "♠" },
+  { id: "ruby", label: "Burgundy", description: "Warm & dramatic", rank: "Q", suit: "♥" },
+  { id: "heritage", label: "Heritage", description: "Old-school club", rank: "J", suit: "♣" },
+  { id: "riviera", label: "Riviera", description: "Bright & playful", rank: "10", suit: "♦" },
+  { id: "minimal", label: "Minimal", description: "Quiet & refined", rank: "A", suit: "♦" },
 ];
 
 function applyTheme(theme) {
@@ -280,8 +282,12 @@ function renderAppearanceChoices() {
     </button>
   `).join("");
   deckChoices.innerHTML = DECK_OPTIONS.map((option) => `
-    <button type="button" class="appearance-choice deck-choice ${document.documentElement.dataset.deck === option.id ? "selected" : ""}" data-deck="${option.id}" aria-pressed="${document.documentElement.dataset.deck === option.id}">
-      <i class="deck-preview" aria-hidden="true"></i><span>${option.label}</span>
+    <button type="button" class="appearance-choice deck-choice ${document.documentElement.dataset.deck === option.id ? "selected" : ""}" data-deck="${option.id}" aria-label="${option.label}: ${option.description}" aria-pressed="${document.documentElement.dataset.deck === option.id}">
+      <span class="deck-preview" aria-hidden="true">
+        <i class="deck-preview-back"></i>
+        <i class="deck-preview-front ${["♥", "♦"].includes(option.suit) ? "red" : ""}"><b>${option.rank}</b><em>${option.suit}</em></i>
+      </span>
+      <span class="deck-choice-copy"><strong>${option.label}</strong><small>${option.description}</small></span>
     </button>
   `).join("");
 }
@@ -861,10 +867,10 @@ function renderControls(hero) {
     addButton("+ Add CPU player", "room:addBot", "secondary lobby-add-bot");
   }
   if (state.canReady) {
-    addButton(state.isReady ? "Not ready" : "Ready up", "game:ready", state.isReady ? "secondary" : "");
+    addButton(state.isReady ? "Not ready" : "Ready up", "game:ready", state.isReady ? "secondary" : "", "Space");
   }
   if (state.canShowHand) {
-    addButton("Show hand", "game:showCards", "secondary");
+    addButton("Show hand", "game:showCards", "secondary", "H");
   }
 
   if (!state.isYourTurn || !hero) {
@@ -945,7 +951,7 @@ function setRaiseState(next) {
   raiseState.value = clampRaise(raiseState.value);
   const formattedAmount = formatAmount(raiseState.value, Math.round(raiseState.value * (state?.chipValueCents || 0)));
   raiseAmount.textContent = formattedAmount;
-  raiseActionBtn.textContent = "Raise";
+  setButtonLabel(raiseActionBtn, state?.currentBet > 0 ? "Raise" : "Bet", "R");
   raiseActionBtn.disabled = raiseControlsDisabled;
   raiseMinus.disabled = raiseControlsDisabled || raiseState.value <= raiseState.min;
   raisePlus.disabled = raiseControlsDisabled || raiseState.value >= raiseState.max;
@@ -959,18 +965,25 @@ function changeRaise(direction) {
   setRaiseState({ value: raiseState.value + direction * raiseState.step });
 }
 
-function addButton(label, eventName, className = "") {
+function setButtonLabel(button, label, shortcut = "") {
+  button.innerHTML = `<span>${escapeHtml(label)}</span>${shortcut ? `<kbd aria-hidden="true">${escapeHtml(shortcut)}</kbd>` : ""}`;
+  button.classList.toggle("has-shortcut", Boolean(shortcut));
+  button.setAttribute("aria-label", shortcut ? `${label} (${shortcut})` : label);
+}
+
+function addButton(label, eventName, className = "", shortcut = "") {
   const button = document.createElement("button");
-  button.textContent = label;
   if (className) button.className = className;
+  setButtonLabel(button, label, shortcut);
   button.addEventListener("click", () => emitWithAck(eventName, {}));
   gameButtons.appendChild(button);
 }
 
 function addActionButton(label, payload, className = "", disabled = false) {
   const button = document.createElement("button");
-  button.textContent = label;
   if (className) button.className = className;
+  const shortcut = payload.type === "fold" ? "F" : ["check", "call"].includes(payload.type) ? "C" : "";
+  setButtonLabel(button, label, shortcut);
   button.disabled = disabled;
   button.addEventListener("click", () => emitWithAck("game:action", payload));
   gameButtons.appendChild(button);
@@ -1340,10 +1353,28 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   if (!state || !gameMenuModal.classList.contains("hidden") || event.metaKey || event.ctrlKey || event.altKey) return;
-  if (event.target.matches("input, select, textarea")) return;
-  if (event.key.toLowerCase() === "m") showGameMenu();
-  if (!state.isYourTurn) return;
+  if (event.target.matches("input, select, textarea, button, [contenteditable]")) return;
   const key = event.key.toLowerCase();
+  if (key === "m") {
+    showGameMenu();
+    return;
+  }
+  if ((event.code === "Space" || key === " ") && state.canReady) {
+    event.preventDefault();
+    if (!event.repeat) emitWithAck("game:ready", {});
+    return;
+  }
+  if (key === "h" && state.canShowHand) {
+    if (!event.repeat) emitWithAck("game:showCards", {});
+    return;
+  }
+  if (!state.isYourTurn) return;
+  if (["arrowup", "arrowright", "arrowdown", "arrowleft"].includes(key) && !betControls.classList.contains("hidden")) {
+    event.preventDefault();
+    changeRaise(["arrowup", "arrowright"].includes(key) ? 1 : -1);
+    return;
+  }
+  if (event.repeat) return;
   if (key === "f") emitWithAck("game:action", { type: "fold" });
   if (key === "c") emitWithAck("game:action", { type: state.toCall > 0 ? "call" : "check" });
   if (key === "r" && !betControls.classList.contains("hidden")) raiseActionBtn.click();
