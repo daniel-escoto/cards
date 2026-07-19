@@ -569,12 +569,18 @@ function hideGameMenu() {
   if (!tableView.classList.contains("hidden")) menuBtn.focus({ preventScroll: true });
 }
 
+function playerIsOut(player) {
+  const betweenHands = ["lobby", "complete", "gameover"].includes(state?.phase);
+  return player.stack <= 0 && (betweenHands || player.invested <= 0);
+}
+
 function roundStatus(player) {
   if (!player.connected && player.disconnectExpiresAt) {
     const seconds = Math.max(0, Math.ceil((new Date(player.disconnectExpiresAt).getTime() - Date.now()) / 1000));
     return seconds > 0 ? `Away ${seconds}s` : "Away";
   }
   if (!player.connected) return "Away";
+  if (playerIsOut(player)) return "Out";
   if (["lobby", "complete"].includes(state?.phase)) return "";
   if (player.folded) return "Folded";
   if (player.allIn) return "All in";
@@ -770,6 +776,7 @@ function actionTokenClass(entry, player) {
 }
 
 function playerTableStatus(player, isActiveTurn = player.isTurn) {
+  if (playerIsOut(player)) return "Out";
   if (["lobby", "complete"].includes(state?.phase)) return player.ready || player.isBot ? "Ready" : "Not ready";
   if (player.folded) return "Folded";
   if (player.allIn) return "All in";
@@ -821,12 +828,14 @@ function renderActionFeed(newEntryId = "") {
     const entry = latestByPlayer.get(player.id);
     const isActing = player.id === activePlayer?.id;
     const betweenHands = ["lobby", "complete"].includes(state.phase);
-    const isOutOfAction = player.folded || player.allIn;
+    const isOut = playerIsOut(player);
+    const isAllIn = player.allIn && !isOut;
+    const isOutOfAction = player.folded || isAllIn || isOut;
     const action = !betweenHands && entry && !isOutOfAction
       ? compactPlayerAction(entry, player)
       : playerTableStatus(player, isActing);
     return `
-      <article class="table-player-row ${isActing ? "turn" : ""} ${player.folded ? "folded" : ""} ${player.allIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}" ${playerColorStyle(player)}>
+      <article class="table-player-row ${isActing ? "turn" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${isOut ? "out" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}" ${playerColorStyle(player)}>
         <i class="player-dot" aria-hidden="true"></i>
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
         <span class="player-action${entry ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}</span>
