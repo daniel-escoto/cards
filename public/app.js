@@ -425,6 +425,22 @@ function setKeyboardMode(isOpen) {
   setViewportHeight();
 }
 
+let previousGameTouchY = null;
+
+function lockMobileGameOverscroll(event) {
+  if (!document.body.classList.contains("game-open") || !matchMedia("(max-width: 779px)").matches) return;
+
+  const touchY = event.touches[0]?.clientY;
+  const scrollRegion = event.target.closest?.(".players, .modal-panel");
+  const movingDown = previousGameTouchY !== null && touchY > previousGameTouchY;
+  const movingUp = previousGameTouchY !== null && touchY < previousGameTouchY;
+  previousGameTouchY = touchY;
+
+  const canScrollDown = movingUp && scrollRegion?.scrollTop < scrollRegion?.scrollHeight - scrollRegion?.clientHeight;
+  const canScrollUp = movingDown && scrollRegion?.scrollTop > 0;
+  if (!canScrollDown && !canScrollUp) event.preventDefault();
+}
+
 function updateTableActionLabel() {
   const isJoining = tableMode === "join";
   if (!joinPending) tableActionBtn.textContent = isJoining ? "Join table" : "Host table";
@@ -1453,6 +1469,13 @@ window.visualViewport?.addEventListener("resize", () => {
   setViewportHeight();
   requestAnimationFrame(() => scrollActionFeed());
 });
+
+document.addEventListener("touchstart", (event) => {
+  previousGameTouchY = event.touches[0]?.clientY ?? null;
+}, { passive: true });
+document.addEventListener("touchmove", lockMobileGameOverscroll, { passive: false });
+document.addEventListener("touchend", () => { previousGameTouchY = null; }, { passive: true });
+document.addEventListener("touchcancel", () => { previousGameTouchY = null; }, { passive: true });
 
 setViewportHeight();
 
