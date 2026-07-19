@@ -40,6 +40,8 @@ const menuPlayers = document.querySelector("#menuPlayers");
 const feltChoices = document.querySelector("#feltChoices");
 const deckChoices = document.querySelector("#deckChoices");
 const soundEnabledInput = document.querySelector("#soundEnabledInput");
+const keybindList = document.querySelector("#keybindList");
+const resetKeybindsBtn = document.querySelector("#resetKeybindsBtn");
 const sharePanel = document.querySelector("#sharePanel");
 const shareQr = document.querySelector("#shareQr");
 const shareLink = document.querySelector("#shareLink");
@@ -211,6 +213,98 @@ class TableSounds {
 
 const tableSounds = new TableSounds();
 soundEnabledInput.checked = tableSounds.enabled;
+
+const KEYBIND_DEFINITIONS = [
+  { id: "fold", label: "Fold", defaultKey: "f" },
+  { id: "call", label: "Check / call", defaultKey: "c" },
+  { id: "raise", label: "Bet / raise", defaultKey: "r" },
+  { id: "raiseUp", label: "Increase bet", defaultKey: "ArrowUp" },
+  { id: "raiseDown", label: "Decrease bet", defaultKey: "ArrowDown" },
+  { id: "ready", label: "Ready up", defaultKey: "Space" },
+  { id: "showHand", label: "Show hand", defaultKey: "h" },
+  { id: "menu", label: "Table menu", defaultKey: "m" },
+];
+const DEFAULT_KEYBINDS = Object.fromEntries(KEYBIND_DEFINITIONS.map((item) => [item.id, item.defaultKey]));
+let keybinds = loadKeybinds();
+let recordingKeybindAction = "";
+
+function normalizedKey(key) {
+  if (key === " " || key === "Spacebar") return "Space";
+  return key?.length === 1 ? key.toLowerCase() : key;
+}
+
+function loadKeybinds() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("holdem:keybinds") || "null");
+    if (!saved || typeof saved !== "object") return { ...DEFAULT_KEYBINDS };
+    const next = { ...DEFAULT_KEYBINDS };
+    KEYBIND_DEFINITIONS.forEach(({ id }) => {
+      if (typeof saved[id] === "string" && saved[id]) next[id] = normalizedKey(saved[id]);
+    });
+    return next;
+  } catch {
+    return { ...DEFAULT_KEYBINDS };
+  }
+}
+
+function keybindLabel(key) {
+  return ({
+    Space: "Space",
+    ArrowUp: "↑",
+    ArrowDown: "↓",
+    ArrowLeft: "←",
+    ArrowRight: "→",
+    Enter: "Enter",
+    Backspace: "⌫",
+    Delete: "Del",
+  })[key] || (key?.length === 1 ? key.toUpperCase() : key);
+}
+
+function saveKeybinds() {
+  localStorage.setItem("holdem:keybinds", JSON.stringify(keybinds));
+}
+
+function renderKeybinds() {
+  keybindList.innerHTML = KEYBIND_DEFINITIONS.map(({ id, label }) => `
+    <div class="keybind-row">
+      <span>${label}</span>
+      <button type="button" class="keybind-button ${recordingKeybindAction === id ? "recording" : ""}" data-keybind-action="${id}" aria-label="Set key for ${label}">
+        ${recordingKeybindAction === id ? "Press a key…" : escapeHtml(keybindLabel(keybinds[id]))}
+      </button>
+    </div>
+  `).join("");
+}
+
+function beginKeybindRecording(action) {
+  if (!DEFAULT_KEYBINDS[action]) return;
+  recordingKeybindAction = action;
+  renderKeybinds();
+  keybindList.querySelector(`[data-keybind-action="${action}"]`)?.focus();
+}
+
+function cancelKeybindRecording() {
+  if (!recordingKeybindAction) return;
+  recordingKeybindAction = "";
+  renderKeybinds();
+}
+
+function assignKeybind(action, key) {
+  const previousKey = keybinds[action];
+  const conflictAction = Object.keys(keybinds).find((id) => id !== action && keybinds[id] === key);
+  keybinds[action] = key;
+  if (conflictAction) keybinds[conflictAction] = previousKey;
+  recordingKeybindAction = "";
+  saveKeybinds();
+  renderKeybinds();
+  renderControls(activeHero());
+  showToast(conflictAction ? "Shortcuts swapped" : "Shortcut updated");
+}
+
+function matchesKeybind(event, action) {
+  return normalizedKey(event.key) === keybinds[action];
+}
+
+renderKeybinds();
 
 let state = null;
 let raiseState = { value: 0, min: 0, max: 0, step: 20 };
@@ -451,6 +545,7 @@ function showTable(room) {
 }
 
 function hideGameMenu() {
+  cancelKeybindRecording();
   gameMenuModal.classList.add("hidden");
   sharePanel.classList.add("hidden");
   clearInterval(menuTimer);
@@ -867,10 +962,10 @@ function renderControls(hero) {
     addButton("+ Add CPU player", "room:addBot", "secondary lobby-add-bot");
   }
   if (state.canReady) {
-    addButton(state.isReady ? "Not ready" : "Ready up", "game:ready", state.isReady ? "secondary" : "", "Space");
+    addButton(state.isReady ? "Not ready" : "Ready up", "game:ready", state.isReady ? "secondary" : "", keybindLabel(keybinds.ready));
   }
   if (state.canShowHand) {
-    addButton("Show hand", "game:showCards", "secondary", "H");
+    addButton("Show hand", "game:showCards", "secondary", keybindLabel(keybinds.showHand));
   }
 
   if (!state.isYourTurn || !hero) {
@@ -951,7 +1046,7 @@ function setRaiseState(next) {
   raiseState.value = clampRaise(raiseState.value);
   const formattedAmount = formatAmount(raiseState.value, Math.round(raiseState.value * (state?.chipValueCents || 0)));
   raiseAmount.textContent = formattedAmount;
-  setButtonLabel(raiseActionBtn, state?.currentBet > 0 ? "Raise" : "Bet", "R");
+  setButtonLabel(raiseActionBtn, state?.currentBet > 0 ? "Raise" : "Bet", keybindLabel(keybinds.raise));
   raiseActionBtn.disabled = raiseControlsDisabled;
   raiseMinus.disabled = raiseControlsDisabled || raiseState.value <= raiseState.min;
   raisePlus.disabled = raiseControlsDisabled || raiseState.value >= raiseState.max;
@@ -982,7 +1077,9 @@ function addButton(label, eventName, className = "", shortcut = "") {
 function addActionButton(label, payload, className = "", disabled = false) {
   const button = document.createElement("button");
   if (className) button.className = className;
-  const shortcut = payload.type === "fold" ? "F" : ["check", "call"].includes(payload.type) ? "C" : "";
+  const shortcut = payload.type === "fold"
+    ? keybindLabel(keybinds.fold)
+    : ["check", "call"].includes(payload.type) ? keybindLabel(keybinds.call) : "";
   setButtonLabel(button, label, shortcut);
   button.disabled = disabled;
   button.addEventListener("click", () => emitWithAck("game:action", payload));
@@ -1112,6 +1209,18 @@ soundEnabledInput.addEventListener("change", () => {
   } else {
     showToast("Table sounds off");
   }
+});
+keybindList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-keybind-action]");
+  if (button) beginKeybindRecording(button.dataset.keybindAction);
+});
+resetKeybindsBtn.addEventListener("click", () => {
+  keybinds = { ...DEFAULT_KEYBINDS };
+  recordingKeybindAction = "";
+  saveKeybinds();
+  renderKeybinds();
+  if (state) renderControls(activeHero());
+  showToast("Shortcuts reset");
 });
 
 roomInput.addEventListener("input", () => { roomInput.value = roomInput.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
@@ -1348,34 +1457,52 @@ window.visualViewport?.addEventListener("resize", () => {
 setViewportHeight();
 
 document.addEventListener("keydown", (event) => {
+  if (recordingKeybindAction) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.key === "Escape") {
+      cancelKeybindRecording();
+      return;
+    }
+    if (event.metaKey || event.ctrlKey || event.altKey || ["Shift", "Control", "Alt", "Meta", "Tab"].includes(event.key)) {
+      showToast("Choose a single non-modifier key");
+      return;
+    }
+    const nextKey = normalizedKey(event.key);
+    if (!nextKey || ["Dead", "Unidentified"].includes(nextKey)) {
+      showToast("That key is not available");
+      return;
+    }
+    assignKeybind(recordingKeybindAction, nextKey);
+    return;
+  }
   if (event.key === "Escape" && !gameMenuModal.classList.contains("hidden")) {
     hideGameMenu();
     return;
   }
   if (!state || !gameMenuModal.classList.contains("hidden") || event.metaKey || event.ctrlKey || event.altKey) return;
   if (event.target.matches("input, select, textarea, button, [contenteditable]")) return;
-  const key = event.key.toLowerCase();
-  if (key === "m") {
+  if (matchesKeybind(event, "menu")) {
     showGameMenu();
     return;
   }
-  if ((event.code === "Space" || key === " ") && state.canReady) {
+  if (matchesKeybind(event, "ready") && state.canReady) {
     event.preventDefault();
     if (!event.repeat) emitWithAck("game:ready", {});
     return;
   }
-  if (key === "h" && state.canShowHand) {
+  if (matchesKeybind(event, "showHand") && state.canShowHand) {
     if (!event.repeat) emitWithAck("game:showCards", {});
     return;
   }
   if (!state.isYourTurn) return;
-  if (["arrowup", "arrowright", "arrowdown", "arrowleft"].includes(key) && !betControls.classList.contains("hidden")) {
+  if ((matchesKeybind(event, "raiseUp") || matchesKeybind(event, "raiseDown")) && !betControls.classList.contains("hidden")) {
     event.preventDefault();
-    changeRaise(["arrowup", "arrowright"].includes(key) ? 1 : -1);
+    changeRaise(matchesKeybind(event, "raiseUp") ? 1 : -1);
     return;
   }
   if (event.repeat) return;
-  if (key === "f") emitWithAck("game:action", { type: "fold" });
-  if (key === "c") emitWithAck("game:action", { type: state.toCall > 0 ? "call" : "check" });
-  if (key === "r" && !betControls.classList.contains("hidden")) raiseActionBtn.click();
+  if (matchesKeybind(event, "fold")) emitWithAck("game:action", { type: "fold" });
+  if (matchesKeybind(event, "call")) emitWithAck("game:action", { type: state.toCall > 0 ? "call" : "check" });
+  if (matchesKeybind(event, "raise") && !betControls.classList.contains("hidden")) raiseActionBtn.click();
 });

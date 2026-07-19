@@ -1140,14 +1140,24 @@ select:focus {
 .appearance-panel summary { color: var(--text); font-size: 14px; font-weight: 850; cursor: pointer; }
 .appearance-panel[open] { display: grid; gap: 13px; }
 .sound-toggle { min-height: 58px; }
-.shortcut-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; color: var(--muted); font-size: 11px; font-weight: 700; }
-.shortcut-list > span { display: flex; align-items: center; gap: 6px; }
+.shortcut-help { margin: -4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.35; }
+.keybind-list { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.keybind-row { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 7px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--panel) 64%, transparent); }
+.keybind-row > span { overflow: hidden; color: var(--muted); font-size: 10px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.keybind-button { min-width: 46px; min-height: 30px; padding: 0 7px; border: 1px solid color-mix(in srgb, var(--line) 72%, var(--muted)); border-bottom-width: 2px; border-radius: 6px; color: var(--text); background: var(--panel-2); font-size: 10px; font-weight: 900; }
+.keybind-button:not(:disabled):hover { background: color-mix(in srgb, var(--panel-2) 80%, var(--accent)); }
+.keybind-button.recording { min-width: 72px; border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--panel)); animation: keybind-pulse 1s ease-in-out infinite; }
+.reset-keybinds { min-height: 34px; font-size: 11px; }
 kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; padding: 0 5px; border: 1px solid color-mix(in srgb, var(--line) 72%, var(--muted)); border-bottom-width: 2px; border-radius: 5px; color: var(--muted); background: color-mix(in srgb, var(--panel-2) 74%, transparent); font-family: inherit; font-size: 9px; font-weight: 900; line-height: 1; text-transform: uppercase; }
-.shortcut-list kbd + kbd { margin-left: -4px; }
 .game-buttons button.has-shortcut,
 .raise-action.has-shortcut { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .game-buttons button.has-shortcut kbd,
 .raise-action kbd { border-color: rgba(255,255,255,.3); color: rgba(255,255,255,.82); background: rgba(0,0,0,.14); }
+@keyframes keybind-pulse { 50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); } }
+@media (max-width: 779px) {
+  .game-buttons button.has-shortcut kbd,
+  .raise-action kbd { display: none; }
+}
 .appearance-group { display: grid; gap: 7px; }
 .appearance-group > span { color: var(--muted); font-size: 11px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
 .blind-settings-form { display: grid; gap: 10px; }

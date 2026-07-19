@@ -155,15 +155,9 @@
           </label>
           <details class="appearance-panel shortcuts-panel">
             <summary>Keyboard shortcuts</summary>
-            <div class="shortcut-list">
-              <span><kbd>F</kbd> Fold</span>
-              <span><kbd>C</kbd> Check or call</span>
-              <span><kbd>R</kbd> Bet or raise</span>
-              <span><kbd>↑</kbd><kbd>↓</kbd> Change bet</span>
-              <span><kbd>Space</kbd> Ready up</span>
-              <span><kbd>H</kbd> Show hand</span>
-              <span><kbd>M</kbd> Table menu</span>
-            </div>
+            <p class="shortcut-help">Choose an action, then press a key.</p>
+            <div id="keybindList" class="keybind-list"></div>
+            <button id="resetKeybindsBtn" class="secondary reset-keybinds" type="button">Reset to defaults</button>
           </details>
           <details id="blindPanel" class="appearance-panel blind-settings-panel hidden">
             <summary>Blind settings</summary>
