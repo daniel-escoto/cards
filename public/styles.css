@@ -1139,6 +1139,7 @@ select:focus {
 .appearance-panel { padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--panel-2) 72%, transparent); }
 .appearance-panel summary { color: var(--text); font-size: 14px; font-weight: 850; cursor: pointer; }
 .appearance-panel[open] { display: grid; gap: 13px; }
+.sound-toggle { min-height: 58px; }
 .appearance-group { display: grid; gap: 7px; }
 .appearance-group > span { color: var(--muted); font-size: 11px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
 .blind-settings-form { display: grid; gap: 10px; }

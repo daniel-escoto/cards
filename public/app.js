@@ -39,6 +39,7 @@ const menuRoomCode = document.querySelector("#menuRoomCode");
 const menuPlayers = document.querySelector("#menuPlayers");
 const feltChoices = document.querySelector("#feltChoices");
 const deckChoices = document.querySelector("#deckChoices");
+const soundEnabledInput = document.querySelector("#soundEnabledInput");
 const sharePanel = document.querySelector("#sharePanel");
 const shareQr = document.querySelector("#shareQr");
 const shareLink = document.querySelector("#shareLink");
@@ -69,6 +70,147 @@ const betPresets = document.querySelector("#betPresets");
 const scoreList = document.querySelector("#scoreList");
 const scoreMenuBtn = document.querySelector("#scoreMenuBtn");
 const toast = document.querySelector("#toast");
+
+class TableSounds {
+  constructor() {
+    this.context = null;
+    this.master = null;
+    this.noiseBuffer = null;
+    this.enabled = localStorage.getItem("holdem:sound") !== "off";
+  }
+
+  unlock() {
+    if (!this.enabled) return null;
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return null;
+    if (!this.context) {
+      this.context = new AudioContextClass();
+      this.master = this.context.createGain();
+      this.master.gain.value = 0.24;
+      this.master.connect(this.context.destination);
+      this.noiseBuffer = this.createNoiseBuffer();
+    }
+    if (this.context.state === "suspended") this.context.resume().catch(() => {});
+    return this.context;
+  }
+
+  createNoiseBuffer() {
+    const length = Math.floor(this.context.sampleRate * 0.45);
+    const buffer = this.context.createBuffer(1, length, this.context.sampleRate);
+    const data = buffer.getChannelData(0);
+    let previous = 0;
+    for (let index = 0; index < length; index += 1) {
+      const white = Math.random() * 2 - 1;
+      previous = previous * 0.32 + white * 0.68;
+      data[index] = previous;
+    }
+    return buffer;
+  }
+
+  setEnabled(enabled) {
+    this.enabled = Boolean(enabled);
+    localStorage.setItem("holdem:sound", this.enabled ? "on" : "off");
+    if (this.enabled) this.unlock();
+  }
+
+  output(gainValue, pan = 0) {
+    const gain = this.context.createGain();
+    gain.gain.value = gainValue;
+    if (this.context.createStereoPanner) {
+      const panner = this.context.createStereoPanner();
+      panner.pan.value = pan;
+      gain.connect(panner).connect(this.master);
+    } else {
+      gain.connect(this.master);
+    }
+    return gain;
+  }
+
+  paper(at = 0, pan = 0) {
+    const context = this.unlock();
+    if (!context) return;
+    const start = Math.max(context.currentTime, at || context.currentTime);
+    const source = context.createBufferSource();
+    const highpass = context.createBiquadFilter();
+    const peak = context.createBiquadFilter();
+    const envelope = this.output(0, pan);
+    source.buffer = this.noiseBuffer;
+    source.playbackRate.value = 0.92 + Math.random() * 0.18;
+    highpass.type = "highpass";
+    highpass.frequency.value = 650;
+    peak.type = "bandpass";
+    peak.frequency.value = 1900 + Math.random() * 650;
+    peak.Q.value = 0.7;
+    envelope.gain.setValueAtTime(0.0001, start);
+    envelope.gain.exponentialRampToValueAtTime(0.2, start + 0.009);
+    envelope.gain.exponentialRampToValueAtTime(0.035, start + 0.055);
+    envelope.gain.exponentialRampToValueAtTime(0.0001, start + 0.14);
+    source.connect(highpass).connect(peak).connect(envelope);
+    source.start(start, Math.random() * 0.08, 0.16);
+    source.stop(start + 0.17);
+    this.tap(start + 0.025, 118, 0.08, pan);
+  }
+
+  tap(at = 0, frequency = 150, volume = 0.12, pan = 0) {
+    const context = this.unlock();
+    if (!context) return;
+    const start = Math.max(context.currentTime, at || context.currentTime);
+    const oscillator = context.createOscillator();
+    const envelope = this.output(0, pan);
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(frequency, start);
+    oscillator.frequency.exponentialRampToValueAtTime(Math.max(55, frequency * 0.52), start + 0.045);
+    envelope.gain.setValueAtTime(volume, start);
+    envelope.gain.exponentialRampToValueAtTime(0.0001, start + 0.055);
+    oscillator.connect(envelope);
+    oscillator.start(start);
+    oscillator.stop(start + 0.06);
+  }
+
+  click() {
+    const context = this.unlock();
+    if (!context) return;
+    this.tap(context.currentTime, 310, 0.075, 0);
+  }
+
+  chips(kind = "action") {
+    const context = this.unlock();
+    if (!context) return;
+    const count = kind === "raise" ? 3 : 2;
+    for (let index = 0; index < count; index += 1) {
+      this.tap(context.currentTime + index * 0.032, 720 + index * 115 + Math.random() * 55, 0.065, (index - 1) * 0.16);
+    }
+  }
+
+  deal(count = 1) {
+    const context = this.unlock();
+    if (!context) return;
+    for (let index = 0; index < Math.min(count, 5); index += 1) {
+      this.paper(context.currentTime + index * 0.075, (index - (count - 1) / 2) * 0.12);
+    }
+  }
+
+  win() {
+    const context = this.unlock();
+    if (!context) return;
+    [392, 523.25, 659.25].forEach((frequency, index) => {
+      const start = context.currentTime + index * 0.085;
+      const oscillator = context.createOscillator();
+      const envelope = this.output(0, 0);
+      oscillator.type = "sine";
+      oscillator.frequency.value = frequency;
+      envelope.gain.setValueAtTime(0.0001, start);
+      envelope.gain.exponentialRampToValueAtTime(0.045, start + 0.018);
+      envelope.gain.exponentialRampToValueAtTime(0.0001, start + 0.32);
+      oscillator.connect(envelope);
+      oscillator.start(start);
+      oscillator.stop(start + 0.34);
+    });
+  }
+}
+
+const tableSounds = new TableSounds();
+soundEnabledInput.checked = tableSounds.enabled;
 
 let state = null;
 let raiseState = { value: 0, min: 0, max: 0, step: 20 };
@@ -586,8 +728,23 @@ function isGameOver(room) {
   return room?.phase === "gameover";
 }
 
+function playActionSound(entry) {
+  if (!entry || document.hidden) return;
+  const action = String(entry.action || entry.text || "").toLowerCase();
+  if (action.includes("raise") || action.includes("bet")) {
+    tableSounds.chips("raise");
+  } else if (action.includes("call") || action.includes("blind") || action.includes("wins")) {
+    tableSounds.chips();
+  } else if (action.includes("fold")) {
+    tableSounds.paper();
+  } else if (action.includes("check")) {
+    tableSounds.click();
+  }
+}
+
 function render() {
   if (!state) return;
+  const isFirstTableRender = lastCommunitySignature === null;
   showTable(state);
   roomCode.textContent = state.id;
   potValue.textContent = formatAmount(state.pot, state.potCents);
@@ -601,6 +758,10 @@ function render() {
   if (communitySignature !== lastCommunitySignature || community.children.length !== expectedCommunityCards) {
     const previousCommunity = lastCommunitySignature ? lastCommunitySignature.split("|") : [];
     const isInitialBoard = community.children.length === 0 && state.phase !== "lobby";
+    const newCommunityCardCount = state.community.filter((card, index) => {
+      const cardCode = card?.code || `${card?.rank || ""}${card?.suit || ""}`;
+      return Boolean(card && previousCommunity[index] !== cardCode);
+    }).length;
     community.innerHTML = state.phase === "lobby"
       ? ""
       : Array.from({ length: 5 }, (_, index) => {
@@ -610,6 +771,7 @@ function render() {
         return cardTemplate(card, isNewCard ? "card-entering" : "");
       }).join("");
     lastCommunitySignature = communitySignature;
+    if (!isFirstTableRender && newCommunityCardCount) tableSounds.deal(newCommunityCardCount);
   }
   const feltElement = document.querySelector(".felt");
   if (lastPhase && lastPhase !== state.phase) replayAnimation(feltElement, "street-change", 650);
@@ -623,6 +785,7 @@ function render() {
   players.innerHTML = renderActionFeed(hasNewAction ? latestEntryId : "");
   restoreActionFeedScroll(feedScroll);
   if (hasNewAction) replayAnimation(players, "feed-updated", 420);
+  if (hasNewAction && !isFirstTableRender) playActionSound(entries.at(-1));
   lastActionEntryId = latestEntryId;
 
   const hero = activeHero();
@@ -632,6 +795,7 @@ function render() {
     heroHand.innerHTML = hero?.cards?.length ? hero.cards.map(cardTemplate).join("") : "";
     updateHeroCardVisibility();
     replayAnimation(heroHand, "cards-entering", 720);
+    if (heroSignature && !document.hidden) tableSounds.deal(hero?.cards?.length || 1);
     lastHeroSignature = heroSignature;
   }
   const winnerMarkup = state.winners.map((winner) => {
@@ -646,6 +810,7 @@ function render() {
     winnerList.innerHTML = winnerMarkup;
     if (winnerMarkup) {
       replayAnimation(winnerList, "winner-entering", 800);
+      if (!document.hidden) tableSounds.win();
     }
     lastWinnerSignature = winnerMarkup;
   }
@@ -920,6 +1085,21 @@ function escapeRegExp(value) {
 }
 
 deviceTheme.addEventListener("change", (event) => applyTheme(event.matches ? "light" : "dark"));
+
+document.addEventListener("pointerdown", () => tableSounds.unlock(), { once: true });
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("button");
+  if (button && !button.disabled) tableSounds.click();
+});
+soundEnabledInput.addEventListener("change", () => {
+  tableSounds.setEnabled(soundEnabledInput.checked);
+  if (soundEnabledInput.checked) {
+    tableSounds.paper();
+    showToast("Table sounds on");
+  } else {
+    showToast("Table sounds off");
+  }
+});
 
 roomInput.addEventListener("input", () => { roomInput.value = roomInput.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
 hostModeBtn.addEventListener("click", () => setTableMode("host"));
