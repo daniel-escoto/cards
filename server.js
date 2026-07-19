@@ -77,6 +77,7 @@ let saveTimer = null;
 
 const ranks = ["2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"];
 const suits = ["s", "h", "d", "c"];
+const allCards = ranks.flatMap((rank) => suits.map((suit) => `${rank}${suit}`));
 
 function blindLevelForHand(handNumber) {
   let remainingHands = Math.max(1, Math.floor(Number(handNumber) || 1));
@@ -154,6 +155,7 @@ function serializePlayerForStorage(player) {
     replacedReconnectTokenHash: player.replacedReconnectTokenHash || null,
     buyInsCents: Math.max(0, Math.floor(Number(player.buyInsCents) || 0)),
     cashOutCents: Math.max(0, Math.floor(Number(player.cashOutCents) || 0)),
+    preflopShoveStreak: Math.max(0, Math.floor(Number(player.preflopShoveStreak) || 0)),
   };
 }
 
@@ -263,6 +265,7 @@ function restorePlayer(raw) {
     replacedReconnectTokenHash: raw.replacedReconnectTokenHash || null,
     buyInsCents: Math.max(0, Math.floor(Number(raw.buyInsCents) || 0)),
     cashOutCents: Math.max(0, Math.floor(Number(raw.cashOutCents) || 0)),
+    preflopShoveStreak: Math.max(0, Math.floor(Number(raw.preflopShoveStreak) || 0)),
     disconnectTimer: null,
   };
 }
@@ -467,6 +470,7 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
         replacedReconnectTokenHash: null,
         buyInsCents: moneyMode ? buyInCents : 0,
         cashOutCents: 0,
+        preflopShoveStreak: 0,
         disconnectExpiresAt: null,
         disconnectTimer: null,
       },
@@ -537,6 +541,7 @@ function makePlayer({ id, name, socketId = null, isBot = false }) {
     replacedReconnectTokenHash: null,
     buyInsCents: 0,
     cashOutCents: 0,
+    preflopShoveStreak: 0,
     disconnectExpiresAt: null,
     disconnectTimer: null,
   };
@@ -1239,6 +1244,7 @@ function applyPlayerAction(room, playerId, { type, raiseTo }) {
   const callAmount = Math.max(0, room.currentBet - player.bet);
 
   if (type === "fold") {
+    if (room.phase === "preflop") player.preflopShoveStreak = 0;
     player.folded = true;
     room.acted.add(player.id);
     room.raiseEligible.delete(player.id);
@@ -1247,6 +1253,7 @@ function applyPlayerAction(room, playerId, { type, raiseTo }) {
   } else if (type === "call" || type === "check") {
     if (type === "check" && callAmount > 0) return { ok: false, error: "You cannot check while facing a bet." };
     const paid = Math.min(callAmount, player.stack);
+    if (room.phase === "preflop") player.preflopShoveStreak = 0;
     player.stack -= paid;
     player.bet += paid;
     player.invested += paid;
@@ -1271,6 +1278,11 @@ function applyPlayerAction(room, playerId, { type, raiseTo }) {
       return { ok: false, error: `Minimum raise is to ${room.currentBet + room.minRaise}.` };
     }
     const paid = target - player.bet;
+    if (room.phase === "preflop") {
+      player.preflopShoveStreak = target === maxBet
+        ? Math.min(8, (player.preflopShoveStreak || 0) + 1)
+        : 0;
+    }
     player.stack -= paid;
     player.invested += paid;
     const raiseSize = target - room.currentBet;
@@ -1410,6 +1422,154 @@ function preflopBlindRaiseChance(player, confidence) {
   return Math.max(0, Math.min(0.62, valueRaiseChance + bluffRaiseChance));
 }
 
+function preflopHandScore(cards) {
+  if (!Array.isArray(cards) || cards.length !== 2) return 0;
+  const values = cards.map(cardRankValue).sort((a, b) => b - a);
+  const [high, low] = values;
+  const paired = high === low;
+  const suited = cards[0][1] === cards[1][1];
+  const gap = high - low;
+
+  if (paired) return Math.min(1, 0.56 + (high - 2) * 0.035);
+
+  let score = 0.12 + (high - 2) * 0.035 + (low - 2) * 0.014;
+  if (suited) score += 0.055;
+  if (gap === 1) score += 0.045;
+  else if (gap === 2) score += 0.025;
+  else if (gap >= 5) score -= 0.035;
+  if (high === 14 && low >= 10) score += 0.09;
+  if (high >= 11 && low >= 10) score += 0.045;
+  return Math.max(0.05, Math.min(0.95, score));
+}
+
+function preflopShoveRange(effectiveBigBlinds, shoveStreak = 1, profile = BOT_PROFILES[2]) {
+  let range;
+  if (effectiveBigBlinds <= 5) range = 0.9;
+  else if (effectiveBigBlinds <= 8) range = 0.72;
+  else if (effectiveBigBlinds <= 12) range = 0.56;
+  else if (effectiveBigBlinds <= 20) range = 0.36;
+  else if (effectiveBigBlinds <= 30) range = 0.22;
+  else range = 0.12;
+
+  const adaptation = 0.12 + (profile.skill || 0.7) * 0.12;
+  return Math.min(1, range + Math.max(0, shoveStreak - 1) * adaptation);
+}
+
+function estimatePreflopEquityAgainstRange(playerCards, rangeFraction, iterations = 180, random = Math.random) {
+  if (!Array.isArray(playerCards) || playerCards.length !== 2) return 0;
+  const blocked = new Set(playerCards);
+  const available = allCards.filter((card) => !blocked.has(card));
+  const opponentCombos = [];
+  for (let first = 0; first < available.length; first += 1) {
+    for (let second = first + 1; second < available.length; second += 1) {
+      const cards = [available[first], available[second]];
+      opponentCombos.push({ cards, score: preflopHandScore(cards) });
+    }
+  }
+  opponentCombos.sort((a, b) => b.score - a.score);
+  const candidateCount = Math.max(1, Math.ceil(opponentCombos.length * Math.max(0.02, Math.min(1, rangeFraction))));
+  const candidates = opponentCombos.slice(0, candidateCount);
+  let equity = 0;
+
+  for (let trial = 0; trial < iterations; trial += 1) {
+    const opponent = candidates[Math.min(candidates.length - 1, Math.floor(random() * candidates.length))].cards;
+    const opponentSet = new Set(opponent);
+    const boardDeck = available.filter((card) => !opponentSet.has(card));
+    for (let index = 0; index < 5; index += 1) {
+      const swapIndex = index + Math.min(
+        boardDeck.length - index - 1,
+        Math.floor(random() * (boardDeck.length - index)),
+      );
+      [boardDeck[index], boardDeck[swapIndex]] = [boardDeck[swapIndex], boardDeck[index]];
+    }
+    const board = boardDeck.slice(0, 5);
+    const playerHand = Hand.solve([...playerCards, ...board]);
+    const opponentHand = Hand.solve([...opponent, ...board]);
+    const winners = Hand.winners([playerHand, opponentHand]);
+    if (winners.includes(playerHand)) equity += 1 / winners.length;
+  }
+
+  return equity / iterations;
+}
+
+function estimatePostflopEquity(playerCards, community, iterations = 140, random = Math.random) {
+  if (!Array.isArray(playerCards) || playerCards.length !== 2 || !community.length) return 0;
+  const blocked = new Set([...playerCards, ...community]);
+  const available = allCards.filter((card) => !blocked.has(card));
+  const missingBoardCards = 5 - community.length;
+  let equity = 0;
+
+  for (let trial = 0; trial < iterations; trial += 1) {
+    const trialDeck = [...available];
+    const cardsNeeded = 2 + missingBoardCards;
+    for (let index = 0; index < cardsNeeded; index += 1) {
+      const swapIndex = index + Math.min(
+        trialDeck.length - index - 1,
+        Math.floor(random() * (trialDeck.length - index)),
+      );
+      [trialDeck[index], trialDeck[swapIndex]] = [trialDeck[swapIndex], trialDeck[index]];
+    }
+    const opponent = trialDeck.slice(0, 2);
+    const board = [...community, ...trialDeck.slice(2, cardsNeeded)];
+    const playerHand = Hand.solve([...playerCards, ...board]);
+    const opponentHand = Hand.solve([...opponent, ...board]);
+    const winners = Hand.winners([playerHand, opponentHand]);
+    if (winners.includes(playerHand)) equity += 1 / winners.length;
+  }
+
+  return equity / iterations;
+}
+
+function estimateComputerEquity(room, player, callAmount = 0, random = Math.random) {
+  const opponentCount = Math.max(1, livePlayers(room).filter((item) => item.id !== player.id).length);
+  if (room.community.length > 0) {
+    const headsUpEquity = estimatePostflopEquity(player.hand, room.community, 140, random);
+    return headsUpEquity ** opponentCount;
+  }
+  const { bigBlind } = currentBlinds(room);
+  const raiseSizeInBlinds = callAmount / Math.max(1, bigBlind);
+  const opponentRange = callAmount > 0
+    ? Math.max(0.16, Math.min(0.65, 0.68 - Math.log2(1 + raiseSizeInBlinds) * 0.12))
+    : 1;
+  const headsUpEquity = estimatePreflopEquityAgainstRange(player.hand, opponentRange, 140, random);
+  return headsUpEquity ** opponentCount;
+}
+
+function currentPreflopAllInAggressor(room, player) {
+  if (room.phase !== "preflop" || room.community.length > 0) return null;
+  for (let index = room.actionLog.length - 1; index >= 0; index -= 1) {
+    const entry = room.actionLog[index];
+    if (entry.phase !== "preflop" || !/^Raises to\s+/i.test(entry.action || "")) continue;
+    const aggressor = room.players.find((item) => item.id === entry.playerId);
+    if (aggressor && aggressor.id !== player.id && aggressor.allIn && aggressor.bet === room.currentBet) return aggressor;
+  }
+  return room.players.find((item) => (
+    item.id !== player.id && !item.folded && item.allIn && item.bet === room.currentBet
+  )) || null;
+}
+
+function assessPreflopAllInCall(room, player, aggressor, { iterations = 180, random = Math.random } = {}) {
+  const { bigBlind } = currentBlinds(room);
+  const callAmount = Math.max(0, room.currentBet - player.bet);
+  const effectiveStack = Math.min(player.bet + player.stack, aggressor.bet);
+  const effectiveBigBlinds = effectiveStack / bigBlind;
+  const profile = computerProfile(player);
+  const shoveRange = preflopShoveRange(effectiveBigBlinds, aggressor.preflopShoveStreak || 1, profile);
+  const headsUpEquity = estimatePreflopEquityAgainstRange(player.hand, shoveRange, iterations, random);
+  const opponentCount = Math.max(1, livePlayers(room).filter((item) => item.id !== player.id).length);
+  const equity = headsUpEquity ** opponentCount;
+  const requiredEquity = callAmount / Math.max(1, collectPot(room) + callAmount);
+  const safetyMargin = Math.max(-0.01, Math.min(0.055, 0.025 + (1 - profile.looseness) * 0.05));
+  const judgmentNoise = (random() - 0.5) * (1 - profile.skill) * 0.05;
+  return {
+    call: equity + judgmentNoise >= requiredEquity + safetyMargin,
+    effectiveBigBlinds,
+    equity,
+    requiredEquity,
+    shoveRange,
+  };
+}
+
 function chooseComputerAction(room, player) {
   const { bigBlind } = currentBlinds(room);
   const callAmount = Math.max(0, room.currentBet - player.bet);
@@ -1419,15 +1579,23 @@ function chooseComputerAction(room, player) {
   const profile = computerProfile(player);
   const rawConfidence = estimateComputerConfidence(room, player);
   const judgmentNoise = (Math.random() - 0.5) * (1 - profile.skill) * 0.42;
-  const confidence = Math.max(0.04, Math.min(0.96, rawConfidence + judgmentNoise));
+  let confidence = Math.max(0.04, Math.min(0.96, rawConfidence + judgmentNoise));
 
   if (callAmount === 0) {
-    const valueRaiseChance = confidence > 0.44 ? confidence * 0.42 * profile.aggression : 0;
-    const bluffRaiseChance = confidence < 0.38 ? profile.bluff : profile.bluff * 0.25;
+    const equity = estimateComputerEquity(room, player);
+    const perceptionNoise = (Math.random() - 0.5) * (1 - profile.skill) * 0.07;
+    confidence = Math.max(0.04, Math.min(0.96, equity * 0.78 + rawConfidence * 0.22 + perceptionNoise));
+    const valueRaiseChance = confidence > 0.54 ? (confidence - 0.46) * 0.78 * profile.aggression : 0;
+    const bluffRaiseChance = confidence < 0.42 ? profile.bluff : profile.bluff * 0.18;
     if (canRaise && minRaiseTo <= maxBet && Math.random() < valueRaiseChance + bluffRaiseChance) {
       return { type: "raise", raiseTo: chooseComputerRaiseTo(room, player, minRaiseTo, confidence) };
     }
     return { type: "check" };
+  }
+
+  const allInAggressor = currentPreflopAllInAggressor(room, player);
+  if (allInAggressor) {
+    return assessPreflopAllInCall(room, player, allInAggressor).call ? { type: "call" } : { type: "fold" };
   }
 
   const blindCallChance = preflopBlindCallChance(room, player, callAmount);
@@ -1439,12 +1607,21 @@ function chooseComputerAction(room, player) {
     return { type: "fold" };
   }
 
-  const potPressure = callAmount / Math.max(bigBlind, collectPot(room) + callAmount);
-  const stackPressure = callAmount / Math.max(1, player.stack + callAmount);
-  const callChance = Math.max(0.08, Math.min(0.97, (confidence + 0.29 - potPressure * 0.55 - stackPressure * 0.44) * profile.looseness));
-  const reraiseChance = confidence > 0.6 ? (confidence - 0.52) * 0.62 * profile.aggression : profile.bluff * 0.16;
+  const equity = estimateComputerEquity(room, player, callAmount);
+  const potAfterCall = collectPot(room) + callAmount;
+  const requiredEquity = callAmount / Math.max(1, potAfterCall);
+  const betPressure = callAmount / Math.max(bigBlind, collectPot(room));
+  const safetyMargin = Math.max(0.005, Math.min(0.08, 0.02 + betPressure * 0.025 + (1 - profile.looseness) * 0.04));
+  const perceptionNoise = (Math.random() - 0.5) * (1 - profile.skill) * 0.07;
+  const perceivedEquity = Math.max(0.02, Math.min(0.98, equity + perceptionNoise));
+  const edge = perceivedEquity - requiredEquity - safetyMargin;
+  const callChance = Math.max(0.04, Math.min(0.98, 0.5 + edge * 3.2 + (profile.looseness - 1) * 0.16));
+  const valueReraiseChance = perceivedEquity > 0.68
+    ? (perceivedEquity - 0.62) * 0.9 * profile.aggression
+    : 0;
+  const reraiseChance = valueReraiseChance + profile.bluff * 0.08;
   if (canRaise && minRaiseTo <= maxBet && Math.random() < reraiseChance) {
-    return { type: "raise", raiseTo: chooseComputerRaiseTo(room, player, minRaiseTo, confidence) };
+    return { type: "raise", raiseTo: chooseComputerRaiseTo(room, player, minRaiseTo, perceivedEquity) };
   }
   if (Math.random() < callChance) return { type: "call" };
   return { type: "fold" };
@@ -1996,7 +2173,11 @@ if (require.main === module) {
 
 module.exports = {
   BLIND_LEVELS,
+  assessPreflopAllInCall,
   bettingComplete,
   blindLevelForHand,
+  estimatePostflopEquity,
+  estimatePreflopEquityAgainstRange,
   preflopBlindRaiseChance,
+  preflopShoveRange,
 };
