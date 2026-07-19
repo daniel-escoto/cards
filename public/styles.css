@@ -844,6 +844,9 @@ select:focus {
 .table-player-row.you { background: rgba(8, 31, 27, 0.78); }
 .table-player-row.turn { border-color: rgba(255,255,255,.82); box-shadow: inset 4px 0 0 var(--player-color, #fff), 0 0 0 1px rgba(0,0,0,.16); }
 .table-player-row.folded { opacity: .62; }
+.table-player-row.all-in { opacity: .72; }
+.table-player-row.all-in .player-dot { background: transparent; box-shadow: inset 0 0 0 1px rgba(255,255,255,.65); }
+.table-player-row.all-in .player-action { color: #9edcff; }
 .table-player-row .seat-name,
 :root[data-theme="light"] .table-player-row .seat-name { color: #fff; }
 .player-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--player-color, #fff); }

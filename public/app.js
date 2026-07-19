@@ -821,9 +821,12 @@ function renderActionFeed(newEntryId = "") {
     const entry = latestByPlayer.get(player.id);
     const isActing = player.id === activePlayer?.id;
     const betweenHands = ["lobby", "complete"].includes(state.phase);
-    const action = !betweenHands && entry ? compactPlayerAction(entry, player) : playerTableStatus(player, isActing);
+    const isOutOfAction = player.folded || player.allIn;
+    const action = !betweenHands && entry && !isOutOfAction
+      ? compactPlayerAction(entry, player)
+      : playerTableStatus(player, isActing);
     return `
-      <article class="table-player-row ${isActing ? "turn" : ""} ${player.folded ? "folded" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}" ${playerColorStyle(player)}>
+      <article class="table-player-row ${isActing ? "turn" : ""} ${player.folded ? "folded" : ""} ${player.allIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}" ${playerColorStyle(player)}>
         <i class="player-dot" aria-hidden="true"></i>
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
         <span class="player-action${entry ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}</span>
