@@ -6,9 +6,14 @@
     <meta id="themeColor" name="theme-color" content="#090d10" />
     <title>Texas Hold'em</title>
     <script>
-      const initialTheme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      const initialPreference = localStorage.getItem("holdem:theme");
+      const initialTheme = initialPreference === "cream"
+        ? "light"
+        : initialPreference === "dark"
+          ? "dark"
+          : (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
       document.documentElement.dataset.theme = initialTheme;
-      document.querySelector("#themeColor").content = initialTheme === "light" ? "#eef1ec" : "#090d10";
+      document.querySelector("#themeColor").content = initialTheme === "light" ? "#eeece4" : "#111815";
     </script>
     <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="/club.css" />
@@ -113,11 +118,19 @@
               </div>
             </div>
           </section>
-          <aside class="player-panel" aria-label="Table activity">
-            <div class="player-panel-heading"><span>At the table</span><span id="playerCount"></span></div>
-            <div id="players" class="players" role="region" aria-label="Players" tabindex="0"></div>
-            <details id="handHistory" class="hand-history"><summary>Hand history<span aria-hidden="true">↗</span></summary><ol id="historyList"></ol></details>
+          <aside class="player-panel" id="playerPanel" aria-label="Table activity">
+            <button type="button" class="player-panel-heading" id="playerRailToggle" aria-expanded="false" aria-controls="playerPanelBody">
+              <span>At the table</span>
+              <span class="player-panel-heading-meta">
+                <span id="playerCount"></span>
+                <span class="player-rail-chevron" aria-hidden="true"></span>
+              </span>
+            </button>
+            <div id="playerPanelBody" class="player-panel-body">
+              <div id="players" class="players" role="region" aria-label="Players" tabindex="0"></div>
+            </div>
           </aside>
+          <button type="button" id="playerRailBackdrop" class="player-rail-backdrop hidden" aria-label="Close players" tabindex="-1"></button>
         </section>
       </section>
 
@@ -133,11 +146,11 @@
       </section>
 
       <div id="gameMenuModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="gameMenuTitle">
-        <div class="modal-panel">
+        <div id="gameMenuPanel" class="modal-panel">
           <div class="modal-head">
             <div>
               <p class="eyebrow">Room <span id="menuRoomCode"></span></p>
-              <h2 id="gameMenuTitle">Table menu</h2>
+              <h2 id="gameMenuTitle">Table settings</h2>
             </div>
             <button id="closeMenuBtn" class="ghost icon-btn" type="button" aria-label="Close menu">×</button>
           </div>
@@ -152,17 +165,17 @@
           </div>
           <div id="menuPlayers" class="menu-players"></div>
           <button id="addBotBtn" class="secondary add-bot-btn hidden" type="button">+ Add bot player</button>
-          <details class="appearance-panel">
-            <summary>Table appearance</summary>
-            <div class="appearance-group">
-              <span>Felt color</span>
-              <div id="feltChoices" class="appearance-choices color-choices" aria-label="Felt color"></div>
-            </div>
-            <div class="appearance-group">
-              <span>Deck</span>
-              <div id="deckChoices" class="appearance-choices deck-choices" aria-label="Deck style"></div>
-            </div>
-          </details>
+          <div class="settings-section theme-section">
+            <span class="section-label">Theme</span>
+            <div id="themeChoices" class="theme-choices" role="group" aria-label="App theme"></div>
+            <p class="section-hint">Matches home by default. Cream and Dark stay coherent across the table.</p>
+          </div>
+          <div class="appearance-stack settings-section">
+            <span class="section-label">Felt color</span>
+            <div id="feltChoices" class="appearance-choices color-choices" aria-label="Felt color"></div>
+            <span class="section-label">Deck</span>
+            <div id="deckChoices" class="appearance-choices deck-choices" aria-label="Deck style"></div>
+          </div>
           <label class="checkbox-label sound-toggle">
             <input id="soundEnabledInput" type="checkbox" checked />
             <span class="switch-control" aria-hidden="true"></span>

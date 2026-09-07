@@ -42,7 +42,7 @@ const BACKGROUND_DISCONNECT_GRACE_MS = Math.max(
   Number(process.env.BACKGROUND_DISCONNECT_GRACE_MS) || 5 * 60 * 1000,
 );
 const BACKGROUND_PRESENCE_TTL_MS = 10 * 60 * 1000;
-const PLAYER_COLORS = ["#60a5fa", "#38bdf8", "#7ddc85", "#f472b6", "#a78bfa", "#fb7185", "#818cf8", "#2dd4bf"];
+const PLAYER_COLORS = ["#c7ad76", "#5a9a78", "#d4c9a8", "#8b6f47", "#3d7a5f", "#b8956c", "#6b8f71", "#a67c52"];
 const DEFAULT_DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DATA_DIR || path.join(__dirname, ".data");
 const STATE_FILE = process.env.GAME_STATE_FILE || path.join(DEFAULT_DATA_DIR, "rooms.json");
 const SAVE_DEBOUNCE_MS = 150;

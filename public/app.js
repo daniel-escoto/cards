@@ -45,6 +45,8 @@ const menuRoomCode = document.querySelector("#menuRoomCode");
 const menuPlayers = document.querySelector("#menuPlayers");
 const feltChoices = document.querySelector("#feltChoices");
 const deckChoices = document.querySelector("#deckChoices");
+const themeChoices = document.querySelector("#themeChoices");
+const gameMenuPanel = document.querySelector("#gameMenuPanel");
 const soundEnabledInput = document.querySelector("#soundEnabledInput");
 const keybindList = document.querySelector("#keybindList");
 const resetKeybindsBtn = document.querySelector("#resetKeybindsBtn");
@@ -65,8 +67,9 @@ const potValue = document.querySelector("#potValue");
 const community = document.querySelector("#community");
 const players = document.querySelector("#players");
 const playerCount = document.querySelector("#playerCount");
-const handHistory = document.querySelector("#handHistory");
-const historyList = document.querySelector("#historyList");
+const playerPanel = document.querySelector("#playerPanel");
+const playerRailToggle = document.querySelector("#playerRailToggle");
+const playerRailBackdrop = document.querySelector("#playerRailBackdrop");
 const heroHand = document.querySelector("#heroHand");
 const winnerList = document.querySelector("#winnerList");
 const turnInfo = document.querySelector("#turnInfo");
@@ -356,14 +359,35 @@ const DECK_OPTIONS = [
   { id: "minimal", label: "Minimal", description: "Quiet & refined", rank: "A", suit: "♦" },
 ];
 
-function applyTheme(theme) {
-  const nextTheme = theme === "light" ? "light" : "dark";
+const THEME_OPTIONS = [
+  { id: "auto", label: "Auto", description: "Follow system light/dark" },
+  { id: "cream", label: "Cream", description: "Light club theme" },
+  { id: "dark", label: "Dark", description: "Dark club theme" },
+];
+
+function themePreference() {
+  const saved = localStorage.getItem("holdem:theme");
+  return THEME_OPTIONS.some((option) => option.id === saved) ? saved : "auto";
+}
+
+function resolveTheme(preference = themePreference()) {
+  if (preference === "cream") return "light";
+  if (preference === "dark") return "dark";
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
+function applyTheme(theme, persistPreference = null) {
+  if (persistPreference && THEME_OPTIONS.some((option) => option.id === persistPreference)) {
+    localStorage.setItem("holdem:theme", persistPreference);
+  }
+  const nextTheme = (theme || resolveTheme()) === "light" ? "light" : "dark";
   document.documentElement.dataset.theme = nextTheme;
-  themeColor?.setAttribute("content", nextTheme === "dark" ? "#090d10" : "#eef1ec");
+  themeColor?.setAttribute("content", nextTheme === "dark" ? "#111815" : "#eeece4");
+  renderThemeChoices();
 }
 
 const deviceTheme = window.matchMedia("(prefers-color-scheme: light)");
-applyTheme(deviceTheme.matches ? "light" : "dark");
+applyTheme();
 
 function applyTableAppearance(felt, deck, persist = false) {
   const nextFelt = FELT_OPTIONS.some((option) => option.id === felt) ? felt : "emerald";
@@ -375,6 +399,16 @@ function applyTableAppearance(felt, deck, persist = false) {
     localStorage.setItem("holdem:deck", nextDeck);
   }
   renderAppearanceChoices();
+}
+
+function renderThemeChoices() {
+  if (!themeChoices) return;
+  const current = themePreference();
+  themeChoices.innerHTML = THEME_OPTIONS.map((option) => `
+    <button type="button" class="theme-choice ${current === option.id ? "selected" : ""}" data-theme-choice="${option.id}" aria-label="${option.label}: ${option.description}" aria-pressed="${current === option.id}">
+      ${option.label}
+    </button>
+  `).join("");
 }
 
 function renderAppearanceChoices() {
@@ -396,6 +430,7 @@ function renderAppearanceChoices() {
 }
 
 applyTableAppearance(localStorage.getItem("holdem:felt"), localStorage.getItem("holdem:deck"));
+renderThemeChoices();
 
 function getDeviceId() {
   let deviceId = localStorage.getItem("holdem:deviceId");
@@ -422,6 +457,31 @@ function saveRoomCredentials(roomId, response) {
   }));
 }
 
+function isMobileTable() {
+  return matchMedia("(max-width: 779px)").matches;
+}
+
+function setPlayerRailOpen(open) {
+  const next = Boolean(open) && isMobileTable();
+  playerPanel?.classList.toggle("rail-open", next);
+  playerRailToggle?.setAttribute("aria-expanded", next ? "true" : "false");
+  playerRailBackdrop?.classList.toggle("hidden", !next);
+  document.body.classList.toggle("player-rail-open", next);
+}
+
+function closePlayerRail() {
+  setPlayerRailOpen(false);
+}
+
+playerRailToggle?.addEventListener("click", () => {
+  if (!isMobileTable()) return;
+  setPlayerRailOpen(!playerPanel.classList.contains("rail-open"));
+});
+playerRailBackdrop?.addEventListener("click", closePlayerRail);
+window.addEventListener("resize", () => {
+  if (!isMobileTable()) closePlayerRail();
+});
+
 function setViewportHeight() {
   const height = window.visualViewport?.height || window.innerHeight;
   const value = `${Math.floor(height)}px`;
@@ -441,7 +501,7 @@ function lockMobileGameOverscroll(event) {
 
   if (event.touches.length > 1) return;
   const touchY = event.touches[0]?.clientY;
-  let scrollRegion = event.target.closest?.(".players, .hand-history, .modal-panel, .felt");
+  let scrollRegion = event.target.closest?.(".players, .player-panel-body, .modal-panel");
   const movingDown = previousGameTouchY !== null && touchY > previousGameTouchY;
   const movingUp = previousGameTouchY !== null && touchY < previousGameTouchY;
   previousGameTouchY = touchY;
@@ -450,7 +510,7 @@ function lockMobileGameOverscroll(event) {
     const canScrollDown = movingUp && scrollRegion.scrollTop < scrollRegion.scrollHeight - scrollRegion.clientHeight;
     const canScrollUp = movingDown && scrollRegion.scrollTop > 0;
     if (canScrollDown || canScrollUp) return;
-    scrollRegion = scrollRegion.parentElement?.closest(".players, .hand-history, .modal-panel, .felt");
+    scrollRegion = scrollRegion.parentElement?.closest(".players, .player-panel-body, .modal-panel");
   }
   event.preventDefault();
 }
@@ -579,6 +639,9 @@ function hideGameMenu() {
   gameMenuModal.classList.add("hidden");
   tableView.inert = false;
   sharePanel.classList.add("hidden");
+  gameMenuPanel?.classList.remove("invite-focus");
+  const title = document.querySelector("#gameMenuTitle");
+  if (title) title.textContent = "Table settings";
   clearInterval(menuTimer);
   menuTimer = null;
   if (!tableView.classList.contains("hidden")) (menuReturnFocus?.isConnected ? menuReturnFocus : menuBtn).focus({ preventScroll: true });
@@ -644,8 +707,9 @@ function renderMenuPlayers() {
   `).join("");
 }
 
-function showGameMenu() {
+function showGameMenu({ inviteOnly = false } = {}) {
   menuReturnFocus = document.activeElement;
+  closePlayerRail();
   renderMenuPlayers();
   addBotBtn.classList.toggle("hidden", !state?.canAddBot);
   moneyPanel.classList.toggle("hidden", !state?.moneyMode);
@@ -664,6 +728,19 @@ function showGameMenu() {
   if (state?.moneyMode) cashInInput.value = (state.buyInCents / 100).toFixed(0);
   clearInterval(menuTimer);
   menuTimer = setInterval(renderMenuPlayers, 1000);
+  gameMenuPanel?.classList.toggle("invite-focus", inviteOnly);
+  const title = document.querySelector("#gameMenuTitle");
+  if (title) title.textContent = inviteOnly ? "Invite friends" : "Table settings";
+  if (inviteOnly) {
+    const link = inviteUrl();
+    if (link) {
+      shareLink.value = link;
+      shareQr.src = `/qr.svg?text=${encodeURIComponent(link)}`;
+    }
+    sharePanel.classList.remove("hidden");
+  } else {
+    sharePanel.classList.add("hidden");
+  }
   gameMenuModal.classList.remove("hidden");
   tableView.inert = true;
   closeMenuBtn.focus({ preventScroll: true });
@@ -680,7 +757,8 @@ function showWelcome(status = "") {
   leavingEndedRoom = false;
   hideGameMenu();
   document.documentElement.classList.remove("game-open-root");
-  document.body.classList.remove("game-open", "keyboard-open");
+  document.body.classList.remove("game-open", "keyboard-open", "player-rail-open");
+  closePlayerRail();
   tableView.classList.add("hidden");
   scoreView.classList.add("hidden");
   welcome.classList.remove("hidden");
@@ -698,7 +776,8 @@ function showScoreScreen(room) {
   lastActionEntryId = "";
   hideGameMenu();
   document.documentElement.classList.remove("game-open-root");
-  document.body.classList.remove("game-open", "keyboard-open");
+  document.body.classList.remove("game-open", "keyboard-open", "player-rail-open");
+  closePlayerRail();
   welcome.classList.add("hidden");
   tableView.classList.add("hidden");
   scoreView.classList.remove("hidden");
@@ -935,9 +1014,6 @@ function render() {
   const feedScroll = captureActionFeedScroll();
   players.innerHTML = renderActionFeed(hasNewAction ? latestEntryId : "");
   playerCount.textContent = `${state.players.length} / 8`;
-  handHistory.classList.toggle("hidden", !entries.length);
-  const historyMarkup = entries.slice(-30).reverse().map((entry) => `<li><span>${escapeHtml(entry.phase || "")}</span>${escapeHtml(entry.text || "")}</li>`).join("");
-  if (historyList.innerHTML !== historyMarkup) historyList.innerHTML = historyMarkup;
   restoreActionFeedScroll(feedScroll);
   if (hasNewAction) replayAnimation(players, "feed-updated", 420);
   if (hasNewAction && !isFirstTableRender) playActionSound(entries.at(-1));
@@ -1166,8 +1242,7 @@ async function copyText(text, button) {
 }
 
 function openInvite() {
-  showGameMenu();
-  if (sharePanel.classList.contains("hidden")) showSharePanel();
+  showGameMenu({ inviteOnly: true });
   shareLink.focus();
   shareLink.select();
 }
@@ -1180,7 +1255,11 @@ function showSharePanel() {
   shareLink.value = link;
   shareQr.src = `/qr.svg?text=${encodeURIComponent(link)}`;
   sharePanel.classList.toggle("hidden");
-  if (!sharePanel.classList.contains("hidden")) sharePanel.scrollIntoView({ block: "nearest" });
+  const showing = !sharePanel.classList.contains("hidden");
+  gameMenuPanel?.classList.toggle("invite-focus", showing);
+  const title = document.querySelector("#gameMenuTitle");
+  if (title) title.textContent = showing ? "Invite friends" : "Table settings";
+  if (showing) sharePanel.scrollIntoView({ block: "nearest" });
 }
 
 function emitWithAck(eventName, payload) {
@@ -1268,7 +1347,9 @@ function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-deviceTheme.addEventListener("change", (event) => applyTheme(event.matches ? "light" : "dark"));
+deviceTheme.addEventListener("change", () => {
+  if (themePreference() === "auto") applyTheme();
+});
 
 document.addEventListener("pointerdown", () => tableSounds.unlock(), { once: true });
 document.addEventListener("click", (event) => {
@@ -1369,6 +1450,13 @@ closeMenuBtn.addEventListener("click", hideGameMenu);
 addBotBtn.addEventListener("click", () => emitWithAck("room:addBot", {}));
 
 gameMenuModal.addEventListener("click", (event) => {
+  const themeButton = event.target.closest("button[data-theme-choice]");
+  if (themeButton) {
+    const preference = themeButton.dataset.themeChoice;
+    applyTheme(resolveTheme(preference), preference);
+    showToast(`${themeButton.textContent.trim()} theme`);
+    return;
+  }
   const feltButton = event.target.closest("button[data-felt]");
   if (feltButton) {
     applyTableAppearance(feltButton.dataset.felt, document.documentElement.dataset.deck, true);
@@ -1578,6 +1666,10 @@ document.addEventListener("keydown", (event) => {
   }
   if (event.key === "Escape" && !gameMenuModal.classList.contains("hidden")) {
     hideGameMenu();
+    return;
+  }
+  if (event.key === "Escape" && playerPanel?.classList.contains("rail-open")) {
+    closePlayerRail();
     return;
   }
   if (!state || !gameMenuModal.classList.contains("hidden") || event.metaKey || event.ctrlKey || event.altKey) return;
