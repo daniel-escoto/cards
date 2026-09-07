@@ -2,21 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
     <meta id="themeColor" name="theme-color" content="#090d10" />
     <title>Texas Hold'em</title>
     <script>
-      const initialPreference = localStorage.getItem("holdem:theme");
-      const initialTheme = (initialPreference === "cream" || initialPreference === "light")
-        ? "light"
-        : initialPreference === "dark"
-          ? "dark"
-          : (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+      const initialTheme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
       document.documentElement.dataset.theme = initialTheme;
-      document.querySelector("#themeColor").content = initialTheme === "light" ? "#eeece4" : "#111815";
+      document.querySelector("#themeColor").content = initialTheme === "light" ? "#eef1ec" : "#090d10";
     </script>
     <link rel="stylesheet" href="/styles.css" />
-    <link rel="stylesheet" href="/club.css" />
   </head>
   <body>
     <main class="app">
@@ -24,9 +18,7 @@
         <div class="brand">
           <span class="mark" aria-hidden="true">♠</span>
           <div>
-            <p class="eyebrow">A seat at your own table</p>
             <h1>Texas Hold’em</h1>
-            <p>A private table for friends. Invite your group or practice with bots.</p>
           </div>
         </div>
 
@@ -58,7 +50,7 @@
             <span class="switch-control" aria-hidden="true"></span>
             <span class="checkbox-copy">
               <strong>Money mode</strong>
-              <small>Track buy-ins in dollars, without bots</small>
+              <small>Track buy-ins in dollars, without CPU players</small>
             </span>
           </label>
           <label id="buyInLabel" class="form-field hidden">
@@ -69,18 +61,12 @@
             <button id="tableActionBtn" type="submit">Host table</button>
           </div>
           <p id="joinError" class="error" role="alert"></p>
-          <div class="welcome-theme settings-section theme-section">
-            <span class="section-label">Theme</span>
-            <div id="welcomeThemeChoices" class="theme-choices" role="group" aria-label="App theme"></div>
-            <p class="section-hint">Auto follows your system. Light and Dark apply to home and the table.</p>
-          </div>
         </form>
       </section>
 
       <section id="tableView" class="table-view hidden">
         <header class="topbar">
           <div class="room-summary">
-            <span class="table-wordmark" aria-hidden="true">♠ <span>TABLE STAKES</span></span>
             <button id="roomCodeBtn" class="room-code-btn" type="button" aria-label="Copy room code">
               <span class="eyebrow">Room</span>
               <strong id="roomCode"></strong>
@@ -88,28 +74,24 @@
             </button>
           </div>
           <div class="topbar-actions">
-            <button id="inviteBtn" class="secondary" type="button">Invite</button>
             <button id="menuBtn" class="ghost menu-btn" type="button" aria-haspopup="dialog" aria-controls="gameMenuModal">Menu</button>
           </div>
         </header>
 
         <section class="felt">
-          <div class="board-area">
-            <div class="board-status"><strong id="phaseLabel">Waiting for players</strong><span id="blindsLabel"></span></div>
-            <div id="handActionTrail" class="hand-action-trail hidden" aria-live="polite" aria-relevant="additions" aria-label="This hand's actions">
-              <ol id="handActionList" class="hand-action-list"></ol>
-            </div>
-            <div id="lobbyIntro" class="lobby-intro"><h2>Your table is ready</h2><p>Invite friends using the room link, or add a bot to practice. Ready up when everyone has joined.</p><button id="lobbyInviteBtn" type="button">Invite friends</button></div>
-            <div id="community" class="community" aria-label="Community cards"></div>
-            <div class="board-pot"><span>Total pot</span><strong id="potValue">0</strong><span class="pot-rule" aria-hidden="true"></span></div>
-          </div>
+          <div id="community" class="community"></div>
           <section class="control-panel">
             <div class="hand-row">
               <button id="heroHand" class="hero-hand" type="button" aria-label="Hide your cards" aria-pressed="false"></button>
-              <div class="hero-copy"><span class="eyebrow">Your hand</span><span>Tap cards to hide</span></div>
+              <div class="table-meta">
+                <div>
+                  <span>Pot</span>
+                  <strong id="potValue">0</strong>
+                </div>
+              </div>
             </div>
             <div id="winnerList" class="winner-list"></div>
-            <div id="turnInfo" class="turn-info" role="status" aria-live="polite" aria-atomic="true"></div>
+            <div id="turnInfo" class="turn-info"></div>
             <div id="gameButtons" class="game-buttons"></div>
             <div id="betControls" class="bet-controls hidden">
               <div id="betPresets" class="bet-presets" aria-label="Quick bet amounts"></div>
@@ -117,8 +99,8 @@
                 <div class="raise-stepper" aria-label="Raise amount">
                   <button id="raiseMinus" type="button" class="secondary" aria-label="Decrease raise">-</button>
                   <div class="raise-display">
-                    <label id="raiseLabel" for="raiseAmount">Raise to</label>
-                    <input id="raiseAmount" type="number" inputmode="numeric" value="40" />
+                    <span id="raiseLabel">Raise to</span>
+                    <strong id="raiseAmount">40</strong>
                   </div>
                   <button id="raisePlus" type="button" class="secondary" aria-label="Increase raise">+</button>
                 </div>
@@ -126,23 +108,7 @@
               </div>
             </div>
           </section>
-          <aside class="player-panel" id="playerPanel" aria-label="Table activity">
-            <button type="button" class="player-panel-heading" id="playerRailToggle" aria-expanded="false" aria-controls="playerPanelBody">
-              <span class="player-panel-heading-lead">
-                <span>At the table</span>
-                <span id="playerStillIn" class="player-still-in"></span>
-              </span>
-              <span class="player-panel-heading-meta">
-                <span id="playerStillAvatars" class="player-still-avatars" aria-hidden="true"></span>
-                <span id="playerCount"></span>
-                <span class="player-rail-chevron" aria-hidden="true"></span>
-              </span>
-            </button>
-            <div id="playerPanelBody" class="player-panel-body">
-              <div id="players" class="players" role="region" aria-label="Players" tabindex="0"></div>
-            </div>
-          </aside>
-          <button type="button" id="playerRailBackdrop" class="player-rail-backdrop hidden" aria-label="Close players" tabindex="-1"></button>
+          <div id="players" class="players"></div>
         </section>
       </section>
 
@@ -158,36 +124,27 @@
       </section>
 
       <div id="gameMenuModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="gameMenuTitle">
-        <div id="gameMenuPanel" class="modal-panel">
+        <div class="modal-panel">
           <div class="modal-head">
             <div>
               <p class="eyebrow">Room <span id="menuRoomCode"></span></p>
-              <h2 id="gameMenuTitle">Table settings</h2>
+              <h2 id="gameMenuTitle">Table menu</h2>
             </div>
             <button id="closeMenuBtn" class="ghost icon-btn" type="button" aria-label="Close menu">×</button>
           </div>
-          <div id="sharePanel" class="share-panel hidden">
-            <h3>Invite friends</h3>
-            <p>Scan the code or send the link to join this table.</p>
-            <img id="shareQr" alt="Room invite QR code" />
-            <div class="share-link-row">
-              <input id="shareLink" readonly aria-label="Room invite link" />
-              <button id="copyShareBtn" type="button" class="secondary">Copy</button>
-            </div>
-          </div>
           <div id="menuPlayers" class="menu-players"></div>
           <button id="addBotBtn" class="secondary add-bot-btn hidden" type="button">+ Add bot player</button>
-          <div class="settings-section theme-section">
-            <span class="section-label">Theme</span>
-            <div id="themeChoices" class="theme-choices" role="group" aria-label="App theme"></div>
-            <p class="section-hint">Auto follows your system. Light and Dark stay coherent on home and the table.</p>
-          </div>
-          <div class="appearance-stack settings-section">
-            <span class="section-label">Felt color</span>
-            <div id="feltChoices" class="appearance-choices color-choices" aria-label="Felt color"></div>
-            <span class="section-label">Deck</span>
-            <div id="deckChoices" class="appearance-choices deck-choices" aria-label="Deck style"></div>
-          </div>
+          <details class="appearance-panel">
+            <summary>Table appearance</summary>
+            <div class="appearance-group">
+              <span>Felt color</span>
+              <div id="feltChoices" class="appearance-choices color-choices" aria-label="Felt color"></div>
+            </div>
+            <div class="appearance-group">
+              <span>Deck</span>
+              <div id="deckChoices" class="appearance-choices deck-choices" aria-label="Deck style"></div>
+            </div>
+          </details>
           <label class="checkbox-label sound-toggle">
             <input id="soundEnabledInput" type="checkbox" checked />
             <span class="switch-control" aria-hidden="true"></span>
@@ -218,6 +175,13 @@
               <button type="submit">Update blinds</button>
             </form>
           </details>
+          <div id="sharePanel" class="share-panel hidden">
+            <img id="shareQr" alt="Room invite QR code" />
+            <div class="share-link-row">
+              <input id="shareLink" readonly aria-label="Room invite link" />
+              <button id="copyShareBtn" type="button" class="secondary">Copy</button>
+            </div>
+          </div>
           <form id="moneyPanel" class="money-panel hidden">
             <label>
               Cash in amount
@@ -231,7 +195,7 @@
           <div class="modal-actions">
             <button id="restartGameBtn" type="button">Restart game</button>
             <button id="endGameBtn" type="button" class="danger">End game</button>
-            <button id="shareGameBtn" type="button" class="secondary">Invite friends</button>
+            <button id="shareGameBtn" type="button" class="secondary">Share</button>
             <button id="backToMenuBtn" type="button" class="secondary">Leave game</button>
           </div>
         </div>

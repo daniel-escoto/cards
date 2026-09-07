@@ -14,10 +14,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      # Railway CLI uses RAILWAY_TOKEN for non-interactive project-token auth.
-      # Accept the recommended secret name as well as the original repository
-      # secret name so existing deployments keep working.
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN || secrets.RAILWAY_API_TOKEN }}
       RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
       RAILWAY_PROJECT_ID: 81112f2e-941e-4cb0-a842-ffdced4b9160
       RAILWAY_ENVIRONMENT_ID: 4453d092-6816-4fa4-bc91-ec2b4c7e5a85
