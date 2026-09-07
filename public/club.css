@@ -112,7 +112,7 @@ input { font-weight: 550; }
 .board-area {
   gap: 14px;
   align-content: stretch;
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   align-self: stretch;
   min-height: 0;
 }
@@ -130,21 +130,21 @@ input { font-weight: 550; }
 .board-status strong { font-weight: 550; letter-spacing: .04em; color: #e0e7d9; }
 .board-status span { color: #b2c4b6; font-size: 11px; font-variant-numeric: tabular-nums; }
 .board-area .community,
-.board-area .lobby-intro { grid-row: 2; align-self: center; }
-.board-pot { grid-row: 3; display: grid; justify-items: center; gap: 5px; color: #f4efdf; }
+.board-area .lobby-intro { grid-row: 3; align-self: center; }
+.board-pot { grid-row: 4; display: grid; justify-items: center; gap: 5px; color: #f4efdf; }
 .board-pot > span:first-child { text-transform: uppercase; letter-spacing: .2em; color: #bdcbbb; font-size: 9px; }
 .board-pot strong { font-size: 34px; font-weight: 500; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .pot-rule { width: 28px; height: 2px; margin-top: 4px; background: var(--brass); opacity: .7; }
 .in-lobby .board-pot { display: none; }
 
-/* Compact current-hand action trail (not a multi-hand archive) */
+/* Compact current-hand action trail — pinned under phase so mobile cannot clip it */
 .hand-action-trail {
-  grid-row: 4;
+  grid-row: 2;
   width: min(100%, 420px);
   justify-self: center;
   min-height: 0;
   border-top: 1px solid color-mix(in srgb, var(--brass) 28%, var(--line));
-  padding-top: 8px;
+  padding-top: 6px;
 }
 .hand-action-list {
   margin: 0;
@@ -161,7 +161,7 @@ input { font-weight: 550; }
 }
 .hand-action-street {
   margin-top: 4px;
-  color: color-mix(in srgb, var(--brass) 70%, var(--muted));
+  color: color-mix(in srgb, var(--brass) 82%, var(--cream));
   font-size: 9px;
   font-weight: 650;
   letter-spacing: .14em;
@@ -169,34 +169,41 @@ input { font-weight: 550; }
 }
 .hand-action-street:first-child { margin-top: 0; }
 .hand-action-item {
-  color: color-mix(in srgb, #d7dfce 82%, var(--text));
+  color: color-mix(in srgb, var(--cream) 88%, #d7dfce);
   font-size: 12px;
-  font-weight: 450;
+  font-weight: 500;
   line-height: 1.35;
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px rgba(8, 20, 14, .35);
 }
 .hand-action-item.is-new {
   animation: hand-action-flash .55s ease;
 }
 .hand-action-item.is-raise,
 .hand-action-item.is-bet {
-  color: color-mix(in srgb, var(--brass) 55%, var(--cream));
-  font-weight: 550;
+  color: color-mix(in srgb, var(--brass) 70%, var(--cream));
+  font-weight: 600;
 }
-.hand-action-item.is-fold { color: color-mix(in srgb, var(--muted) 80%, #c4b4a8); }
-.hand-action-item.is-win { color: color-mix(in srgb, var(--cream) 70%, #9fd9b0); font-weight: 550; }
+.hand-action-item.is-fold { color: color-mix(in srgb, var(--cream) 55%, #c4b4a8); }
+.hand-action-item.is-win { color: color-mix(in srgb, var(--cream) 55%, #9fd9b0); font-weight: 600; }
 :root[data-theme="light"] .hand-action-trail {
   border-top-color: color-mix(in srgb, var(--brass) 35%, var(--line));
 }
 :root[data-theme="light"] .hand-action-street { color: var(--brass); }
-:root[data-theme="light"] .hand-action-item { color: var(--text); }
+:root[data-theme="light"] .hand-action-item {
+  color: color-mix(in srgb, #f7f3e8 78%, #203c2b);
+  text-shadow: 0 1px 2px rgba(8, 24, 16, .45);
+}
 :root[data-theme="light"] .hand-action-item.is-raise,
 :root[data-theme="light"] .hand-action-item.is-bet {
-  color: color-mix(in srgb, var(--brass) 65%, var(--text));
+  color: color-mix(in srgb, var(--brass) 45%, #fff3d4);
+  font-weight: 650;
 }
-:root[data-theme="light"] .hand-action-item.is-fold { color: var(--muted); }
+:root[data-theme="light"] .hand-action-item.is-fold {
+  color: color-mix(in srgb, #f7f3e8 55%, #8a7a6e);
+}
 :root[data-theme="light"] .hand-action-item.is-win {
-  color: color-mix(in srgb, var(--accent) 55%, var(--text));
+  color: color-mix(in srgb, #c8efd4 40%, #f7f3e8);
 }
 @keyframes hand-action-flash {
   from { opacity: .45; transform: translateY(2px); }
@@ -708,7 +715,7 @@ input { font-weight: 550; }
     gap: 6px;
     min-height: 0;
     overflow: hidden;
-    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
   }
   .board-status { padding-bottom: 0; font-size: 11px; position: static; }
   .board-status span { font-size: 10px; }
@@ -717,15 +724,15 @@ input { font-weight: 550; }
   .pot-rule { display: none; }
   .hand-action-trail {
     width: min(100%, 360px);
-    padding-top: 5px;
+    padding-top: 4px;
   }
   .hand-action-list {
-    max-height: 3.05em;
+    max-height: 2.8em;
     gap: 1px;
-    mask-image: linear-gradient(to bottom, transparent 0, #000 8px, #000 100%);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 6px, #000 100%);
   }
   .hand-action-street { font-size: 8px; letter-spacing: .12em; }
-  .hand-action-item { font-size: 11px; line-height: 1.3; }
+  .hand-action-item { font-size: 11px; line-height: 1.25; }
   .player-panel {
     grid-row: 1;
     grid-column: 1;
