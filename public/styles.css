@@ -1544,21 +1544,21 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
   }
 
   body.keyboard-open,
-  body:has(.welcome:not(.hidden):focus-within) {
+  body:has(.welcome:not(.hidden):has(input:focus, select:focus)) {
     height: var(--viewport-height);
     min-height: 0;
     overflow: hidden;
   }
 
   body.keyboard-open .app,
-  body:has(.welcome:not(.hidden):focus-within) .app {
+  body:has(.welcome:not(.hidden):has(input:focus, select:focus)) .app {
     height: var(--viewport-height);
     min-height: 0;
     overflow: hidden;
   }
 
   body.keyboard-open .welcome,
-  .welcome:not(.hidden):focus-within {
+  .welcome:not(.hidden):has(input:focus, select:focus) {
     height: calc(var(--viewport-height) - 20px);
     min-height: auto;
     align-content: start;
@@ -1572,27 +1572,27 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
   }
 
   body.keyboard-open .brand,
-  .welcome:not(.hidden):focus-within .brand {
+  .welcome:not(.hidden):has(input:focus, select:focus) .brand {
     display: none;
   }
 
   body.keyboard-open .join-panel,
-  .welcome:not(.hidden):focus-within .join-panel {
+  .welcome:not(.hidden):has(input:focus, select:focus) .join-panel {
     gap: 9px;
     padding: 12px;
   }
 
   body.keyboard-open label,
-  .welcome:not(.hidden):focus-within label {
+  .welcome:not(.hidden):has(input:focus, select:focus) label {
     gap: 5px;
   }
 
   body.keyboard-open input,
   body.keyboard-open select,
   body.keyboard-open button,
-  .welcome:not(.hidden):focus-within input,
-  .welcome:not(.hidden):focus-within select,
-  .welcome:not(.hidden):focus-within button {
+  .welcome:not(.hidden):has(input:focus, select:focus) input,
+  .welcome:not(.hidden):has(input:focus, select:focus) select,
+  .welcome:not(.hidden):has(input:focus, select:focus) button {
     min-height: 42px;
   }
 
@@ -1853,4 +1853,76 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
     min-height: 38px;
     padding: 0 10px;
   }
+}
+
+/* Keep the board, current decision, and invitations easy to find at every size. */
+.brand .mark { flex-shrink: 0; }
+.board-area { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); align-content: center; gap: 20px; }
+.board-area .community { position: static; grid-column: 1; grid-row: auto; transform: none; justify-content: center; }
+.board-status { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #fff; font-size: 14px; }
+.board-status span { color: #d0ded8; font-size: 12px; }
+.lobby-intro { max-width: 390px; justify-self: center; text-align: center; color: #fff; padding: 20px 12px; }
+.lobby-intro h2 { font-size: 26px; letter-spacing: -.03em; }
+.lobby-intro p { margin: 12px 0 20px; color: #d0ded8; line-height: 1.6; font-size: 15px; }
+.lobby-intro button { min-height: 46px; padding-inline: 24px; }
+.in-lobby .hand-row { display: none; }
+.hero-hand .card { width: 52px; height: auto; aspect-ratio: .72; }
+.hand-row .table-meta div { min-height: 64px; height: auto; }
+.raise-display label { font-size: 11px; text-transform: uppercase; font-weight: 850; }
+.raise-display input { min-width: 0; width: 100%; min-height: 26px; padding: 0 4px; border: 0; border-radius: 4px; background: transparent; text-align: center; font-size: 20px; font-weight: 850; color: var(--text); appearance: textfield; }
+.raise-display input::-webkit-inner-spin-button, .raise-display input::-webkit-outer-spin-button { appearance: none; margin: 0; }
+.raise-display { min-width: 0; }
+.bet-controls { --raise-row-height: 52px; }
+.bet-presets button { min-height: 44px; font-size: 13px; }
+.game-buttons button, .topbar-actions button { min-height: 44px; }
+.share-panel h3 { margin: 0; font-size: 18px; }
+.share-panel p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.appearance-panel summary { min-height: 44px; align-content: center; }
+.players:focus-visible { outline: 3px solid #85b5f5; outline-offset: 2px; }
+.toast { white-space: normal; border-radius: 12px; text-align: center; }
+
+@media (min-width: 780px) {
+  .table-view { height: min(calc(100dvh - 40px), 700px); }
+  .felt { grid-template-columns: minmax(250px, .75fr) minmax(0, 1.25fr); grid-template-rows: minmax(0, 1fr) auto; gap: 24px; padding: 24px; }
+  .board-area { grid-column: 2; grid-row: 1; align-self: stretch; }
+  .control-panel { grid-column: 2; grid-row: 2; }
+  .players { grid-column: 1; grid-row: 1 / -1; border-right: 1px solid rgba(255,255,255,.14); padding-right: 18px; }
+  .table-player-row { grid-template-columns: 8px minmax(0, 1fr) auto auto; gap: 6px; }
+  .community .card { width: clamp(48px, 5vw, 68px); }
+}
+
+@media (max-width: 779px) {
+  .board-area { grid-row: 1; gap: 12px; }
+  .table-view .felt { overflow-y: auto; touch-action: pan-y pinch-zoom; }
+  .table-view .players { min-height: 90px; }
+  .board-status { font-size: 13px; gap: 8px; }
+  .board-status span { font-size: 11px; white-space: nowrap; }
+  .hero-hand .card { width: 46px; }
+  .hero-hand .card .card-rank, .hero-hand .card .card-corner-suit { font-size: 18px; }
+  .bet-controls { --raise-row-height: 48px; }
+  .raise-display input { font-size: 18px; }
+  .game-buttons button { min-height: 44px; }
+  .bet-presets button { min-height: 44px; }
+  .lobby-intro { padding: 24px 12px; }
+  .lobby-intro h2 { font-size: 24px; }
+  .lobby-intro p { font-size: 14px; }
+  .table-view { grid-template-rows: auto minmax(0, 1fr); }
+  .topbar { gap: 8px; }
+  .topbar-actions { gap: 6px; }
+  .topbar-actions button { padding-inline: 12px; }
+  .turn-info { font-size: 13px; }
+}
+
+/* Short screens retain readable controls; the table itself can scroll. */
+@media (max-height: 650px) {
+  .table-view .felt { overflow-y: auto; }
+  .table-view .players { min-height: 90px; }
+  .board-area { gap: 8px; }
+  .lobby-intro { padding: 8px; }
+  .lobby-intro p { margin: 8px 0 12px; }
+}
+
+@media (min-width: 780px) and (max-height: 650px) {
+  .table-view .felt { grid-template-rows: minmax(150px, auto) max-content; align-content: start; }
+  .table-view .players { max-height: calc(100dvh - 140px); position: sticky; top: 0; }
 }

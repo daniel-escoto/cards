@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta id="themeColor" name="theme-color" content="#090d10" />
     <title>Texas Hold'em</title>
     <script>
@@ -19,6 +19,7 @@
           <span class="mark" aria-hidden="true">♠</span>
           <div>
             <h1>Texas Hold’em</h1>
+            <p>A private table for friends. Invite your group or practice with bots.</p>
           </div>
         </div>
 
@@ -50,7 +51,7 @@
             <span class="switch-control" aria-hidden="true"></span>
             <span class="checkbox-copy">
               <strong>Money mode</strong>
-              <small>Track buy-ins in dollars, without CPU players</small>
+              <small>Track buy-ins in dollars, without bots</small>
             </span>
           </label>
           <label id="buyInLabel" class="form-field hidden">
@@ -74,12 +75,17 @@
             </button>
           </div>
           <div class="topbar-actions">
+            <button id="inviteBtn" class="secondary" type="button">Invite</button>
             <button id="menuBtn" class="ghost menu-btn" type="button" aria-haspopup="dialog" aria-controls="gameMenuModal">Menu</button>
           </div>
         </header>
 
         <section class="felt">
-          <div id="community" class="community"></div>
+          <div class="board-area">
+            <div class="board-status"><strong id="phaseLabel">Waiting for players</strong><span id="blindsLabel"></span></div>
+            <div id="lobbyIntro" class="lobby-intro"><h2>Your table is ready</h2><p>Invite friends using the room link, or add a bot to practice. Ready up when everyone has joined.</p><button id="lobbyInviteBtn" type="button">Invite friends</button></div>
+            <div id="community" class="community" aria-label="Community cards"></div>
+          </div>
           <section class="control-panel">
             <div class="hand-row">
               <button id="heroHand" class="hero-hand" type="button" aria-label="Hide your cards" aria-pressed="false"></button>
@@ -91,7 +97,7 @@
               </div>
             </div>
             <div id="winnerList" class="winner-list"></div>
-            <div id="turnInfo" class="turn-info"></div>
+            <div id="turnInfo" class="turn-info" role="status" aria-live="polite" aria-atomic="true"></div>
             <div id="gameButtons" class="game-buttons"></div>
             <div id="betControls" class="bet-controls hidden">
               <div id="betPresets" class="bet-presets" aria-label="Quick bet amounts"></div>
@@ -99,8 +105,8 @@
                 <div class="raise-stepper" aria-label="Raise amount">
                   <button id="raiseMinus" type="button" class="secondary" aria-label="Decrease raise">-</button>
                   <div class="raise-display">
-                    <span id="raiseLabel">Raise to</span>
-                    <strong id="raiseAmount">40</strong>
+                    <label id="raiseLabel" for="raiseAmount">Raise to</label>
+                    <input id="raiseAmount" type="number" inputmode="numeric" value="40" />
                   </div>
                   <button id="raisePlus" type="button" class="secondary" aria-label="Increase raise">+</button>
                 </div>
@@ -108,7 +114,7 @@
               </div>
             </div>
           </section>
-          <div id="players" class="players"></div>
+          <div id="players" class="players" role="region" aria-label="Players and hand history" tabindex="0"></div>
         </section>
       </section>
 
@@ -131,6 +137,15 @@
               <h2 id="gameMenuTitle">Table menu</h2>
             </div>
             <button id="closeMenuBtn" class="ghost icon-btn" type="button" aria-label="Close menu">×</button>
+          </div>
+          <div id="sharePanel" class="share-panel hidden">
+            <h3>Invite friends</h3>
+            <p>Scan the code or send the link to join this table.</p>
+            <img id="shareQr" alt="Room invite QR code" />
+            <div class="share-link-row">
+              <input id="shareLink" readonly aria-label="Room invite link" />
+              <button id="copyShareBtn" type="button" class="secondary">Copy</button>
+            </div>
           </div>
           <div id="menuPlayers" class="menu-players"></div>
           <button id="addBotBtn" class="secondary add-bot-btn hidden" type="button">+ Add bot player</button>
@@ -175,13 +190,6 @@
               <button type="submit">Update blinds</button>
             </form>
           </details>
-          <div id="sharePanel" class="share-panel hidden">
-            <img id="shareQr" alt="Room invite QR code" />
-            <div class="share-link-row">
-              <input id="shareLink" readonly aria-label="Room invite link" />
-              <button id="copyShareBtn" type="button" class="secondary">Copy</button>
-            </div>
-          </div>
           <form id="moneyPanel" class="money-panel hidden">
             <label>
               Cash in amount
@@ -195,7 +203,7 @@
           <div class="modal-actions">
             <button id="restartGameBtn" type="button">Restart game</button>
             <button id="endGameBtn" type="button" class="danger">End game</button>
-            <button id="shareGameBtn" type="button" class="secondary">Share</button>
+            <button id="shareGameBtn" type="button" class="secondary">Invite friends</button>
             <button id="backToMenuBtn" type="button" class="secondary">Leave game</button>
           </div>
         </div>

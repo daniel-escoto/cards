@@ -27,6 +27,12 @@ const tableActionBtn = document.querySelector("#tableActionBtn");
 const joinError = document.querySelector("#joinError");
 const roomCode = document.querySelector("#roomCode");
 const roomCodeBtn = document.querySelector("#roomCodeBtn");
+const inviteBtn = document.querySelector("#inviteBtn");
+const lobbyInviteBtn = document.querySelector("#lobbyInviteBtn");
+const phaseLabel = document.querySelector("#phaseLabel");
+const blindsLabel = document.querySelector("#blindsLabel");
+const lobbyIntro = document.querySelector("#lobbyIntro");
+let menuReturnFocus = null;
 const menuBtn = document.querySelector("#menuBtn");
 const gameMenuModal = document.querySelector("#gameMenuModal");
 const closeMenuBtn = document.querySelector("#closeMenuBtn");
@@ -430,15 +436,20 @@ let previousGameTouchY = null;
 function lockMobileGameOverscroll(event) {
   if (!document.body.classList.contains("game-open") || !matchMedia("(max-width: 779px)").matches) return;
 
+  if (event.touches.length > 1) return;
   const touchY = event.touches[0]?.clientY;
-  const scrollRegion = event.target.closest?.(".players, .modal-panel");
+  let scrollRegion = event.target.closest?.(".players, .modal-panel, .felt");
   const movingDown = previousGameTouchY !== null && touchY > previousGameTouchY;
   const movingUp = previousGameTouchY !== null && touchY < previousGameTouchY;
   previousGameTouchY = touchY;
 
-  const canScrollDown = movingUp && scrollRegion?.scrollTop < scrollRegion?.scrollHeight - scrollRegion?.clientHeight;
-  const canScrollUp = movingDown && scrollRegion?.scrollTop > 0;
-  if (!canScrollDown && !canScrollUp) event.preventDefault();
+  while (scrollRegion) {
+    const canScrollDown = movingUp && scrollRegion.scrollTop < scrollRegion.scrollHeight - scrollRegion.clientHeight;
+    const canScrollUp = movingDown && scrollRegion.scrollTop > 0;
+    if (canScrollDown || canScrollUp) return;
+    scrollRegion = scrollRegion.parentElement?.closest(".players, .modal-panel, .felt");
+  }
+  event.preventDefault();
 }
 
 function updateTableActionLabel() {
@@ -563,10 +574,11 @@ function showTable(room) {
 function hideGameMenu() {
   cancelKeybindRecording();
   gameMenuModal.classList.add("hidden");
+  tableView.inert = false;
   sharePanel.classList.add("hidden");
   clearInterval(menuTimer);
   menuTimer = null;
-  if (!tableView.classList.contains("hidden")) menuBtn.focus({ preventScroll: true });
+  if (!tableView.classList.contains("hidden")) (menuReturnFocus?.isConnected ? menuReturnFocus : menuBtn).focus({ preventScroll: true });
 }
 
 function playerIsOut(player) {
@@ -630,6 +642,7 @@ function renderMenuPlayers() {
 }
 
 function showGameMenu() {
+  menuReturnFocus = document.activeElement;
   renderMenuPlayers();
   addBotBtn.classList.toggle("hidden", !state?.canAddBot);
   moneyPanel.classList.toggle("hidden", !state?.moneyMode);
@@ -649,6 +662,7 @@ function showGameMenu() {
   clearInterval(menuTimer);
   menuTimer = setInterval(renderMenuPlayers, 1000);
   gameMenuModal.classList.remove("hidden");
+  tableView.inert = true;
   closeMenuBtn.focus({ preventScroll: true });
 }
 
@@ -876,6 +890,11 @@ function render() {
   const isFirstTableRender = lastCommunitySignature === null;
   showTable(state);
   roomCode.textContent = state.id;
+  const phases = { lobby: "Waiting for players", preflop: "Pre-flop", flop: "Flop", turn: "Turn", river: "River", showdown: "Showdown", complete: "Hand complete", gameover: "Game over" };
+  phaseLabel.textContent = state.phase === "lobby" && state.players.length > 1 ? "Ready when you are" : phases[state.phase] || state.phase;
+  blindsLabel.textContent = `Blinds ${formatAmount(state.smallBlind, state.smallBlindCents)} / ${formatAmount(state.bigBlind, state.bigBlindCents)}`;
+  lobbyIntro.classList.toggle("hidden", state.phase !== "lobby" || state.players.length > 1);
+  tableView.classList.toggle("in-lobby", state.phase === "lobby");
   potValue.textContent = formatAmount(state.pot, state.potCents);
   if (lastPot !== null && lastPot !== state.pot) {
     replayAnimation(potValue.closest("div"), "value-changed", 480);
@@ -987,7 +1006,7 @@ function renderControls(hero) {
   turnInfo.classList.remove("showdown-message");
 
   if (state.canAddBot) {
-    addButton("+ Add CPU player", "room:addBot", "secondary lobby-add-bot");
+    addButton("+ Add bot player", "room:addBot", "secondary lobby-add-bot");
   }
   if (state.canReady) {
     addButton(state.isReady ? "Not ready" : "Ready up", "game:ready", state.isReady ? "secondary" : "", keybindLabel(keybinds.ready));
@@ -1001,13 +1020,13 @@ function renderControls(hero) {
       const humans = state.players.filter((player) => !player.isBot && player.stack > 0);
       const readyCount = humans.filter((player) => player.ready).length;
       turnInfo.textContent = humans.length < 2 && state.players.filter((player) => player.stack > 0).length < 2
-        ? "Invite a player or add a CPU to begin."
+        ? "Invite a friend or add a bot to begin."
         : `${readyCount} of ${humans.length} players ready.`;
       return;
     }
     const currentIndex = findLastIndex(state.players, (player) => player.id === state.turn);
     const current = currentIndex >= 0 ? state.players[currentIndex] : null;
-    turnInfo.textContent = current ? `Pot ${formatAmount(state.pot, state.potCents)}. ${current.name} is acting.` : "Waiting for the host.";
+    turnInfo.textContent = current ? `${current.name} is acting…` : "Waiting for the host.";
     if (hero && isBettingPhase(state.phase) && !hero.folded && !hero.allIn) {
       addActionButton("Fold", { type: "fold" }, "danger", true);
       addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" }, "", true);
@@ -1017,8 +1036,8 @@ function renderControls(hero) {
   }
 
   turnInfo.textContent = state.toCall > 0
-    ? `Pot ${formatAmount(state.pot, state.potCents)}. Call ${formatAmount(state.toCall, state.toCallCents)} to continue.`
-    : `Pot ${formatAmount(state.pot, state.potCents)}. Your turn: check or bet.`;
+    ? `Your turn · ${formatAmount(state.toCall, state.toCallCents)} to call`
+    : "Your turn · Check or bet";
   turnInfo.classList.add("your-turn");
   addActionButton("Fold", { type: "fold" }, "danger");
   addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" });
@@ -1035,7 +1054,7 @@ function configureRaiseControls(hero, disabled = false) {
   betControls.classList.remove("hidden");
   const minRaise = Math.min(maxRaise, state.minRaiseTo);
   const preferredRaise = Math.max(minRaise, state.currentBet + state.bigBlind);
-  raiseLabel.textContent = state.currentBet > 0 ? "Raise to" : "Bet amount";
+  raiseLabel.textContent = `${state.currentBet > 0 ? "Raise to" : "Bet amount"}${state.moneyMode ? " ($)" : ""}`;
   raiseControlsDisabled = disabled;
   setRaiseState({
     min: minRaise,
@@ -1072,8 +1091,14 @@ function setRaiseState(next) {
     ...next,
   };
   raiseState.value = clampRaise(raiseState.value);
-  const formattedAmount = formatAmount(raiseState.value, Math.round(raiseState.value * (state?.chipValueCents || 0)));
-  raiseAmount.textContent = formattedAmount;
+  const scale = state?.moneyMode ? state.chipValueCents / 100 : 1;
+  raiseAmount.value = state?.moneyMode ? (raiseState.value * scale).toFixed(2) : String(raiseState.value);
+  raiseAmount.min = String(raiseState.min * scale);
+  raiseAmount.max = String(raiseState.max * scale);
+  raiseAmount.step = state?.moneyMode ? "0.01" : "1";
+  raiseAmount.inputMode = state?.moneyMode ? "decimal" : "numeric";
+  raiseAmount.disabled = raiseControlsDisabled;
+  raiseAmount.setAttribute("aria-label", `${state?.currentBet > 0 ? "Raise to" : "Bet amount"}${state?.moneyMode ? " in dollars" : " in chips"}`);
   setButtonLabel(raiseActionBtn, state?.currentBet > 0 ? "Raise" : "Bet", keybindLabel(keybinds.raise));
   raiseActionBtn.disabled = raiseControlsDisabled;
   raiseMinus.disabled = raiseControlsDisabled || raiseState.value <= raiseState.min;
@@ -1085,11 +1110,13 @@ function clampRaise(value) {
 }
 
 function changeRaise(direction) {
+  commitRaiseInput();
   setRaiseState({ value: raiseState.value + direction * raiseState.step });
 }
 
 function setButtonLabel(button, label, shortcut = "") {
-  button.innerHTML = `<span>${escapeHtml(label)}</span>${shortcut ? `<kbd aria-hidden="true">${escapeHtml(shortcut)}</kbd>` : ""}`;
+  const markup = `<span>${escapeHtml(label)}</span>${shortcut ? `<kbd aria-hidden="true">${escapeHtml(shortcut)}</kbd>` : ""}`;
+  if (button.innerHTML !== markup) button.innerHTML = markup;
   button.classList.toggle("has-shortcut", Boolean(shortcut));
   button.setAttribute("aria-label", shortcut ? `${label} (${shortcut})` : label);
 }
@@ -1131,24 +1158,36 @@ async function copyText(text, button) {
   setTimeout(() => { button.textContent = original; }, 1200);
 }
 
+function openInvite() {
+  showGameMenu();
+  if (sharePanel.classList.contains("hidden")) showSharePanel();
+  shareLink.focus();
+  shareLink.select();
+}
+inviteBtn.addEventListener("click", openInvite);
+lobbyInviteBtn.addEventListener("click", openInvite);
+
 function showSharePanel() {
   const link = inviteUrl();
   if (!link) return;
   shareLink.value = link;
   shareQr.src = `/qr.svg?text=${encodeURIComponent(link)}`;
   sharePanel.classList.toggle("hidden");
+  if (!sharePanel.classList.contains("hidden")) sharePanel.scrollIntoView({ block: "nearest" });
 }
 
 function emitWithAck(eventName, payload) {
   socket.timeout(4000).emit(eventName, payload, (error, response) => {
     if (error) {
       joinError.textContent = "Reconnecting to the table...";
+      showToast("Connection lost. Reconnecting…");
       lastAutoRejoinKey = "";
       attemptAutoRejoin();
       return;
     }
     if (!response?.ok) {
       joinError.textContent = response?.error || "Action failed.";
+      if (state) showToast(joinError.textContent);
       return;
     }
   });
@@ -1281,11 +1320,22 @@ joinForm.addEventListener("focusout", () => {
   }, 80);
 });
 
+function commitRaiseInput() {
+  const value = Number(raiseAmount.value);
+  const chips = state?.moneyMode ? Math.round(value * 100 / state.chipValueCents) : value;
+  setRaiseState({ value: Number.isFinite(chips) ? chips : raiseState.min });
+}
+raiseAmount.addEventListener("change", commitRaiseInput);
+raiseAmount.addEventListener("blur", commitRaiseInput);
+raiseAmount.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") { event.preventDefault(); raiseAmount.blur(); }
+});
 raiseMinus.addEventListener("click", () => changeRaise(-1));
 raisePlus.addEventListener("click", () => changeRaise(1));
 raiseMinus.addEventListener("dblclick", (event) => event.preventDefault());
 raisePlus.addEventListener("dblclick", (event) => event.preventDefault());
 raiseActionBtn.addEventListener("click", () => {
+  commitRaiseInput();
   emitWithAck("game:action", { type: "raise", raiseTo: raiseState.value });
 });
 
@@ -1492,6 +1542,14 @@ document.addEventListener("touchcancel", () => { previousGameTouchY = null; }, {
 setViewportHeight();
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Tab" && !gameMenuModal.classList.contains("hidden")) {
+    const focusable = [...gameMenuModal.querySelectorAll('button:not(:disabled), input:not(:disabled), summary, [tabindex="0"]')].filter((element) => element.getClientRects().length);
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    return;
+  }
   if (recordingKeybindAction) {
     event.preventDefault();
     event.stopPropagation();
