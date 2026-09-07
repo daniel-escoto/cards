@@ -27,12 +27,6 @@ const tableActionBtn = document.querySelector("#tableActionBtn");
 const joinError = document.querySelector("#joinError");
 const roomCode = document.querySelector("#roomCode");
 const roomCodeBtn = document.querySelector("#roomCodeBtn");
-const inviteBtn = document.querySelector("#inviteBtn");
-const lobbyInviteBtn = document.querySelector("#lobbyInviteBtn");
-const phaseLabel = document.querySelector("#phaseLabel");
-const blindsLabel = document.querySelector("#blindsLabel");
-const lobbyIntro = document.querySelector("#lobbyIntro");
-let menuReturnFocus = null;
 const menuBtn = document.querySelector("#menuBtn");
 const gameMenuModal = document.querySelector("#gameMenuModal");
 const closeMenuBtn = document.querySelector("#closeMenuBtn");
@@ -45,10 +39,6 @@ const menuRoomCode = document.querySelector("#menuRoomCode");
 const menuPlayers = document.querySelector("#menuPlayers");
 const feltChoices = document.querySelector("#feltChoices");
 const deckChoices = document.querySelector("#deckChoices");
-const themeChoices = document.querySelector("#themeChoices");
-const welcomeThemeChoices = document.querySelector("#welcomeThemeChoices");
-const themeChoiceGroups = [themeChoices, welcomeThemeChoices].filter(Boolean);
-const gameMenuPanel = document.querySelector("#gameMenuPanel");
 const soundEnabledInput = document.querySelector("#soundEnabledInput");
 const keybindList = document.querySelector("#keybindList");
 const resetKeybindsBtn = document.querySelector("#resetKeybindsBtn");
@@ -68,14 +58,6 @@ const cashOutBtn = document.querySelector("#cashOutBtn");
 const potValue = document.querySelector("#potValue");
 const community = document.querySelector("#community");
 const players = document.querySelector("#players");
-const playerCount = document.querySelector("#playerCount");
-const playerStillIn = document.querySelector("#playerStillIn");
-const playerStillAvatars = document.querySelector("#playerStillAvatars");
-const playerPanel = document.querySelector("#playerPanel");
-const playerRailToggle = document.querySelector("#playerRailToggle");
-const playerRailBackdrop = document.querySelector("#playerRailBackdrop");
-const handActionTrail = document.querySelector("#handActionTrail");
-const handActionList = document.querySelector("#handActionList");
 const heroHand = document.querySelector("#heroHand");
 const winnerList = document.querySelector("#winnerList");
 const turnInfo = document.querySelector("#turnInfo");
@@ -365,41 +347,14 @@ const DECK_OPTIONS = [
   { id: "minimal", label: "Minimal", description: "Quiet & refined", rank: "A", suit: "♦" },
 ];
 
-const THEME_OPTIONS = [
-  { id: "auto", label: "Auto", description: "Follow system light/dark" },
-  { id: "light", label: "Light", description: "Light club theme" },
-  { id: "dark", label: "Dark", description: "Dark club theme" },
-];
-
-function normalizeThemePreference(value) {
-  if (value === "cream") return "light";
-  return THEME_OPTIONS.some((option) => option.id === value) ? value : "auto";
-}
-
-function themePreference() {
-  return normalizeThemePreference(localStorage.getItem("holdem:theme"));
-}
-
-function resolveTheme(preference = themePreference()) {
-  const normalized = normalizeThemePreference(preference);
-  if (normalized === "light") return "light";
-  if (normalized === "dark") return "dark";
-  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-}
-
-function applyTheme(theme, persistPreference = null) {
-  if (persistPreference != null) {
-    const normalized = normalizeThemePreference(persistPreference);
-    localStorage.setItem("holdem:theme", normalized);
-  }
-  const nextTheme = (theme || resolveTheme()) === "light" ? "light" : "dark";
+function applyTheme(theme) {
+  const nextTheme = theme === "light" ? "light" : "dark";
   document.documentElement.dataset.theme = nextTheme;
-  themeColor?.setAttribute("content", nextTheme === "dark" ? "#111815" : "#eeece4");
-  renderThemeChoices();
+  themeColor?.setAttribute("content", nextTheme === "dark" ? "#090d10" : "#eef1ec");
 }
 
 const deviceTheme = window.matchMedia("(prefers-color-scheme: light)");
-applyTheme();
+applyTheme(deviceTheme.matches ? "light" : "dark");
 
 function applyTableAppearance(felt, deck, persist = false) {
   const nextFelt = FELT_OPTIONS.some((option) => option.id === felt) ? felt : "emerald";
@@ -411,19 +366,6 @@ function applyTableAppearance(felt, deck, persist = false) {
     localStorage.setItem("holdem:deck", nextDeck);
   }
   renderAppearanceChoices();
-}
-
-function renderThemeChoices() {
-  if (!themeChoiceGroups.length) return;
-  const current = themePreference();
-  const markup = THEME_OPTIONS.map((option) => `
-    <button type="button" class="theme-choice ${current === option.id ? "selected" : ""}" data-theme-choice="${option.id}" aria-label="${option.label}: ${option.description}" aria-pressed="${current === option.id}">
-      ${option.label}
-    </button>
-  `).join("");
-  themeChoiceGroups.forEach((group) => {
-    group.innerHTML = markup;
-  });
 }
 
 function renderAppearanceChoices() {
@@ -445,7 +387,6 @@ function renderAppearanceChoices() {
 }
 
 applyTableAppearance(localStorage.getItem("holdem:felt"), localStorage.getItem("holdem:deck"));
-renderThemeChoices();
 
 function getDeviceId() {
   let deviceId = localStorage.getItem("holdem:deviceId");
@@ -472,33 +413,6 @@ function saveRoomCredentials(roomId, response) {
   }));
 }
 
-function isMobileTable() {
-  return matchMedia("(max-width: 779px)").matches;
-}
-
-function setPlayerRailOpen(open) {
-  const next = Boolean(open) && isMobileTable();
-  playerPanel?.classList.toggle("rail-open", next);
-  playerRailToggle?.setAttribute("aria-expanded", next ? "true" : "false");
-  playerRailBackdrop?.classList.toggle("hidden", !next);
-  document.body.classList.toggle("player-rail-open", next);
-  if (state) renderPlayerRailSummary();
-}
-
-function closePlayerRail() {
-  setPlayerRailOpen(false);
-}
-
-playerRailToggle?.addEventListener("click", () => {
-  if (!isMobileTable()) return;
-  setPlayerRailOpen(!playerPanel.classList.contains("rail-open"));
-});
-playerRailBackdrop?.addEventListener("click", closePlayerRail);
-window.addEventListener("resize", () => {
-  if (!isMobileTable()) closePlayerRail();
-  if (state) renderPlayerRailSummary();
-});
-
 function setViewportHeight() {
   const height = window.visualViewport?.height || window.innerHeight;
   const value = `${Math.floor(height)}px`;
@@ -516,20 +430,15 @@ let previousGameTouchY = null;
 function lockMobileGameOverscroll(event) {
   if (!document.body.classList.contains("game-open") || !matchMedia("(max-width: 779px)").matches) return;
 
-  if (event.touches.length > 1) return;
   const touchY = event.touches[0]?.clientY;
-  let scrollRegion = event.target.closest?.(".players, .player-panel-body, .hand-action-list, .modal-panel");
+  const scrollRegion = event.target.closest?.(".players, .modal-panel");
   const movingDown = previousGameTouchY !== null && touchY > previousGameTouchY;
   const movingUp = previousGameTouchY !== null && touchY < previousGameTouchY;
   previousGameTouchY = touchY;
 
-  while (scrollRegion) {
-    const canScrollDown = movingUp && scrollRegion.scrollTop < scrollRegion.scrollHeight - scrollRegion.clientHeight;
-    const canScrollUp = movingDown && scrollRegion.scrollTop > 0;
-    if (canScrollDown || canScrollUp) return;
-    scrollRegion = scrollRegion.parentElement?.closest(".players, .player-panel-body, .hand-action-list, .modal-panel");
-  }
-  event.preventDefault();
+  const canScrollDown = movingUp && scrollRegion?.scrollTop < scrollRegion?.scrollHeight - scrollRegion?.clientHeight;
+  const canScrollUp = movingDown && scrollRegion?.scrollTop > 0;
+  if (!canScrollDown && !canScrollUp) event.preventDefault();
 }
 
 function updateTableActionLabel() {
@@ -654,75 +563,15 @@ function showTable(room) {
 function hideGameMenu() {
   cancelKeybindRecording();
   gameMenuModal.classList.add("hidden");
-  tableView.inert = false;
   sharePanel.classList.add("hidden");
-  gameMenuPanel?.classList.remove("invite-focus");
-  const title = document.querySelector("#gameMenuTitle");
-  if (title) title.textContent = "Table settings";
   clearInterval(menuTimer);
   menuTimer = null;
-  if (!tableView.classList.contains("hidden")) (menuReturnFocus?.isConnected ? menuReturnFocus : menuBtn).focus({ preventScroll: true });
+  if (!tableView.classList.contains("hidden")) menuBtn.focus({ preventScroll: true });
 }
 
 function playerIsOut(player) {
   const betweenHands = ["lobby", "complete", "gameover"].includes(state?.phase);
   return player.stack <= 0 && (betweenHands || player.invested <= 0);
-}
-
-function isHandInProgress(phase = state?.phase) {
-  return ["preflop", "flop", "turn", "river", "showdown", "complete"].includes(phase);
-}
-
-function playersContestingHand(room = state) {
-  if (!room?.players || !isHandInProgress(room.phase)) return [];
-  return room.players.filter((player) => !player.folded && !playerIsOut(player));
-}
-
-function renderPlayerRailSummary() {
-  if (!state) return;
-  const seated = state.players.length;
-  const contesting = playersContestingHand();
-  const handLive = isHandInProgress(state.phase);
-  const stillInLabel = handLive ? `${contesting.length} still in` : "";
-  const mobile = isMobileTable();
-
-  // Mobile: "2 still in" sits by the title + avatars; count stays compact.
-  // Desktop: one meta line already covers seated + in (rail is always open).
-  playerCount.textContent = handLive && !mobile
-    ? `${seated} seated · ${contesting.length} in`
-    : `${seated} / 8`;
-
-  if (playerStillIn) {
-    playerStillIn.textContent = stillInLabel;
-    playerStillIn.hidden = !stillInLabel;
-  }
-
-  if (playerStillAvatars) {
-    const avatarLimit = 5;
-    const shown = contesting.slice(0, avatarLimit);
-    const overflow = contesting.length - shown.length;
-    playerStillAvatars.innerHTML = handLive
-      ? `${shown.map((player) => `
-          <span class="player-still-avatar ${player.isYou ? "you" : ""}" title="${escapeHtml(player.name)}" ${playerColorStyle(player)}>
-            ${escapeHtml(player.name.slice(0, 2).toUpperCase())}
-          </span>
-        `).join("")}${overflow > 0 ? `<span class="player-still-avatar player-still-overflow" title="${overflow} more">+${overflow}</span>` : ""}`
-      : "";
-    playerStillAvatars.hidden = !playerStillAvatars.innerHTML;
-  }
-
-  if (playerRailToggle) {
-    const detail = handLive
-      ? `${contesting.length} still in of ${seated} seated`
-      : `${seated} of 8 seats filled`;
-    const names = handLive && contesting.length
-      ? `: ${contesting.map((player) => player.name).join(", ")}`
-      : "";
-    playerRailToggle.setAttribute(
-      "aria-label",
-      `At the table, ${detail}${names}. ${playerPanel?.classList.contains("rail-open") ? "Close" : "Open"} player list`
-    );
-  }
 }
 
 function roundStatus(player) {
@@ -780,9 +629,7 @@ function renderMenuPlayers() {
   `).join("");
 }
 
-function showGameMenu({ inviteOnly = false } = {}) {
-  menuReturnFocus = document.activeElement;
-  closePlayerRail();
+function showGameMenu() {
   renderMenuPlayers();
   addBotBtn.classList.toggle("hidden", !state?.canAddBot);
   moneyPanel.classList.toggle("hidden", !state?.moneyMode);
@@ -801,21 +648,7 @@ function showGameMenu({ inviteOnly = false } = {}) {
   if (state?.moneyMode) cashInInput.value = (state.buyInCents / 100).toFixed(0);
   clearInterval(menuTimer);
   menuTimer = setInterval(renderMenuPlayers, 1000);
-  gameMenuPanel?.classList.toggle("invite-focus", inviteOnly);
-  const title = document.querySelector("#gameMenuTitle");
-  if (title) title.textContent = inviteOnly ? "Invite friends" : "Table settings";
-  if (inviteOnly) {
-    const link = inviteUrl();
-    if (link) {
-      shareLink.value = link;
-      shareQr.src = `/qr.svg?text=${encodeURIComponent(link)}`;
-    }
-    sharePanel.classList.remove("hidden");
-  } else {
-    sharePanel.classList.add("hidden");
-  }
   gameMenuModal.classList.remove("hidden");
-  tableView.inert = true;
   closeMenuBtn.focus({ preventScroll: true });
 }
 
@@ -830,8 +663,7 @@ function showWelcome(status = "") {
   leavingEndedRoom = false;
   hideGameMenu();
   document.documentElement.classList.remove("game-open-root");
-  document.body.classList.remove("game-open", "keyboard-open", "player-rail-open");
-  closePlayerRail();
+  document.body.classList.remove("game-open", "keyboard-open");
   tableView.classList.add("hidden");
   scoreView.classList.add("hidden");
   welcome.classList.remove("hidden");
@@ -849,8 +681,7 @@ function showScoreScreen(room) {
   lastActionEntryId = "";
   hideGameMenu();
   document.documentElement.classList.remove("game-open-root");
-  document.body.classList.remove("game-open", "keyboard-open", "player-rail-open");
-  closePlayerRail();
+  document.body.classList.remove("game-open", "keyboard-open");
   welcome.classList.add("hidden");
   tableView.classList.add("hidden");
   scoreView.classList.remove("hidden");
@@ -962,73 +793,6 @@ function playerForAction(entry) {
   return byNameIndex >= 0 ? state.players[byNameIndex] : null;
 }
 
-function streetLabel(phase) {
-  const labels = {
-    preflop: "Pre-flop",
-    flop: "Flop",
-    turn: "Turn",
-    river: "River",
-    showdown: "Showdown",
-    complete: "Result",
-  };
-  return labels[phase] || phase || "";
-}
-
-function isStreetDealtMarker(entry) {
-  return /dealt\.?$/i.test(entry?.text || "") && !entry?.playerId && !entry?.action;
-}
-
-function actionTrailKind(entry) {
-  const text = `${entry?.action || ""} ${entry?.text || ""}`.toLowerCase();
-  if (text.includes("raise")) return "is-raise";
-  if (/\bbet\b/.test(text) && !text.includes("blind")) return "is-bet";
-  if (text.includes("fold")) return "is-fold";
-  if (text.includes("wins")) return "is-win";
-  if (text.includes("call")) return "is-call";
-  if (text.includes("check")) return "is-check";
-  if (text.includes("blind")) return "is-blind";
-  return "";
-}
-
-function formatActionTrailText(entry) {
-  return String(entry?.text || entry?.action || "").replace(/\.$/, "");
-}
-
-function renderHandActionTrail(newEntryId = "") {
-  if (!handActionTrail || !handActionList) return;
-  const entries = (state.actionLog || [])
-    .filter((entry) => entry.phase !== "lobby" && !isStreetDealtMarker(entry))
-    .slice(-24);
-  const showTrail = entries.length > 0 && state.phase !== "lobby";
-  handActionTrail.classList.toggle("hidden", !showTrail);
-  if (!showTrail) {
-    handActionList.innerHTML = "";
-    return;
-  }
-
-  let lastPhase = "";
-  const markup = entries.map((entry) => {
-    const phase = entry.phase || "";
-    const street = phase && phase !== lastPhase
-      ? `<li class="hand-action-street">${escapeHtml(streetLabel(phase))}</li>`
-      : "";
-    lastPhase = phase;
-    const kind = actionTrailKind(entry);
-    const isNew = entry.id === newEntryId ? " is-new" : "";
-    return `${street}<li class="hand-action-item ${kind}${isNew}">${escapeHtml(formatActionTrailText(entry))}</li>`;
-  }).join("");
-
-  const shouldFollow = handActionList.scrollHeight - handActionList.scrollTop - handActionList.clientHeight < 28
-    || handActionList.innerHTML === ""
-    || Boolean(newEntryId);
-  if (handActionList.innerHTML !== markup) handActionList.innerHTML = markup;
-  if (shouldFollow) {
-    requestAnimationFrame(() => {
-      handActionList.scrollTop = handActionList.scrollHeight;
-    });
-  }
-}
-
 function renderShownHandCard(player) {
   return `
     <article class="action-feed-card shown-hand-card ${player.isYou ? "you" : ""}" ${playerColorStyle(player)}>
@@ -1072,8 +836,8 @@ function renderActionFeed(newEntryId = "") {
       : playerTableStatus(player, isActing);
     return `
       <article class="table-player-row ${isActing ? "turn" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${isOut ? "out" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}" ${playerColorStyle(player)}>
-        <span class="player-avatar" aria-hidden="true">${escapeHtml(player.name.slice(0, 2).toUpperCase())}</span>
-        <span class="player-identity"><span class="seat-name">${escapeHtml(player.name)}</span><span class="player-caption">${player.isYou ? "You" : player.isBot ? "Bot" : "Player"}${player.dealer && state.phase !== "lobby" ? '<span class="dealer-badge" title="Dealer">D</span>' : ""}</span></span>
+        <i class="player-dot" aria-hidden="true"></i>
+        <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
         <span class="player-action${entry ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}</span>
         <strong class="player-stack">${playerStackLabel(player)}</strong>
       </article>
@@ -1112,11 +876,6 @@ function render() {
   const isFirstTableRender = lastCommunitySignature === null;
   showTable(state);
   roomCode.textContent = state.id;
-  const phases = { lobby: "Waiting for players", preflop: "Pre-flop", flop: "Flop", turn: "Turn", river: "River", showdown: "Showdown", complete: "Hand complete", gameover: "Game over" };
-  phaseLabel.textContent = state.phase === "lobby" && state.players.length > 1 ? "Ready when you are" : phases[state.phase] || state.phase;
-  blindsLabel.textContent = `Blinds ${formatAmount(state.smallBlind, state.smallBlindCents)} / ${formatAmount(state.bigBlind, state.bigBlindCents)}`;
-  lobbyIntro.classList.toggle("hidden", state.phase !== "lobby" || state.players.length > 1);
-  tableView.classList.toggle("in-lobby", state.phase === "lobby");
   potValue.textContent = formatAmount(state.pot, state.potCents);
   if (lastPot !== null && lastPot !== state.pot) {
     replayAnimation(potValue.closest("div"), "value-changed", 480);
@@ -1153,8 +912,6 @@ function render() {
   const hasNewAction = Boolean(latestEntryId && latestEntryId !== lastActionEntryId);
   const feedScroll = captureActionFeedScroll();
   players.innerHTML = renderActionFeed(hasNewAction ? latestEntryId : "");
-  renderPlayerRailSummary();
-  renderHandActionTrail(hasNewAction ? latestEntryId : "");
   restoreActionFeedScroll(feedScroll);
   if (hasNewAction) replayAnimation(players, "feed-updated", 420);
   if (hasNewAction && !isFirstTableRender) playActionSound(entries.at(-1));
@@ -1198,7 +955,7 @@ function render() {
 function captureActionFeedScroll() {
   const maxScrollTop = Math.max(0, players.scrollHeight - players.clientHeight);
   return {
-    followBottom: false,
+    followBottom: maxScrollTop - players.scrollTop < 28,
     top: players.scrollTop,
   };
 }
@@ -1230,7 +987,7 @@ function renderControls(hero) {
   turnInfo.classList.remove("showdown-message");
 
   if (state.canAddBot) {
-    addButton("+ Add bot player", "room:addBot", "secondary lobby-add-bot");
+    addButton("+ Add CPU player", "room:addBot", "secondary lobby-add-bot");
   }
   if (state.canReady) {
     addButton(state.isReady ? "Not ready" : "Ready up", "game:ready", state.isReady ? "secondary" : "", keybindLabel(keybinds.ready));
@@ -1244,13 +1001,13 @@ function renderControls(hero) {
       const humans = state.players.filter((player) => !player.isBot && player.stack > 0);
       const readyCount = humans.filter((player) => player.ready).length;
       turnInfo.textContent = humans.length < 2 && state.players.filter((player) => player.stack > 0).length < 2
-        ? "Invite a friend or add a bot to begin."
+        ? "Invite a player or add a CPU to begin."
         : `${readyCount} of ${humans.length} players ready.`;
       return;
     }
     const currentIndex = findLastIndex(state.players, (player) => player.id === state.turn);
     const current = currentIndex >= 0 ? state.players[currentIndex] : null;
-    turnInfo.textContent = current ? `${current.name} is acting…` : "Waiting for the host.";
+    turnInfo.textContent = current ? `Pot ${formatAmount(state.pot, state.potCents)}. ${current.name} is acting.` : "Waiting for the host.";
     if (hero && isBettingPhase(state.phase) && !hero.folded && !hero.allIn) {
       addActionButton("Fold", { type: "fold" }, "danger", true);
       addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" }, "", true);
@@ -1260,8 +1017,8 @@ function renderControls(hero) {
   }
 
   turnInfo.textContent = state.toCall > 0
-    ? `Your turn · ${formatAmount(state.toCall, state.toCallCents)} to call`
-    : "Your turn · Check or bet";
+    ? `Pot ${formatAmount(state.pot, state.potCents)}. Call ${formatAmount(state.toCall, state.toCallCents)} to continue.`
+    : `Pot ${formatAmount(state.pot, state.potCents)}. Your turn: check or bet.`;
   turnInfo.classList.add("your-turn");
   addActionButton("Fold", { type: "fold" }, "danger");
   addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" });
@@ -1278,7 +1035,7 @@ function configureRaiseControls(hero, disabled = false) {
   betControls.classList.remove("hidden");
   const minRaise = Math.min(maxRaise, state.minRaiseTo);
   const preferredRaise = Math.max(minRaise, state.currentBet + state.bigBlind);
-  raiseLabel.textContent = `${state.currentBet > 0 ? "Raise to" : "Bet amount"}${state.moneyMode ? " ($)" : ""}`;
+  raiseLabel.textContent = state.currentBet > 0 ? "Raise to" : "Bet amount";
   raiseControlsDisabled = disabled;
   setRaiseState({
     min: minRaise,
@@ -1315,14 +1072,8 @@ function setRaiseState(next) {
     ...next,
   };
   raiseState.value = clampRaise(raiseState.value);
-  const scale = state?.moneyMode ? state.chipValueCents / 100 : 1;
-  raiseAmount.value = state?.moneyMode ? (raiseState.value * scale).toFixed(2) : String(raiseState.value);
-  raiseAmount.min = String(raiseState.min * scale);
-  raiseAmount.max = String(raiseState.max * scale);
-  raiseAmount.step = state?.moneyMode ? "0.01" : "1";
-  raiseAmount.inputMode = state?.moneyMode ? "decimal" : "numeric";
-  raiseAmount.disabled = raiseControlsDisabled;
-  raiseAmount.setAttribute("aria-label", `${state?.currentBet > 0 ? "Raise to" : "Bet amount"}${state?.moneyMode ? " in dollars" : " in chips"}`);
+  const formattedAmount = formatAmount(raiseState.value, Math.round(raiseState.value * (state?.chipValueCents || 0)));
+  raiseAmount.textContent = formattedAmount;
   setButtonLabel(raiseActionBtn, state?.currentBet > 0 ? "Raise" : "Bet", keybindLabel(keybinds.raise));
   raiseActionBtn.disabled = raiseControlsDisabled;
   raiseMinus.disabled = raiseControlsDisabled || raiseState.value <= raiseState.min;
@@ -1334,13 +1085,11 @@ function clampRaise(value) {
 }
 
 function changeRaise(direction) {
-  commitRaiseInput();
   setRaiseState({ value: raiseState.value + direction * raiseState.step });
 }
 
 function setButtonLabel(button, label, shortcut = "") {
-  const markup = `<span>${escapeHtml(label)}</span>${shortcut ? `<kbd aria-hidden="true">${escapeHtml(shortcut)}</kbd>` : ""}`;
-  if (button.innerHTML !== markup) button.innerHTML = markup;
+  button.innerHTML = `<span>${escapeHtml(label)}</span>${shortcut ? `<kbd aria-hidden="true">${escapeHtml(shortcut)}</kbd>` : ""}`;
   button.classList.toggle("has-shortcut", Boolean(shortcut));
   button.setAttribute("aria-label", shortcut ? `${label} (${shortcut})` : label);
 }
@@ -1382,39 +1131,24 @@ async function copyText(text, button) {
   setTimeout(() => { button.textContent = original; }, 1200);
 }
 
-function openInvite() {
-  showGameMenu({ inviteOnly: true });
-  shareLink.focus();
-  shareLink.select();
-}
-inviteBtn.addEventListener("click", openInvite);
-lobbyInviteBtn.addEventListener("click", openInvite);
-
 function showSharePanel() {
   const link = inviteUrl();
   if (!link) return;
   shareLink.value = link;
   shareQr.src = `/qr.svg?text=${encodeURIComponent(link)}`;
   sharePanel.classList.toggle("hidden");
-  const showing = !sharePanel.classList.contains("hidden");
-  gameMenuPanel?.classList.toggle("invite-focus", showing);
-  const title = document.querySelector("#gameMenuTitle");
-  if (title) title.textContent = showing ? "Invite friends" : "Table settings";
-  if (showing) sharePanel.scrollIntoView({ block: "nearest" });
 }
 
 function emitWithAck(eventName, payload) {
   socket.timeout(4000).emit(eventName, payload, (error, response) => {
     if (error) {
       joinError.textContent = "Reconnecting to the table...";
-      showToast("Connection lost. Reconnecting…");
       lastAutoRejoinKey = "";
       attemptAutoRejoin();
       return;
     }
     if (!response?.ok) {
       joinError.textContent = response?.error || "Action failed.";
-      if (state) showToast(joinError.textContent);
       return;
     }
   });
@@ -1488,9 +1222,7 @@ function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-deviceTheme.addEventListener("change", () => {
-  if (themePreference() === "auto") applyTheme();
-});
+deviceTheme.addEventListener("change", (event) => applyTheme(event.matches ? "light" : "dark"));
 
 document.addEventListener("pointerdown", () => tableSounds.unlock(), { once: true });
 document.addEventListener("click", (event) => {
@@ -1549,22 +1281,11 @@ joinForm.addEventListener("focusout", () => {
   }, 80);
 });
 
-function commitRaiseInput() {
-  const value = Number(raiseAmount.value);
-  const chips = state?.moneyMode ? Math.round(value * 100 / state.chipValueCents) : value;
-  setRaiseState({ value: Number.isFinite(chips) ? chips : raiseState.min });
-}
-raiseAmount.addEventListener("change", commitRaiseInput);
-raiseAmount.addEventListener("blur", commitRaiseInput);
-raiseAmount.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") { event.preventDefault(); raiseAmount.blur(); }
-});
 raiseMinus.addEventListener("click", () => changeRaise(-1));
 raisePlus.addEventListener("click", () => changeRaise(1));
 raiseMinus.addEventListener("dblclick", (event) => event.preventDefault());
 raisePlus.addEventListener("dblclick", (event) => event.preventDefault());
 raiseActionBtn.addEventListener("click", () => {
-  commitRaiseInput();
   emitWithAck("game:action", { type: "raise", raiseTo: raiseState.value });
 });
 
@@ -1591,13 +1312,6 @@ closeMenuBtn.addEventListener("click", hideGameMenu);
 addBotBtn.addEventListener("click", () => emitWithAck("room:addBot", {}));
 
 gameMenuModal.addEventListener("click", (event) => {
-  const themeButton = event.target.closest("button[data-theme-choice]");
-  if (themeButton) {
-    const preference = themeButton.dataset.themeChoice;
-    applyTheme(resolveTheme(preference), preference);
-    showToast(`${themeButton.textContent.trim()} theme`);
-    return;
-  }
   const feltButton = event.target.closest("button[data-felt]");
   if (feltButton) {
     applyTableAppearance(feltButton.dataset.felt, document.documentElement.dataset.deck, true);
@@ -1621,14 +1335,6 @@ gameMenuModal.addEventListener("click", (event) => {
     return;
   }
   if (event.target === gameMenuModal) hideGameMenu();
-});
-
-welcomeThemeChoices?.addEventListener("click", (event) => {
-  const themeButton = event.target.closest("button[data-theme-choice]");
-  if (!themeButton) return;
-  const preference = themeButton.dataset.themeChoice;
-  applyTheme(resolveTheme(preference), preference);
-  showToast(`${themeButton.textContent.trim()} theme`);
 });
 
 gameMenuModal.addEventListener("submit", (event) => {
@@ -1786,14 +1492,6 @@ document.addEventListener("touchcancel", () => { previousGameTouchY = null; }, {
 setViewportHeight();
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Tab" && !gameMenuModal.classList.contains("hidden")) {
-    const focusable = [...gameMenuModal.querySelectorAll('button:not(:disabled), input:not(:disabled), summary, [tabindex="0"]')].filter((element) => element.getClientRects().length);
-    const first = focusable[0];
-    const last = focusable.at(-1);
-    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-    return;
-  }
   if (recordingKeybindAction) {
     event.preventDefault();
     event.stopPropagation();
@@ -1815,10 +1513,6 @@ document.addEventListener("keydown", (event) => {
   }
   if (event.key === "Escape" && !gameMenuModal.classList.contains("hidden")) {
     hideGameMenu();
-    return;
-  }
-  if (event.key === "Escape" && playerPanel?.classList.contains("rail-open")) {
-    closePlayerRail();
     return;
   }
   if (!state || !gameMenuModal.classList.contains("hidden") || event.metaKey || event.ctrlKey || event.altKey) return;
