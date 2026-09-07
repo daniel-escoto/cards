@@ -11,6 +11,7 @@
       document.querySelector("#themeColor").content = initialTheme === "light" ? "#eef1ec" : "#090d10";
     </script>
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/club.css" />
   </head>
   <body>
     <main class="app">
@@ -18,6 +19,7 @@
         <div class="brand">
           <span class="mark" aria-hidden="true">♠</span>
           <div>
+            <p class="eyebrow">A seat at your own table</p>
             <h1>Texas Hold’em</h1>
             <p>A private table for friends. Invite your group or practice with bots.</p>
           </div>
@@ -68,6 +70,7 @@
       <section id="tableView" class="table-view hidden">
         <header class="topbar">
           <div class="room-summary">
+            <span class="table-wordmark" aria-hidden="true">♠ <span>TABLE STAKES</span></span>
             <button id="roomCodeBtn" class="room-code-btn" type="button" aria-label="Copy room code">
               <span class="eyebrow">Room</span>
               <strong id="roomCode"></strong>
@@ -85,16 +88,12 @@
             <div class="board-status"><strong id="phaseLabel">Waiting for players</strong><span id="blindsLabel"></span></div>
             <div id="lobbyIntro" class="lobby-intro"><h2>Your table is ready</h2><p>Invite friends using the room link, or add a bot to practice. Ready up when everyone has joined.</p><button id="lobbyInviteBtn" type="button">Invite friends</button></div>
             <div id="community" class="community" aria-label="Community cards"></div>
+            <div class="board-pot"><span>Total pot</span><strong id="potValue">0</strong><span class="pot-rule" aria-hidden="true"></span></div>
           </div>
           <section class="control-panel">
             <div class="hand-row">
               <button id="heroHand" class="hero-hand" type="button" aria-label="Hide your cards" aria-pressed="false"></button>
-              <div class="table-meta">
-                <div>
-                  <span>Pot</span>
-                  <strong id="potValue">0</strong>
-                </div>
-              </div>
+              <div class="hero-copy"><span class="eyebrow">Your hand</span><span>Tap cards to hide</span></div>
             </div>
             <div id="winnerList" class="winner-list"></div>
             <div id="turnInfo" class="turn-info" role="status" aria-live="polite" aria-atomic="true"></div>
@@ -114,7 +113,11 @@
               </div>
             </div>
           </section>
-          <div id="players" class="players" role="region" aria-label="Players and hand history" tabindex="0"></div>
+          <aside class="player-panel" aria-label="Table activity">
+            <div class="player-panel-heading"><span>At the table</span><span id="playerCount"></span></div>
+            <div id="players" class="players" role="region" aria-label="Players" tabindex="0"></div>
+            <details id="handHistory" class="hand-history"><summary>Hand history<span aria-hidden="true">↗</span></summary><ol id="historyList"></ol></details>
+          </aside>
         </section>
       </section>
 

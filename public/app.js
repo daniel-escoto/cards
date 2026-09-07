@@ -64,6 +64,9 @@ const cashOutBtn = document.querySelector("#cashOutBtn");
 const potValue = document.querySelector("#potValue");
 const community = document.querySelector("#community");
 const players = document.querySelector("#players");
+const playerCount = document.querySelector("#playerCount");
+const handHistory = document.querySelector("#handHistory");
+const historyList = document.querySelector("#historyList");
 const heroHand = document.querySelector("#heroHand");
 const winnerList = document.querySelector("#winnerList");
 const turnInfo = document.querySelector("#turnInfo");
@@ -438,7 +441,7 @@ function lockMobileGameOverscroll(event) {
 
   if (event.touches.length > 1) return;
   const touchY = event.touches[0]?.clientY;
-  let scrollRegion = event.target.closest?.(".players, .modal-panel, .felt");
+  let scrollRegion = event.target.closest?.(".players, .hand-history, .modal-panel, .felt");
   const movingDown = previousGameTouchY !== null && touchY > previousGameTouchY;
   const movingUp = previousGameTouchY !== null && touchY < previousGameTouchY;
   previousGameTouchY = touchY;
@@ -447,7 +450,7 @@ function lockMobileGameOverscroll(event) {
     const canScrollDown = movingUp && scrollRegion.scrollTop < scrollRegion.scrollHeight - scrollRegion.clientHeight;
     const canScrollUp = movingDown && scrollRegion.scrollTop > 0;
     if (canScrollDown || canScrollUp) return;
-    scrollRegion = scrollRegion.parentElement?.closest(".players, .modal-panel, .felt");
+    scrollRegion = scrollRegion.parentElement?.closest(".players, .hand-history, .modal-panel, .felt");
   }
   event.preventDefault();
 }
@@ -850,8 +853,8 @@ function renderActionFeed(newEntryId = "") {
       : playerTableStatus(player, isActing);
     return `
       <article class="table-player-row ${isActing ? "turn" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${isOut ? "out" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}" ${playerColorStyle(player)}>
-        <i class="player-dot" aria-hidden="true"></i>
-        <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
+        <span class="player-avatar" aria-hidden="true">${escapeHtml(player.name.slice(0, 2).toUpperCase())}</span>
+        <span class="player-identity"><span class="seat-name">${escapeHtml(player.name)}</span><span class="player-caption">${player.isYou ? "You" : player.isBot ? "Bot" : "Player"}${player.dealer && state.phase !== "lobby" ? '<span class="dealer-badge" title="Dealer">D</span>' : ""}</span></span>
         <span class="player-action${entry ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}</span>
         <strong class="player-stack">${playerStackLabel(player)}</strong>
       </article>
@@ -931,6 +934,10 @@ function render() {
   const hasNewAction = Boolean(latestEntryId && latestEntryId !== lastActionEntryId);
   const feedScroll = captureActionFeedScroll();
   players.innerHTML = renderActionFeed(hasNewAction ? latestEntryId : "");
+  playerCount.textContent = `${state.players.length} / 8`;
+  handHistory.classList.toggle("hidden", !entries.length);
+  const historyMarkup = entries.slice(-30).reverse().map((entry) => `<li><span>${escapeHtml(entry.phase || "")}</span>${escapeHtml(entry.text || "")}</li>`).join("");
+  if (historyList.innerHTML !== historyMarkup) historyList.innerHTML = historyMarkup;
   restoreActionFeedScroll(feedScroll);
   if (hasNewAction) replayAnimation(players, "feed-updated", 420);
   if (hasNewAction && !isFirstTableRender) playActionSound(entries.at(-1));
@@ -974,7 +981,7 @@ function render() {
 function captureActionFeedScroll() {
   const maxScrollTop = Math.max(0, players.scrollHeight - players.clientHeight);
   return {
-    followBottom: maxScrollTop - players.scrollTop < 28,
+    followBottom: false,
     top: players.scrollTop,
   };
 }
