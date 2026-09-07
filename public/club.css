@@ -505,11 +505,18 @@ input { font-weight: 550; }
   font-size: 12px;
   font-weight: 650;
 }
+.theme-choice:not(:disabled):hover {
+  background: color-mix(in srgb, var(--panel-2) 75%, transparent);
+  color: var(--text);
+}
 .theme-choice.selected {
   border-color: var(--brass);
   color: var(--text);
   box-shadow: inset 0 0 0 1px var(--brass);
   background: color-mix(in srgb, var(--brass) 12%, var(--panel));
+}
+.theme-choice.selected:not(:disabled):hover {
+  background: color-mix(in srgb, var(--brass) 18%, var(--panel));
 }
 .welcome-theme {
   margin-top: 4px;
