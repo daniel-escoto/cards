@@ -46,6 +46,8 @@ const menuPlayers = document.querySelector("#menuPlayers");
 const feltChoices = document.querySelector("#feltChoices");
 const deckChoices = document.querySelector("#deckChoices");
 const themeChoices = document.querySelector("#themeChoices");
+const welcomeThemeChoices = document.querySelector("#welcomeThemeChoices");
+const themeChoiceGroups = [themeChoices, welcomeThemeChoices].filter(Boolean);
 const gameMenuPanel = document.querySelector("#gameMenuPanel");
 const soundEnabledInput = document.querySelector("#soundEnabledInput");
 const keybindList = document.querySelector("#keybindList");
@@ -67,6 +69,8 @@ const potValue = document.querySelector("#potValue");
 const community = document.querySelector("#community");
 const players = document.querySelector("#players");
 const playerCount = document.querySelector("#playerCount");
+const playerStillIn = document.querySelector("#playerStillIn");
+const playerStillAvatars = document.querySelector("#playerStillAvatars");
 const playerPanel = document.querySelector("#playerPanel");
 const playerRailToggle = document.querySelector("#playerRailToggle");
 const playerRailBackdrop = document.querySelector("#playerRailBackdrop");
@@ -361,24 +365,30 @@ const DECK_OPTIONS = [
 
 const THEME_OPTIONS = [
   { id: "auto", label: "Auto", description: "Follow system light/dark" },
-  { id: "cream", label: "Cream", description: "Light club theme" },
+  { id: "light", label: "Light", description: "Light club theme" },
   { id: "dark", label: "Dark", description: "Dark club theme" },
 ];
 
+function normalizeThemePreference(value) {
+  if (value === "cream") return "light";
+  return THEME_OPTIONS.some((option) => option.id === value) ? value : "auto";
+}
+
 function themePreference() {
-  const saved = localStorage.getItem("holdem:theme");
-  return THEME_OPTIONS.some((option) => option.id === saved) ? saved : "auto";
+  return normalizeThemePreference(localStorage.getItem("holdem:theme"));
 }
 
 function resolveTheme(preference = themePreference()) {
-  if (preference === "cream") return "light";
-  if (preference === "dark") return "dark";
+  const normalized = normalizeThemePreference(preference);
+  if (normalized === "light") return "light";
+  if (normalized === "dark") return "dark";
   return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
 }
 
 function applyTheme(theme, persistPreference = null) {
-  if (persistPreference && THEME_OPTIONS.some((option) => option.id === persistPreference)) {
-    localStorage.setItem("holdem:theme", persistPreference);
+  if (persistPreference != null) {
+    const normalized = normalizeThemePreference(persistPreference);
+    localStorage.setItem("holdem:theme", normalized);
   }
   const nextTheme = (theme || resolveTheme()) === "light" ? "light" : "dark";
   document.documentElement.dataset.theme = nextTheme;
@@ -402,13 +412,16 @@ function applyTableAppearance(felt, deck, persist = false) {
 }
 
 function renderThemeChoices() {
-  if (!themeChoices) return;
+  if (!themeChoiceGroups.length) return;
   const current = themePreference();
-  themeChoices.innerHTML = THEME_OPTIONS.map((option) => `
+  const markup = THEME_OPTIONS.map((option) => `
     <button type="button" class="theme-choice ${current === option.id ? "selected" : ""}" data-theme-choice="${option.id}" aria-label="${option.label}: ${option.description}" aria-pressed="${current === option.id}">
       ${option.label}
     </button>
   `).join("");
+  themeChoiceGroups.forEach((group) => {
+    group.innerHTML = markup;
+  });
 }
 
 function renderAppearanceChoices() {
@@ -467,6 +480,7 @@ function setPlayerRailOpen(open) {
   playerRailToggle?.setAttribute("aria-expanded", next ? "true" : "false");
   playerRailBackdrop?.classList.toggle("hidden", !next);
   document.body.classList.toggle("player-rail-open", next);
+  if (state) renderPlayerRailSummary();
 }
 
 function closePlayerRail() {
@@ -480,6 +494,7 @@ playerRailToggle?.addEventListener("click", () => {
 playerRailBackdrop?.addEventListener("click", closePlayerRail);
 window.addEventListener("resize", () => {
   if (!isMobileTable()) closePlayerRail();
+  if (state) renderPlayerRailSummary();
 });
 
 function setViewportHeight() {
@@ -650,6 +665,62 @@ function hideGameMenu() {
 function playerIsOut(player) {
   const betweenHands = ["lobby", "complete", "gameover"].includes(state?.phase);
   return player.stack <= 0 && (betweenHands || player.invested <= 0);
+}
+
+function isHandInProgress(phase = state?.phase) {
+  return ["preflop", "flop", "turn", "river", "showdown", "complete"].includes(phase);
+}
+
+function playersContestingHand(room = state) {
+  if (!room?.players || !isHandInProgress(room.phase)) return [];
+  return room.players.filter((player) => !player.folded && !playerIsOut(player));
+}
+
+function renderPlayerRailSummary() {
+  if (!state) return;
+  const seated = state.players.length;
+  const contesting = playersContestingHand();
+  const handLive = isHandInProgress(state.phase);
+  const stillInLabel = handLive ? `${contesting.length} still in` : "";
+  const mobile = isMobileTable();
+
+  // Mobile: "2 still in" sits by the title + avatars; count stays compact.
+  // Desktop: one meta line already covers seated + in (rail is always open).
+  playerCount.textContent = handLive && !mobile
+    ? `${seated} seated · ${contesting.length} in`
+    : `${seated} / 8`;
+
+  if (playerStillIn) {
+    playerStillIn.textContent = stillInLabel;
+    playerStillIn.hidden = !stillInLabel;
+  }
+
+  if (playerStillAvatars) {
+    const avatarLimit = 5;
+    const shown = contesting.slice(0, avatarLimit);
+    const overflow = contesting.length - shown.length;
+    playerStillAvatars.innerHTML = handLive
+      ? `${shown.map((player) => `
+          <span class="player-still-avatar ${player.isYou ? "you" : ""}" title="${escapeHtml(player.name)}" ${playerColorStyle(player)}>
+            ${escapeHtml(player.name.slice(0, 2).toUpperCase())}
+          </span>
+        `).join("")}${overflow > 0 ? `<span class="player-still-avatar player-still-overflow" title="${overflow} more">+${overflow}</span>` : ""}`
+      : "";
+    playerStillAvatars.hidden = !playerStillAvatars.innerHTML;
+  }
+
+  if (playerRailToggle) {
+    const detail = handLive
+      ? `${contesting.length} still in of ${seated} seated`
+      : `${seated} of 8 seats filled`;
+    const names = handLive && contesting.length
+      ? `: ${contesting.map((player) => player.name).join(", ")}`
+      : "";
+    playerRailToggle.setAttribute(
+      "aria-label",
+      `At the table, ${detail}${names}. ${playerPanel?.classList.contains("rail-open") ? "Close" : "Open"} player list`
+    );
+  }
 }
 
 function roundStatus(player) {
@@ -1013,7 +1084,7 @@ function render() {
   const hasNewAction = Boolean(latestEntryId && latestEntryId !== lastActionEntryId);
   const feedScroll = captureActionFeedScroll();
   players.innerHTML = renderActionFeed(hasNewAction ? latestEntryId : "");
-  playerCount.textContent = `${state.players.length} / 8`;
+  renderPlayerRailSummary();
   restoreActionFeedScroll(feedScroll);
   if (hasNewAction) replayAnimation(players, "feed-updated", 420);
   if (hasNewAction && !isFirstTableRender) playActionSound(entries.at(-1));
@@ -1480,6 +1551,14 @@ gameMenuModal.addEventListener("click", (event) => {
     return;
   }
   if (event.target === gameMenuModal) hideGameMenu();
+});
+
+welcomeThemeChoices?.addEventListener("click", (event) => {
+  const themeButton = event.target.closest("button[data-theme-choice]");
+  if (!themeButton) return;
+  const preference = themeButton.dataset.themeChoice;
+  applyTheme(resolveTheme(preference), preference);
+  showToast(`${themeButton.textContent.trim()} theme`);
 });
 
 gameMenuModal.addEventListener("submit", (event) => {
