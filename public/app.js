@@ -46,6 +46,8 @@ const menuPlayers = document.querySelector("#menuPlayers");
 const feltChoices = document.querySelector("#feltChoices");
 const deckChoices = document.querySelector("#deckChoices");
 const themeChoices = document.querySelector("#themeChoices");
+const welcomeThemeChoices = document.querySelector("#welcomeThemeChoices");
+const themeChoiceGroups = [themeChoices, welcomeThemeChoices].filter(Boolean);
 const gameMenuPanel = document.querySelector("#gameMenuPanel");
 const soundEnabledInput = document.querySelector("#soundEnabledInput");
 const keybindList = document.querySelector("#keybindList");
@@ -363,24 +365,30 @@ const DECK_OPTIONS = [
 
 const THEME_OPTIONS = [
   { id: "auto", label: "Auto", description: "Follow system light/dark" },
-  { id: "cream", label: "Cream", description: "Light club theme" },
+  { id: "light", label: "Light", description: "Light club theme" },
   { id: "dark", label: "Dark", description: "Dark club theme" },
 ];
 
+function normalizeThemePreference(value) {
+  if (value === "cream") return "light";
+  return THEME_OPTIONS.some((option) => option.id === value) ? value : "auto";
+}
+
 function themePreference() {
-  const saved = localStorage.getItem("holdem:theme");
-  return THEME_OPTIONS.some((option) => option.id === saved) ? saved : "auto";
+  return normalizeThemePreference(localStorage.getItem("holdem:theme"));
 }
 
 function resolveTheme(preference = themePreference()) {
-  if (preference === "cream") return "light";
-  if (preference === "dark") return "dark";
+  const normalized = normalizeThemePreference(preference);
+  if (normalized === "light") return "light";
+  if (normalized === "dark") return "dark";
   return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
 }
 
 function applyTheme(theme, persistPreference = null) {
-  if (persistPreference && THEME_OPTIONS.some((option) => option.id === persistPreference)) {
-    localStorage.setItem("holdem:theme", persistPreference);
+  if (persistPreference != null) {
+    const normalized = normalizeThemePreference(persistPreference);
+    localStorage.setItem("holdem:theme", normalized);
   }
   const nextTheme = (theme || resolveTheme()) === "light" ? "light" : "dark";
   document.documentElement.dataset.theme = nextTheme;
@@ -404,13 +412,16 @@ function applyTableAppearance(felt, deck, persist = false) {
 }
 
 function renderThemeChoices() {
-  if (!themeChoices) return;
+  if (!themeChoiceGroups.length) return;
   const current = themePreference();
-  themeChoices.innerHTML = THEME_OPTIONS.map((option) => `
+  const markup = THEME_OPTIONS.map((option) => `
     <button type="button" class="theme-choice ${current === option.id ? "selected" : ""}" data-theme-choice="${option.id}" aria-label="${option.label}: ${option.description}" aria-pressed="${current === option.id}">
       ${option.label}
     </button>
   `).join("");
+  themeChoiceGroups.forEach((group) => {
+    group.innerHTML = markup;
+  });
 }
 
 function renderAppearanceChoices() {
@@ -1540,6 +1551,14 @@ gameMenuModal.addEventListener("click", (event) => {
     return;
   }
   if (event.target === gameMenuModal) hideGameMenu();
+});
+
+welcomeThemeChoices?.addEventListener("click", (event) => {
+  const themeButton = event.target.closest("button[data-theme-choice]");
+  if (!themeButton) return;
+  const preference = themeButton.dataset.themeChoice;
+  applyTheme(resolveTheme(preference), preference);
+  showToast(`${themeButton.textContent.trim()} theme`);
 });
 
 gameMenuModal.addEventListener("submit", (event) => {

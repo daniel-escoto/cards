@@ -7,7 +7,7 @@
     <title>Texas Hold'em</title>
     <script>
       const initialPreference = localStorage.getItem("holdem:theme");
-      const initialTheme = initialPreference === "cream"
+      const initialTheme = (initialPreference === "cream" || initialPreference === "light")
         ? "light"
         : initialPreference === "dark"
           ? "dark"
@@ -69,6 +69,11 @@
             <button id="tableActionBtn" type="submit">Host table</button>
           </div>
           <p id="joinError" class="error" role="alert"></p>
+          <div class="welcome-theme settings-section theme-section">
+            <span class="section-label">Theme</span>
+            <div id="welcomeThemeChoices" class="theme-choices" role="group" aria-label="App theme"></div>
+            <p class="section-hint">Auto follows your system. Light and Dark apply to home and the table.</p>
+          </div>
         </form>
       </section>
 
@@ -172,7 +177,7 @@
           <div class="settings-section theme-section">
             <span class="section-label">Theme</span>
             <div id="themeChoices" class="theme-choices" role="group" aria-label="App theme"></div>
-            <p class="section-hint">Matches home by default. Cream and Dark stay coherent across the table.</p>
+            <p class="section-hint">Auto follows your system. Light and Dark stay coherent on home and the table.</p>
           </div>
           <div class="appearance-stack settings-section">
             <span class="section-label">Felt color</span>
