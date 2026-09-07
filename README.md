@@ -37,6 +37,10 @@ Add this GitHub repository secret:
 
 - `RAILWAY_API_TOKEN`: Railway account or workspace token with access to the project.
 
+For GitHub Actions, use a Railway project token when possible and name the secret
+`RAILWAY_TOKEN`. The workflow also accepts the older `RAILWAY_API_TOKEN` secret
+name for compatibility.
+
 ## Persistent games
 
 The server snapshots active rooms to JSON so games can be restored after a restart or deploy. By default it writes to `RAILWAY_VOLUME_MOUNT_PATH`, `DATA_DIR`, or local `.data/rooms.json`.
