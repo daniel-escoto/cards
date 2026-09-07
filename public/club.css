@@ -161,50 +161,46 @@ input { font-weight: 550; }
 }
 .hand-action-street {
   margin-top: 4px;
-  color: color-mix(in srgb, var(--brass) 82%, var(--cream));
+  color: var(--brass);
   font-size: 9px;
-  font-weight: 650;
+  font-weight: 700;
   letter-spacing: .14em;
   text-transform: uppercase;
 }
 .hand-action-street:first-child { margin-top: 0; }
 .hand-action-item {
-  color: color-mix(in srgb, var(--cream) 88%, #d7dfce);
+  color: #f5f0e4;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 550;
   line-height: 1.35;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 1px 2px rgba(8, 20, 14, .35);
+  text-shadow: 0 1px 3px rgba(6, 18, 12, .55);
 }
 .hand-action-item.is-new {
   animation: hand-action-flash .55s ease;
 }
 .hand-action-item.is-raise,
 .hand-action-item.is-bet {
-  color: color-mix(in srgb, var(--brass) 70%, var(--cream));
-  font-weight: 600;
+  color: #e6cfa0;
+  font-weight: 650;
 }
-.hand-action-item.is-fold { color: color-mix(in srgb, var(--cream) 55%, #c4b4a8); }
-.hand-action-item.is-win { color: color-mix(in srgb, var(--cream) 55%, #9fd9b0); font-weight: 600; }
+.hand-action-item.is-fold { color: #cfc4b6; }
+.hand-action-item.is-win { color: #c5e9cf; font-weight: 650; }
 :root[data-theme="light"] .hand-action-trail {
-  border-top-color: color-mix(in srgb, var(--brass) 35%, var(--line));
+  border-top-color: color-mix(in srgb, var(--brass) 40%, rgba(255,255,255,.2));
 }
-:root[data-theme="light"] .hand-action-street { color: var(--brass); }
+:root[data-theme="light"] .hand-action-street { color: #d4b978; }
 :root[data-theme="light"] .hand-action-item {
-  color: color-mix(in srgb, #f7f3e8 78%, #203c2b);
-  text-shadow: 0 1px 2px rgba(8, 24, 16, .45);
+  color: #f7f3e8;
+  text-shadow: 0 1px 3px rgba(6, 18, 12, .5);
 }
 :root[data-theme="light"] .hand-action-item.is-raise,
 :root[data-theme="light"] .hand-action-item.is-bet {
-  color: color-mix(in srgb, var(--brass) 45%, #fff3d4);
+  color: #edd7a2;
   font-weight: 650;
 }
-:root[data-theme="light"] .hand-action-item.is-fold {
-  color: color-mix(in srgb, #f7f3e8 55%, #8a7a6e);
-}
-:root[data-theme="light"] .hand-action-item.is-win {
-  color: color-mix(in srgb, #c8efd4 40%, #f7f3e8);
-}
+:root[data-theme="light"] .hand-action-item.is-fold { color: #d2c6b6; }
+:root[data-theme="light"] .hand-action-item.is-win { color: #c8efd4; }
 @keyframes hand-action-flash {
   from { opacity: .45; transform: translateY(2px); }
   to { opacity: 1; transform: none; }
