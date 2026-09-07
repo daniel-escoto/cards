@@ -45,6 +45,8 @@ const menuRoomCode = document.querySelector("#menuRoomCode");
 const menuPlayers = document.querySelector("#menuPlayers");
 const feltChoices = document.querySelector("#feltChoices");
 const deckChoices = document.querySelector("#deckChoices");
+const themeChoices = document.querySelector("#themeChoices");
+const gameMenuPanel = document.querySelector("#gameMenuPanel");
 const soundEnabledInput = document.querySelector("#soundEnabledInput");
 const keybindList = document.querySelector("#keybindList");
 const resetKeybindsBtn = document.querySelector("#resetKeybindsBtn");
@@ -356,14 +358,35 @@ const DECK_OPTIONS = [
   { id: "minimal", label: "Minimal", description: "Quiet & refined", rank: "A", suit: "♦" },
 ];
 
-function applyTheme(theme) {
-  const nextTheme = theme === "light" ? "light" : "dark";
+const THEME_OPTIONS = [
+  { id: "auto", label: "Auto", description: "Follow system light/dark" },
+  { id: "cream", label: "Cream", description: "Light club theme" },
+  { id: "dark", label: "Dark", description: "Dark club theme" },
+];
+
+function themePreference() {
+  const saved = localStorage.getItem("holdem:theme");
+  return THEME_OPTIONS.some((option) => option.id === saved) ? saved : "auto";
+}
+
+function resolveTheme(preference = themePreference()) {
+  if (preference === "cream") return "light";
+  if (preference === "dark") return "dark";
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
+function applyTheme(theme, persistPreference = null) {
+  if (persistPreference && THEME_OPTIONS.some((option) => option.id === persistPreference)) {
+    localStorage.setItem("holdem:theme", persistPreference);
+  }
+  const nextTheme = (theme || resolveTheme()) === "light" ? "light" : "dark";
   document.documentElement.dataset.theme = nextTheme;
-  themeColor?.setAttribute("content", nextTheme === "dark" ? "#090d10" : "#eef1ec");
+  themeColor?.setAttribute("content", nextTheme === "dark" ? "#111815" : "#eeece4");
+  renderThemeChoices();
 }
 
 const deviceTheme = window.matchMedia("(prefers-color-scheme: light)");
-applyTheme(deviceTheme.matches ? "light" : "dark");
+applyTheme();
 
 function applyTableAppearance(felt, deck, persist = false) {
   const nextFelt = FELT_OPTIONS.some((option) => option.id === felt) ? felt : "emerald";
@@ -375,6 +398,16 @@ function applyTableAppearance(felt, deck, persist = false) {
     localStorage.setItem("holdem:deck", nextDeck);
   }
   renderAppearanceChoices();
+}
+
+function renderThemeChoices() {
+  if (!themeChoices) return;
+  const current = themePreference();
+  themeChoices.innerHTML = THEME_OPTIONS.map((option) => `
+    <button type="button" class="theme-choice ${current === option.id ? "selected" : ""}" data-theme-choice="${option.id}" aria-label="${option.label}: ${option.description}" aria-pressed="${current === option.id}">
+      ${option.label}
+    </button>
+  `).join("");
 }
 
 function renderAppearanceChoices() {
@@ -396,6 +429,7 @@ function renderAppearanceChoices() {
 }
 
 applyTableAppearance(localStorage.getItem("holdem:felt"), localStorage.getItem("holdem:deck"));
+renderThemeChoices();
 
 function getDeviceId() {
   let deviceId = localStorage.getItem("holdem:deviceId");
@@ -579,6 +613,9 @@ function hideGameMenu() {
   gameMenuModal.classList.add("hidden");
   tableView.inert = false;
   sharePanel.classList.add("hidden");
+  gameMenuPanel?.classList.remove("invite-focus");
+  const title = document.querySelector("#gameMenuTitle");
+  if (title) title.textContent = "Table settings";
   clearInterval(menuTimer);
   menuTimer = null;
   if (!tableView.classList.contains("hidden")) (menuReturnFocus?.isConnected ? menuReturnFocus : menuBtn).focus({ preventScroll: true });
@@ -644,7 +681,7 @@ function renderMenuPlayers() {
   `).join("");
 }
 
-function showGameMenu() {
+function showGameMenu({ inviteOnly = false } = {}) {
   menuReturnFocus = document.activeElement;
   renderMenuPlayers();
   addBotBtn.classList.toggle("hidden", !state?.canAddBot);
@@ -664,6 +701,19 @@ function showGameMenu() {
   if (state?.moneyMode) cashInInput.value = (state.buyInCents / 100).toFixed(0);
   clearInterval(menuTimer);
   menuTimer = setInterval(renderMenuPlayers, 1000);
+  gameMenuPanel?.classList.toggle("invite-focus", inviteOnly);
+  const title = document.querySelector("#gameMenuTitle");
+  if (title) title.textContent = inviteOnly ? "Invite friends" : "Table settings";
+  if (inviteOnly) {
+    const link = inviteUrl();
+    if (link) {
+      shareLink.value = link;
+      shareQr.src = `/qr.svg?text=${encodeURIComponent(link)}`;
+    }
+    sharePanel.classList.remove("hidden");
+  } else {
+    sharePanel.classList.add("hidden");
+  }
   gameMenuModal.classList.remove("hidden");
   tableView.inert = true;
   closeMenuBtn.focus({ preventScroll: true });
@@ -1166,8 +1216,7 @@ async function copyText(text, button) {
 }
 
 function openInvite() {
-  showGameMenu();
-  if (sharePanel.classList.contains("hidden")) showSharePanel();
+  showGameMenu({ inviteOnly: true });
   shareLink.focus();
   shareLink.select();
 }
@@ -1180,7 +1229,11 @@ function showSharePanel() {
   shareLink.value = link;
   shareQr.src = `/qr.svg?text=${encodeURIComponent(link)}`;
   sharePanel.classList.toggle("hidden");
-  if (!sharePanel.classList.contains("hidden")) sharePanel.scrollIntoView({ block: "nearest" });
+  const showing = !sharePanel.classList.contains("hidden");
+  gameMenuPanel?.classList.toggle("invite-focus", showing);
+  const title = document.querySelector("#gameMenuTitle");
+  if (title) title.textContent = showing ? "Invite friends" : "Table settings";
+  if (showing) sharePanel.scrollIntoView({ block: "nearest" });
 }
 
 function emitWithAck(eventName, payload) {
@@ -1268,7 +1321,9 @@ function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-deviceTheme.addEventListener("change", (event) => applyTheme(event.matches ? "light" : "dark"));
+deviceTheme.addEventListener("change", () => {
+  if (themePreference() === "auto") applyTheme();
+});
 
 document.addEventListener("pointerdown", () => tableSounds.unlock(), { once: true });
 document.addEventListener("click", (event) => {
@@ -1369,6 +1424,13 @@ closeMenuBtn.addEventListener("click", hideGameMenu);
 addBotBtn.addEventListener("click", () => emitWithAck("room:addBot", {}));
 
 gameMenuModal.addEventListener("click", (event) => {
+  const themeButton = event.target.closest("button[data-theme-choice]");
+  if (themeButton) {
+    const preference = themeButton.dataset.themeChoice;
+    applyTheme(resolveTheme(preference), preference);
+    showToast(`${themeButton.textContent.trim()} theme`);
+    return;
+  }
   const feltButton = event.target.closest("button[data-felt]");
   if (feltButton) {
     applyTableAppearance(feltButton.dataset.felt, document.documentElement.dataset.deck, true);

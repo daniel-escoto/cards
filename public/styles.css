@@ -10,8 +10,9 @@
   --line: rgba(255, 255, 255, 0.13);
   --text: #f3f5f1;
   --muted: #aeb8b0;
-  --accent: #60a5fa;
-  --accent-hover: #83b9fb;
+  --accent: #287456;
+  --accent-hover: #338667;
+  --brass: #c7ad76;
   --danger: #ef6b63;
   --black-card: #20262b;
   --red-card: #b83d35;
@@ -31,8 +32,9 @@
   --line: rgba(24, 38, 33, 0.16);
   --text: #17201c;
   --muted: #65716a;
-  --accent: #2563b9;
-  --accent-hover: #3475ce;
+  --accent: #25684b;
+  --accent-hover: #1a553b;
+  --brass: #9a7d45;
   --danger: #d9564f;
   --input-bg: rgba(245, 247, 243, 0.96);
   --input-focus: #ffffff;
@@ -108,7 +110,7 @@ button {
 button:not(:disabled):hover { background: var(--accent-hover); }
 button:not(:disabled):active { transform: translateY(1px) scale(0.985); }
 .secondary:not(:disabled):hover, .ghost:not(:disabled):hover { background: rgba(255, 255, 255, 0.16); }
-button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgba(96, 165, 250, 0.34); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid color-mix(in srgb, var(--brass, var(--accent)) 45%, transparent); outline-offset: 2px; }
 
 button:disabled {
   cursor: not-allowed;
@@ -179,7 +181,7 @@ button:disabled {
   background: var(--accent);
   color: #ffffff;
   font-size: 38px;
-  box-shadow: 0 12px 34px rgba(96, 165, 250, 0.2);
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 h1,
@@ -295,7 +297,7 @@ label {
 
 .checkbox-label input:checked + .switch-control { border-color: var(--accent); background: var(--accent); }
 .checkbox-label input:checked + .switch-control::after { transform: translateX(18px); }
-.checkbox-label input:focus-visible + .switch-control { outline: 3px solid rgba(96, 165, 250, 0.34); outline-offset: 2px; }
+.checkbox-label input:focus-visible + .switch-control { outline: 3px solid color-mix(in srgb, var(--brass, var(--accent)) 45%, transparent); outline-offset: 2px; }
 
 .checkbox-copy { display: grid; gap: 2px; }
 .checkbox-copy strong { color: var(--text); font-size: 14px; }
@@ -436,7 +438,7 @@ select:focus {
   background: rgba(16, 22, 26, 0.76);
 }
 
-.score-row.you { border-color: rgba(96, 165, 250, 0.62); }
+.score-row.you { border-color: color-mix(in srgb, var(--brass, var(--accent)) 62%, transparent); }
 
 .score-rank {
   display: grid;
@@ -444,7 +446,7 @@ select:focus {
   height: 28px;
   place-items: center;
   border-radius: 999px;
-  background: rgba(96, 165, 250, 0.16);
+  background: color-mix(in srgb, var(--brass, var(--accent)) 16%, transparent);
   color: var(--accent);
   font-weight: 900;
 }
@@ -468,7 +470,7 @@ select:focus {
 
 .room-summary { display: flex; align-items: center; gap: 10px; }
 .room-code-btn { min-height: 44px; display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; column-gap: 7px; align-items: center; padding: 5px 11px; color: var(--text); border: 1px solid var(--line); background: rgba(255,255,255,.055); text-align: left; }
-.room-code-btn:not(:disabled):hover { background: rgba(255,255,255,.1); border-color: rgba(96,165,250,.42); }
+.room-code-btn:not(:disabled):hover { background: rgba(255,255,255,.1); border-color: color-mix(in srgb, var(--brass, var(--accent)) 42%, transparent); }
 .room-code-btn .eyebrow { grid-column: 1 / -1; font-size: 9px; line-height: 1; }
 .room-code-btn strong { font-size: 17px; letter-spacing: .12em; line-height: 1; }
 .copy-icon { color: var(--muted); font-size: 14px; }
@@ -846,7 +848,7 @@ select:focus {
 .table-player-row.folded { opacity: .62; }
 .table-player-row.all-in { opacity: .72; }
 .table-player-row.all-in .player-dot { background: transparent; box-shadow: inset 0 0 0 1px rgba(255,255,255,.65); }
-.table-player-row.all-in .player-action { color: #9edcff; }
+.table-player-row.all-in .player-action { color: color-mix(in srgb, var(--cream, #efe8d6) 70%, var(--accent)); }
 .table-player-row.out { opacity: .46; }
 .table-player-row.out .player-dot { background: transparent; box-shadow: inset 0 0 0 1px rgba(255,255,255,.45); }
 .table-player-row.out .player-action { color: rgba(255,255,255,.68); }
@@ -875,7 +877,7 @@ select:focus {
 .round-player { min-width: 0; display: flex; align-items: center; gap: 5px; padding: 4px 7px; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; color: #fff; background: rgba(255,255,255,.08); font-size: 11px; font-weight: 850; }
 .round-player i { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--player-color, #b9c3bd); box-shadow: 0 0 0 2px color-mix(in srgb, var(--player-color, #b9c3bd) 24%, transparent); }
 .round-player em { color: rgba(255,255,255,.62); font-size: 9px; font-style: normal; text-transform: uppercase; }
-.round-player.acting { border-color: var(--accent); background: rgba(96,165,250,.17); box-shadow: 0 0 0 1px rgba(96,165,250,.2); }
+.round-player.acting { border-color: var(--brass, var(--accent)); background: color-mix(in srgb, var(--brass, var(--accent)) 17%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--brass, var(--accent)) 20%, transparent); }
 .round-player.acting em { color: var(--accent); }
 .round-player.all-in { border-color: rgba(94,194,255,.55); }
 .round-player.folded { opacity: .45; text-decoration: line-through; }
@@ -900,7 +902,7 @@ select:focus {
 .action-feed-card.turn {
   border-color: var(--accent);
   border-left-color: var(--player-color, var(--accent));
-  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.26);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brass, var(--accent)) 26%, transparent);
 }
 
 .action-feed-card.folded {
@@ -954,8 +956,8 @@ select:focus {
   flex: 0 0 auto;
   border-radius: 999px;
   padding: 2px 7px;
-  background: rgba(96, 165, 250, 0.16);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--brass, var(--accent)) 16%, transparent);
+  color: var(--brass, var(--accent));
   font-size: 11px;
   font-weight: 900;
 }
@@ -1142,7 +1144,7 @@ select:focus {
 :root[data-theme="light"] .raise-display { background: var(--input-bg); }
 :root[data-theme="light"] .table-meta div { background: rgba(255,255,255,.82); border-color: rgba(24,38,33,.16); }
 :root[data-theme="light"] .table-meta strong { color: #17201c; }
-:root[data-theme="light"] .seat-name { color: color-mix(in srgb, var(--player-color, var(--text)) 66%, #101713); }
+:root[data-theme="light"] .seat-name { color: color-mix(in srgb, var(--accent) 40%, var(--text)); }
 
 .appearance-panel { padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--panel-2) 72%, transparent); }
 .appearance-panel summary { color: var(--text); font-size: 14px; font-weight: 850; cursor: pointer; }
@@ -1753,7 +1755,7 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 
   .action-feed-card.turn {
     border-color: var(--accent);
-    box-shadow: inset 4px 0 0 var(--accent), 0 0 0 1px rgba(96, 165, 250, 0.32);
+    box-shadow: inset 4px 0 0 var(--brass, var(--accent)), 0 0 0 1px color-mix(in srgb, var(--brass, var(--accent)) 32%, transparent);
   }
 
   .action-card-stats {
@@ -1857,7 +1859,7 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 
 /* Keep the board, current decision, and invitations easy to find at every size. */
 .brand .mark { flex-shrink: 0; }
-.board-area { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); align-content: center; gap: 20px; }
+.board-area { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); align-content: stretch; gap: 20px; }
 .board-area .community { position: static; grid-column: 1; grid-row: auto; transform: none; justify-content: center; }
 .board-status { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #fff; font-size: 14px; }
 .board-status span { color: #d0ded8; font-size: 12px; }
@@ -1878,7 +1880,7 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 .share-panel h3 { margin: 0; font-size: 18px; }
 .share-panel p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
 .appearance-panel summary { min-height: 44px; align-content: center; }
-.players:focus-visible { outline: 3px solid #85b5f5; outline-offset: 2px; }
+.players:focus-visible { outline: 3px solid color-mix(in srgb, var(--brass, var(--accent)) 55%, transparent); outline-offset: 2px; }
 .toast { white-space: normal; border-radius: 12px; text-align: center; }
 
 @media (min-width: 780px) {
