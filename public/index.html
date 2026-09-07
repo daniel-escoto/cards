@@ -118,11 +118,20 @@
               </div>
             </div>
           </section>
-          <aside class="player-panel" aria-label="Table activity">
-            <div class="player-panel-heading"><span>At the table</span><span id="playerCount"></span></div>
-            <div id="players" class="players" role="region" aria-label="Players" tabindex="0"></div>
-            <details id="handHistory" class="hand-history"><summary>Hand history<span aria-hidden="true">↗</span></summary><ol id="historyList"></ol></details>
+          <aside class="player-panel" id="playerPanel" aria-label="Table activity">
+            <button type="button" class="player-panel-heading" id="playerRailToggle" aria-expanded="false" aria-controls="playerPanelBody">
+              <span>At the table</span>
+              <span class="player-panel-heading-meta">
+                <span id="playerCount"></span>
+                <span class="player-rail-chevron" aria-hidden="true"></span>
+              </span>
+            </button>
+            <div id="playerPanelBody" class="player-panel-body">
+              <div id="players" class="players" role="region" aria-label="Players" tabindex="0"></div>
+              <details id="handHistory" class="hand-history"><summary>Hand history<span aria-hidden="true">↗</span></summary><ol id="historyList"></ol></details>
+            </div>
           </aside>
+          <button type="button" id="playerRailBackdrop" class="player-rail-backdrop hidden" aria-label="Close players" tabindex="-1"></button>
         </section>
       </section>
 

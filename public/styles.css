@@ -1621,12 +1621,24 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
   }
 
   .table-view {
-    height: calc(var(--game-vh) - 20px);
+    height: 100%;
+    width: 100%;
     min-height: 0;
-    grid-template-rows: auto minmax(0, 1fr) auto;
-    align-content: start;
-    gap: 7px;
+    grid-template-rows: auto minmax(0, 1fr);
+    align-content: stretch;
+    gap: 6px;
     overflow: hidden;
+  }
+
+  body.game-open .app,
+  body:has(.table-view:not(.hidden)) .app {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
+    padding:
+      max(8px, env(safe-area-inset-top))
+      max(8px, env(safe-area-inset-right))
+      max(8px, env(safe-area-inset-bottom))
+      max(8px, env(safe-area-inset-left));
   }
 
   .topbar h2 {
@@ -1650,15 +1662,17 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 
   .felt {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr) auto;
-    gap: 10px;
+    gap: 8px;
     align-content: stretch;
     min-height: 0;
     height: 100%;
     align-self: stretch;
-    padding: 14px 9px 9px;
+    padding: 8px;
     border-width: 3px;
     border-radius: 18px;
+    overflow: hidden;
   }
 
   .table-meta {
@@ -1686,18 +1700,17 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
     --feed-action: minmax(4.8rem, 1fr);
     position: static;
     min-height: 0;
-    height: 100%;
+    height: auto;
     display: flex;
     flex-direction: column;
     align-self: stretch;
     gap: 5px;
-    overflow-y: auto;
-    max-height: 100%;
+    overflow: visible;
+    max-height: none;
     overscroll-behavior: contain;
     padding-right: 2px;
     touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
-    grid-row: 2;
   }
 
   .table-player-row {
@@ -1792,8 +1805,8 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 
   .control-panel {
     grid-row: 3;
-    gap: 7px;
-    padding: 9px 9px max(9px, env(safe-area-inset-bottom));
+    gap: 6px;
+    padding: 8px 8px max(8px, env(safe-area-inset-bottom));
     border: 0;
     background: color-mix(in srgb, var(--panel) 96%, transparent);
   }
@@ -1894,37 +1907,39 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 }
 
 @media (max-width: 779px) {
-  .board-area { grid-row: 1; gap: 12px; }
-  .table-view .felt { overflow-y: auto; touch-action: pan-y pinch-zoom; }
-  .table-view .players { min-height: 90px; }
+  .board-area { grid-row: 2; gap: 8px; min-height: 0; }
+  .table-view .felt { overflow: hidden; touch-action: manipulation; }
+  .table-view .players { min-height: 0; }
   .board-status { font-size: 13px; gap: 8px; }
   .board-status span { font-size: 11px; white-space: nowrap; }
-  .hero-hand .card { width: 46px; }
-  .hero-hand .card .card-rank, .hero-hand .card .card-corner-suit { font-size: 18px; }
-  .bet-controls { --raise-row-height: 48px; }
-  .raise-display input { font-size: 18px; }
-  .game-buttons button { min-height: 44px; }
-  .bet-presets button { min-height: 44px; }
-  .lobby-intro { padding: 24px 12px; }
-  .lobby-intro h2 { font-size: 24px; }
-  .lobby-intro p { font-size: 14px; }
+  .hero-hand .card { width: 40px; }
+  .hero-hand .card .card-rank, .hero-hand .card .card-corner-suit { font-size: 16px; }
+  .bet-controls { --raise-row-height: 40px; }
+  .raise-display input { font-size: 17px; }
+  .game-buttons button { min-height: 40px; }
+  .bet-presets button { min-height: 34px; }
+  .lobby-intro { padding: 10px 8px; }
+  .lobby-intro h2 { font-size: 22px; }
+  .lobby-intro p { font-size: 13px; }
   .table-view { grid-template-rows: auto minmax(0, 1fr); }
   .topbar { gap: 8px; }
   .topbar-actions { gap: 6px; }
-  .topbar-actions button { padding-inline: 12px; }
-  .turn-info { font-size: 13px; }
+  .topbar-actions button { padding-inline: 12px; min-height: 40px; }
+  .turn-info { font-size: 12px; }
 }
 
-/* Short screens retain readable controls; the table itself can scroll. */
-@media (max-height: 650px) {
-  .table-view .felt { overflow-y: auto; }
-  .table-view .players { min-height: 90px; }
+/* Short desktop screens can scroll the felt; phones stay viewport-locked. */
+@media (min-width: 780px) and (max-height: 650px) {
+  .table-view .felt { overflow-y: auto; grid-template-rows: minmax(150px, auto) max-content; align-content: start; }
+  .table-view .players { max-height: calc(100dvh - 140px); position: sticky; top: 0; min-height: 90px; }
   .board-area { gap: 8px; }
   .lobby-intro { padding: 8px; }
   .lobby-intro p { margin: 8px 0 12px; }
 }
 
-@media (min-width: 780px) and (max-height: 650px) {
-  .table-view .felt { grid-template-rows: minmax(150px, auto) max-content; align-content: start; }
-  .table-view .players { max-height: calc(100dvh - 140px); position: sticky; top: 0; }
+@media (max-width: 779px) and (max-height: 650px) {
+  .table-view .felt { overflow: hidden; }
+  .board-area { gap: 6px; }
+  .lobby-intro { padding: 6px; }
+  .lobby-intro p { margin: 6px 0 10px; }
 }

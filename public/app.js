@@ -67,6 +67,9 @@ const potValue = document.querySelector("#potValue");
 const community = document.querySelector("#community");
 const players = document.querySelector("#players");
 const playerCount = document.querySelector("#playerCount");
+const playerPanel = document.querySelector("#playerPanel");
+const playerRailToggle = document.querySelector("#playerRailToggle");
+const playerRailBackdrop = document.querySelector("#playerRailBackdrop");
 const handHistory = document.querySelector("#handHistory");
 const historyList = document.querySelector("#historyList");
 const heroHand = document.querySelector("#heroHand");
@@ -456,6 +459,31 @@ function saveRoomCredentials(roomId, response) {
   }));
 }
 
+function isMobileTable() {
+  return matchMedia("(max-width: 779px)").matches;
+}
+
+function setPlayerRailOpen(open) {
+  const next = Boolean(open) && isMobileTable();
+  playerPanel?.classList.toggle("rail-open", next);
+  playerRailToggle?.setAttribute("aria-expanded", next ? "true" : "false");
+  playerRailBackdrop?.classList.toggle("hidden", !next);
+  document.body.classList.toggle("player-rail-open", next);
+}
+
+function closePlayerRail() {
+  setPlayerRailOpen(false);
+}
+
+playerRailToggle?.addEventListener("click", () => {
+  if (!isMobileTable()) return;
+  setPlayerRailOpen(!playerPanel.classList.contains("rail-open"));
+});
+playerRailBackdrop?.addEventListener("click", closePlayerRail);
+window.addEventListener("resize", () => {
+  if (!isMobileTable()) closePlayerRail();
+});
+
 function setViewportHeight() {
   const height = window.visualViewport?.height || window.innerHeight;
   const value = `${Math.floor(height)}px`;
@@ -475,7 +503,7 @@ function lockMobileGameOverscroll(event) {
 
   if (event.touches.length > 1) return;
   const touchY = event.touches[0]?.clientY;
-  let scrollRegion = event.target.closest?.(".players, .hand-history, .modal-panel, .felt");
+  let scrollRegion = event.target.closest?.(".players, .player-panel-body, .hand-history, .modal-panel, .felt");
   const movingDown = previousGameTouchY !== null && touchY > previousGameTouchY;
   const movingUp = previousGameTouchY !== null && touchY < previousGameTouchY;
   previousGameTouchY = touchY;
@@ -484,7 +512,7 @@ function lockMobileGameOverscroll(event) {
     const canScrollDown = movingUp && scrollRegion.scrollTop < scrollRegion.scrollHeight - scrollRegion.clientHeight;
     const canScrollUp = movingDown && scrollRegion.scrollTop > 0;
     if (canScrollDown || canScrollUp) return;
-    scrollRegion = scrollRegion.parentElement?.closest(".players, .hand-history, .modal-panel, .felt");
+    scrollRegion = scrollRegion.parentElement?.closest(".players, .player-panel-body, .hand-history, .modal-panel, .felt");
   }
   event.preventDefault();
 }
@@ -683,6 +711,7 @@ function renderMenuPlayers() {
 
 function showGameMenu({ inviteOnly = false } = {}) {
   menuReturnFocus = document.activeElement;
+  closePlayerRail();
   renderMenuPlayers();
   addBotBtn.classList.toggle("hidden", !state?.canAddBot);
   moneyPanel.classList.toggle("hidden", !state?.moneyMode);
@@ -730,7 +759,8 @@ function showWelcome(status = "") {
   leavingEndedRoom = false;
   hideGameMenu();
   document.documentElement.classList.remove("game-open-root");
-  document.body.classList.remove("game-open", "keyboard-open");
+  document.body.classList.remove("game-open", "keyboard-open", "player-rail-open");
+  closePlayerRail();
   tableView.classList.add("hidden");
   scoreView.classList.add("hidden");
   welcome.classList.remove("hidden");
@@ -748,7 +778,8 @@ function showScoreScreen(room) {
   lastActionEntryId = "";
   hideGameMenu();
   document.documentElement.classList.remove("game-open-root");
-  document.body.classList.remove("game-open", "keyboard-open");
+  document.body.classList.remove("game-open", "keyboard-open", "player-rail-open");
+  closePlayerRail();
   welcome.classList.add("hidden");
   tableView.classList.add("hidden");
   scoreView.classList.remove("hidden");
@@ -1640,6 +1671,10 @@ document.addEventListener("keydown", (event) => {
   }
   if (event.key === "Escape" && !gameMenuModal.classList.contains("hidden")) {
     hideGameMenu();
+    return;
+  }
+  if (event.key === "Escape" && playerPanel?.classList.contains("rail-open")) {
+    closePlayerRail();
     return;
   }
   if (!state || !gameMenuModal.classList.contains("hidden") || event.metaKey || event.ctrlKey || event.altKey) return;
