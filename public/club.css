@@ -330,30 +330,6 @@ input { font-weight: 550; }
 :root .table-view .shown-hand-card { background: rgba(10,30,20,.4); border-color: var(--line); box-shadow: none; }
 :root[data-theme="light"] .table-view .shown-hand-card { background: rgba(255,255,255,.28); }
 
-/* Single rail scroll — no nested history scrollbar */
-.hand-history {
-  flex: 0 0 auto;
-  border-top: 1px solid var(--line);
-  max-height: none;
-  overflow: visible;
-}
-.hand-history summary {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  min-height: 44px;
-  color: color-mix(in srgb, var(--cream) 72%, var(--muted));
-  cursor: pointer;
-  font-size: 12px;
-  list-style: none;
-}
-:root[data-theme="light"] .hand-history summary { color: var(--muted); }
-.hand-history summary::-webkit-details-marker { display: none; }
-.hand-history[open] summary span { transform: rotate(90deg); }
-.hand-history ol { margin: 0; padding: 0; list-style: none; }
-.hand-history li { padding: 9px 0; border-top: 1px solid var(--line); font-size: 11px; color: color-mix(in srgb, #d7dfce 80%, var(--text)); line-height: 1.5; }
-:root[data-theme="light"] .hand-history li { color: var(--text); }
-.hand-history li > span { display: block; color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
 
 /* Coherent settings sheet */
 .modal-panel, :root[data-theme="light"] .modal-panel {
@@ -622,7 +598,7 @@ input { font-weight: 550; }
     bottom: 0;
     z-index: 31;
     width: 100%;
-    max-height: min(70dvh, 520px);
+    max-height: min(58dvh, 420px);
     padding: 14px 14px max(16px, env(safe-area-inset-bottom));
     border: 1px solid var(--line);
     border-bottom: 0;
@@ -641,16 +617,10 @@ input { font-weight: 550; }
     overflow-y: auto;
     overscroll-behavior: contain;
   }
-  .player-panel.rail-open .hand-history {
-    flex: 0 0 auto;
-    max-height: 34%;
-    overflow-y: auto;
-  }
   :root .table-view .table-player-row { min-height: 49px; padding: 6px 8px; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 1px 8px; }
   .player-avatar { width: 28px; height: 28px; }
   .player-identity { gap: 2px; }
   :root .table-view .player-stack { font-size: 13px; }
-  .hand-history summary { min-height: 36px; font-size: 11px; }
   :root .table-view .control-panel {
     grid-row: 3;
     grid-column: 1;

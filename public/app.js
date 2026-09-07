@@ -70,8 +70,6 @@ const playerCount = document.querySelector("#playerCount");
 const playerPanel = document.querySelector("#playerPanel");
 const playerRailToggle = document.querySelector("#playerRailToggle");
 const playerRailBackdrop = document.querySelector("#playerRailBackdrop");
-const handHistory = document.querySelector("#handHistory");
-const historyList = document.querySelector("#historyList");
 const heroHand = document.querySelector("#heroHand");
 const winnerList = document.querySelector("#winnerList");
 const turnInfo = document.querySelector("#turnInfo");
@@ -503,7 +501,7 @@ function lockMobileGameOverscroll(event) {
 
   if (event.touches.length > 1) return;
   const touchY = event.touches[0]?.clientY;
-  let scrollRegion = event.target.closest?.(".players, .player-panel-body, .hand-history, .modal-panel, .felt");
+  let scrollRegion = event.target.closest?.(".players, .player-panel-body, .modal-panel");
   const movingDown = previousGameTouchY !== null && touchY > previousGameTouchY;
   const movingUp = previousGameTouchY !== null && touchY < previousGameTouchY;
   previousGameTouchY = touchY;
@@ -512,7 +510,7 @@ function lockMobileGameOverscroll(event) {
     const canScrollDown = movingUp && scrollRegion.scrollTop < scrollRegion.scrollHeight - scrollRegion.clientHeight;
     const canScrollUp = movingDown && scrollRegion.scrollTop > 0;
     if (canScrollDown || canScrollUp) return;
-    scrollRegion = scrollRegion.parentElement?.closest(".players, .player-panel-body, .hand-history, .modal-panel, .felt");
+    scrollRegion = scrollRegion.parentElement?.closest(".players, .player-panel-body, .modal-panel");
   }
   event.preventDefault();
 }
@@ -1016,9 +1014,6 @@ function render() {
   const feedScroll = captureActionFeedScroll();
   players.innerHTML = renderActionFeed(hasNewAction ? latestEntryId : "");
   playerCount.textContent = `${state.players.length} / 8`;
-  handHistory.classList.toggle("hidden", !entries.length);
-  const historyMarkup = entries.slice(-30).reverse().map((entry) => `<li><span>${escapeHtml(entry.phase || "")}</span>${escapeHtml(entry.text || "")}</li>`).join("");
-  if (historyList.innerHTML !== historyMarkup) historyList.innerHTML = historyMarkup;
   restoreActionFeedScroll(feedScroll);
   if (hasNewAction) replayAnimation(players, "feed-updated", 420);
   if (hasNewAction && !isFirstTableRender) playActionSound(entries.at(-1));
