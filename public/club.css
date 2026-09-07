@@ -49,18 +49,19 @@ input { font-weight: 550; }
 /* Denser elegant welcome around common desktop widths */
 @media (min-width: 1000px) and (max-width: 1400px) {
   .welcome {
-    min-height: calc(100dvh - 56px);
-    grid-template-columns: minmax(0, 400px) minmax(340px, 420px);
-    gap: clamp(28px, 4vw, 56px);
+    min-height: calc(100dvh - 72px);
+    grid-template-columns: minmax(0, 380px) minmax(340px, 400px);
+    gap: clamp(24px, 3.5vw, 48px);
     align-items: center;
-    padding: 28px 0;
+    justify-content: center;
+    padding: 24px 0;
   }
-  .brand { gap: 14px; }
-  .brand .mark { width: 58px; height: 58px; font-size: 30px; }
-  .brand .eyebrow { margin-bottom: 10px; }
-  .brand h1 { font-size: clamp(40px, 4.4vw, 52px); }
-  .brand > div > p:last-child { margin-top: 10px; font-size: 15px; max-width: 300px; }
-  .join-panel, :root[data-theme="light"] .join-panel { padding: 22px; gap: 12px; }
+  .brand { gap: 12px; width: min(380px, 100%); }
+  .brand .mark { width: 54px; height: 54px; font-size: 28px; }
+  .brand .eyebrow { margin-bottom: 8px; }
+  .brand h1 { font-size: clamp(36px, 4vw, 48px); }
+  .brand > div > p:last-child { margin-top: 8px; font-size: 15px; max-width: 280px; line-height: 1.45; }
+  .join-panel, :root[data-theme="light"] .join-panel { padding: 20px; gap: 11px; width: min(400px, 100%); }
 }
 
 .table-view {
@@ -244,7 +245,7 @@ input { font-weight: 550; }
   min-height: 0;
   height: auto;
   max-height: none;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   border: 0;
   padding: 2px;
   gap: 6px;
@@ -457,7 +458,8 @@ input { font-weight: 550; }
 .modal-panel.invite-focus .shortcuts-panel,
 .modal-panel.invite-focus .blind-settings-panel,
 .modal-panel.invite-focus .money-panel,
-.modal-panel.invite-focus .modal-actions {
+.modal-panel.invite-focus .modal-actions,
+.modal-panel.invite-focus .share-panel h3 {
   display: none !important;
 }
 .appearance-stack { display: grid; gap: 12px; }
