@@ -67,6 +67,8 @@ const potValue = document.querySelector("#potValue");
 const community = document.querySelector("#community");
 const players = document.querySelector("#players");
 const playerCount = document.querySelector("#playerCount");
+const playerStillIn = document.querySelector("#playerStillIn");
+const playerStillAvatars = document.querySelector("#playerStillAvatars");
 const playerPanel = document.querySelector("#playerPanel");
 const playerRailToggle = document.querySelector("#playerRailToggle");
 const playerRailBackdrop = document.querySelector("#playerRailBackdrop");
@@ -467,6 +469,7 @@ function setPlayerRailOpen(open) {
   playerRailToggle?.setAttribute("aria-expanded", next ? "true" : "false");
   playerRailBackdrop?.classList.toggle("hidden", !next);
   document.body.classList.toggle("player-rail-open", next);
+  if (state) renderPlayerRailSummary();
 }
 
 function closePlayerRail() {
@@ -480,6 +483,7 @@ playerRailToggle?.addEventListener("click", () => {
 playerRailBackdrop?.addEventListener("click", closePlayerRail);
 window.addEventListener("resize", () => {
   if (!isMobileTable()) closePlayerRail();
+  if (state) renderPlayerRailSummary();
 });
 
 function setViewportHeight() {
@@ -650,6 +654,62 @@ function hideGameMenu() {
 function playerIsOut(player) {
   const betweenHands = ["lobby", "complete", "gameover"].includes(state?.phase);
   return player.stack <= 0 && (betweenHands || player.invested <= 0);
+}
+
+function isHandInProgress(phase = state?.phase) {
+  return ["preflop", "flop", "turn", "river", "showdown", "complete"].includes(phase);
+}
+
+function playersContestingHand(room = state) {
+  if (!room?.players || !isHandInProgress(room.phase)) return [];
+  return room.players.filter((player) => !player.folded && !playerIsOut(player));
+}
+
+function renderPlayerRailSummary() {
+  if (!state) return;
+  const seated = state.players.length;
+  const contesting = playersContestingHand();
+  const handLive = isHandInProgress(state.phase);
+  const stillInLabel = handLive ? `${contesting.length} still in` : "";
+  const mobile = isMobileTable();
+
+  // Mobile: "2 still in" sits by the title + avatars; count stays compact.
+  // Desktop: one meta line already covers seated + in (rail is always open).
+  playerCount.textContent = handLive && !mobile
+    ? `${seated} seated · ${contesting.length} in`
+    : `${seated} / 8`;
+
+  if (playerStillIn) {
+    playerStillIn.textContent = stillInLabel;
+    playerStillIn.hidden = !stillInLabel;
+  }
+
+  if (playerStillAvatars) {
+    const avatarLimit = 5;
+    const shown = contesting.slice(0, avatarLimit);
+    const overflow = contesting.length - shown.length;
+    playerStillAvatars.innerHTML = handLive
+      ? `${shown.map((player) => `
+          <span class="player-still-avatar ${player.isYou ? "you" : ""}" title="${escapeHtml(player.name)}" ${playerColorStyle(player)}>
+            ${escapeHtml(player.name.slice(0, 2).toUpperCase())}
+          </span>
+        `).join("")}${overflow > 0 ? `<span class="player-still-avatar player-still-overflow" title="${overflow} more">+${overflow}</span>` : ""}`
+      : "";
+    playerStillAvatars.hidden = !playerStillAvatars.innerHTML;
+  }
+
+  if (playerRailToggle) {
+    const detail = handLive
+      ? `${contesting.length} still in of ${seated} seated`
+      : `${seated} of 8 seats filled`;
+    const names = handLive && contesting.length
+      ? `: ${contesting.map((player) => player.name).join(", ")}`
+      : "";
+    playerRailToggle.setAttribute(
+      "aria-label",
+      `At the table, ${detail}${names}. ${playerPanel?.classList.contains("rail-open") ? "Close" : "Open"} player list`
+    );
+  }
 }
 
 function roundStatus(player) {
@@ -1013,7 +1073,7 @@ function render() {
   const hasNewAction = Boolean(latestEntryId && latestEntryId !== lastActionEntryId);
   const feedScroll = captureActionFeedScroll();
   players.innerHTML = renderActionFeed(hasNewAction ? latestEntryId : "");
-  playerCount.textContent = `${state.players.length} / 8`;
+  renderPlayerRailSummary();
   restoreActionFeedScroll(feedScroll);
   if (hasNewAction) replayAnimation(players, "feed-updated", 420);
   if (hasNewAction && !isFirstTableRender) playActionSound(entries.at(-1));

@@ -120,8 +120,12 @@
           </section>
           <aside class="player-panel" id="playerPanel" aria-label="Table activity">
             <button type="button" class="player-panel-heading" id="playerRailToggle" aria-expanded="false" aria-controls="playerPanelBody">
-              <span>At the table</span>
+              <span class="player-panel-heading-lead">
+                <span>At the table</span>
+                <span id="playerStillIn" class="player-still-in"></span>
+              </span>
               <span class="player-panel-heading-meta">
+                <span id="playerStillAvatars" class="player-still-avatars" aria-hidden="true"></span>
                 <span id="playerCount"></span>
                 <span class="player-rail-chevron" aria-hidden="true"></span>
               </span>
