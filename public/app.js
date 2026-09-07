@@ -74,6 +74,8 @@ const playerStillAvatars = document.querySelector("#playerStillAvatars");
 const playerPanel = document.querySelector("#playerPanel");
 const playerRailToggle = document.querySelector("#playerRailToggle");
 const playerRailBackdrop = document.querySelector("#playerRailBackdrop");
+const handActionTrail = document.querySelector("#handActionTrail");
+const handActionList = document.querySelector("#handActionList");
 const heroHand = document.querySelector("#heroHand");
 const winnerList = document.querySelector("#winnerList");
 const turnInfo = document.querySelector("#turnInfo");
@@ -516,7 +518,7 @@ function lockMobileGameOverscroll(event) {
 
   if (event.touches.length > 1) return;
   const touchY = event.touches[0]?.clientY;
-  let scrollRegion = event.target.closest?.(".players, .player-panel-body, .modal-panel");
+  let scrollRegion = event.target.closest?.(".players, .player-panel-body, .hand-action-list, .modal-panel");
   const movingDown = previousGameTouchY !== null && touchY > previousGameTouchY;
   const movingUp = previousGameTouchY !== null && touchY < previousGameTouchY;
   previousGameTouchY = touchY;
@@ -525,7 +527,7 @@ function lockMobileGameOverscroll(event) {
     const canScrollDown = movingUp && scrollRegion.scrollTop < scrollRegion.scrollHeight - scrollRegion.clientHeight;
     const canScrollUp = movingDown && scrollRegion.scrollTop > 0;
     if (canScrollDown || canScrollUp) return;
-    scrollRegion = scrollRegion.parentElement?.closest(".players, .player-panel-body, .modal-panel");
+    scrollRegion = scrollRegion.parentElement?.closest(".players, .player-panel-body, .hand-action-list, .modal-panel");
   }
   event.preventDefault();
 }
@@ -960,6 +962,73 @@ function playerForAction(entry) {
   return byNameIndex >= 0 ? state.players[byNameIndex] : null;
 }
 
+function streetLabel(phase) {
+  const labels = {
+    preflop: "Pre-flop",
+    flop: "Flop",
+    turn: "Turn",
+    river: "River",
+    showdown: "Showdown",
+    complete: "Result",
+  };
+  return labels[phase] || phase || "";
+}
+
+function isStreetDealtMarker(entry) {
+  return /dealt\.?$/i.test(entry?.text || "") && !entry?.playerId && !entry?.action;
+}
+
+function actionTrailKind(entry) {
+  const text = `${entry?.action || ""} ${entry?.text || ""}`.toLowerCase();
+  if (text.includes("raise")) return "is-raise";
+  if (/\bbet\b/.test(text) && !text.includes("blind")) return "is-bet";
+  if (text.includes("fold")) return "is-fold";
+  if (text.includes("wins")) return "is-win";
+  if (text.includes("call")) return "is-call";
+  if (text.includes("check")) return "is-check";
+  if (text.includes("blind")) return "is-blind";
+  return "";
+}
+
+function formatActionTrailText(entry) {
+  return String(entry?.text || entry?.action || "").replace(/\.$/, "");
+}
+
+function renderHandActionTrail(newEntryId = "") {
+  if (!handActionTrail || !handActionList) return;
+  const entries = (state.actionLog || [])
+    .filter((entry) => entry.phase !== "lobby" && !isStreetDealtMarker(entry))
+    .slice(-24);
+  const showTrail = entries.length > 0 && state.phase !== "lobby";
+  handActionTrail.classList.toggle("hidden", !showTrail);
+  if (!showTrail) {
+    handActionList.innerHTML = "";
+    return;
+  }
+
+  let lastPhase = "";
+  const markup = entries.map((entry) => {
+    const phase = entry.phase || "";
+    const street = phase && phase !== lastPhase
+      ? `<li class="hand-action-street">${escapeHtml(streetLabel(phase))}</li>`
+      : "";
+    lastPhase = phase;
+    const kind = actionTrailKind(entry);
+    const isNew = entry.id === newEntryId ? " is-new" : "";
+    return `${street}<li class="hand-action-item ${kind}${isNew}">${escapeHtml(formatActionTrailText(entry))}</li>`;
+  }).join("");
+
+  const shouldFollow = handActionList.scrollHeight - handActionList.scrollTop - handActionList.clientHeight < 28
+    || handActionList.innerHTML === ""
+    || Boolean(newEntryId);
+  if (handActionList.innerHTML !== markup) handActionList.innerHTML = markup;
+  if (shouldFollow) {
+    requestAnimationFrame(() => {
+      handActionList.scrollTop = handActionList.scrollHeight;
+    });
+  }
+}
+
 function renderShownHandCard(player) {
   return `
     <article class="action-feed-card shown-hand-card ${player.isYou ? "you" : ""}" ${playerColorStyle(player)}>
@@ -1085,6 +1154,7 @@ function render() {
   const feedScroll = captureActionFeedScroll();
   players.innerHTML = renderActionFeed(hasNewAction ? latestEntryId : "");
   renderPlayerRailSummary();
+  renderHandActionTrail(hasNewAction ? latestEntryId : "");
   restoreActionFeedScroll(feedScroll);
   if (hasNewAction) replayAnimation(players, "feed-updated", 420);
   if (hasNewAction && !isFirstTableRender) playActionSound(entries.at(-1));

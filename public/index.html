@@ -96,6 +96,9 @@
         <section class="felt">
           <div class="board-area">
             <div class="board-status"><strong id="phaseLabel">Waiting for players</strong><span id="blindsLabel"></span></div>
+            <div id="handActionTrail" class="hand-action-trail hidden" aria-live="polite" aria-relevant="additions" aria-label="This hand's actions">
+              <ol id="handActionList" class="hand-action-list"></ol>
+            </div>
             <div id="lobbyIntro" class="lobby-intro"><h2>Your table is ready</h2><p>Invite friends using the room link, or add a bot to practice. Ready up when everyone has joined.</p><button id="lobbyInviteBtn" type="button">Invite friends</button></div>
             <div id="community" class="community" aria-label="Community cards"></div>
             <div class="board-pot"><span>Total pot</span><strong id="potValue">0</strong><span class="pot-rule" aria-hidden="true"></span></div>
