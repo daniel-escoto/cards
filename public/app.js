@@ -641,6 +641,9 @@ function renderMenuPlayers() {
 
 function showGameMenu() {
   renderMenuPlayers();
+  gameMenuModal.querySelectorAll(".menu-group, .table-actions-panel").forEach((panel) => {
+    panel.open = false;
+  });
   addBotBtn.classList.toggle("hidden", !state?.canAddBot);
   moneyPanel.classList.toggle("hidden", !state?.moneyMode);
   blindPanel.classList.toggle("hidden", !state?.canChangeBlinds);
