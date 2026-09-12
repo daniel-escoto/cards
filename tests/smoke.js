@@ -423,6 +423,41 @@ async function readyUp(players) {
     throw new Error("Expected game over to block further hands");
   }
 
+  const nineHost = connectPlayer("NineHost");
+  await waitFor(() => nineHost.socket.connected, "nine-max host connection");
+  const nineRoom = await emit(nineHost.socket, "room:create", {
+    name: nineHost.name,
+    deviceId: nineHost.deviceId,
+    tableSize: 9,
+  });
+  await waitFor(() => nineHost.state?.players.length === 9, "nine-max table filled with bots");
+  if (nineHost.state.canAddBot) {
+    throw new Error("Expected Add CPU to be disabled on a full nine-max table");
+  }
+  await expectReject(nineHost.socket, "room:addBot", {}, "adding a tenth player");
+  const clampedHost = connectPlayer("ClampHost");
+  await waitFor(() => clampedHost.socket.connected, "clamp host connection");
+  await emit(clampedHost.socket, "room:create", {
+    name: clampedHost.name,
+    deviceId: clampedHost.deviceId,
+    tableSize: 10,
+  });
+  await waitFor(() => clampedHost.state?.players.length === 9, "oversized tableSize clamps to nine");
+  const fillHost = connectPlayer("FillHost");
+  await waitFor(() => fillHost.socket.connected, "fill host connection");
+  await emit(fillHost.socket, "room:create", {
+    name: fillHost.name,
+    deviceId: fillHost.deviceId,
+  });
+  await waitFor(() => fillHost.state?.players.length === 1, "empty table starts with host only");
+  for (let i = 0; i < 8; i += 1) {
+    await emit(fillHost.socket, "room:addBot");
+  }
+  await waitFor(() => fillHost.state?.players.length === 9 && !fillHost.state.canAddBot, "host can seat eight CPUs for nine-max");
+  nineHost.socket.disconnect();
+  clampedHost.socket.disconnect();
+  fillHost.socket.disconnect();
+
   const cashHost = connectPlayer("CashHost");
   await waitFor(() => cashHost.socket.connected, "cash table connection");
   const cashRoom = await emit(cashHost.socket, "room:create", {
