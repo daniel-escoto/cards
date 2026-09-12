@@ -1365,7 +1365,13 @@ function estimateComputerConfidence(room, player) {
   else if (topHole >= 12) confidence += 0.1;
   if (highCards === 2) confidence += 0.14;
   if (suited) confidence += 0.06;
-  if (holePair) confidence += topHole >= 10 ? 0.34 : 0.22;
+  // Pocket pairs should look raiseable: small/medium pairs were stuck below the
+  // value-raise threshold and almost never opened or re-raised.
+  if (holePair) {
+    if (topHole >= 10) confidence += 0.34;
+    else if (topHole >= 7) confidence += 0.3;
+    else confidence += 0.26;
+  }
 
   if (room.community.length > 0) {
     confidence -= 0.07;
@@ -1380,11 +1386,27 @@ function estimateComputerConfidence(room, player) {
 function chooseComputerRaiseTo(room, player, minRaiseTo, confidence) {
   const { bigBlind } = currentBlinds(room);
   const maxBet = player.bet + player.stack;
-  const pot = collectPot(room);
-  const pressureRaise = minRaiseTo + bigBlind * (confidence > 0.72 ? 2 : 1);
-  const potRaise = room.currentBet + Math.ceil(pot * (confidence > 0.66 ? 0.42 : 0.28) / bigBlind) * bigBlind;
+  const pot = Math.max(bigBlind * 2, collectPot(room));
   const profile = computerProfile(player);
-  const preferred = Math.max(minRaiseTo, Math.random() < 0.3 + profile.aggression * 0.16 ? potRaise : pressureRaise);
+  const pressureRaise = minRaiseTo + bigBlind * (confidence > 0.65 ? 2 : 1);
+  const potRaise = room.currentBet + Math.max(
+    room.minRaise || bigBlind,
+    Math.ceil(pot * (confidence > 0.66 ? 0.7 : 0.5) / bigBlind) * bigBlind,
+  );
+  const isPreflopOpen = room.phase === "preflop"
+    && (!room.community || room.community.length === 0)
+    && room.currentBet <= bigBlind;
+  let preferred;
+  if (isPreflopOpen) {
+    // Prefer ~2.5–3x opens instead of frequent min-raises.
+    const openTo = Math.max(minRaiseTo, Math.round((confidence > 0.68 ? 3 : 2.5) * bigBlind));
+    preferred = Math.random() < 0.62 + profile.aggression * 0.14 ? openTo : Math.max(minRaiseTo, pressureRaise);
+  } else {
+    preferred = Math.max(
+      minRaiseTo,
+      Math.random() < 0.42 + profile.aggression * 0.2 ? potRaise : pressureRaise,
+    );
+  }
   return Math.min(maxBet, preferred);
 }
 
@@ -1415,11 +1437,11 @@ function preflopBlindCallChance(room, player, callAmount) {
 
 function preflopBlindRaiseChance(player, confidence) {
   const profile = computerProfile(player);
-  const valueRaiseChance = confidence >= 0.5
-    ? (confidence - 0.34) * 0.9 * profile.aggression
+  const valueRaiseChance = confidence >= 0.42
+    ? (confidence - 0.2) * 1.2 * profile.aggression
     : 0;
-  const bluffRaiseChance = confidence < 0.44 ? profile.bluff * 0.45 : profile.bluff * 0.12;
-  return Math.max(0, Math.min(0.62, valueRaiseChance + bluffRaiseChance));
+  const bluffRaiseChance = confidence < 0.44 ? profile.bluff * 0.55 : profile.bluff * 0.16;
+  return Math.max(0, Math.min(0.9, valueRaiseChance + bluffRaiseChance));
 }
 
 function preflopHandScore(cards) {
@@ -1585,8 +1607,10 @@ function chooseComputerAction(room, player) {
     const equity = estimateComputerEquity(room, player);
     const perceptionNoise = (Math.random() - 0.5) * (1 - profile.skill) * 0.07;
     confidence = Math.max(0.04, Math.min(0.96, equity * 0.78 + rawConfidence * 0.22 + perceptionNoise));
-    const valueRaiseChance = confidence > 0.54 ? (confidence - 0.46) * 0.78 * profile.aggression : 0;
-    const bluffRaiseChance = confidence < 0.42 ? profile.bluff : profile.bluff * 0.18;
+    const valueRaiseChance = confidence > 0.46
+      ? Math.min(0.92, (confidence - 0.34) * 1.35 * profile.aggression)
+      : 0;
+    const bluffRaiseChance = confidence < 0.42 ? profile.bluff * 1.15 : profile.bluff * 0.28;
     if (canRaise && minRaiseTo <= maxBet && Math.random() < valueRaiseChance + bluffRaiseChance) {
       return { type: "raise", raiseTo: chooseComputerRaiseTo(room, player, minRaiseTo, confidence) };
     }
@@ -1616,10 +1640,10 @@ function chooseComputerAction(room, player) {
   const perceivedEquity = Math.max(0.02, Math.min(0.98, equity + perceptionNoise));
   const edge = perceivedEquity - requiredEquity - safetyMargin;
   const callChance = Math.max(0.04, Math.min(0.98, 0.5 + edge * 3.2 + (profile.looseness - 1) * 0.16));
-  const valueReraiseChance = perceivedEquity > 0.68
-    ? (perceivedEquity - 0.62) * 0.9 * profile.aggression
+  const valueReraiseChance = perceivedEquity > 0.56
+    ? Math.min(0.9, (perceivedEquity - 0.4) * 1.55 * profile.aggression)
     : 0;
-  const reraiseChance = valueReraiseChance + profile.bluff * 0.08;
+  const reraiseChance = Math.min(0.92, valueReraiseChance + profile.bluff * 0.16);
   if (canRaise && minRaiseTo <= maxBet && Math.random() < reraiseChance) {
     return { type: "raise", raiseTo: chooseComputerRaiseTo(room, player, minRaiseTo, perceivedEquity) };
   }
@@ -2176,6 +2200,9 @@ module.exports = {
   assessPreflopAllInCall,
   bettingComplete,
   blindLevelForHand,
+  chooseComputerAction,
+  chooseComputerRaiseTo,
+  estimateComputerConfidence,
   estimatePostflopEquity,
   estimatePreflopEquityAgainstRange,
   preflopBlindRaiseChance,
