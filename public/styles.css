@@ -552,7 +552,7 @@ select:focus {
 .menu-section-session { order: 2; }
 .menu-section-preferences { order: 3; }
 
-.menu-section-preferences > summary {
+.menu-disclosure > summary {
   min-height: 44px;
   display: flex;
   align-items: center;
@@ -565,7 +565,7 @@ select:focus {
   list-style-position: inside;
 }
 
-.menu-section-preferences[open] > summary { margin-bottom: 8px; }
+.menu-disclosure[open] > summary { margin-bottom: 8px; }
 
 .leave-game-btn {
   color: var(--danger);
@@ -1395,6 +1395,7 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 .hand-row .table-meta {
   position: static;
   flex: 0 0 auto;
+  margin-left: auto;
   pointer-events: none;
 }
 

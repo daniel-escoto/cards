@@ -141,9 +141,11 @@
             </div>
           </section>
 
-          <details class="menu-section menu-section-preferences">
-            <summary id="menuTableHeading" class="menu-section-title">Preferences</summary>
-            <div class="menu-section-body">
+          <section class="menu-section menu-section-preferences" aria-labelledby="menuTableHeading">
+            <h3 id="menuTableHeading" class="menu-section-title">Settings</h3>
+            <details class="menu-disclosure">
+              <summary>Preferences</summary>
+              <div class="menu-section-body">
               <details class="appearance-panel">
                 <summary>Table appearance</summary>
                 <div class="appearance-group">
@@ -185,11 +187,12 @@
                   <button type="submit">Update blinds</button>
                 </form>
               </details>
-            </div>
-          </details>
+              </div>
+            </details>
+          </section>
 
           <section class="menu-section menu-section-session" aria-labelledby="menuSessionHeading">
-            <h3 id="menuSessionHeading" class="menu-section-title">Session</h3>
+            <h3 id="menuSessionHeading" class="menu-section-title">Actions</h3>
             <div class="menu-section-body">
               <div id="sharePanel" class="share-panel hidden">
                 <img id="shareQr" alt="Room invite QR code" />
