@@ -928,10 +928,13 @@ function render() {
   lastActionEntryId = latestEntryId;
 
   const hero = activeHero();
-  const heroSignature = hero?.cards?.map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`).join("|") || "";
+  const showHeroCards = state.phase !== "lobby" && state.phase !== "gameover" && Boolean(hero?.cards?.length);
+  const heroSignature = showHeroCards
+    ? hero.cards.map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`).join("|")
+    : "";
   if (heroSignature !== lastHeroSignature) {
     heroCardsHidden = false;
-    heroHand.innerHTML = hero?.cards?.length ? hero.cards.map(cardTemplate).join("") : "";
+    heroHand.innerHTML = showHeroCards ? hero.cards.map(cardTemplate).join("") : "";
     updateHeroCardVisibility();
     replayAnimation(heroHand, "cards-entering", 720);
     if (heroSignature && !document.hidden) tableSounds.deal(hero?.cards?.length || 1);
