@@ -35,6 +35,7 @@ const restartGameBtn = document.querySelector("#restartGameBtn");
 const endGameBtn = document.querySelector("#endGameBtn");
 const shareGameBtn = document.querySelector("#shareGameBtn");
 const backToMenuBtn = document.querySelector("#backToMenuBtn");
+const hostActionsPanel = document.querySelector("#hostActionsPanel");
 const menuRoomCode = document.querySelector("#menuRoomCode");
 const menuPlayers = document.querySelector("#menuPlayers");
 const feltChoices = document.querySelector("#feltChoices");
@@ -601,47 +602,55 @@ function renderMenuPlayers() {
     cashOutBtn.textContent = hero.stackCents > 0 ? `Leave with ${formatMoney(hero.stackCents)}` : "No stack to cash out";
     cashOutBtn.disabled = hero.stackCents <= 0;
   }
-  restartGameBtn.classList.toggle("hidden", !state.canRestartGame || state.phase === "lobby");
-  endGameBtn.classList.toggle("hidden", !state.canEndGame);
-  menuPlayers.innerHTML = state.players.map((player) => `
-    <article class="menu-player ${player.isYou ? "you" : ""} ${player.folded ? "folded" : ""}" ${playerColorStyle(player)}>
-      <div class="menu-player-head">
-        <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
-        <span class="seat-badges">
-          ${player.dealer ? '<span class="pill">D</span>' : ""}
-          ${player.isHost ? '<span class="pill">Host</span>' : ""}
-          ${player.isBot ? '<span class="pill bot-pill">Bot</span>' : ""}
-        </span>
-      </div>
-      <div class="menu-player-stats">
-        <span>Stack <strong>${playerStackLabel(player)}</strong></span>
-        ${roundStatus(player) ? `<em>${escapeHtml(roundStatus(player))}</em>` : ""}
-      </div>
-      ${player.isYou && !player.isBot ? `
-        <details class="menu-name-panel">
-          <summary>Edit display name</summary>
-          <form class="menu-name-form" data-name-form>
-            <label>
-              Display name
-              <input data-player-name maxlength="18" value="${escapeHtml(player.name)}" autocomplete="name" />
-            </label>
-            <button type="submit" class="secondary">Save</button>
-          </form>
-        </details>
-      ` : ""}
-      ${player.canMakeHost || player.canKick ? `
-        <div class="menu-player-actions">
+  const canRestart = Boolean(state.canRestartGame && state.phase !== "lobby");
+  const canEnd = Boolean(state.canEndGame);
+  restartGameBtn.classList.toggle("hidden", !canRestart);
+  endGameBtn.classList.toggle("hidden", !canEnd);
+  hostActionsPanel.classList.toggle("hidden", !canRestart && !canEnd);
+  menuPlayers.innerHTML = state.players.map((player) => {
+    const status = roundStatus(player);
+    const actions = player.canMakeHost || player.canKick
+      ? `<div class="menu-player-actions">
           ${player.canMakeHost ? `<button type="button" class="secondary" data-make-host="${escapeHtml(player.id)}">Make host</button>` : ""}
           ${player.canKick ? `<button type="button" class="danger" data-kick-player="${escapeHtml(player.id)}">Kick</button>` : ""}
+        </div>`
+      : "";
+    return `
+    <article class="menu-player ${player.isYou ? "you" : ""} ${player.folded ? "folded" : ""} ${player.isBot ? "bot" : ""}" ${playerColorStyle(player)}>
+      <div class="menu-player-main">
+        <div class="menu-player-identity">
+          <div class="menu-player-head">
+            <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
+            <span class="seat-badges">
+              ${player.dealer ? '<span class="pill">D</span>' : ""}
+              ${player.isHost ? '<span class="pill">Host</span>' : ""}
+              ${player.isBot ? '<span class="pill bot-pill">Bot</span>' : ""}
+            </span>
+          </div>
+          <div class="menu-player-stats">
+            <span>Stack <strong>${playerStackLabel(player)}</strong></span>
+            ${status ? `<em>${escapeHtml(status)}</em>` : ""}
+          </div>
         </div>
+        ${actions}
+      </div>
+      ${player.isYou && !player.isBot ? `
+        <form class="menu-name-form" data-name-form>
+          <label>
+            Display name
+            <input data-player-name maxlength="18" value="${escapeHtml(player.name)}" autocomplete="name" />
+          </label>
+          <button type="submit" class="secondary">Save</button>
+        </form>
       ` : ""}
     </article>
-  `).join("");
+  `;
+  }).join("");
 }
 
 function showGameMenu() {
   renderMenuPlayers();
-  gameMenuModal.querySelectorAll(".menu-group, .table-actions-panel").forEach((panel) => {
+  gameMenuModal.querySelectorAll(".appearance-panel, .table-actions-panel").forEach((panel) => {
     panel.open = false;
   });
   addBotBtn.classList.toggle("hidden", !state?.canAddBot);

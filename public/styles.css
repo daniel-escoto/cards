@@ -545,23 +545,25 @@ select:focus {
   min-width: 0;
 }
 
-.menu-section-session .modal-actions {
-  padding-top: 2px;
+.session-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
 
-.menu-section-session { order: 2; }
-.menu-section-preferences { order: 3; }
+.session-actions > button {
+  min-height: 44px;
+  width: 100%;
+}
 
-.menu-group,
 .table-actions-panel {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: color-mix(in srgb, var(--panel-2) 72%, transparent);
 }
 
-.menu-group > summary,
 .table-actions-panel > summary {
-  min-height: 44px;
+  min-height: 40px;
   display: flex;
   align-items: center;
   padding: 0 12px;
@@ -574,7 +576,9 @@ select:focus {
   text-transform: none;
 }
 
-.menu-group[open] > summary { margin-bottom: 8px; }
+.table-actions-panel[open] > summary {
+  margin-bottom: 8px;
+}
 
 .leave-game-btn {
   color: var(--danger);
@@ -593,11 +597,11 @@ select:focus {
 
 .menu-player {
   display: grid;
-  gap: 6px;
-  padding: 9px 10px;
+  gap: 8px;
+  padding: 7px 9px;
   border: 1px solid var(--line);
   border-left: 5px solid var(--player-color, var(--line));
-  border-radius: 8px;
+  border-radius: 10px;
   background: rgba(13, 19, 22, 0.72);
 }
 
@@ -609,12 +613,54 @@ select:focus {
   opacity: 0.68;
 }
 
+.menu-player-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.menu-player-identity {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.menu-player:not(.you) .menu-player-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.menu-player:not(.you) .menu-player-head {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.menu-player:not(.you) .menu-player-stats {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.menu-player:not(.you) .menu-player-stats em {
+  margin-left: 6px;
+}
+
 .menu-player-head,
 .menu-player-stats {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.menu-player-head {
+  min-width: 0;
+}
+
+.menu-player-head .seat-name {
+  font-size: 14px;
 }
 
 .shown-hand {
@@ -671,7 +717,7 @@ select:focus {
 
 .menu-player-stats strong {
   color: var(--text);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .menu-player-stats em {
@@ -685,33 +731,26 @@ select:focus {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   gap: 8px;
-}
-
-.menu-name-panel {
-  padding-top: 2px;
+  padding-top: 8px;
   border-top: 1px solid var(--line);
 }
 
-.menu-name-panel summary {
-  padding-top: 7px;
+.menu-name-form label {
+  gap: 4px;
   color: var(--muted);
-  cursor: pointer;
   font-size: 11px;
   font-weight: 800;
 }
 
-.menu-name-panel[open] {
-  display: grid;
-  gap: 8px;
-}
-
 .menu-name-form input {
-  min-height: 38px;
+  min-height: 36px;
+  color: var(--text);
   font-size: 14px;
+  font-weight: 700;
 }
 
 .menu-name-form button {
-  min-height: 38px;
+  min-height: 36px;
   padding: 0 12px;
   font-size: 12px;
 }
@@ -720,13 +759,18 @@ select:focus {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
 }
 
 .menu-player-actions button {
-  min-height: 34px;
-  padding: 0 12px;
+  min-height: 30px;
+  padding: 0 10px;
   font-size: 12px;
+}
+
+.menu-player.bot .menu-player-actions button {
+  min-width: 58px;
 }
 
 .share-panel,
@@ -813,10 +857,6 @@ select:focus {
 .money-note { color: var(--muted); font-size: 11px; line-height: 1.45; }
 .positive { color: #31a867 !important; }
 .negative { color: var(--danger) !important; }
-
-.table-actions-panel > summary {
-  min-height: 44px;
-}
 
 .table-actions-panel > div {
   display: grid;
@@ -1286,7 +1326,7 @@ select:focus {
 .appearance-panel { padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--panel-2) 72%, transparent); }
 .appearance-panel summary { color: var(--text); font-size: 14px; font-weight: 850; cursor: pointer; }
 .appearance-panel[open] { display: grid; gap: 13px; }
-.sound-toggle { min-height: 58px; }
+.sound-toggle { min-height: 52px; }
 .shortcut-help { margin: -4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.35; }
 .keybind-list { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .keybind-row { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 7px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--panel) 64%, transparent); }
@@ -1763,6 +1803,33 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
   .modal {
     align-items: end;
     padding: 12px;
+  }
+
+  .modal-panel {
+    width: 100%;
+    max-height: min(780px, calc(100dvh - 24px));
+    gap: 14px;
+    padding: 14px 14px 16px;
+  }
+
+  .menu-section {
+    gap: 7px;
+  }
+
+  .menu-section-body {
+    gap: 9px;
+  }
+
+  .menu-player {
+    padding: 7px 9px;
+  }
+
+  .menu-player-main {
+    gap: 6px;
+  }
+
+  .session-actions {
+    gap: 8px;
   }
 
   .felt {
