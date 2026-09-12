@@ -425,17 +425,11 @@ async function readyUp(players) {
 
   const cashHost = connectPlayer("CashHost");
   await waitFor(() => cashHost.socket.connected, "cash table connection");
-  await expectReject(cashHost.socket, "room:create", {
-    name: cashHost.name,
-    deviceId: cashHost.deviceId,
-    moneyMode: true,
-    buyInCents: 2500,
-  }, "fractional-cent chip buy-in");
   const cashRoom = await emit(cashHost.socket, "room:create", {
     name: cashHost.name,
     deviceId: cashHost.deviceId,
     moneyMode: true,
-    buyInCents: 2000,
+    buyInCents: 2500,
     smallBlindCents: 10,
     bigBlindCents: 20,
   });
@@ -445,7 +439,8 @@ async function readyUp(players) {
   }
   await emit(cashHost.socket, "game:setBlinds", { smallBlindCents: 12, bigBlindCents: 24 });
   await waitFor(() => cashHost.state?.smallBlindCents === 12 && cashHost.state?.bigBlindCents === 24, "cash blind change");
-  await expectReject(cashHost.socket, "money:cashIn", { amountCents: 101 }, "inexact cash-in conversion");
+  await emit(cashHost.socket, "money:cashIn", { amountCents: 101 });
+  await waitFor(() => cashHost.state?.players.find((player) => player.isYou)?.stackCents === 2601, "cent-precise cash-in");
   const cashGuest = connectPlayer("CashGuest");
   await waitFor(() => cashGuest.socket.connected, "cash guest connection");
   await emit(cashGuest.socket, "room:join", {
@@ -460,7 +455,7 @@ async function readyUp(players) {
   await emit(cashHost.socket, "game:end");
   await waitFor(() => cashHost.state?.phase === "gameover", "cash game settlement");
   const departedLedger = cashHost.state.ledger.find((entry) => entry.name === "CashGuest");
-  if (!departedLedger || departedLedger.buyInsCents !== 2000 || departedLedger.cashOutCents !== 2000) {
+  if (!departedLedger || departedLedger.buyInsCents !== 2500 || departedLedger.cashOutCents !== 2500) {
     throw new Error("Expected departed cash player to remain in the final ledger");
   }
 

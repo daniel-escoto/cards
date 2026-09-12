@@ -47,6 +47,7 @@ const shareQr = document.querySelector("#shareQr");
 const shareLink = document.querySelector("#shareLink");
 const copyShareBtn = document.querySelector("#copyShareBtn");
 const moneyPanel = document.querySelector("#moneyPanel");
+const moneyDetails = document.querySelector("#moneyDetails");
 const blindPanel = document.querySelector("#blindPanel");
 const blindForm = document.querySelector("#blindForm");
 const menuSmallBlindLabel = document.querySelector("#menuSmallBlindLabel");
@@ -459,14 +460,12 @@ function syncBlindInputMode() {
   const moneyMode = moneyModeInput.checked;
   const previousMode = blindFields.dataset.mode || "chips";
   if ((moneyMode ? "money" : "chips") !== previousMode) {
-    const buyInCents = moneyCentsFromInput(buyInInput);
-    const chipCents = buyInCents / 1000;
     if (moneyMode) {
-      smallBlindInput.value = (Number(smallBlindInput.value || 10) * chipCents / 100).toFixed(2);
-      bigBlindInput.value = (Number(bigBlindInput.value || 20) * chipCents / 100).toFixed(2);
+      smallBlindInput.value = (Number(smallBlindInput.value || 10) / 100).toFixed(2);
+      bigBlindInput.value = (Number(bigBlindInput.value || 20) / 100).toFixed(2);
     } else {
-      smallBlindInput.value = String(Math.max(1, Math.round(Number(smallBlindInput.value || 0.2) * 100 / chipCents)));
-      bigBlindInput.value = String(Math.max(2, Math.round(Number(bigBlindInput.value || 0.4) * 100 / chipCents)));
+      smallBlindInput.value = String(Math.max(1, Math.round(Number(smallBlindInput.value || 0.1) * 100)));
+      bigBlindInput.value = String(Math.max(2, Math.round(Number(bigBlindInput.value || 0.2) * 100)));
     }
   }
   blindFields.dataset.mode = moneyMode ? "money" : "chips";
@@ -593,6 +592,15 @@ function renderMenuPlayers() {
   if (!state) return;
   if (document.activeElement?.matches("[data-player-name]")) return;
   menuRoomCode.textContent = state.id;
+  const hero = activeHero();
+  if (state.moneyMode && hero) {
+    moneyDetails.innerHTML = `
+      <div><span>Your stack</span><strong>${formatMoney(hero.stackCents)}</strong></div>
+      <div><span>Session</span><strong class="${hero.netCents >= 0 ? "positive" : "negative"}">${formatSignedMoney(hero.netCents)}</strong></div>
+    `;
+    cashOutBtn.textContent = hero.stackCents > 0 ? `Leave with ${formatMoney(hero.stackCents)}` : "No stack to cash out";
+    cashOutBtn.disabled = hero.stackCents <= 0;
+  }
   restartGameBtn.classList.toggle("hidden", !state.canRestartGame || state.phase === "lobby");
   endGameBtn.classList.toggle("hidden", !state.canEndGame);
   menuPlayers.innerHTML = state.players.map((player) => `
@@ -606,18 +614,20 @@ function renderMenuPlayers() {
         </span>
       </div>
       <div class="menu-player-stats">
-        <span>${state.moneyMode ? "Bankroll" : "Stack"} <strong>${playerStackLabel(player)}</strong></span>
-        ${state.moneyMode ? `<span>Net <strong>${formatSignedMoney(player.netCents)}</strong></span>` : ""}
+        <span>Stack <strong>${playerStackLabel(player)}</strong></span>
         ${roundStatus(player) ? `<em>${escapeHtml(roundStatus(player))}</em>` : ""}
       </div>
       ${player.isYou && !player.isBot ? `
-        <form class="menu-name-form" data-name-form>
-          <label>
-            Display name
-            <input data-player-name maxlength="18" value="${escapeHtml(player.name)}" autocomplete="name" />
-          </label>
-          <button type="submit" class="secondary">Save</button>
-        </form>
+        <details class="menu-name-panel">
+          <summary>Edit display name</summary>
+          <form class="menu-name-form" data-name-form>
+            <label>
+              Display name
+              <input data-player-name maxlength="18" value="${escapeHtml(player.name)}" autocomplete="name" />
+            </label>
+            <button type="submit" class="secondary">Save</button>
+          </form>
+        </details>
       ` : ""}
       ${player.canMakeHost || player.canKick ? `
         <div class="menu-player-actions">
@@ -1001,7 +1011,7 @@ function renderControls(hero) {
       const humans = state.players.filter((player) => !player.isBot && player.stack > 0);
       const readyCount = humans.filter((player) => player.ready).length;
       turnInfo.textContent = humans.length < 2 && state.players.filter((player) => player.stack > 0).length < 2
-        ? "Invite a player or add a CPU to begin."
+        ? state.moneyMode ? "Invite a player to begin." : "Invite a player or add a CPU to begin."
         : `${readyCount} of ${humans.length} players ready.`;
       return;
     }

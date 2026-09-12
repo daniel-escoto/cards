@@ -180,6 +180,7 @@ function serializeRoomForStorage(room) {
     actionLog: room.actionLog,
     handNumber: room.handNumber,
     moneyMode: Boolean(room.moneyMode),
+    moneyUnitCents: room.moneyUnitCents === 1 ? 1 : null,
     buyInCents: cleanMoneyCents(room.buyInCents, DEFAULT_BUY_IN_CENTS),
     baseSmallBlind: room.baseSmallBlind || DEFAULT_SMALL_BLIND,
     baseBigBlind: room.baseBigBlind || DEFAULT_BIG_BLIND,
@@ -310,6 +311,7 @@ function restoreRoom(raw) {
     actionLog: Array.isArray(raw.actionLog) ? raw.actionLog : [],
     handNumber: Math.max(0, Math.floor(Number(raw.handNumber) || 0)),
     moneyMode: Boolean(raw.moneyMode),
+    moneyUnitCents: raw.moneyUnitCents === 1 ? 1 : null,
     buyInCents: cleanMoneyCents(raw.buyInCents, DEFAULT_BUY_IN_CENTS),
     baseSmallBlind: Math.max(1, Math.floor(Number(raw.baseSmallBlind) || DEFAULT_SMALL_BLIND)),
     baseBigBlind: Math.max(2, Math.floor(Number(raw.baseBigBlind) || DEFAULT_BIG_BLIND)),
@@ -403,11 +405,12 @@ function cleanMoneyCents(value, fallback = DEFAULT_BUY_IN_CENTS) {
 }
 
 function chipValueCents(room) {
+  if (room?.moneyMode && room.moneyUnitCents === 1) return 1;
   return cleanMoneyCents(room?.buyInCents, DEFAULT_BUY_IN_CENTS) / STARTING_STACK;
 }
 
 function centsToChips(room, cents) {
-  return Math.max(1, Math.round(cleanMoneyCents(cents, room.buyInCents) / chipValueCents(room)));
+  return Math.max(1, Math.round(Math.max(0, Number(cents) || 0) / chipValueCents(room)));
 }
 
 function chipsToCents(room, chips) {
@@ -440,6 +443,7 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
     actionLog: [],
     handNumber: 0,
     moneyMode,
+    moneyUnitCents: moneyMode ? 1 : null,
     buyInCents,
     baseSmallBlind,
     baseBigBlind,
@@ -454,7 +458,7 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
         socketIds: new Set([socketId]),
         name: hostName,
         color: PLAYER_COLORS[0],
-        stack: STARTING_STACK,
+        stack: moneyMode ? buyInCents : STARTING_STACK,
         hand: [],
         folded: false,
         allIn: false,
@@ -593,7 +597,10 @@ function makeHumanPlayer(room, { id, socketId, name, reconnectTokenHash }) {
   const player = makePlayer({ id, socketId, name });
   player.reconnectTokenHash = reconnectTokenHash || null;
   player.color = defaultPlayerColor(room);
-  if (room.moneyMode) addMoneyBuyIn(room, player, room.buyInCents);
+  if (room.moneyMode) {
+    player.stack = centsToChips(room, room.buyInCents);
+    addMoneyBuyIn(room, player, room.buyInCents);
+  }
   return player;
 }
 
@@ -1007,10 +1014,6 @@ function cashInPlayer(room, playerId, amountCents) {
   if (!player || player.isBot) return { ok: false, error: "Player not found." };
   if (isHandInProgress(room)) return { ok: false, error: "Cash in between hands." };
   const cents = cleanMoneyCents(amountCents, room.buyInCents);
-  const chipCents = chipValueCents(room);
-  if (!Number.isInteger(chipCents) || cents % chipCents !== 0) {
-    return { ok: false, error: `Cash-in must be a multiple of $${(chipCents / 100).toFixed(2)}.` };
-  }
   player.buyInsCents += cents;
   player.stack += centsToChips(room, cents);
   player.allIn = false;
@@ -1723,7 +1726,7 @@ function serializeRoom(room, viewerId) {
     canReady: Boolean(viewer && !viewer.isBot && viewer.stack > 0 && canReadyForHand(room) && playersWithChips(room).length >= 2),
     isReady: Boolean(viewer?.ready),
     canChangeBlinds: room.hostId === viewerId && canReadyForHand(room),
-    canRestartGame: room.hostId === viewerId && canAdministerGame(room),
+    canRestartGame: room.hostId === viewerId && !room.moneyMode && canAdministerGame(room),
     canEndGame: room.hostId === viewerId && canAdministerGame(room) && (room.moneyMode || room.phase !== "lobby"),
     canAddBot: room.hostId === viewerId && !room.moneyMode && room.handNumber === 0 && room.players.length < MAX_PLAYERS,
     community: room.community.map(publicCard),
@@ -1887,6 +1890,12 @@ function kickPlayerFromRoom(room, playerId) {
   const index = playerIndex(room, playerId);
   if (index < 0) return null;
   const [removed] = room.players.splice(index, 1);
+  if (room.moneyMode) {
+    removed.cashOutCents += chipsToCents(room, removed.stack);
+    removed.stack = 0;
+    syncPlayerToMoneyLedger(room, removed);
+    room.settlements = optimizeSettlements(room.moneyLedger);
+  }
   if (room.tableSize) room.tableSize = room.players.length >= 2 ? room.players.length : 0;
   clearTimeout(removed.disconnectTimer);
   for (const socketId of removed.socketIds || []) {
@@ -1909,18 +1918,14 @@ io.on("connection", (socket) => {
     let cleanSmall = cleanBlind(smallBlind, DEFAULT_SMALL_BLIND);
     let cleanBig = cleanBlind(bigBlind, DEFAULT_BIG_BLIND);
     if (moneyMode) {
-      if (cleanedBuyInCents % STARTING_STACK !== 0) {
-        return ack?.({ ok: false, error: "Money-mode buy-in must be in $10 increments." });
-      }
-      const chipCents = cleanedBuyInCents / STARTING_STACK;
       const requestedSmallCents = Math.round(Number(smallBlindCents));
       const requestedBigCents = Math.round(Number(bigBlindCents));
-      if (!Number.isFinite(requestedSmallCents) || requestedSmallCents <= 0 || requestedSmallCents % chipCents !== 0
-        || !Number.isFinite(requestedBigCents) || requestedBigCents <= 0 || requestedBigCents % chipCents !== 0) {
-        return ack?.({ ok: false, error: `Blinds must be exact multiples of $${(chipCents / 100).toFixed(2)}.` });
+      if (!Number.isFinite(requestedSmallCents) || requestedSmallCents <= 0
+        || !Number.isFinite(requestedBigCents) || requestedBigCents <= 0) {
+        return ack?.({ ok: false, error: "Blinds must be at least $0.01." });
       }
-      cleanSmall = requestedSmallCents / chipCents;
-      cleanBig = requestedBigCents / chipCents;
+      cleanSmall = requestedSmallCents;
+      cleanBig = requestedBigCents;
     }
     if (cleanBig <= cleanSmall) return ack?.({ ok: false, error: "Big blind must be greater than small blind." });
     const credentials = newReconnectCredentials();
@@ -2099,6 +2104,7 @@ io.on("connection", (socket) => {
     const room = rooms.get(socketRoom.get(socket.id));
     const playerId = socketPlayer.get(socket.id);
     if (!room || room.hostId !== playerId) return ack?.({ ok: false, error: "Only the host can restart." });
+    if (room.moneyMode) return ack?.({ ok: false, error: "End this money session before starting a new one." });
     if (!canAdministerGame(room)) return ack?.({ ok: false, error: "Finish the current hand before restarting." });
     restartGame(room);
     ack?.({ ok: true });
