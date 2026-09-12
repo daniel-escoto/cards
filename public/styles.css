@@ -626,6 +626,27 @@ select:focus {
   gap: 2px;
 }
 
+.menu-player:not(.you) .menu-player-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.menu-player:not(.you) .menu-player-head {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.menu-player:not(.you) .menu-player-stats {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.menu-player:not(.you) .menu-player-stats em {
+  margin-left: 6px;
+}
+
 .menu-player-head,
 .menu-player-stats {
   display: flex;
