@@ -9,6 +9,8 @@
     "test:betting": "node tests/betting.js",
     "test:blinds": "node tests/blinds.js",
     "test:bots": "node tests/bots.js",
+    "test:money-ledger": "node tests/money-ledger.js",
+    "test": "npm run test:betting && npm run test:blinds && npm run test:bots && npm run test:money-ledger",
     "smoke": "node tests/smoke.js"
   },
   "keywords": [],
