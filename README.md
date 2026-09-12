@@ -5,7 +5,7 @@ A private-room multiplayer Texas hold'em game for friends. The server owns all g
 ## Features
 
 - Host or join private tables with a room code/link
-- 2 to 8 players
+- 2 to 9 players
 - Server-side deck, betting order, blinds, streets, side pots, and showdown payouts
 - Poker hand evaluation via `pokersolver`
 - Responsive UI for desktop and mobile browsers

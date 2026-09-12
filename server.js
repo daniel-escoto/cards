@@ -26,7 +26,7 @@ const BLIND_LEVELS = [
 ];
 const DEFAULT_BIG_BLIND = BLIND_LEVELS[0].bigBlind;
 const DEFAULT_SMALL_BLIND = BLIND_LEVELS[0].smallBlind;
-const MAX_PLAYERS = 8;
+const MAX_PLAYERS = 9;
 const BOT_PROFILES = [
   { tag: "cpu_7f3a", style: "Loose cannon", aggression: 1.28, looseness: 1.24, bluff: 0.13, skill: 0.58 },
   { tag: "cpu_b204", style: "Patient grinder", aggression: 0.72, looseness: 0.74, bluff: 0.025, skill: 0.82 },
@@ -42,7 +42,7 @@ const BACKGROUND_DISCONNECT_GRACE_MS = Math.max(
   Number(process.env.BACKGROUND_DISCONNECT_GRACE_MS) || 5 * 60 * 1000,
 );
 const BACKGROUND_PRESENCE_TTL_MS = 10 * 60 * 1000;
-const PLAYER_COLORS = ["#60a5fa", "#38bdf8", "#7ddc85", "#f472b6", "#a78bfa", "#fb7185", "#818cf8", "#2dd4bf"];
+const PLAYER_COLORS = ["#60a5fa", "#38bdf8", "#7ddc85", "#f472b6", "#a78bfa", "#fb7185", "#818cf8", "#2dd4bf", "#fbbf24"];
 const DEFAULT_DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DATA_DIR || path.join(__dirname, ".data");
 const STATE_FILE = process.env.GAME_STATE_FILE || path.join(DEFAULT_DATA_DIR, "rooms.json");
 const SAVE_DEBOUNCE_MS = 150;
