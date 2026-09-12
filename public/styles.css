@@ -598,7 +598,7 @@ select:focus {
 .menu-player {
   display: grid;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 7px 9px;
   border: 1px solid var(--line);
   border-left: 5px solid var(--player-color, var(--line));
   border-radius: 10px;
@@ -743,8 +743,8 @@ select:focus {
 }
 
 .menu-player-actions button {
-  min-height: 32px;
-  padding: 0 11px;
+  min-height: 30px;
+  padding: 0 10px;
   font-size: 12px;
 }
 
