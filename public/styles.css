@@ -552,20 +552,29 @@ select:focus {
 .menu-section-session { order: 2; }
 .menu-section-preferences { order: 3; }
 
-.menu-disclosure > summary {
+.menu-group,
+.table-actions-panel {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel-2) 72%, transparent);
+}
+
+.menu-group > summary,
+.table-actions-panel > summary {
   min-height: 44px;
   display: flex;
   align-items: center;
   padding: 0 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  color: var(--text);
-  background: color-mix(in srgb, var(--panel-2) 72%, transparent);
+  color: var(--muted);
   cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
   list-style-position: inside;
+  text-transform: none;
 }
 
-.menu-disclosure[open] > summary { margin-bottom: 8px; }
+.menu-group[open] > summary { margin-bottom: 8px; }
 
 .leave-game-btn {
   color: var(--danger);
@@ -805,20 +814,8 @@ select:focus {
 .positive { color: #31a867 !important; }
 .negative { color: var(--danger) !important; }
 
-.table-actions-panel {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-}
-
 .table-actions-panel > summary {
-  min-height: 42px;
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 800;
+  min-height: 44px;
 }
 
 .table-actions-panel > div {
