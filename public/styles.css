@@ -501,10 +501,10 @@ select:focus {
 
 .modal-panel {
   width: min(420px, 100%);
-  max-height: min(720px, calc(100dvh - 40px));
+  max-height: min(760px, calc(100dvh - 32px));
   overflow-y: auto;
   display: grid;
-  gap: 18px;
+  gap: 16px;
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 18px;
