@@ -541,40 +541,8 @@ select:focus {
 
 .menu-section-body {
   display: grid;
-  gap: 8px;
+  gap: 18px;
   min-width: 0;
-}
-
-.menu-table-controls {
-  gap: 0;
-  padding: 0;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--panel-2) 72%, transparent);
-}
-
-.menu-table-controls > .appearance-panel,
-.menu-table-controls > .sound-toggle {
-  margin: 0;
-  border: 0;
-  border-radius: 0;
-  border-bottom: 1px solid var(--line);
-  background: transparent;
-}
-
-.menu-table-controls > .appearance-panel {
-  padding: 12px;
-}
-
-.menu-table-controls > .sound-toggle {
-  min-height: 58px;
-  padding: 10px 12px;
-}
-
-.menu-table-controls > :not(.hidden):last-child,
-.menu-table-controls > :not(.hidden):has(+ .hidden) {
-  border-bottom: 0;
 }
 
 .menu-section-session .modal-actions {
@@ -1199,14 +1167,6 @@ select:focus {
 }
 
 :root[data-theme="light"] .modal-panel { background: #f8faf6; }
-:root[data-theme="light"] .menu-table-controls {
-  background: rgba(255, 255, 255, 0.72);
-  border-color: rgba(24, 38, 33, 0.14);
-}
-:root[data-theme="light"] .menu-table-controls > .appearance-panel,
-:root[data-theme="light"] .menu-table-controls > .sound-toggle {
-  border-bottom-color: rgba(24, 38, 33, 0.1);
-}
 :root[data-theme="light"] .leave-game-btn {
   background: color-mix(in srgb, var(--danger) 7%, #fff);
 }
