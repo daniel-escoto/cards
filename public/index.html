@@ -133,17 +133,25 @@
             <button id="closeMenuBtn" class="ghost icon-btn" type="button" aria-label="Close menu">×</button>
           </div>
 
-          <details class="menu-section menu-section-players menu-group">
-            <summary id="menuPlayersHeading">Players</summary>
+          <section class="menu-section menu-section-players" aria-labelledby="menuPlayersHeading">
+            <h3 id="menuPlayersHeading" class="menu-section-title">Players</h3>
             <div class="menu-section-body">
               <div id="menuPlayers" class="menu-players"></div>
               <button id="addBotBtn" class="secondary add-bot-btn hidden" type="button">+ Add bot player</button>
             </div>
-          </details>
+          </section>
 
-          <details class="menu-section menu-section-preferences menu-group">
-            <summary id="menuTableHeading">Settings</summary>
+          <section class="menu-section menu-section-settings" aria-labelledby="menuTableHeading">
+            <h3 id="menuTableHeading" class="menu-section-title">Settings</h3>
             <div class="menu-section-body">
+              <label class="checkbox-label sound-toggle">
+                <input id="soundEnabledInput" type="checkbox" checked />
+                <span class="switch-control" aria-hidden="true"></span>
+                <span class="checkbox-copy">
+                  <strong>Table sounds</strong>
+                  <small>Soft card, chip, and button sounds</small>
+                </span>
+              </label>
               <details class="appearance-panel">
                 <summary>Table appearance</summary>
                 <div class="appearance-group">
@@ -155,14 +163,6 @@
                   <div id="deckChoices" class="appearance-choices deck-choices" aria-label="Deck style"></div>
                 </div>
               </details>
-              <label class="checkbox-label sound-toggle">
-                <input id="soundEnabledInput" type="checkbox" checked />
-                <span class="switch-control" aria-hidden="true"></span>
-                <span class="checkbox-copy">
-                  <strong>Table sounds</strong>
-                  <small>Soft card, chip, and button sounds</small>
-                </span>
-              </label>
               <details class="appearance-panel shortcuts-panel">
                 <summary>Keyboard shortcuts</summary>
                 <p class="shortcut-help">Choose an action, then press a key.</p>
@@ -186,10 +186,10 @@
                 </form>
               </details>
             </div>
-          </details>
+          </section>
 
-          <details class="menu-section menu-section-session menu-group">
-            <summary id="menuSessionHeading">Actions</summary>
+          <section class="menu-section menu-section-session" aria-labelledby="menuSessionHeading">
+            <h3 id="menuSessionHeading" class="menu-section-title">Session</h3>
             <div class="menu-section-body">
               <div id="sharePanel" class="share-panel hidden">
                 <img id="shareQr" alt="Room invite QR code" />
@@ -210,19 +210,19 @@
                 <button id="cashOutBtn" type="button" class="secondary">Leave with stack</button>
                 <small class="money-note">Payments happen separately after the game.</small>
               </form>
-              <div class="modal-actions">
+              <div class="modal-actions session-actions">
                 <button id="shareGameBtn" type="button" class="secondary">Share</button>
-                <details class="table-actions-panel">
-                  <summary>Table actions</summary>
-                  <div>
-                    <button id="restartGameBtn" type="button">Restart game</button>
-                    <button id="endGameBtn" type="button" class="danger">End game</button>
-                    <button id="backToMenuBtn" type="button" class="secondary leave-game-btn">Leave game</button>
-                  </div>
-                </details>
+                <button id="backToMenuBtn" type="button" class="secondary leave-game-btn">Leave game</button>
               </div>
+              <details id="hostActionsPanel" class="table-actions-panel host-actions-panel hidden">
+                <summary>Host actions</summary>
+                <div>
+                  <button id="restartGameBtn" type="button">Restart game</button>
+                  <button id="endGameBtn" type="button" class="danger">End game</button>
+                </div>
+              </details>
             </div>
-          </details>
+          </section>
         </div>
       </div>
       <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
