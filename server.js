@@ -1960,6 +1960,8 @@ function serializeRoom(room, viewerId) {
 function emitRoom(room) {
   if (canReadyForHand(room)) scheduleNextHand(room);
   else clearNextHandTimer(room);
+  // Arm the human clock before serialize so clients receive turnEndsAt.
+  scheduleHumanTurnTimer(room);
   for (const player of room.players) {
     for (const socketId of player.socketIds || []) {
       io.to(socketId).emit("room:update", serializeRoom(room, player.id));
@@ -1967,7 +1969,6 @@ function emitRoom(room) {
   }
   scheduleSave();
   scheduleComputerTurn(room);
-  scheduleHumanTurnTimer(room);
 }
 
 function detachSocketFromRoom(socketId, roomId) {
