@@ -35,6 +35,7 @@ const restartGameBtn = document.querySelector("#restartGameBtn");
 const endGameBtn = document.querySelector("#endGameBtn");
 const shareGameBtn = document.querySelector("#shareGameBtn");
 const backToMenuBtn = document.querySelector("#backToMenuBtn");
+const sitOutBtn = document.querySelector("#sitOutBtn");
 const hostActionsPanel = document.querySelector("#hostActionsPanel");
 const menuRoomCode = document.querySelector("#menuRoomCode");
 const menuPlayers = document.querySelector("#menuPlayers");
@@ -679,6 +680,9 @@ function showGameMenu() {
     panel.open = false;
   });
   addBotBtn.classList.toggle("hidden", !state?.canAddBot);
+  const hero = activeHero();
+  sitOutBtn.classList.toggle("hidden", !hero || state?.phase === "gameover");
+  if (hero) sitOutBtn.textContent = hero.sittingOut ? "I’m back" : "Sit out next hand";
   moneyPanel.classList.toggle("hidden", !state?.moneyMode);
   blindPanel.classList.toggle("hidden", !state?.canChangeBlinds);
   if (state?.canChangeBlinds) {
@@ -1008,6 +1012,9 @@ function render() {
   if (!gameMenuModal.classList.contains("hidden")) {
     renderMenuPlayers();
     addBotBtn.classList.toggle("hidden", !state?.canAddBot);
+    const menuHero = activeHero();
+    sitOutBtn.classList.toggle("hidden", !menuHero || state?.phase === "gameover");
+    if (menuHero) sitOutBtn.textContent = menuHero.sittingOut ? "I’m back" : "Sit out next hand";
   }
   requestAnimationFrame(() => restoreActionFeedScroll(feedScroll));
 }
@@ -1039,9 +1046,6 @@ function renderControls(hero) {
   turnInfo.textContent = "";
   turnInfo.classList.remove("your-turn");
 
-  if (hero && state.phase !== "gameover") {
-    addButton(hero.sittingOut ? "I’m back" : "Sit out next hand", "game:sitOut", "secondary");
-  }
   if (hero?.sittingOut && (!isBettingPhase(state.phase) || !hero.cards.length)) {
     turnInfo.textContent = "You’re sitting out. Your seat and stack are saved.";
     return;
@@ -1466,6 +1470,11 @@ restartGameBtn.addEventListener("click", () => {
 endGameBtn.addEventListener("click", () => {
   hideGameMenu();
   emitWithAck("game:end", {});
+});
+
+sitOutBtn.addEventListener("click", () => {
+  emitWithAck("game:sitOut", { sittingOut: !activeHero()?.sittingOut });
+  hideGameMenu();
 });
 
 shareGameBtn.addEventListener("click", showSharePanel);
