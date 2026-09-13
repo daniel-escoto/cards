@@ -344,6 +344,7 @@ renderKeybinds();
 
 let state = null;
 let nextHandCountdownTimer = null;
+let turnCountdownTimer = null;
 let raiseState = { value: 0, min: 0, max: 0, step: 20 };
 let raiseControlsDisabled = false;
 let leavingEndedRoom = false;
@@ -923,11 +924,15 @@ function renderActionFeed(newEntryId = "") {
     const action = showStreetAction
       ? compactPlayerAction(entry, player)
       : playerTableStatus(player, isActing);
+    const showTurnClock = isActing && state.turnEndsAt && isBettingPhase(state.phase) && !player.isBot;
+    const turnClock = showTurnClock
+      ? ` <span class="turn-clock" data-turn-countdown>${escapeHtml(`${turnSecondsRemaining()}s`)}</span>`
+      : "";
     return `
       <article class="table-player-row ${isActing ? "turn" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}" ${playerColorStyle(player)}>
         <i class="player-dot" aria-hidden="true"></i>
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
-        <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}</span>
+        <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}${turnClock}</span>
         <strong class="player-stack">${playerStackLabel(player)}</strong>
       </article>
     `;
@@ -1039,6 +1044,7 @@ function render() {
 
   renderControls(hero);
   syncNextHandCountdown();
+  syncTurnCountdown();
   if (!gameMenuModal.classList.contains("hidden")) {
     renderMenuPlayers();
     addBotBtn.classList.toggle("hidden", !state?.canAddBot);
@@ -1115,7 +1121,9 @@ function renderControls(hero) {
     }
     const currentIndex = findLastIndex(state.players, (player) => player.id === state.turn);
     const current = currentIndex >= 0 ? state.players[currentIndex] : null;
-    turnInfo.textContent = current ? `Pot ${formatAmount(state.pot, state.potCents)}. ${current.name} is acting.` : "Waiting for the host.";
+    turnInfo.textContent = current
+      ? `Pot ${formatAmount(state.pot, state.potCents)}. ${current.name} is acting${turnCountdownSuffix()}.`
+      : "Waiting for the host.";
     if (hero && isBettingPhase(state.phase) && !hero.folded && !hero.allIn) {
       // Fold only when facing a bet — free checks must not offer a fold misclick.
       if (state.toCall > 0) addActionButton("Fold", { type: "fold" }, "danger", true);
@@ -1126,9 +1134,10 @@ function renderControls(hero) {
   }
 
   turnInfo.textContent = state.toCall > 0
-    ? `Pot ${formatAmount(state.pot, state.potCents)}. Call ${formatAmount(state.toCall, state.toCallCents)} to continue.`
-    : `Pot ${formatAmount(state.pot, state.potCents)}. Your turn: check or bet.`;
+    ? `Pot ${formatAmount(state.pot, state.potCents)}. Call ${formatAmount(state.toCall, state.toCallCents)} to continue${turnCountdownSuffix()}.`
+    : `Pot ${formatAmount(state.pot, state.potCents)}. Your turn: check or bet${turnCountdownSuffix()}.`;
   turnInfo.classList.add("your-turn");
+  if (state.turnEndsAt) addTurnCountdown();
   if (state.toCall > 0) addActionButton("Fold", { type: "fold" }, "danger");
   addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" });
 
@@ -1275,6 +1284,63 @@ function syncNextHandCountdown() {
   };
   tick();
   nextHandCountdownTimer = setInterval(tick, 250);
+}
+
+function turnSecondsRemaining() {
+  if (!state?.turnEndsAt || !isBettingPhase(state.phase) || !state.turn) return 0;
+  return Math.max(0, Math.ceil((state.turnEndsAt - Date.now()) / 1000));
+}
+
+function turnCountdownSuffix() {
+  const seconds = turnSecondsRemaining();
+  return seconds > 0 ? ` · ${seconds}s` : "";
+}
+
+function turnCountdownLabel() {
+  const seconds = turnSecondsRemaining();
+  return seconds > 0 ? `${seconds}s` : "…";
+}
+
+function addTurnCountdown() {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.disabled = true;
+  button.className = "secondary turn-countdown";
+  button.dataset.turnActionCountdown = "1";
+  button.textContent = turnCountdownLabel();
+  button.setAttribute("aria-label", `Turn timer ${button.textContent}`);
+  gameButtons.appendChild(button);
+}
+
+function syncTurnCountdown() {
+  clearInterval(turnCountdownTimer);
+  turnCountdownTimer = null;
+  if (!state?.turnEndsAt || !isBettingPhase(state.phase) || !state.turn) return;
+  const tick = () => {
+    const seconds = turnSecondsRemaining();
+    const clock = `${seconds}s`;
+    const button = gameButtons.querySelector("[data-turn-action-countdown]");
+    if (button) {
+      button.textContent = seconds > 0 ? clock : "…";
+      button.setAttribute("aria-label", `Turn timer ${button.textContent}`);
+    }
+    document.querySelectorAll("[data-turn-countdown]").forEach((node) => {
+      node.textContent = clock;
+    });
+    if (state.isYourTurn) {
+      turnInfo.textContent = state.toCall > 0
+        ? `Pot ${formatAmount(state.pot, state.potCents)}. Call ${formatAmount(state.toCall, state.toCallCents)} to continue${turnCountdownSuffix()}.`
+        : `Pot ${formatAmount(state.pot, state.potCents)}. Your turn: check or bet${turnCountdownSuffix()}.`;
+    } else {
+      const current = currentTurnPlayer();
+      if (current && isBettingPhase(state.phase)) {
+        turnInfo.textContent = `Pot ${formatAmount(state.pot, state.potCents)}. ${current.name} is acting${turnCountdownSuffix()}.`;
+      }
+    }
+    if (seconds <= 0) clearInterval(turnCountdownTimer);
+  };
+  tick();
+  turnCountdownTimer = setInterval(tick, 250);
 }
 
 function addButton(label, eventName, className = "", shortcut = "") {

@@ -2076,8 +2076,16 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 
 
 .game-buttons button.next-hand-countdown,
-.game-buttons button.next-hand-countdown:disabled {
+.game-buttons button.next-hand-countdown:disabled,
+.game-buttons button.turn-countdown,
+.game-buttons button.turn-countdown:disabled {
   opacity: 1;
   cursor: default;
   font-variant-numeric: tabular-nums;
+}
+
+.turn-clock {
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.78);
+  font-weight: 750;
 }
