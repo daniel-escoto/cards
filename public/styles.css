@@ -1566,7 +1566,7 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 
 @media (min-width: 780px) {
   .table-view {
-    height: min(calc(100dvh - 40px), 760px);
+    height: calc(100dvh - 40px);
     min-height: 0;
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
@@ -1621,21 +1621,54 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 }
 
 @media (min-width: 1040px) {
-  .felt {
-    min-height: 0;
+  .app:has(.table-view:not(.hidden)) {
+    width: min(1600px, 100%);
   }
 
-  .card {
-    width: clamp(50px, 5vw, 68px);
+  .table-view:not(.hidden) {
+    width: 100%;
+  }
+
+  .felt {
+    min-height: 0;
+    padding: 24px;
+    gap: 20px 24px;
+  }
+
+  .community .card {
+    width: clamp(68px, 6vw, 96px);
   }
 
   .hero-hand .card {
-    width: 48px;
+    width: clamp(60px, 4.5vw, 72px);
+  }
+
+  .control-panel {
+    padding: 20px;
+    gap: 16px;
+  }
+
+  .control-panel button {
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  .turn-info {
+    font-size: 16px;
+  }
+
+  .players {
+    --feed-stack: 5.5rem;
+    font-size: 15px;
+  }
+
+  .stack-chip, .state-status, .state-pot {
+    font-size: 14px;
   }
 
   .action-feed-card:not(.action-history-card) {
-    gap: 10px;
-    padding: 12px 14px;
+    gap: 12px;
+    padding: 16px;
   }
 }
 
