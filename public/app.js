@@ -893,8 +893,14 @@ function isBettingPhase(phase) {
   return ["preflop", "flop", "turn", "river"].includes(phase);
 }
 
+function streetActionEntries(actionLog, phase) {
+  // Only the current street's player actions drive last-action pills.
+  // Prior-street check/raise/call must not linger after a new street deals.
+  return (actionLog || []).filter((entry) => entry.phase === phase);
+}
+
 function renderActionFeed(newEntryId = "") {
-  const entries = (state.actionLog || []).filter((entry) => entry.phase !== "lobby");
+  const entries = streetActionEntries(state.actionLog, state.phase);
   const activePlayer = currentTurnPlayer();
   const latestByPlayer = new Map();
   entries.forEach((entry) => {
@@ -908,14 +914,15 @@ function renderActionFeed(newEntryId = "") {
     const isOut = playerIsOut(player);
     const isAllIn = player.allIn && !isOut;
     const isOutOfAction = player.folded || isAllIn || isOut;
-    const action = !betweenHands && entry && !isOutOfAction
+    const showStreetAction = !betweenHands && entry && !isOutOfAction;
+    const action = showStreetAction
       ? compactPlayerAction(entry, player)
       : playerTableStatus(player, isActing);
     return `
       <article class="table-player-row ${isActing ? "turn" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${isOut ? "out" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}" ${playerColorStyle(player)}>
         <i class="player-dot" aria-hidden="true"></i>
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
-        <span class="player-action${entry ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}</span>
+        <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}</span>
         <strong class="player-stack">${playerStackLabel(player)}</strong>
       </article>
     `;
