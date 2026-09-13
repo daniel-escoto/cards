@@ -613,6 +613,12 @@ function playerIsOut(player) {
   return player.stack <= 0 && (betweenHands || player.invested <= 0);
 }
 
+// Cashed-out / busted seats stay in state.players for ledger, but should not appear
+// on the table or menu. Folded / sitting-out / waiting-for-next-hand keep their seat.
+function seatedPlayers(players = state?.players) {
+  return (players || []).filter((player) => !playerIsOut(player));
+}
+
 function roundStatus(player) {
   if (player.sittingOut) return player.cards.length && isBettingPhase(state.phase) ? "Sits out next" : "Sitting out";
 
@@ -649,7 +655,7 @@ function renderMenuPlayers() {
   restartGameBtn.classList.toggle("hidden", !canRestart);
   endGameBtn.classList.toggle("hidden", !canEnd);
   hostActionsPanel.classList.toggle("hidden", !canRestart && !canEnd);
-  menuPlayers.innerHTML = state.players.map((player) => {
+  menuPlayers.innerHTML = seatedPlayers().map((player) => {
     const status = roundStatus(player);
     const actions = player.canMakeHost || player.canKick
       ? `<div class="menu-player-actions">
@@ -907,19 +913,18 @@ function renderActionFeed(newEntryId = "") {
     const player = playerForAction(entry);
     if (player) latestByPlayer.set(player.id, entry);
   });
-  const tableMarkup = state.players.map((player) => {
+  const tableMarkup = seatedPlayers().map((player) => {
     const entry = latestByPlayer.get(player.id);
     const isActing = player.id === activePlayer?.id;
     const betweenHands = ["lobby", "complete"].includes(state.phase);
-    const isOut = playerIsOut(player);
-    const isAllIn = player.allIn && !isOut;
-    const isOutOfAction = player.folded || isAllIn || isOut;
+    const isAllIn = Boolean(player.allIn);
+    const isOutOfAction = player.folded || isAllIn;
     const showStreetAction = !betweenHands && entry && !isOutOfAction;
     const action = showStreetAction
       ? compactPlayerAction(entry, player)
       : playerTableStatus(player, isActing);
     return `
-      <article class="table-player-row ${isActing ? "turn" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${isOut ? "out" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}" ${playerColorStyle(player)}>
+      <article class="table-player-row ${isActing ? "turn" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}" ${playerColorStyle(player)}>
         <i class="player-dot" aria-hidden="true"></i>
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
         <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}</span>
@@ -927,6 +932,7 @@ function renderActionFeed(newEntryId = "") {
       </article>
     `;
   }).join("");
+  // Revealed hands can still include busted players who showed at showdown.
   const shownHands = state.phase === "complete"
     ? state.players.filter((player) => player.showCards).map(renderShownHandCard).join("")
     : "";

@@ -11,7 +11,8 @@
     "test:bots": "node tests/bots.js",
     "test:money-ledger": "node tests/money-ledger.js",
     "test:raise-presets": "node tests/raise-presets.js",
-    "test": "npm run test:betting && npm run test:blinds && npm run test:bots && npm run test:money-ledger && npm run test:raise-presets",
+    "test:seated-players": "node tests/seated-players.js",
+    "test": "npm run test:betting && npm run test:blinds && npm run test:bots && npm run test:money-ledger && npm run test:raise-presets && npm run test:seated-players",
     "test:money-join": "node tests/money-join.js",
     "smoke": "node tests/smoke.js"
   },
