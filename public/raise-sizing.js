@@ -40,5 +40,72 @@
     return Math.floor(Number(currentBet) || 0) + raiseBy;
   }
 
-  return { legalRaiseTo, potPresetRaiseTo };
+  /** Free-check detent: raise-to equal to the matched current bet (zero increment). */
+  function checkDetentValue(currentBet) {
+    return Math.max(0, Math.floor(Number(currentBet) || 0));
+  }
+
+  function isCheckDetent(value, currentBet) {
+    const target = Math.floor(Number(value));
+    if (!Number.isFinite(target)) return true;
+    return target <= checkDetentValue(currentBet);
+  }
+
+  /**
+   * Clamp raise-to. With mergeCheckBet, anything below a full min bet stays on
+   * the check detent — a fat-finger partial nudge cannot become a tiny bet.
+   */
+  function clampRaiseTo(rawValue, {
+    minRaiseTo,
+    maxRaiseTo,
+    step,
+    currentBet = 0,
+    mergeCheckBet = false,
+  } = {}) {
+    if (mergeCheckBet) {
+      const detent = checkDetentValue(currentBet);
+      const target = Math.floor(Number(rawValue));
+      if (!Number.isFinite(target) || target <= detent) return detent;
+      const minLegal = legalRaiseTo(minRaiseTo, { minRaiseTo, maxRaiseTo, step });
+      // Hard detent: must reach a real min bet (or all-in) to leave Check.
+      if (target < minLegal) return detent;
+    }
+    return legalRaiseTo(rawValue, { minRaiseTo, maxRaiseTo, step });
+  }
+
+  /**
+   * One stepper/keyboard nudge. From Check, the first up-step is a real min bet
+   * (or all-in); from min bet, the first down-step returns to Check.
+   */
+  function nudgeRaiseTo(rawValue, direction, {
+    minRaiseTo,
+    maxRaiseTo,
+    step,
+    currentBet = 0,
+    mergeCheckBet = false,
+  } = {}) {
+    const dir = direction < 0 ? -1 : 1;
+    const stride = Math.max(1, Math.floor(Number(step) || 1));
+    const bounds = { minRaiseTo, maxRaiseTo, step: stride, currentBet, mergeCheckBet };
+    const minLegal = legalRaiseTo(minRaiseTo, { minRaiseTo, maxRaiseTo, step: stride });
+    const current = mergeCheckBet && isCheckDetent(rawValue, currentBet)
+      ? checkDetentValue(currentBet)
+      : legalRaiseTo(rawValue, { minRaiseTo, maxRaiseTo, step: stride });
+
+    if (mergeCheckBet) {
+      if (dir > 0 && isCheckDetent(current, currentBet)) return minLegal;
+      if (dir < 0 && current <= minLegal) return checkDetentValue(currentBet);
+    }
+
+    return clampRaiseTo(current + dir * stride, bounds);
+  }
+
+  return {
+    legalRaiseTo,
+    potPresetRaiseTo,
+    checkDetentValue,
+    isCheckDetent,
+    clampRaiseTo,
+    nudgeRaiseTo,
+  };
 });
