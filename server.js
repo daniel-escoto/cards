@@ -1195,15 +1195,30 @@ function cashInPlayer(room, playerId, amountCents) {
   const player = room?.players.find((item) => item.id === playerId);
   if (!room?.moneyMode) return { ok: false, error: "This room is not using money mode." };
   if (!player || player.isBot) return { ok: false, error: "Player not found." };
-  if (isHandInProgress(room)) return { ok: false, error: "Cash in between hands." };
+  const handLive = isHandInProgress(room);
+  if (handLive) {
+    // Mid-hand buy-back is only for busted / already-waiting seats — never a live top-up.
+    const waitingForNextHand = player.hand.length === 0 && player.folded;
+    const bustedOrOut = player.stack <= 0;
+    if (!waitingForNextHand && !bustedOrOut) {
+      return { ok: false, error: "You can’t add chips while you’re in the current hand." };
+    }
+  }
   const cents = cleanMoneyCents(amountCents, room.buyInCents);
   player.buyInsCents += cents;
   player.stack += centsToChips(room, cents);
   player.allIn = false;
+  if (handLive) {
+    player.folded = true;
+    player.hand = [];
+    player.bet = 0;
+  }
   resetReadiness(room);
   syncPlayerToMoneyLedger(room, player);
   room.settlements = [];
-  room.message = `${player.name} cashed in.`;
+  room.message = handLive
+    ? `${player.name} buys in for the next hand.`
+    : `${player.name} cashed in.`;
   return { ok: true };
 }
 
@@ -1330,17 +1345,38 @@ function buildSidePots(room) {
     const contributors = room.players.filter((player) => player.invested >= level);
     const amount = (level - previous) * contributors.length;
     const contenders = contributors.filter((player) => !player.folded);
-    if (amount > 0 && contenders.length > 0) pots.push({ amount, contenders });
+    if (amount > 0 && contenders.length > 0) {
+      pots.push({
+        amount,
+        contenders,
+        contenderIds: contenders.map((player) => player.id),
+      });
+    }
     previous = level;
   }
   if (room.deadPot > 0) {
     if (pots.length > 0) {
       pots[0].amount += room.deadPot;
     } else {
-      pots.push({ amount: room.deadPot, contenders: livePlayers(room) });
+      const contenders = livePlayers(room);
+      pots.push({
+        amount: room.deadPot,
+        contenders,
+        contenderIds: contenders.map((player) => player.id),
+      });
     }
   }
   return pots;
+}
+
+function publicSidePots(room) {
+  const pots = buildSidePots(room);
+  return pots.map((pot, index) => ({
+    amount: pot.amount,
+    amountCents: chipsToCents(room, pot.amount),
+    contenderIds: pot.contenderIds || pot.contenders.map((player) => player.id),
+    label: index === 0 ? "Main pot" : (pots.length === 2 ? "Side pot" : `Side pot ${index}`),
+  }));
 }
 
 function combineWinnerSummaries(summaries) {
@@ -1867,6 +1903,9 @@ function serializeRoom(room, viewerId) {
   const toCall = viewer && !viewer.folded && !viewer.allIn ? Math.max(0, room.currentBet - viewer.bet) : 0;
   const minRaiseTo = room.currentBet + room.minRaise;
   const { smallBlind, bigBlind } = currentBlinds(room);
+  const viewerMaxBet = viewer ? viewer.bet + viewer.stack : 0;
+  const raiseOpen = Boolean(viewer && room.raiseEligible?.has(viewer.id));
+  const sidePots = publicSidePots(room);
 
   return {
     id: room.id,
@@ -1877,6 +1916,7 @@ function serializeRoom(room, viewerId) {
     message: room.message,
     pot,
     potCents: chipsToCents(room, pot),
+    sidePots,
     currentBet: room.currentBet,
     currentBetCents: chipsToCents(room, room.currentBet),
     minRaise: room.minRaise,
@@ -1900,7 +1940,9 @@ function serializeRoom(room, viewerId) {
     })) : [],
     turn: room.turn,
     isYourTurn: room.turn === viewerId,
-    canRaise: Boolean(viewer && room.raiseEligible?.has(viewer.id)),
+    // Full min-raise is possible. Short all-in shoves still use raiseOpen via canShove.
+    canRaise: raiseOpen && viewerMaxBet >= minRaiseTo,
+    canShove: raiseOpen && viewerMaxBet > room.currentBet,
     toCall,
     toCallCents: chipsToCents(room, toCall),
     canShowHand: room.phase === "complete" && Boolean(viewer?.hand?.length) && !viewer.showCards,
@@ -2456,7 +2498,10 @@ module.exports = {
   SETTLED_MONEY_ROOM_TTL_MS,
   DORMANT_ROOM_TTL_MS,
   autoTurnAction,
+  buildSidePots,
+  cashInPlayer,
   canAutoStartHand,
+  publicSidePots,
   seatedForNextHand,
   assessPreflopAllInCall,
   bettingComplete,

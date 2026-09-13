@@ -966,12 +966,37 @@ function playActionSound(entry) {
   }
 }
 
+
+function renderSidePots() {
+  const host = potValue?.closest(".table-meta") || potValue?.parentElement?.parentElement;
+  if (!host) return;
+  let list = host.querySelector("[data-side-pots]");
+  const pots = Array.isArray(state?.sidePots) ? state.sidePots : [];
+  if (pots.length < 2) {
+    if (list) list.remove();
+    return;
+  }
+  if (!list) {
+    list = document.createElement("div");
+    list.className = "side-pots";
+    list.dataset.sidePots = "1";
+    host.appendChild(list);
+  }
+  list.innerHTML = pots.map((pot) => `
+    <div class="side-pot">
+      <span>${escapeHtml(pot.label || "Pot")}</span>
+      <strong>${formatAmount(pot.amount, pot.amountCents)}</strong>
+    </div>
+  `).join("");
+}
+
 function render() {
   if (!state) return;
   const isFirstTableRender = lastCommunitySignature === null;
   showTable(state);
   roomCode.textContent = state.id;
   potValue.textContent = formatAmount(state.pot, state.potCents);
+  renderSidePots();
   if (lastPot !== null && lastPot !== state.pot) {
     replayAnimation(potValue.closest("div"), "value-changed", 480);
   }
@@ -1142,7 +1167,8 @@ function renderControls(hero) {
   addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" });
 
   const maxRaise = hero.bet + hero.stack;
-  if (state.canRaise && maxRaise > state.currentBet) {
+  // Show the bet panel for full raises and for short all-in shoves (canRaise may be false).
+  if (maxRaise > state.currentBet && (state.canRaise || state.canShove)) {
     configureRaiseControls(hero);
   }
 }
@@ -1151,9 +1177,14 @@ function configureRaiseControls(hero, disabled = false) {
   const maxRaise = hero.bet + hero.stack;
   if (maxRaise <= state.currentBet) return;
   betControls.classList.remove("hidden");
-  const minRaise = Math.min(maxRaise, state.minRaiseTo);
-  const preferredRaise = Math.max(minRaise, state.currentBet + state.bigBlind);
-  raiseLabel.textContent = state.currentBet > 0 ? "Raise to" : "Bet amount";
+  const canFullRaise = Boolean(state.canRaise) && maxRaise >= state.minRaiseTo;
+  const minRaise = canFullRaise ? Math.min(maxRaise, state.minRaiseTo) : maxRaise;
+  const preferredRaise = canFullRaise
+    ? Math.max(minRaise, state.currentBet + state.bigBlind)
+    : maxRaise;
+  raiseLabel.textContent = !canFullRaise
+    ? "All in"
+    : (state.currentBet > 0 ? "Raise to" : "Bet amount");
   raiseControlsDisabled = disabled;
   setRaiseState({
     min: minRaise,
@@ -1161,7 +1192,7 @@ function configureRaiseControls(hero, disabled = false) {
     step: state.bigBlind,
     value: Math.min(maxRaise, preferredRaise),
   });
-  renderBetPresets(hero, disabled);
+  renderBetPresets(hero, disabled, canFullRaise);
 }
 
 function raiseBounds() {
@@ -1172,40 +1203,31 @@ function raiseBounds() {
   };
 }
 
-function renderBetPresets(hero, disabled) {
+function renderBetPresets(hero, disabled, canFullRaise = true) {
   const bounds = raiseBounds();
-  const options = [
-    {
-      label: "½ pot",
-      value: RaiseSizing.legalRaiseTo(
+  const options = [];
+  if (canFullRaise) {
+    for (const preset of [
+      { label: "½ pot", fraction: 0.5 },
+      { label: "Pot", fraction: 1 },
+    ]) {
+      const value = RaiseSizing.legalRaiseTo(
         RaiseSizing.potPresetRaiseTo({
           pot: state.pot,
           currentBet: state.currentBet,
           bigBlind: state.bigBlind,
-          fraction: 0.5,
+          fraction: preset.fraction,
         }),
         bounds,
-      ),
-    },
-    {
-      label: "Pot",
-      value: RaiseSizing.legalRaiseTo(
-        RaiseSizing.potPresetRaiseTo({
-          pot: state.pot,
-          currentBet: state.currentBet,
-          bigBlind: state.bigBlind,
-          fraction: 1,
-        }),
-        bounds,
-      ),
-    },
-    { label: "All in", value: raiseState.max },
-  ];
-  const unique = options.filter((option, index) => (
-    options.findIndex((item) => item.value === option.value) === index
-  ));
+      );
+      // Skip presets that collapse to all-in so All in stays visible.
+      if (value < raiseState.max) options.push({ label: preset.label, value });
+    }
+  }
+  // Always keep All in, even when it matches a pot size.
+  options.push({ label: "All in", value: raiseState.max });
   betPresets.innerHTML = "";
-  unique.forEach((option) => {
+  options.forEach((option) => {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = option.label;
@@ -1223,7 +1245,12 @@ function setRaiseState(next) {
   raiseState.value = clampRaise(raiseState.value);
   const formattedAmount = formatAmount(raiseState.value, Math.round(raiseState.value * (state?.chipValueCents || 0)));
   raiseAmount.textContent = formattedAmount;
-  setButtonLabel(raiseActionBtn, state?.currentBet > 0 ? "Raise" : "Bet", keybindLabel(keybinds.raise));
+  const allInOnly = raiseState.max <= raiseState.min || raiseState.value >= raiseState.max;
+  setButtonLabel(
+    raiseActionBtn,
+    allInOnly ? "All in" : (state?.currentBet > 0 ? "Raise" : "Bet"),
+    keybindLabel(keybinds.raise),
+  );
   raiseActionBtn.disabled = raiseControlsDisabled;
   raiseMinus.disabled = raiseControlsDisabled || raiseState.value <= raiseState.min;
   raisePlus.disabled = raiseControlsDisabled || raiseState.value >= raiseState.max;
