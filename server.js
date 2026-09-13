@@ -47,8 +47,6 @@ const DEFAULT_DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DA
 const STATE_FILE = process.env.GAME_STATE_FILE || path.join(DEFAULT_DATA_DIR, "rooms.json");
 const SAVE_DEBOUNCE_MS = 150;
 const SHOWDOWN_DELAY_MS = 1600;
-const NEXT_HAND_DELAY_MS = Math.max(1000, Number(process.env.NEXT_HAND_DELAY_MS) || 8000);
-const TURN_ACTION_DELAY_MS = Math.max(3000, Number(process.env.TURN_ACTION_DELAY_MS) || 15000);
 const CPU_ACTION_DELAY_MS = 250;
 const DORMANT_ROOM_TTL_MS = Math.max(60000, Number(process.env.DORMANT_ROOM_TTL_MS) || 60 * 60 * 1000);
 /** Empty settled money rooms keep their ledger this long so players can reopen settle-up by room code. */
@@ -252,8 +250,6 @@ function scheduleDormantRoomCleanup(room) {
     if (!current || current.players.some((player) => !player.isBot)) return;
     clearTimeout(current.botTimer);
     clearTimeout(current.showdownTimer);
-    clearTimeout(current.nextHandTimer);
-    clearTimeout(current.turnTimer);
     clearTimeout(current.dormantTimer);
     rooms.delete(current.id);
     scheduleSave();
@@ -266,8 +262,6 @@ function preserveSettledMoneyRoom(room) {
   if (!room?.moneyMode) return;
   clearTimeout(room.botTimer);
   clearTimeout(room.showdownTimer);
-  clearNextHandTimer(room);
-  clearTurnTimer(room);
   room.botTimer = null;
   room.showdownTimer = null;
   room.hostId = null;
@@ -374,11 +368,6 @@ function restoreRoom(raw) {
     players: Array.isArray(raw.players) ? raw.players.map(restorePlayer) : [],
     botTimer: null,
     showdownTimer: null,
-    nextHandTimer: null,
-    nextHandStartsAt: null,
-    turnTimer: null,
-    turnEndsAt: null,
-    turnTimerPlayerId: null,
     dormantSince: Number(raw.dormantSince) || null,
     dormantTimer: null,
   };
@@ -517,11 +506,6 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
     moneyLedger: [],
     dormantSince: null,
     dormantTimer: null,
-    nextHandTimer: null,
-    nextHandStartsAt: null,
-    turnTimer: null,
-    turnEndsAt: null,
-    turnTimerPlayerId: null,
     players: [
       {
         id: hostId,
@@ -812,8 +796,6 @@ function logAction(room, text, metadata = {}) {
 function resetHandState(room) {
   clearTimeout(room.showdownTimer);
   room.showdownTimer = null;
-  clearNextHandTimer(room);
-  clearTurnTimer(room);
   const { bigBlind } = currentBlinds(room);
   room.community = [];
   room.deck = makeDeck();
@@ -853,120 +835,15 @@ function resetReadiness(room) {
   }
 }
 
-function seatedForNextHand(room) {
-  return playersWithChips(room).filter((player) => !player.sittingOut);
-}
-
-function clearNextHandTimer(room) {
-  if (!room) return;
-  clearTimeout(room.nextHandTimer);
-  room.nextHandTimer = null;
-  room.nextHandStartsAt = null;
-}
-
-function canAutoStartHand(room) {
-  if (!canReadyForHand(room)) return false;
-  const seated = seatedForNextHand(room);
-  const humans = seated.filter((player) => !player.isBot);
-  // Sitting-out / busted / cashed-out seats are already excluded. Need two
-  // live seats and at least one connected human so bots do not play alone.
-  return seated.length >= 2 && humans.some((player) => player.connected);
-}
-
-function tryStartHand(room) {
-  if (!canAutoStartHand(room)) return false;
-  clearNextHandTimer(room);
-  if (room.phase === "complete") startNextHand(room);
-  else startHand(room);
-  return true;
-}
-
-function scheduleNextHand(room) {
-  if (!room) return;
-  if (!canAutoStartHand(room)) {
-    clearNextHandTimer(room);
-    return;
-  }
-  if (room.nextHandTimer && room.nextHandStartsAt && room.nextHandStartsAt > Date.now()) return;
-  clearNextHandTimer(room);
-  room.nextHandStartsAt = Date.now() + NEXT_HAND_DELAY_MS;
-  room.nextHandTimer = setTimeout(() => {
-    const current = rooms.get(room.id);
-    if (!current) return;
-    current.nextHandTimer = null;
-    current.nextHandStartsAt = null;
-    if (!tryStartHand(current)) {
-      emitRoom(current);
-      return;
-    }
-    emitRoom(current);
-  }, NEXT_HAND_DELAY_MS);
-}
-
-// Optional early start when every seated human is ready (keeps tests snappy).
 function maybeStartReadyHand(room) {
   if (!canReadyForHand(room)) return false;
-  const seated = seatedForNextHand(room);
+  const seated = playersWithChips(room).filter((player) => !player.sittingOut);
   const humans = seated.filter((player) => !player.isBot);
   if (seated.length < 2 || humans.length === 0) return false;
   if (!humans.every((player) => player.connected && player.ready)) return false;
-  return tryStartHand(room);
-}
-
-function clearTurnTimer(room) {
-  if (!room) return;
-  clearTimeout(room.turnTimer);
-  room.turnTimer = null;
-  room.turnEndsAt = null;
-  room.turnTimerPlayerId = null;
-}
-
-/** Auto-check when free; otherwise auto-fold. Used when a human's turn clock expires. */
-function autoTurnAction(room, player) {
-  const toCall = Math.max(0, (room?.currentBet || 0) - (player?.bet || 0));
-  return toCall > 0 ? { type: "fold" } : { type: "check" };
-}
-
-function scheduleHumanTurnTimer(room) {
-  const player = room.players.find((item) => item.id === room.turn);
-  if (!player || player.isBot || !player.connected || !isHandInProgress(room) || player.folded || player.allIn) {
-    clearTurnTimer(room);
-    return;
-  }
-  // Keep the clock for the same actor across incidental emits (sit-out, presence, etc.).
-  if (room.turnTimer && room.turnTimerPlayerId === player.id && room.turnEndsAt && room.turnEndsAt > Date.now()) {
-    return;
-  }
-  clearTurnTimer(room);
-  room.turnTimerPlayerId = player.id;
-  room.turnEndsAt = Date.now() + TURN_ACTION_DELAY_MS;
-  const expectedTurn = player.id;
-  room.turnTimer = setTimeout(() => {
-    const current = rooms.get(room.id);
-    if (!current) return;
-    current.turnTimer = null;
-    current.turnEndsAt = null;
-    current.turnTimerPlayerId = null;
-    const actor = current.players.find((item) => item.id === current.turn);
-    if (
-      !actor
-      || actor.id !== expectedTurn
-      || actor.isBot
-      || !actor.connected
-      || actor.folded
-      || actor.allIn
-      || !isHandInProgress(current)
-    ) {
-      emitRoom(current);
-      return;
-    }
-    const action = autoTurnAction(current, actor);
-    const result = applyPlayerAction(current, actor.id, action);
-    if (!result.ok && action.type === "check") {
-      applyPlayerAction(current, actor.id, { type: "fold" });
-    }
-    emitRoom(current);
-  }, TURN_ACTION_DELAY_MS);
+  if (room.phase === "complete") startNextHand(room);
+  else startHand(room);
+  return true;
 }
 
 function playersWithChips(room) {
@@ -1075,9 +952,7 @@ function endGame(room) {
 function restartGame(room) {
   clearTimeout(room.botTimer);
   clearTimeout(room.showdownTimer);
-  clearNextHandTimer(room);
   room.showdownTimer = null;
-  clearTurnTimer(room);
   if (room.moneyMode) room.moneyLedger = [];
   for (const player of room.players) {
     player.stack = STARTING_STACK;
@@ -1374,16 +1249,6 @@ function buildSidePots(room) {
     }
   }
   return pots;
-}
-
-function publicSidePots(room) {
-  const pots = buildSidePots(room);
-  return pots.map((pot, index) => ({
-    amount: pot.amount,
-    amountCents: chipsToCents(room, pot.amount),
-    contenderIds: pot.contenderIds || pot.contenders.map((player) => player.id),
-    label: index === 0 ? "Main pot" : (pots.length === 2 ? "Side pot" : `Side pot ${index}`),
-  }));
 }
 
 function combineWinnerSummaries(summaries) {
@@ -1912,7 +1777,6 @@ function serializeRoom(room, viewerId) {
   const { smallBlind, bigBlind } = currentBlinds(room);
   const viewerMaxBet = viewer ? viewer.bet + viewer.stack : 0;
   const raiseOpen = Boolean(viewer && room.raiseEligible?.has(viewer.id));
-  const sidePots = publicSidePots(room);
 
   return {
     id: room.id,
@@ -1923,9 +1787,6 @@ function serializeRoom(room, viewerId) {
     message: room.message,
     pot,
     potCents: chipsToCents(room, pot),
-    // Live pot breakdown (same as buildSidePots). UI shows labels when length >= 2.
-    pots: sidePots,
-    sidePots,
     currentBet: room.currentBet,
     currentBetCents: chipsToCents(room, room.currentBet),
     minRaise: room.minRaise,
@@ -1958,12 +1819,8 @@ function serializeRoom(room, viewerId) {
     canShowHand: room.phase === "complete" && Boolean(viewer?.hand?.length) && !viewer.showCards,
     canStart: false,
     canNextHand: false,
-    canReady: false,
+    canReady: Boolean(viewer && !viewer.isBot && viewer.stack > 0 && !viewer.sittingOut && canReadyForHand(room) && playersWithChips(room).filter((player) => !player.sittingOut).length >= 2),
     isReady: Boolean(viewer?.ready),
-    nextHandStartsAt: room.nextHandStartsAt || null,
-    nextHandDelayMs: NEXT_HAND_DELAY_MS,
-    turnEndsAt: room.turnEndsAt || null,
-    turnActionDelayMs: TURN_ACTION_DELAY_MS,
     canChangeBlinds: room.hostId === viewerId && canReadyForHand(room),
     canRestartGame: room.hostId === viewerId && !room.moneyMode && canAdministerGame(room),
     canEndGame: room.hostId === viewerId && canAdministerGame(room) && (room.moneyMode || room.phase !== "lobby"),
@@ -2010,10 +1867,6 @@ function serializeRoom(room, viewerId) {
 }
 
 function emitRoom(room) {
-  if (canReadyForHand(room)) scheduleNextHand(room);
-  else clearNextHandTimer(room);
-  // Arm the human clock before serialize so clients receive turnEndsAt.
-  scheduleHumanTurnTimer(room);
   for (const player of room.players) {
     for (const socketId of player.socketIds || []) {
       io.to(socketId).emit("room:update", serializeRoom(room, player.id));
@@ -2503,17 +2356,11 @@ if (require.main === module) {
 
 module.exports = {
   BLIND_LEVELS,
-  NEXT_HAND_DELAY_MS,
-  TURN_ACTION_DELAY_MS,
   SETTLED_MONEY_ROOM_TTL_MS,
   DORMANT_ROOM_TTL_MS,
-  autoTurnAction,
   buildSidePots,
   cashInPlayer,
   playerCanCashIn,
-  canAutoStartHand,
-  publicSidePots,
-  seatedForNextHand,
   assessPreflopAllInCall,
   bettingComplete,
   blindLevelForHand,
