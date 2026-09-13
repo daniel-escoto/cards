@@ -49,6 +49,11 @@ const SAVE_DEBOUNCE_MS = 150;
 const SHOWDOWN_DELAY_MS = 1600;
 const CPU_ACTION_DELAY_MS = 250;
 const DORMANT_ROOM_TTL_MS = Math.max(60000, Number(process.env.DORMANT_ROOM_TTL_MS) || 60 * 60 * 1000);
+/** Empty settled money rooms keep their ledger this long so players can reopen settle-up by room code. */
+const SETTLED_MONEY_ROOM_TTL_MS = Math.max(
+  DORMANT_ROOM_TTL_MS,
+  Number(process.env.SETTLED_MONEY_ROOM_TTL_MS) || 48 * 60 * 60 * 1000,
+);
 
 app.use(express.static("public"));
 
@@ -223,6 +228,14 @@ function clearRoomDormancy(room) {
   room.dormantSince = null;
 }
 
+function isSettledMoneyRoom(room) {
+  return Boolean(room?.moneyMode && room.phase === "gameover" && !(room.players || []).length);
+}
+
+function roomCleanupTtlMs(room) {
+  return isSettledMoneyRoom(room) ? SETTLED_MONEY_ROOM_TTL_MS : DORMANT_ROOM_TTL_MS;
+}
+
 function scheduleDormantRoomCleanup(room) {
   clearTimeout(room?.dormantTimer);
   if (!room || room.players.some((player) => !player.isBot)) {
@@ -230,16 +243,44 @@ function scheduleDormantRoomCleanup(room) {
     return;
   }
   if (!room.dormantSince) room.dormantSince = Date.now();
-  const remaining = Math.max(0, DORMANT_ROOM_TTL_MS - (Date.now() - room.dormantSince));
+  const remaining = Math.max(0, roomCleanupTtlMs(room) - (Date.now() - room.dormantSince));
   room.dormantTimer = setTimeout(() => {
     const current = rooms.get(room.id);
     if (!current || current.players.some((player) => !player.isBot)) return;
     clearTimeout(current.botTimer);
     clearTimeout(current.showdownTimer);
+    clearTimeout(current.dormantTimer);
     rooms.delete(current.id);
     scheduleSave();
   }, remaining);
   scheduleSave();
+}
+
+/** Keep an emptied money room so anyone with the code can still read the ledger. */
+function preserveSettledMoneyRoom(room) {
+  if (!room?.moneyMode) return;
+  clearTimeout(room.botTimer);
+  clearTimeout(room.showdownTimer);
+  room.botTimer = null;
+  room.showdownTimer = null;
+  room.hostId = null;
+  room.deck = [];
+  room.community = [];
+  room.turn = null;
+  room.currentBet = 0;
+  room.minRaise = currentBlinds(room).bigBlind;
+  room.deadPot = 0;
+  room.acted = new Set();
+  room.raiseEligible = new Set();
+  room.winners = [];
+  room.actionLog = [];
+  room.players = [];
+  room.status = "complete";
+  room.phase = "gameover";
+  room.settlements = optimizeSettlements(room.moneyLedger || []);
+  room.message = "Money game ended. Reopen this room code to view settle-up.";
+  clearRoomDormancy(room);
+  scheduleDormantRoomCleanup(room);
 }
 
 function restorePlayer(raw) {
@@ -345,7 +386,18 @@ function restoreRoom(raw) {
     if (!room.players.some((player) => player.id === room.hostId && !player.isBot)) chooseNextHost(room);
   }
 
-  if (!room.players.length) return null;
+  if (!room.players.length) {
+    if (room.moneyMode && (room.moneyLedger.length > 0 || room.phase === "gameover")) {
+      room.status = "complete";
+      room.phase = "gameover";
+      room.hostId = null;
+      room.settlements = Array.isArray(raw.settlements) && raw.settlements.length
+        ? room.settlements
+        : optimizeSettlements(room.moneyLedger);
+      return room;
+    }
+    return null;
+  }
   if (!Array.isArray(raw.raiseEligible) && isHandInProgress(room)) {
     room.raiseEligible = new Set(canActPlayers(room)
       .filter((player) => !room.acted.has(player.id))
@@ -418,7 +470,8 @@ function chipsToCents(room, chips) {
 }
 
 function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
-  const id = makeId();
+  let id = makeId();
+  while (rooms.has(id)) id = makeId();
   const moneyMode = Boolean(options.moneyMode);
   const buyInCents = cleanMoneyCents(options.buyInCents, DEFAULT_BUY_IN_CENTS);
   const baseSmallBlind = cleanBlind(options.smallBlind, DEFAULT_SMALL_BLIND);
@@ -1811,24 +1864,37 @@ function removePlayerAfterDisconnect(room, player) {
   const index = playerIndex(room, player.id);
   if (index < 0 || player.connected) return;
   const wasTurn = room.turn === player.id;
+  const isLastPlayer = room.players.length === 1;
 
   clearTimeout(player.disconnectTimer);
   player.disconnectTimer = null;
   player.disconnectExpiresAt = null;
-  if (room.moneyMode && player.stack > 0) {
-    player.cashOutCents += chipsToCents(room, player.stack);
-    player.stack = 0;
-  }
   if (room.moneyMode) {
+    // Last seat leaving mid-hand: refund the pot into stack before cash-out so ledger balances.
+    if (isLastPlayer && isHandInProgress(room) && player.invested > 0) {
+      player.stack += player.invested;
+      player.invested = 0;
+      player.bet = 0;
+    }
+    if (player.stack > 0) {
+      player.cashOutCents += chipsToCents(room, player.stack);
+      player.stack = 0;
+    }
     syncPlayerToMoneyLedger(room, player);
     room.settlements = optimizeSettlements(room.moneyLedger);
   }
-  room.deadPot += player.invested;
+  if (!(room.moneyMode && isLastPlayer)) {
+    room.deadPot += player.invested;
+  }
   player.bet = 0;
   player.invested = 0;
   player.folded = true;
   room.players.splice(index, 1);
   if (room.players.length === 0) {
+    if (room.moneyMode) {
+      preserveSettledMoneyRoom(room);
+      return;
+    }
     rooms.delete(room.id);
     scheduleSave();
     return;
@@ -1959,6 +2025,12 @@ io.on("connection", (socket) => {
       emitRoom(room);
       return;
     }
+    // Finished money sessions stay addressable by code so anyone can reopen settle-up.
+    if (room.moneyMode && room.phase === "gameover") {
+      ack?.({ ok: true, roomId: room.id, settlementView: true });
+      socket.emit("room:update", serializeRoom(room, playerId));
+      return;
+    }
     const reservedBotSeat = room.players.find((player) => player.isBot && player.replacedPlayerId === playerId);
     if (reservedBotSeat) {
       const reservedIdentity = { reconnectTokenHash: reservedBotSeat.replacedReconnectTokenHash };
@@ -2003,6 +2075,15 @@ io.on("connection", (socket) => {
     const removed = kickPlayerFromRoom(room, playerId);
     if (!removed) return ack?.({ ok: false, error: "Player not found." });
     ack?.({ ok: true });
+    if (room.players.length === 0) {
+      if (room.moneyMode) {
+        preserveSettledMoneyRoom(room);
+        return;
+      }
+      rooms.delete(room.id);
+      scheduleSave();
+      return;
+    }
     emitRoom(room);
   });
 
@@ -2203,6 +2284,8 @@ if (require.main === module) {
 
 module.exports = {
   BLIND_LEVELS,
+  SETTLED_MONEY_ROOM_TTL_MS,
+  DORMANT_ROOM_TTL_MS,
   assessPreflopAllInCall,
   bettingComplete,
   blindLevelForHand,
@@ -2211,6 +2294,18 @@ module.exports = {
   estimateComputerConfidence,
   estimatePostflopEquity,
   estimatePreflopEquityAgainstRange,
+  getRoom,
+  io,
+  isSettledMoneyRoom,
+  optimizeSettlements,
+  preserveSettledMoneyRoom,
   preflopBlindRaiseChance,
   preflopShoveRange,
+  removePlayerAfterDisconnect,
+  restoreRoom,
+  rooms,
+  scheduleDormantRoomCleanup,
+  serializeRoom,
+  serializeRoomForStorage,
+  server,
 };

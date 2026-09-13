@@ -707,6 +707,12 @@ function showScoreScreen(room) {
   welcome.classList.add("hidden");
   tableView.classList.add("hidden");
   scoreView.classList.remove("hidden");
+  const scoreHead = scoreView.querySelector(".score-head");
+  if (scoreHead) {
+    scoreHead.innerHTML = room.moneyMode
+      ? `<p class="eyebrow">Room ${escapeHtml(room.id)} · reopen anytime with this code</p><h2>Settle up</h2>`
+      : `<p class="eyebrow">Final standings</p><h2>Game over</h2>`;
+  }
   scoreList.innerHTML = standings.map((player, index) => `
     <div class="score-row ${player.isYou ? "you" : ""}" ${playerColorStyle(player)}>
       <span class="score-rank">${index + 1}</span>
@@ -715,7 +721,7 @@ function showScoreScreen(room) {
     </div>
   `).join("") + (room.moneyMode ? `
     <div class="settlement-list">
-      <p class="eyebrow">Settle up</p>
+      <p class="eyebrow">Who owes whom</p>
       ${(room.settlements || []).length ? room.settlements.map((item) => `
         <div class="settlement-row">
           <span>${escapeHtml(item.fromName)} pays ${escapeHtml(item.toName)}</span>
@@ -724,7 +730,8 @@ function showScoreScreen(room) {
       `).join("") : '<div class="settlement-row"><span>No transfers needed</span><strong>$0.00</strong></div>'}
     </div>
   ` : "");
-  clearRoomUrl();
+  if (room.moneyMode && room.id) setRoomUrl(room.id);
+  else clearRoomUrl();
 }
 
 function replayAnimation(element, className, duration = 700) {
