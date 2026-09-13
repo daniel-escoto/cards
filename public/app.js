@@ -1145,14 +1145,45 @@ function configureRaiseControls(hero, disabled = false) {
   renderBetPresets(hero, disabled);
 }
 
+function raiseBounds() {
+  return {
+    minRaiseTo: raiseState.min,
+    maxRaiseTo: raiseState.max,
+    step: raiseState.step || state?.bigBlind || 1,
+  };
+}
+
 function renderBetPresets(hero, disabled) {
+  const bounds = raiseBounds();
   const options = [
-    { label: "½ pot", value: state.currentBet + Math.max(state.bigBlind, Math.round(state.pot / 2)) },
-    { label: "Pot", value: state.currentBet + Math.max(state.bigBlind, state.pot) },
-    { label: "All in", value: hero.bet + hero.stack },
+    {
+      label: "½ pot",
+      value: RaiseSizing.legalRaiseTo(
+        RaiseSizing.potPresetRaiseTo({
+          pot: state.pot,
+          currentBet: state.currentBet,
+          bigBlind: state.bigBlind,
+          fraction: 0.5,
+        }),
+        bounds,
+      ),
+    },
+    {
+      label: "Pot",
+      value: RaiseSizing.legalRaiseTo(
+        RaiseSizing.potPresetRaiseTo({
+          pot: state.pot,
+          currentBet: state.currentBet,
+          bigBlind: state.bigBlind,
+          fraction: 1,
+        }),
+        bounds,
+      ),
+    },
+    { label: "All in", value: raiseState.max },
   ];
   const unique = options.filter((option, index) => (
-    options.findIndex((item) => clampRaise(item.value) === clampRaise(option.value)) === index
+    options.findIndex((item) => item.value === option.value) === index
   ));
   betPresets.innerHTML = "";
   unique.forEach((option) => {
@@ -1180,7 +1211,7 @@ function setRaiseState(next) {
 }
 
 function clampRaise(value) {
-  return Math.min(raiseState.max, Math.max(raiseState.min, Math.floor(Number(value) || raiseState.min)));
+  return RaiseSizing.legalRaiseTo(value, raiseBounds());
 }
 
 function changeRaise(direction) {
