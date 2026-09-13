@@ -347,8 +347,11 @@ renderKeybinds();
 let state = null;
 let raiseState = { value: 0, min: 0, max: 0, step: 20 };
 let raiseControlsDisabled = false;
-/** Free-check merge: one confirm button toggles Check ↔ Bet {amount}. */
-let mergeCheckBet = false;
+/**
+ * Merged confirm: one button for Check ↔ Bet {amount} (toCall === 0) or
+ * Call {amount} ↔ Raise {amount} (toCall > 0), driven by the raise detent.
+ */
+let mergePassiveConfirm = false;
 let confirmActionBtn = null;
 let leavingEndedRoom = false;
 let menuTimer = null;
@@ -1108,7 +1111,7 @@ function renderControls(hero) {
   gameButtons.innerHTML = "";
   betControls.classList.add("hidden");
   raiseControlsDisabled = false;
-  mergeCheckBet = false;
+  mergePassiveConfirm = false;
   confirmActionBtn = null;
   raiseActionBtn.classList.remove("hidden");
   betControls.querySelector(".raise-row")?.classList.remove("merge-check-bet");
@@ -1171,14 +1174,14 @@ function renderControls(hero) {
 function renderHeroActionControls(hero, disabled) {
   const maxRaise = hero.bet + hero.stack;
   const canBetMore = maxRaise > state.currentBet;
-  // Free check: merge Check + Bet into one confirm; facing a bet keeps Call + Raise separate.
-  mergeCheckBet = state.toCall <= 0 && canBetMore;
+  // Merge Check/Bet or Call/Raise into one confirm whenever the hero can put more in.
+  mergePassiveConfirm = canBetMore;
 
   // Fold only when facing a bet — free checks must not offer a fold misclick.
   if (state.toCall > 0) addActionButton("Fold", { type: "fold" }, "danger", disabled);
 
-  if (mergeCheckBet) {
-    addConfirmCheckBetButton(disabled);
+  if (mergePassiveConfirm) {
+    addConfirmPassiveButton(disabled);
   } else {
     addActionButton(
       state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check",
@@ -1207,10 +1210,10 @@ function configureRaiseControls(hero, disabled = false) {
     ? "All in"
     : (state.currentBet > 0 ? "Raise to" : "Bet amount");
   raiseControlsDisabled = disabled;
-  raiseActionBtn.classList.toggle("hidden", mergeCheckBet);
-  betControls.querySelector(".raise-row")?.classList.toggle("merge-check-bet", mergeCheckBet);
-  const initialValue = mergeCheckBet
-    ? RaiseSizing.checkDetentValue(state.currentBet)
+  raiseActionBtn.classList.toggle("hidden", mergePassiveConfirm);
+  betControls.querySelector(".raise-row")?.classList.toggle("merge-check-bet", mergePassiveConfirm);
+  const initialValue = mergePassiveConfirm
+    ? RaiseSizing.passiveDetentValue(state.currentBet)
     : Math.min(maxRaise, preferredRaise);
   setRaiseState({
     min: minRaise,
@@ -1222,17 +1225,19 @@ function configureRaiseControls(hero, disabled = false) {
 }
 
 function raiseBounds() {
+  const facingBet = (state?.toCall || 0) > 0;
   return {
     minRaiseTo: raiseState.min,
     maxRaiseTo: raiseState.max,
     step: raiseState.step || state?.bigBlind || 1,
     currentBet: state?.currentBet || 0,
-    mergeCheckBet,
+    mergeCheckBet: mergePassiveConfirm && !facingBet,
+    mergeCallRaise: mergePassiveConfirm && facingBet,
   };
 }
 
-function atCheckDetent() {
-  return mergeCheckBet && RaiseSizing.isCheckDetent(raiseState.value, state?.currentBet || 0);
+function atPassiveDetent() {
+  return mergePassiveConfirm && RaiseSizing.isPassiveDetent(raiseState.value, state?.currentBet || 0);
 }
 
 function renderBetPresets(hero, disabled, canFullRaise = true) {
@@ -1282,11 +1287,12 @@ function setRaiseState(next) {
     ...next,
   };
   raiseState.value = clampRaise(raiseState.value);
-  const displayChips = atCheckDetent() ? 0 : raiseState.value;
+  // At the passive detent the confirm carries Call/Check; show zero increment here.
+  const displayChips = atPassiveDetent() ? 0 : raiseState.value;
   const formattedAmount = formatAmount(displayChips, Math.round(displayChips * (state?.chipValueCents || 0)));
   raiseAmount.textContent = formattedAmount;
   const allInOnly = raiseState.max <= raiseState.min || raiseState.value >= raiseState.max;
-  if (!mergeCheckBet) {
+  if (!mergePassiveConfirm) {
     setButtonLabel(
       raiseActionBtn,
       allInOnly ? "All in" : (state?.currentBet > 0 ? "Raise" : "Bet"),
@@ -1294,9 +1300,9 @@ function setRaiseState(next) {
     );
   }
   raiseActionBtn.disabled = raiseControlsDisabled;
-  raiseMinus.disabled = raiseControlsDisabled || (mergeCheckBet ? atCheckDetent() : raiseState.value <= raiseState.min);
+  raiseMinus.disabled = raiseControlsDisabled || (mergePassiveConfirm ? atPassiveDetent() : raiseState.value <= raiseState.min);
   raisePlus.disabled = raiseControlsDisabled || raiseState.value >= raiseState.max;
-  updateConfirmCheckBetButton();
+  updateConfirmPassiveButton();
 }
 
 function clampRaise(value) {
@@ -1313,25 +1319,33 @@ function setButtonLabel(button, label, shortcut = "") {
   button.setAttribute("aria-label", shortcut ? `${label} (${shortcut})` : label);
 }
 
-function addConfirmCheckBetButton(disabled = false) {
+function addConfirmPassiveButton(disabled = false) {
   const button = document.createElement("button");
   confirmActionBtn = button;
   button.disabled = disabled;
   button.addEventListener("click", () => {
-    if (atCheckDetent()) {
-      emitWithAck("game:action", { type: "check" });
+    if (atPassiveDetent()) {
+      emitWithAck("game:action", { type: state.toCall > 0 ? "call" : "check" });
       return;
     }
     emitWithAck("game:action", { type: "raise", raiseTo: raiseState.value });
   });
   gameButtons.appendChild(button);
-  updateConfirmCheckBetButton();
+  updateConfirmPassiveButton();
 }
 
-function updateConfirmCheckBetButton() {
-  if (!confirmActionBtn || !mergeCheckBet) return;
+function updateConfirmPassiveButton() {
+  if (!confirmActionBtn || !mergePassiveConfirm) return;
   const shortcut = keybindLabel(keybinds.call);
-  if (atCheckDetent()) {
+  if (atPassiveDetent()) {
+    if (state.toCall > 0) {
+      setButtonLabel(
+        confirmActionBtn,
+        `Call ${formatAmount(state.toCall, state.toCallCents)}`,
+        shortcut,
+      );
+      return;
+    }
     setButtonLabel(confirmActionBtn, "Check", shortcut);
     return;
   }
@@ -1339,7 +1353,9 @@ function updateConfirmCheckBetButton() {
     raiseState.value,
     Math.round(raiseState.value * (state?.chipValueCents || 0)),
   );
-  setButtonLabel(confirmActionBtn, `Bet ${formatted}`, shortcut);
+  // Facing a bet: Raise {amount}; free check: Bet {amount}.
+  const verb = state.toCall > 0 ? "Raise" : "Bet";
+  setButtonLabel(confirmActionBtn, `${verb} ${formatted}`, shortcut);
 }
 
 function addButton(label, eventName, className = "", shortcut = "") {
@@ -1809,16 +1825,19 @@ document.addEventListener("keydown", (event) => {
   if (event.repeat) return;
   if (matchesKeybind(event, "fold") && state.toCall > 0) emitWithAck("game:action", { type: "fold" });
   if (matchesKeybind(event, "call")) {
-    if (mergeCheckBet) {
-      if (atCheckDetent()) emitWithAck("game:action", { type: "check" });
-      else emitWithAck("game:action", { type: "raise", raiseTo: raiseState.value });
+    if (mergePassiveConfirm) {
+      if (atPassiveDetent()) {
+        emitWithAck("game:action", { type: state.toCall > 0 ? "call" : "check" });
+      } else {
+        emitWithAck("game:action", { type: "raise", raiseTo: raiseState.value });
+      }
     } else {
       emitWithAck("game:action", { type: state.toCall > 0 ? "call" : "check" });
     }
   }
   if (matchesKeybind(event, "raise") && !betControls.classList.contains("hidden")) {
-    // Free-check merge: R opens/increments a bet (confirm is the Check/Bet button).
-    if (mergeCheckBet) changeRaise(1);
+    // Merged confirm: R / raise-up keys increment off the detent to a real size.
+    if (mergePassiveConfirm) changeRaise(1);
     else raiseActionBtn.click();
   }
 });

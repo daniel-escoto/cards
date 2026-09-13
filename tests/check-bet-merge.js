@@ -72,15 +72,15 @@ assert.equal(nudgeRaiseTo(50, -1, jamOnly), 0);
 assert.equal(nudgeRaiseTo(20, 1, postflop), 40);
 assert.equal(nudgeRaiseTo(40, -1, postflop), 20);
 
-// Facing a bet (no merge): nudges stay on the legal raise ladder.
-const facingBet = {
+// Without merge flag, facing-bet nudges stay on the legal raise ladder.
+const facingBetNoMerge = {
   minRaiseTo: 80,
   maxRaiseTo: 1000,
   step: 20,
   currentBet: 40,
   mergeCheckBet: false,
 };
-assert.equal(nudgeRaiseTo(80, -1, facingBet), 80);
-assert.equal(nudgeRaiseTo(80, 1, facingBet), 100);
+assert.equal(nudgeRaiseTo(80, -1, facingBetNoMerge), 80);
+assert.equal(nudgeRaiseTo(80, 1, facingBetNoMerge), 100);
 
 console.log("Check/Bet merge detent checks passed.");
