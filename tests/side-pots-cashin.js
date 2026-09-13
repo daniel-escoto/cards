@@ -1,6 +1,31 @@
 const assert = require("node:assert/strict");
 const { buildSidePots, publicSidePots, cashInPlayer } = require("../server");
 
+// Mid-hand: short all-in already matched → main + side on the wire.
+{
+  const room = {
+    deadPot: 0,
+    chipValueCents: 1,
+    phase: "turn",
+    players: [
+      { id: "a", invested: 50, folded: false },
+      { id: "b", invested: 150, folded: false },
+      { id: "c", invested: 150, folded: false },
+    ],
+  };
+  const pots = publicSidePots(room);
+  assert.equal(pots.length, 2);
+  assert.equal(pots[0].label, "Main pot");
+  assert.equal(pots[0].amount, 150);
+  assert.equal(pots[1].label, "Side pot");
+  assert.equal(pots[1].amount, 200);
+  // Alias used by clients that look for `pots`.
+  assert.deepEqual(
+    pots.map((pot) => `${pot.label} ${pot.amount}`).join(" · "),
+    "Main pot 150 · Side pot 200",
+  );
+}
+
 // Live side pots: short all-in creates main + side.
 {
   const room = {

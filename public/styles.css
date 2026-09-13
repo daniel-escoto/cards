@@ -912,6 +912,37 @@ select:focus {
   font-size: 24px;
 }
 
+.pot-breakdown {
+  max-width: min(280px, 56vw);
+  margin-left: 8px;
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(9, 21, 18, 0.58);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.hand-row .pot-breakdown {
+  height: auto !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+  display: flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+:root[data-theme="light"] .pot-breakdown {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(24, 38, 33, 0.16);
+  color: #17201c;
+}
+
 .side-pots {
   display: flex;
   flex-direction: column;

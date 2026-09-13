@@ -967,27 +967,56 @@ function playActionSound(entry) {
 }
 
 
+function livePots() {
+  if (Array.isArray(state?.pots) && state.pots.length) return state.pots;
+  if (Array.isArray(state?.sidePots) && state.sidePots.length) return state.sidePots;
+  return [];
+}
+
+/** "Main pot $X · Side pot $Y" when 2+ pots exist; otherwise null. */
+function sidePotBreakdown() {
+  const pots = livePots();
+  if (pots.length < 2) return null;
+  return pots
+    .map((pot) => `${pot.label || "Pot"} ${formatAmount(pot.amount, pot.amountCents)}`)
+    .join(" · ");
+}
+
+function potCaption() {
+  return sidePotBreakdown() || `Pot ${formatAmount(state.pot, state.potCents)}`;
+}
+
 function renderSidePots() {
   const host = potValue?.closest(".table-meta") || potValue?.parentElement?.parentElement;
   if (!host) return;
+  const potBox = potValue?.closest("div") || potValue?.parentElement;
+  let breakdown = host.querySelector("[data-pot-breakdown]");
   let list = host.querySelector("[data-side-pots]");
-  const pots = Array.isArray(state?.sidePots) ? state.sidePots : [];
-  if (pots.length < 2) {
+  const pots = livePots();
+  const summary = sidePotBreakdown();
+
+  if (potBox) {
+    const label = potBox.querySelector("span");
+    if (label) label.textContent = pots.length >= 2 ? "Total pot" : "Pot";
+  }
+
+  if (!summary) {
+    if (breakdown) breakdown.remove();
     if (list) list.remove();
     return;
   }
-  if (!list) {
-    list = document.createElement("div");
-    list.className = "side-pots";
-    list.dataset.sidePots = "1";
-    host.appendChild(list);
+
+  // Inline summary: "Main pot $X · Side pot $Y" (hide when only one pot).
+  if (!breakdown) {
+    breakdown = document.createElement("div");
+    breakdown.className = "pot-breakdown";
+    breakdown.dataset.potBreakdown = "1";
+    host.appendChild(breakdown);
   }
-  list.innerHTML = pots.map((pot) => `
-    <div class="side-pot">
-      <span>${escapeHtml(pot.label || "Pot")}</span>
-      <strong>${formatAmount(pot.amount, pot.amountCents)}</strong>
-    </div>
-  `).join("");
+  breakdown.textContent = summary;
+
+  // Prefer the inline caption over separate chips so the table stays readable.
+  if (list) list.remove();
 }
 
 function render() {
@@ -1147,7 +1176,7 @@ function renderControls(hero) {
     const currentIndex = findLastIndex(state.players, (player) => player.id === state.turn);
     const current = currentIndex >= 0 ? state.players[currentIndex] : null;
     turnInfo.textContent = current
-      ? `Pot ${formatAmount(state.pot, state.potCents)}. ${current.name} is acting${turnCountdownSuffix()}.`
+      ? `${potCaption()}. ${current.name} is acting${turnCountdownSuffix()}.`
       : "Waiting for the host.";
     if (hero && isBettingPhase(state.phase) && !hero.folded && !hero.allIn) {
       // Fold only when facing a bet — free checks must not offer a fold misclick.
@@ -1159,8 +1188,8 @@ function renderControls(hero) {
   }
 
   turnInfo.textContent = state.toCall > 0
-    ? `Pot ${formatAmount(state.pot, state.potCents)}. Call ${formatAmount(state.toCall, state.toCallCents)} to continue${turnCountdownSuffix()}.`
-    : `Pot ${formatAmount(state.pot, state.potCents)}. Your turn: check or bet${turnCountdownSuffix()}.`;
+    ? `${potCaption()}. Call ${formatAmount(state.toCall, state.toCallCents)} to continue${turnCountdownSuffix()}.`
+    : `${potCaption()}. Your turn: check or bet${turnCountdownSuffix()}.`;
   turnInfo.classList.add("your-turn");
   if (state.turnEndsAt) addTurnCountdown();
   if (state.toCall > 0) addActionButton("Fold", { type: "fold" }, "danger");
@@ -1365,12 +1394,12 @@ function syncTurnCountdown() {
     });
     if (state.isYourTurn) {
       turnInfo.textContent = state.toCall > 0
-        ? `Pot ${formatAmount(state.pot, state.potCents)}. Call ${formatAmount(state.toCall, state.toCallCents)} to continue${turnCountdownSuffix()}.`
-        : `Pot ${formatAmount(state.pot, state.potCents)}. Your turn: check or bet${turnCountdownSuffix()}.`;
+        ? `${potCaption()}. Call ${formatAmount(state.toCall, state.toCallCents)} to continue${turnCountdownSuffix()}.`
+        : `${potCaption()}. Your turn: check or bet${turnCountdownSuffix()}.`;
     } else {
       const current = currentTurnPlayer();
       if (current && isBettingPhase(state.phase)) {
-        turnInfo.textContent = `Pot ${formatAmount(state.pot, state.potCents)}. ${current.name} is acting${turnCountdownSuffix()}.`;
+        turnInfo.textContent = `${potCaption()}. ${current.name} is acting${turnCountdownSuffix()}.`;
       }
     }
     if (seconds <= 0) clearInterval(turnCountdownTimer);

@@ -1916,6 +1916,8 @@ function serializeRoom(room, viewerId) {
     message: room.message,
     pot,
     potCents: chipsToCents(room, pot),
+    // Live pot breakdown (same as buildSidePots). UI shows labels when length >= 2.
+    pots: sidePots,
     sidePots,
     currentBet: room.currentBet,
     currentBetCents: chipsToCents(room, room.currentBet),
