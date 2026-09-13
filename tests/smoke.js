@@ -482,6 +482,7 @@ async function readyUp(players) {
     roomId: cashRoom.roomId,
     name: cashGuest.name,
     deviceId: cashGuest.deviceId,
+    acceptedMoneyTerms: { roomId: cashRoom.roomId, buyInCents: 2500, smallBlindCents: 12, bigBlindCents: 24 },
   });
   await waitFor(() => cashHost.state?.players.length === 2, "cash guest seated");
   await emit(cashGuest.socket, "money:cashOut");

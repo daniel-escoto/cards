@@ -653,6 +653,8 @@ function makeHumanPlayer(room, { id, socketId, name, reconnectTokenHash }) {
   if (room.moneyMode) {
     player.stack = centsToChips(room, room.buyInCents);
     addMoneyBuyIn(room, player, room.buyInCents);
+    // Keep late arrivals out of every betting and payout calculation until the next deal.
+    player.folded = isHandInProgress(room);
   }
   return player;
 }
@@ -1801,6 +1803,7 @@ function serializeRoom(room, viewerId) {
       betCents: chipsToCents(room, player.bet),
       invested: player.invested,
       investedCents: chipsToCents(room, player.invested),
+      waitingForNextHand: isHandInProgress(room) && player.hand.length === 0 && player.folded && player.stack > 0,
       folded: player.folded,
       allIn: player.allIn,
       connected: player.connected,
@@ -2009,7 +2012,7 @@ io.on("connection", (socket) => {
     emitRoom(room);
   });
 
-  socket.on("room:join", ({ roomId, name, deviceId, reconnectToken }, ack) => {
+  socket.on("room:join", ({ roomId, name, deviceId, reconnectToken, acceptedMoneyTerms }, ack) => {
     const room = getRoom(roomId);
     if (!room) return ack?.({ ok: false, error: "Room not found." });
     const playerId = cleanDeviceId(deviceId, socket.id);
@@ -2054,8 +2057,21 @@ io.on("connection", (socket) => {
     }
     const effectiveMax = room.tableSize || MAX_PLAYERS;
     if (room.players.length >= effectiveMax) return ack?.({ ok: false, error: "Room is full." });
-    if (room.phase !== "lobby" && room.phase !== "complete") {
+    if (room.phase === "gameover") return ack?.({ ok: false, error: "This session has ended." });
+    if (!room.moneyMode && room.phase !== "lobby" && room.phase !== "complete") {
       return ack?.({ ok: false, error: "This hand is in progress. Join after it ends." });
+    }
+    if (room.moneyMode) {
+      const blinds = currentBlinds(room);
+      const moneyTerms = {
+        roomId: room.id,
+        buyInCents: room.buyInCents,
+        smallBlindCents: chipsToCents(room, blinds.smallBlind),
+        bigBlindCents: chipsToCents(room, blinds.bigBlind),
+      };
+      if (!acceptedMoneyTerms || Object.keys(moneyTerms).some((key) => acceptedMoneyTerms[key] !== moneyTerms[key])) {
+        return ack?.({ ok: false, moneyTerms, error: "Review the buy-in and blinds before joining." });
+      }
     }
     const credentials = newReconnectCredentials();
     resetReadiness(room);

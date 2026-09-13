@@ -327,6 +327,8 @@ const initialRoomId = (initialRoomParam || localStorage.getItem("holdem:lastRoom
 if (initialRoomId) roomInput.value = initialRoomId;
 nameInput.value = localStorage.getItem("holdem:name") || "";
 let joinPending = false;
+let acceptedMoneyTerms = null;
+const joinPreview = document.querySelector("#joinPreview");
 let didAutoJoinInitialRoom = false;
 let tableMode = initialRoomId ? "join" : "host";
 let toastTimer = null;
@@ -445,7 +447,8 @@ function lockMobileGameOverscroll(event) {
 
 function updateTableActionLabel() {
   const isJoining = tableMode === "join";
-  if (!joinPending) tableActionBtn.textContent = isJoining ? "Join table" : "Host table";
+  if (!joinPending) tableActionBtn.textContent = isJoining ? (acceptedMoneyTerms ? "Join table · Play next hand" : "Join table") : "Host table";
+  joinPreview.classList.toggle("hidden", !isJoining || !acceptedMoneyTerms);
   tableActionBtn.disabled = joinPending || !socket.connected;
   blindFields.classList.toggle("hidden", isJoining);
   moneyModeInput.closest("label").classList.toggle("hidden", isJoining);
@@ -479,6 +482,7 @@ function syncBlindInputMode() {
 }
 
 function setTableMode(mode, focusRoom = false) {
+  acceptedMoneyTerms = null;
   tableMode = mode;
   joinError.textContent = "";
   updateTableActionLabel();
@@ -582,6 +586,7 @@ function roundStatus(player) {
   if (!player.connected) return "Away";
   if (playerIsOut(player)) return "Out";
   if (["lobby", "complete"].includes(state?.phase)) return "";
+  if (player.waitingForNextHand) return "Next hand";
   if (player.folded) return "Folded";
   if (player.allIn) return "All in";
   if (player.isTurn) return "Acting";
@@ -807,6 +812,7 @@ function actionTokenClass(entry, player) {
 function playerTableStatus(player, isActiveTurn = player.isTurn) {
   if (playerIsOut(player)) return "Out";
   if (["lobby", "complete"].includes(state?.phase)) return player.ready || player.isBot ? "Ready" : "Not ready";
+  if (player.waitingForNextHand) return "Next hand";
   if (player.folded) return "Folded";
   if (player.allIn) return "All in";
   if (isActiveTurn) return "Acting";
@@ -1011,6 +1017,10 @@ function renderControls(hero) {
   turnInfo.textContent = "";
   turnInfo.classList.remove("your-turn");
 
+  if (hero?.waitingForNextHand) {
+    turnInfo.textContent = "You’re seated. You’ll play on the next hand.";
+    return;
+  }
   if (state.phase === "showdown") {
     turnInfo.textContent = "Cards down. Revealing the winner…";
     turnInfo.classList.add("showdown-message");
@@ -1208,6 +1218,7 @@ function joinOrCreate(mode) {
     roomId,
     deviceId: credentials?.playerId || getDeviceId(),
     reconnectToken: credentials?.reconnectToken,
+    acceptedMoneyTerms,
   };
   if (mode !== "join") {
     payload.moneyMode = moneyModeInput.checked;
@@ -1231,9 +1242,18 @@ function joinOrCreate(mode) {
       return;
     }
     if (!response?.ok) {
+      if (response?.moneyTerms) {
+        acceptedMoneyTerms = response.moneyTerms;
+        const terms = acceptedMoneyTerms;
+        joinPreview.textContent = `Money game · Buy-in ${formatMoney(terms.buyInCents)} · Blinds ${formatMoney(terms.smallBlindCents)}/${formatMoney(terms.bigBlindCents)}. You’ll play on the next deal. Payments happen separately after the game.`;
+        joinError.textContent = "";
+        updateTableActionLabel();
+        return;
+      }
       joinError.textContent = response?.error || "Could not join table.";
       return;
     }
+    acceptedMoneyTerms = null;
     lastAutoRejoinKey = `${socket.id}:${response.roomId || roomId}`;
     saveRoomCredentials(response.roomId || roomId, response);
     setRoomUrl(response.roomId || roomId);
@@ -1283,7 +1303,11 @@ resetKeybindsBtn.addEventListener("click", () => {
   showToast("Shortcuts reset");
 });
 
-roomInput.addEventListener("input", () => { roomInput.value = roomInput.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
+roomInput.addEventListener("input", () => {
+  roomInput.value = roomInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  acceptedMoneyTerms = null;
+  updateTableActionLabel();
+});
 hostModeBtn.addEventListener("click", () => setTableMode("host"));
 joinModeBtn.addEventListener("click", () => setTableMode("join", true));
 moneyModeInput.addEventListener("change", () => {

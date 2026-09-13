@@ -11,6 +11,7 @@
     "test:bots": "node tests/bots.js",
     "test:money-ledger": "node tests/money-ledger.js",
     "test": "npm run test:betting && npm run test:blinds && npm run test:bots && npm run test:money-ledger",
+    "test:money-join": "node tests/money-join.js",
     "smoke": "node tests/smoke.js"
   },
   "keywords": [],
