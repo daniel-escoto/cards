@@ -194,6 +194,24 @@ class TableSounds {
     }
   }
 
+  turn() {
+    const context = this.unlock();
+    if (!context) return;
+    const start = context.currentTime;
+    [880, 1320].forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      const envelope = this.output(0);
+      oscillator.type = "sine";
+      oscillator.frequency.value = frequency;
+      envelope.gain.setValueAtTime(0.0001, start);
+      envelope.gain.exponentialRampToValueAtTime(index ? 0.09 : 0.2, start + 0.008);
+      envelope.gain.exponentialRampToValueAtTime(0.0001, start + 0.65);
+      oscillator.connect(envelope);
+      oscillator.start(start);
+      oscillator.stop(start + 0.7);
+    });
+  }
+
   win() {
     const context = this.unlock();
     if (!context) return;
@@ -579,6 +597,8 @@ function playerIsOut(player) {
 }
 
 function roundStatus(player) {
+  if (player.sittingOut) return player.cards.length && isBettingPhase(state.phase) ? "Sits out next" : "Sitting out";
+
   if (!player.connected && player.disconnectExpiresAt) {
     const seconds = Math.max(0, Math.ceil((new Date(player.disconnectExpiresAt).getTime() - Date.now()) / 1000));
     return seconds > 0 ? `Away ${seconds}s` : "Away";
@@ -810,6 +830,8 @@ function actionTokenClass(entry, player) {
 }
 
 function playerTableStatus(player, isActiveTurn = player.isTurn) {
+  if (player.sittingOut) return player.cards.length && isBettingPhase(state.phase) ? "Sits out next" : "Sitting out";
+
   if (playerIsOut(player)) return "Out";
   if (["lobby", "complete"].includes(state?.phase)) return player.ready || player.isBot ? "Ready" : "Not ready";
   if (player.waitingForNextHand) return "Next hand";
@@ -1017,6 +1039,13 @@ function renderControls(hero) {
   turnInfo.textContent = "";
   turnInfo.classList.remove("your-turn");
 
+  if (hero && state.phase !== "gameover") {
+    addButton(hero.sittingOut ? "I’m back" : "Sit out next hand", "game:sitOut", "secondary");
+  }
+  if (hero?.sittingOut && (!isBettingPhase(state.phase) || !hero.cards.length)) {
+    turnInfo.textContent = "You’re sitting out. Your seat and stack are saved.";
+    return;
+  }
   if (hero?.waitingForNextHand) {
     turnInfo.textContent = "You’re seated. You’ll play on the next hand.";
     return;
@@ -1040,10 +1069,10 @@ function renderControls(hero) {
 
   if (!state.isYourTurn || !hero) {
     if (["lobby", "complete"].includes(state.phase)) {
-      const humans = state.players.filter((player) => !player.isBot && player.stack > 0);
+      const humans = state.players.filter((player) => !player.isBot && !player.sittingOut && player.stack > 0);
       const readyCount = humans.filter((player) => player.ready).length;
-      turnInfo.textContent = humans.length < 2 && state.players.filter((player) => player.stack > 0).length < 2
-        ? state.moneyMode ? "Invite a player to begin." : "Invite a player or add a CPU to begin."
+      turnInfo.textContent = humans.length < 2 && state.players.filter((player) => player.stack > 0 && !player.sittingOut).length < 2
+        ? "Waiting for at least two active players."
         : `${readyCount} of ${humans.length} players ready.`;
       return;
     }
@@ -1459,7 +1488,10 @@ socket.on("room:update", (room) => {
     return;
   }
 
+  const newTurn = room.isYourTurn && (!state?.isYourTurn || state.id !== room.id
+    || state.handNumber !== room.handNumber || state.phase !== room.phase);
   state = room;
+  if (newTurn) tableSounds.turn();
   const self = state.players.find((player) => player.isYou && !player.isBot);
   if (self) {
     nameInput.value = self.name;

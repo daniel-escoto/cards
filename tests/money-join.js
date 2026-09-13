@@ -63,6 +63,44 @@ async function ok(p, event, payload) {
   assert.equal(hero().waitingForNextHand, false);
   assert.equal(hero().cards.length, 2);
   assert.equal(late.state.players.reduce((sum, p) => sum + p.stackCents + p.investedCents, 0), 7500);
-  console.log('Money join test passed');
+  const currentCards = hero().cards;
+  await ok(late, 'game:sitOut', { sittingOut: true });
+  await wait(() => hero().sittingOut);
+  assert.deepEqual(hero().cards, currentCards, 'queuing a break preserves the current hand');
+  async function finishHand() {
+    await wait(() => host.state.handNumber === late.state.handNumber);
+    while (host.state.phase !== 'complete') {
+      const turn = host.state.turn;
+      const actor = [host, guest, late].find(p => p.deviceId === turn);
+      if (actor) await ok(actor, 'game:action', { type: 'fold' });
+      await wait(() => host.state.turn !== turn || host.state.phase === 'complete');
+    }
+  }
+  await finishHand();
+  await wait(() => late.state.phase === 'complete');
+  const savedStack = hero().stackCents;
+  assert.equal((await send(late, 'game:ready', { ready: true })).ok, false);
+  for (const p of [host, guest]) await ok(p, 'game:ready', { ready: true });
+  await wait(() => late.state.handNumber === 3);
+  assert.equal(hero().cards.length, 0);
+  assert.equal(hero().invested, 0, 'sitting out skips blinds');
+  assert.equal(hero().stackCents, savedStack);
+  await ok(late, 'room:join', { ...join(late), reconnectToken: seat.reconnectToken });
+  assert.equal(hero().sittingOut, true);
+  await ok(late, 'game:sitOut', { sittingOut: false });
+  await wait(() => !hero().sittingOut);
+  assert.equal(hero().cards.length, 0, 'returning cannot enter the current hand');
+  assert.equal(hero().folded, true);
+  await finishHand();
+  for (const p of [host, guest, late]) await ok(p, 'game:ready', { ready: true });
+  await wait(() => late.state.handNumber === 4);
+  assert.equal(hero().cards.length, 2);
+  await finishHand();
+  await ok(guest, 'game:sitOut', { sittingOut: true });
+  await ok(late, 'game:sitOut', { sittingOut: true });
+  await ok(host, 'game:ready', { ready: true });
+  await wait(() => host.state.players.find(p => p.isYou).ready);
+  assert.equal(host.state.phase, 'complete', 'one active player cannot start a hand');
+  console.log('Money join and sit-out tests passed');
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => sockets.forEach(socket => socket.disconnect()));
 function identity(p) { return { name: p.name, deviceId: p.deviceId }; }

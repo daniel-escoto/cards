@@ -151,6 +151,7 @@ function serializePlayerForStorage(player) {
     invested: player.invested,
     showCards: Boolean(player.showCards),
     ready: Boolean(player.ready),
+    sittingOut: Boolean(player.sittingOut),
     disconnectExpiresAt: player.disconnectExpiresAt || null,
     connected: false,
     isBot: player.isBot,
@@ -298,6 +299,7 @@ function restorePlayer(raw) {
     invested: Math.max(0, Math.floor(Number(raw.invested) || 0)),
     showCards: Boolean(raw.showCards),
     ready: Boolean(raw.ready),
+    sittingOut: Boolean(raw.sittingOut),
     disconnectExpiresAt: null,
     connected: Boolean(raw.isBot),
     isBot: Boolean(raw.isBot),
@@ -835,7 +837,7 @@ function resetReadiness(room) {
 
 function maybeStartReadyHand(room) {
   if (!canReadyForHand(room)) return false;
-  const seated = playersWithChips(room);
+  const seated = playersWithChips(room).filter((player) => !player.sittingOut);
   const humans = seated.filter((player) => !player.isBot);
   if (seated.length < 2 || humans.length === 0) return false;
   if (!humans.every((player) => player.connected && player.ready)) return false;
@@ -862,7 +864,7 @@ function maybeEndGame(room) {
 }
 
 function startHand(room) {
-  const seated = playersWithChips(room);
+  const seated = playersWithChips(room).filter((player) => !player.sittingOut);
   if (seated.length < 2) {
     maybeEndGame(room);
     if (room.phase !== "gameover") {
@@ -874,6 +876,7 @@ function startHand(room) {
   }
 
   resetHandState(room);
+  for (const player of room.players) player.folded = Boolean(player.sittingOut);
   room.status = "playing";
   room.phase = "preflop";
   room.handNumber += 1;
@@ -881,20 +884,20 @@ function startHand(room) {
   const { smallBlind, bigBlind } = currentBlinds(room);
   room.minRaise = bigBlind;
 
-  if (room.players[room.dealer]?.stack <= 0) {
-    room.dealer = nextIndex(room, room.dealer, (player) => player.stack > 0);
+  if (room.players[room.dealer]?.stack <= 0 || room.players[room.dealer]?.sittingOut) {
+    room.dealer = nextIndex(room, room.dealer, (player) => player.stack > 0 && !player.sittingOut);
   }
 
   for (let round = 0; round < 2; round += 1) {
     for (let offset = 1; offset <= room.players.length; offset += 1) {
       const player = room.players[(room.dealer + offset) % room.players.length];
-      if (player.stack > 0) player.hand.push(room.deck.pop());
+      if (player.stack > 0 && !player.sittingOut) player.hand.push(room.deck.pop());
     }
   }
 
   const headsUp = seated.length === 2;
-  const smallBlindIndex = headsUp ? room.dealer : nextIndex(room, room.dealer, (p) => p.stack > 0);
-  const bigBlindIndex = nextIndex(room, smallBlindIndex, (p) => p.stack > 0);
+  const smallBlindIndex = headsUp ? room.dealer : nextIndex(room, room.dealer, (p) => p.stack > 0 && !p.sittingOut);
+  const bigBlindIndex = nextIndex(room, smallBlindIndex, (p) => p.stack > 0 && !p.sittingOut);
   postBlind(room, smallBlindIndex, smallBlind);
   postBlind(room, bigBlindIndex, bigBlind);
   logAction(room, `${room.players[smallBlindIndex].name} posts small blind ${smallBlind}.`, {
@@ -915,7 +918,7 @@ function startHand(room) {
 }
 
 function startNextHand(room) {
-  const nextDealer = nextIndex(room, room.dealer, (player) => player.stack > 0);
+  const nextDealer = nextIndex(room, room.dealer, (player) => player.stack > 0 && !player.sittingOut);
   room.dealer = nextDealer >= 0 ? nextDealer : 0;
   startHand(room);
 }
@@ -1778,7 +1781,7 @@ function serializeRoom(room, viewerId) {
     canShowHand: room.phase === "complete" && Boolean(viewer?.hand?.length) && !viewer.showCards,
     canStart: false,
     canNextHand: false,
-    canReady: Boolean(viewer && !viewer.isBot && viewer.stack > 0 && canReadyForHand(room) && playersWithChips(room).length >= 2),
+    canReady: Boolean(viewer && !viewer.isBot && viewer.stack > 0 && !viewer.sittingOut && canReadyForHand(room) && playersWithChips(room).filter((player) => !player.sittingOut).length >= 2),
     isReady: Boolean(viewer?.ready),
     canChangeBlinds: room.hostId === viewerId && canReadyForHand(room),
     canRestartGame: room.hostId === viewerId && !room.moneyMode && canAdministerGame(room),
@@ -1803,6 +1806,7 @@ function serializeRoom(room, viewerId) {
       betCents: chipsToCents(room, player.bet),
       invested: player.invested,
       investedCents: chipsToCents(room, player.invested),
+      sittingOut: Boolean(player.sittingOut),
       waitingForNextHand: isHandInProgress(room) && player.hand.length === 0 && player.folded && player.stack > 0,
       folded: player.folded,
       allIn: player.allIn,
@@ -2132,12 +2136,26 @@ io.on("connection", (socket) => {
     ack?.({ ok: false, error: "Players must ready up before the next hand." });
   });
 
+  socket.on("game:sitOut", ({ sittingOut } = {}, ack) => {
+    const room = rooms.get(socketRoom.get(socket.id));
+    const player = room?.players.find((item) => item.id === socketPlayer.get(socket.id));
+    if (!player || player.isBot || room.phase === "gameover") return ack?.({ ok: false, error: "Seat unavailable." });
+    player.sittingOut = sittingOut === undefined ? !player.sittingOut : Boolean(sittingOut);
+    player.ready = false;
+    // Current cards, bets, and action remain intact; the next deal applies the break.
+    room.message = player.sittingOut ? `${player.name} will sit out the next hand.` : `${player.name} is back for the next deal.`;
+    maybeStartReadyHand(room);
+    ack?.({ ok: true });
+    emitRoom(room);
+  });
+
   socket.on("game:ready", ({ ready } = {}, ack) => {
     const room = rooms.get(socketRoom.get(socket.id));
     const playerId = socketPlayer.get(socket.id);
     const player = room?.players.find((item) => item.id === playerId);
     if (!room || !player || player.isBot) return ack?.({ ok: false, error: "Player not found." });
     if (!canReadyForHand(room)) return ack?.({ ok: false, error: "You can ready up between hands." });
+    if (player.sittingOut) return ack?.({ ok: false, error: "Return to the table before readying up." });
     if (player.stack <= 0) return ack?.({ ok: false, error: "Cash in before readying up." });
     player.ready = ready === undefined ? !player.ready : Boolean(ready);
     room.message = player.ready ? `${player.name} is ready.` : `${player.name} is not ready.`;
