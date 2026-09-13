@@ -241,7 +241,6 @@ const KEYBIND_DEFINITIONS = [
   { id: "raise", label: "Bet / raise", defaultKey: "r" },
   { id: "raiseUp", label: "Increase bet", defaultKey: "ArrowUp", defaultAliases: ["ArrowRight"] },
   { id: "raiseDown", label: "Decrease bet", defaultKey: "ArrowDown", defaultAliases: ["ArrowLeft"] },
-  { id: "ready", label: "Ready up", defaultKey: "Space" },
   { id: "showHand", label: "Show hand", defaultKey: "h" },
   { id: "menu", label: "Table menu", defaultKey: "m" },
 ];
@@ -344,6 +343,7 @@ function matchesKeybind(event, action) {
 renderKeybinds();
 
 let state = null;
+let nextHandCountdownTimer = null;
 let raiseState = { value: 0, min: 0, max: 0, step: 20 };
 let raiseControlsDisabled = false;
 let leavingEndedRoom = false;
@@ -859,7 +859,7 @@ function playerTableStatus(player, isActiveTurn = player.isTurn) {
   if (player.sittingOut) return player.cards.length && isBettingPhase(state.phase) ? "Sits out next" : "Sitting out";
 
   if (playerIsOut(player)) return "Out";
-  if (["lobby", "complete"].includes(state?.phase)) return player.ready || player.isBot ? "Ready" : "Not ready";
+  if (["lobby", "complete"].includes(state?.phase)) return "Waiting";
   if (player.waitingForNextHand) return "Next hand";
   if (player.folded) return "Folded";
   if (player.allIn) return "All in";
@@ -1038,6 +1038,7 @@ function render() {
   }
 
   renderControls(hero);
+  syncNextHandCountdown();
   if (!gameMenuModal.classList.contains("hidden")) {
     renderMenuPlayers();
     addBotBtn.classList.toggle("hidden", !state?.canAddBot);
@@ -1093,8 +1094,8 @@ function renderControls(hero) {
   if (state.canAddBot) {
     addButton("+ Add CPU player", "room:addBot", "secondary lobby-add-bot");
   }
-  if (state.canReady) {
-    addButton(state.isReady ? "Not ready" : "Ready up", "game:ready", state.isReady ? "secondary" : "", keybindLabel(keybinds.ready));
+  if (state.nextHandStartsAt && ["lobby", "complete"].includes(state.phase)) {
+    addNextHandCountdown();
   }
   if (state.canShowHand) {
     addButton("Show hand", "game:showCards", "secondary", keybindLabel(keybinds.showHand));
@@ -1102,11 +1103,14 @@ function renderControls(hero) {
 
   if (!state.isYourTurn || !hero) {
     if (["lobby", "complete"].includes(state.phase)) {
-      const humans = state.players.filter((player) => !player.isBot && !player.sittingOut && player.stack > 0);
-      const readyCount = humans.filter((player) => player.ready).length;
-      turnInfo.textContent = humans.length < 2 && state.players.filter((player) => player.stack > 0 && !player.sittingOut).length < 2
-        ? "Waiting for at least two active players."
-        : `${readyCount} of ${humans.length} players ready.`;
+      const active = state.players.filter((player) => player.stack > 0 && !player.sittingOut);
+      if (active.length < 2) {
+        turnInfo.textContent = "Waiting for at least two active players.";
+      } else if (state.nextHandStartsAt) {
+        turnInfo.textContent = nextHandCountdownLabel();
+      } else {
+        turnInfo.textContent = "Waiting for the next hand…";
+      }
       return;
     }
     const currentIndex = findLastIndex(state.players, (player) => player.id === state.turn);
@@ -1228,6 +1232,49 @@ function setButtonLabel(button, label, shortcut = "") {
   button.innerHTML = `<span>${escapeHtml(label)}</span>${shortcut ? `<kbd aria-hidden="true">${escapeHtml(shortcut)}</kbd>` : ""}`;
   button.classList.toggle("has-shortcut", Boolean(shortcut));
   button.setAttribute("aria-label", shortcut ? `${label} (${shortcut})` : label);
+}
+
+
+function nextHandSecondsRemaining() {
+  if (!state?.nextHandStartsAt) return 0;
+  return Math.max(0, Math.ceil((state.nextHandStartsAt - Date.now()) / 1000));
+}
+
+function nextHandCountdownLabel() {
+  const seconds = nextHandSecondsRemaining();
+  return seconds > 0 ? `Next hand in ${seconds}s` : "Starting…";
+}
+
+function addNextHandCountdown() {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.disabled = true;
+  button.className = "secondary next-hand-countdown";
+  button.dataset.nextHandCountdown = "1";
+  button.textContent = nextHandCountdownLabel();
+  button.setAttribute("aria-label", button.textContent);
+  gameButtons.appendChild(button);
+}
+
+function syncNextHandCountdown() {
+  clearInterval(nextHandCountdownTimer);
+  nextHandCountdownTimer = null;
+  if (!state?.nextHandStartsAt || !["lobby", "complete"].includes(state.phase)) return;
+  const tick = () => {
+    const label = nextHandCountdownLabel();
+    const button = gameButtons.querySelector("[data-next-hand-countdown]");
+    if (button) {
+      button.textContent = label;
+      button.setAttribute("aria-label", label);
+    }
+    if (["lobby", "complete"].includes(state.phase) && !state.isYourTurn) {
+      const active = state.players.filter((player) => player.stack > 0 && !player.sittingOut);
+      if (active.length >= 2) turnInfo.textContent = label;
+    }
+    if (nextHandSecondsRemaining() <= 0 && !button) clearInterval(nextHandCountdownTimer);
+  };
+  tick();
+  nextHandCountdownTimer = setInterval(tick, 250);
 }
 
 function addButton(label, eventName, className = "", shortcut = "") {
@@ -1679,9 +1726,9 @@ document.addEventListener("keydown", (event) => {
     showGameMenu();
     return;
   }
-  if (matchesKeybind(event, "ready") && state.canReady) {
+  if (matchesKeybind(event, "ready")) {
+    // Ready up was replaced by an auto-start countdown.
     event.preventDefault();
-    if (!event.repeat) emitWithAck("game:ready", {});
     return;
   }
   if (matchesKeybind(event, "showHand") && state.canShowHand) {

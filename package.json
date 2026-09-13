@@ -12,7 +12,8 @@
     "test:money-ledger": "node tests/money-ledger.js",
     "test:raise-presets": "node tests/raise-presets.js",
     "test:seated-players": "node tests/seated-players.js",
-    "test": "npm run test:betting && npm run test:blinds && npm run test:bots && npm run test:money-ledger && npm run test:raise-presets && npm run test:seated-players",
+    "test:next-hand": "node tests/next-hand.js",
+    "test": "npm run test:betting && npm run test:blinds && npm run test:bots && npm run test:money-ledger && npm run test:raise-presets && npm run test:seated-players && npm run test:next-hand",
     "test:money-join": "node tests/money-join.js",
     "smoke": "node tests/smoke.js"
   },

@@ -47,6 +47,7 @@ const DEFAULT_DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DA
 const STATE_FILE = process.env.GAME_STATE_FILE || path.join(DEFAULT_DATA_DIR, "rooms.json");
 const SAVE_DEBOUNCE_MS = 150;
 const SHOWDOWN_DELAY_MS = 1600;
+const NEXT_HAND_DELAY_MS = Math.max(1000, Number(process.env.NEXT_HAND_DELAY_MS) || 8000);
 const CPU_ACTION_DELAY_MS = 250;
 const DORMANT_ROOM_TTL_MS = Math.max(60000, Number(process.env.DORMANT_ROOM_TTL_MS) || 60 * 60 * 1000);
 /** Empty settled money rooms keep their ledger this long so players can reopen settle-up by room code. */
@@ -250,6 +251,7 @@ function scheduleDormantRoomCleanup(room) {
     if (!current || current.players.some((player) => !player.isBot)) return;
     clearTimeout(current.botTimer);
     clearTimeout(current.showdownTimer);
+    clearTimeout(current.nextHandTimer);
     clearTimeout(current.dormantTimer);
     rooms.delete(current.id);
     scheduleSave();
@@ -262,6 +264,7 @@ function preserveSettledMoneyRoom(room) {
   if (!room?.moneyMode) return;
   clearTimeout(room.botTimer);
   clearTimeout(room.showdownTimer);
+  clearNextHandTimer(room);
   room.botTimer = null;
   room.showdownTimer = null;
   room.hostId = null;
@@ -368,6 +371,8 @@ function restoreRoom(raw) {
     players: Array.isArray(raw.players) ? raw.players.map(restorePlayer) : [],
     botTimer: null,
     showdownTimer: null,
+    nextHandTimer: null,
+    nextHandStartsAt: null,
     dormantSince: Number(raw.dormantSince) || null,
     dormantTimer: null,
   };
@@ -506,6 +511,8 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
     moneyLedger: [],
     dormantSince: null,
     dormantTimer: null,
+    nextHandTimer: null,
+    nextHandStartsAt: null,
     players: [
       {
         id: hostId,
@@ -796,6 +803,7 @@ function logAction(room, text, metadata = {}) {
 function resetHandState(room) {
   clearTimeout(room.showdownTimer);
   room.showdownTimer = null;
+  clearNextHandTimer(room);
   const { bigBlind } = currentBlinds(room);
   room.community = [];
   room.deck = makeDeck();
@@ -835,15 +843,64 @@ function resetReadiness(room) {
   }
 }
 
-function maybeStartReadyHand(room) {
+function seatedForNextHand(room) {
+  return playersWithChips(room).filter((player) => !player.sittingOut);
+}
+
+function clearNextHandTimer(room) {
+  if (!room) return;
+  clearTimeout(room.nextHandTimer);
+  room.nextHandTimer = null;
+  room.nextHandStartsAt = null;
+}
+
+function canAutoStartHand(room) {
   if (!canReadyForHand(room)) return false;
-  const seated = playersWithChips(room).filter((player) => !player.sittingOut);
+  const seated = seatedForNextHand(room);
   const humans = seated.filter((player) => !player.isBot);
-  if (seated.length < 2 || humans.length === 0) return false;
-  if (!humans.every((player) => player.connected && player.ready)) return false;
+  // Sitting-out / busted / cashed-out seats are already excluded. Need two
+  // live seats and at least one connected human so bots do not play alone.
+  return seated.length >= 2 && humans.some((player) => player.connected);
+}
+
+function tryStartHand(room) {
+  if (!canAutoStartHand(room)) return false;
+  clearNextHandTimer(room);
   if (room.phase === "complete") startNextHand(room);
   else startHand(room);
   return true;
+}
+
+function scheduleNextHand(room) {
+  if (!room) return;
+  if (!canAutoStartHand(room)) {
+    clearNextHandTimer(room);
+    return;
+  }
+  if (room.nextHandTimer && room.nextHandStartsAt && room.nextHandStartsAt > Date.now()) return;
+  clearNextHandTimer(room);
+  room.nextHandStartsAt = Date.now() + NEXT_HAND_DELAY_MS;
+  room.nextHandTimer = setTimeout(() => {
+    const current = rooms.get(room.id);
+    if (!current) return;
+    current.nextHandTimer = null;
+    current.nextHandStartsAt = null;
+    if (!tryStartHand(current)) {
+      emitRoom(current);
+      return;
+    }
+    emitRoom(current);
+  }, NEXT_HAND_DELAY_MS);
+}
+
+// Optional early start when every seated human is ready (keeps tests snappy).
+function maybeStartReadyHand(room) {
+  if (!canReadyForHand(room)) return false;
+  const seated = seatedForNextHand(room);
+  const humans = seated.filter((player) => !player.isBot);
+  if (seated.length < 2 || humans.length === 0) return false;
+  if (!humans.every((player) => player.connected && player.ready)) return false;
+  return tryStartHand(room);
 }
 
 function playersWithChips(room) {
@@ -952,6 +1009,7 @@ function endGame(room) {
 function restartGame(room) {
   clearTimeout(room.botTimer);
   clearTimeout(room.showdownTimer);
+  clearNextHandTimer(room);
   room.showdownTimer = null;
   if (room.moneyMode) room.moneyLedger = [];
   for (const player of room.players) {
@@ -1781,8 +1839,10 @@ function serializeRoom(room, viewerId) {
     canShowHand: room.phase === "complete" && Boolean(viewer?.hand?.length) && !viewer.showCards,
     canStart: false,
     canNextHand: false,
-    canReady: Boolean(viewer && !viewer.isBot && viewer.stack > 0 && !viewer.sittingOut && canReadyForHand(room) && playersWithChips(room).filter((player) => !player.sittingOut).length >= 2),
+    canReady: false,
     isReady: Boolean(viewer?.ready),
+    nextHandStartsAt: room.nextHandStartsAt || null,
+    nextHandDelayMs: NEXT_HAND_DELAY_MS,
     canChangeBlinds: room.hostId === viewerId && canReadyForHand(room),
     canRestartGame: room.hostId === viewerId && !room.moneyMode && canAdministerGame(room),
     canEndGame: room.hostId === viewerId && canAdministerGame(room) && (room.moneyMode || room.phase !== "lobby"),
@@ -1829,6 +1889,8 @@ function serializeRoom(room, viewerId) {
 }
 
 function emitRoom(room) {
+  if (canReadyForHand(room)) scheduleNextHand(room);
+  else clearNextHandTimer(room);
   for (const player of room.players) {
     for (const socketId of player.socketIds || []) {
       io.to(socketId).emit("room:update", serializeRoom(room, player.id));
@@ -2318,8 +2380,11 @@ if (require.main === module) {
 
 module.exports = {
   BLIND_LEVELS,
+  NEXT_HAND_DELAY_MS,
   SETTLED_MONEY_ROOM_TTL_MS,
   DORMANT_ROOM_TTL_MS,
+  canAutoStartHand,
+  seatedForNextHand,
   assessPreflopAllInCall,
   bettingComplete,
   blindLevelForHand,
