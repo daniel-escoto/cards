@@ -1197,10 +1197,10 @@ function cashInPlayer(room, playerId, amountCents) {
   if (!player || player.isBot) return { ok: false, error: "Player not found." };
   const handLive = isHandInProgress(room);
   if (handLive) {
-    // Mid-hand buy-back is only for busted / already-waiting seats — never a live top-up.
-    const waitingForNextHand = player.hand.length === 0 && player.folded;
-    const bustedOrOut = player.stack <= 0;
-    if (!waitingForNextHand && !bustedOrOut) {
+    // Still contesting this pot (including all-in with cards) — no mid-pot top-up.
+    // Busted / folded / waiting seats may buy chips for the next hand now.
+    const inCurrentPot = player.hand.length > 0 && !player.folded;
+    if (inCurrentPot) {
       return { ok: false, error: "You can’t add chips while you’re in the current hand." };
     }
   }
@@ -1209,6 +1209,7 @@ function cashInPlayer(room, playerId, amountCents) {
   player.stack += centsToChips(room, cents);
   player.allIn = false;
   if (handLive) {
+    // Sit out the rest of this hand; chips are only live on the next deal.
     player.folded = true;
     player.hand = [];
     player.bet = 0;
@@ -1220,6 +1221,12 @@ function cashInPlayer(room, playerId, amountCents) {
     ? `${player.name} buys in for the next hand.`
     : `${player.name} cashed in.`;
   return { ok: true };
+}
+
+function playerCanCashIn(room, player) {
+  if (!room?.moneyMode || !player || player.isBot) return false;
+  if (!isHandInProgress(room)) return true;
+  return !(player.hand.length > 0 && !player.folded);
 }
 
 function cashOutPlayer(room, playerId) {
@@ -1945,6 +1952,7 @@ function serializeRoom(room, viewerId) {
     // Full min-raise is possible. Short all-in shoves still use raiseOpen via canShove.
     canRaise: raiseOpen && viewerMaxBet >= minRaiseTo,
     canShove: raiseOpen && viewerMaxBet > room.currentBet,
+    canCashIn: playerCanCashIn(room, viewer),
     toCall,
     toCallCents: chipsToCents(room, toCall),
     canShowHand: room.phase === "complete" && Boolean(viewer?.hand?.length) && !viewer.showCards,
@@ -2502,6 +2510,7 @@ module.exports = {
   autoTurnAction,
   buildSidePots,
   cashInPlayer,
+  playerCanCashIn,
   canAutoStartHand,
   publicSidePots,
   seatedForNextHand,

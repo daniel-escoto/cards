@@ -57,7 +57,9 @@ const menuBigBlindLabel = document.querySelector("#menuBigBlindLabel");
 const menuSmallBlindInput = document.querySelector("#menuSmallBlindInput");
 const menuBigBlindInput = document.querySelector("#menuBigBlindInput");
 const cashInInput = document.querySelector("#cashInInput");
+const cashInBtn = document.querySelector("#cashInBtn");
 const cashOutBtn = document.querySelector("#cashOutBtn");
+const moneyNote = document.querySelector(".money-note");
 const potValue = document.querySelector("#potValue");
 const community = document.querySelector("#community");
 const players = document.querySelector("#players");
@@ -695,6 +697,37 @@ function renderMenuPlayers() {
     </article>
   `;
   }).join("");
+  syncCashInControls();
+}
+
+function heroCanCashIn() {
+  if (!state?.moneyMode) return false;
+  if (typeof state.canCashIn === "boolean") return state.canCashIn;
+  const hero = activeHero();
+  if (!hero) return false;
+  const handLive = ["preflop", "flop", "turn", "river", "showdown"].includes(state.phase);
+  if (!handLive) return true;
+  // Same rule as the server: anyone not contesting the current pot may buy in for next hand.
+  return hero.folded || !(hero.cards?.length);
+}
+
+function syncCashInControls() {
+  if (!moneyPanel || moneyPanel.classList.contains("hidden")) return;
+  const allowed = heroCanCashIn();
+  if (cashInInput) cashInInput.disabled = !allowed;
+  if (cashInBtn) {
+    cashInBtn.disabled = !allowed;
+    cashInBtn.title = allowed
+      ? "Add chips for the next hand"
+      : "Finish this hand before adding chips";
+  }
+  if (moneyNote) {
+    moneyNote.textContent = allowed
+      ? (["preflop", "flop", "turn", "river", "showdown"].includes(state?.phase)
+        ? "Buy-in now and you’ll play on the next hand. Payments happen separately after the game."
+        : "Payments happen separately after the game.")
+      : "You’re in this hand — buy-in will be available after you fold or the hand ends.";
+  }
 }
 
 function showGameMenu() {
@@ -720,6 +753,7 @@ function showGameMenu() {
     menuBigBlindInput.step = moneyMode ? "0.01" : "1";
   }
   if (state?.moneyMode) cashInInput.value = (state.buyInCents / 100).toFixed(0);
+  syncCashInControls();
   clearInterval(menuTimer);
   menuTimer = setInterval(renderMenuPlayers, 1000);
   gameMenuModal.classList.remove("hidden");

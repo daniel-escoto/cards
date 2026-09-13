@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const { buildSidePots, publicSidePots, cashInPlayer } = require("../server");
+const { buildSidePots, publicSidePots, cashInPlayer, playerCanCashIn } = require("../server");
 
 // Mid-hand: short all-in already matched → main + side on the wire.
 {
@@ -80,18 +80,39 @@ function moneyRoom(phase, player) {
     isBot: false,
     stack: 0,
     hand: [],
-    folded: true,
+    folded: false, // busted seats often aren't marked folded
     bet: 0,
     buyInsCents: 2000,
     allIn: true,
   };
   const room = moneyRoom("flop", player);
+  assert.equal(playerCanCashIn(room, player), true);
   const result = cashInPlayer(room, "p1", 2000);
   assert.equal(result.ok, true);
   assert.ok(player.stack > 0);
   assert.equal(player.folded, true);
   assert.deepEqual(player.hand, []);
   assert.match(room.message, /next hand/i);
+}
+
+// All-in with cards still in the pot cannot top up.
+{
+  const player = {
+    id: "p1",
+    name: "Pat",
+    isBot: false,
+    stack: 0,
+    hand: ["As", "Kd"],
+    folded: false,
+    bet: 80,
+    buyInsCents: 2000,
+    allIn: true,
+  };
+  const room = moneyRoom("flop", player);
+  assert.equal(playerCanCashIn(room, player), false);
+  const result = cashInPlayer(room, "p1", 2000);
+  assert.equal(result.ok, false);
+  assert.match(result.error, /current hand/i);
 }
 
 // Active player cannot top up the current pot.
@@ -108,10 +129,34 @@ function moneyRoom(phase, player) {
     allIn: false,
   };
   const room = moneyRoom("turn", player);
+  assert.equal(playerCanCashIn(room, player), false);
   const result = cashInPlayer(room, "p1", 2000);
   assert.equal(result.ok, false);
   assert.match(result.error, /current hand/i);
   assert.equal(player.stack, 400);
+}
+
+// Folded mid-hand may buy chips for the next deal.
+{
+  const player = {
+    id: "p1",
+    name: "Pat",
+    isBot: false,
+    stack: 120,
+    hand: ["7c", "2d"],
+    folded: true,
+    bet: 0,
+    buyInsCents: 2000,
+    allIn: false,
+  };
+  const room = moneyRoom("river", player);
+  assert.equal(playerCanCashIn(room, player), true);
+  const before = player.stack;
+  const result = cashInPlayer(room, "p1", 2000);
+  assert.equal(result.ok, true);
+  assert.ok(player.stack > before);
+  assert.equal(player.folded, true);
+  assert.deepEqual(player.hand, []);
 }
 
 // Between hands still works.
