@@ -1107,7 +1107,8 @@ function renderControls(hero) {
     const current = currentIndex >= 0 ? state.players[currentIndex] : null;
     turnInfo.textContent = current ? `Pot ${formatAmount(state.pot, state.potCents)}. ${current.name} is acting.` : "Waiting for the host.";
     if (hero && isBettingPhase(state.phase) && !hero.folded && !hero.allIn) {
-      addActionButton("Fold", { type: "fold" }, "danger", true);
+      // Fold only when facing a bet — free checks must not offer a fold misclick.
+      if (state.toCall > 0) addActionButton("Fold", { type: "fold" }, "danger", true);
       addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" }, "", true);
       configureRaiseControls(hero, true);
     }
@@ -1118,7 +1119,7 @@ function renderControls(hero) {
     ? `Pot ${formatAmount(state.pot, state.potCents)}. Call ${formatAmount(state.toCall, state.toCallCents)} to continue.`
     : `Pot ${formatAmount(state.pot, state.potCents)}. Your turn: check or bet.`;
   turnInfo.classList.add("your-turn");
-  addActionButton("Fold", { type: "fold" }, "danger");
+  if (state.toCall > 0) addActionButton("Fold", { type: "fold" }, "danger");
   addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" });
 
   const maxRaise = hero.bet + hero.stack;
@@ -1657,7 +1658,7 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   if (event.repeat) return;
-  if (matchesKeybind(event, "fold")) emitWithAck("game:action", { type: "fold" });
+  if (matchesKeybind(event, "fold") && state.toCall > 0) emitWithAck("game:action", { type: "fold" });
   if (matchesKeybind(event, "call")) emitWithAck("game:action", { type: state.toCall > 0 ? "call" : "check" });
   if (matchesKeybind(event, "raise") && !betControls.classList.contains("hidden")) raiseActionBtn.click();
 });
