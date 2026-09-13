@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
-const { buildSidePots, publicSidePots, cashInPlayer, playerCanCashIn } = require("../server");
+const { buildSidePots, cashInPlayer, playerCanCashIn } = require("../server");
 
-// Mid-hand: short all-in already matched → main + side on the wire.
+// Showdown side pots: short all-in already matched → main + side.
 {
   const room = {
     deadPot: 0,
@@ -13,20 +13,14 @@ const { buildSidePots, publicSidePots, cashInPlayer, playerCanCashIn } = require
       { id: "c", invested: 150, folded: false },
     ],
   };
-  const pots = publicSidePots(room);
+  const pots = buildSidePots(room);
   assert.equal(pots.length, 2);
-  assert.equal(pots[0].label, "Main pot");
   assert.equal(pots[0].amount, 150);
-  assert.equal(pots[1].label, "Side pot");
   assert.equal(pots[1].amount, 200);
-  // Alias used by clients that look for `pots`.
-  assert.deepEqual(
-    pots.map((pot) => `${pot.label} ${pot.amount}`).join(" · "),
-    "Main pot 150 · Side pot 200",
-  );
+  assert.deepEqual(pots[1].contenderIds, ["b", "c"]);
 }
 
-// Live side pots: short all-in creates main + side.
+// Showdown side pots: short all-in creates main + side.
 {
   const room = {
     deadPot: 0,
@@ -37,16 +31,14 @@ const { buildSidePots, publicSidePots, cashInPlayer, playerCanCashIn } = require
       { id: "c", invested: 40, folded: false },
     ],
   };
-  const pots = publicSidePots(room);
+  const pots = buildSidePots(room);
   assert.equal(pots.length, 2);
-  assert.equal(pots[0].label, "Main pot");
   assert.equal(pots[0].amount, 120);
-  assert.equal(pots[1].label, "Side pot");
   assert.equal(pots[1].amount, 120);
   assert.deepEqual(pots[1].contenderIds, ["a", "b"]);
 }
 
-// Single pot stays unlabeled on the wire as one entry (UI hides until 2+).
+// Single pot stays one pot for payout math.
 {
   const room = {
     deadPot: 0,
@@ -56,7 +48,6 @@ const { buildSidePots, publicSidePots, cashInPlayer, playerCanCashIn } = require
       { id: "b", invested: 50, folded: false },
     ],
   };
-  assert.equal(publicSidePots(room).length, 1);
   assert.equal(buildSidePots(room).length, 1);
 }
 

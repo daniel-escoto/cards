@@ -345,8 +345,6 @@ function matchesKeybind(event, action) {
 renderKeybinds();
 
 let state = null;
-let nextHandCountdownTimer = null;
-let turnCountdownTimer = null;
 let raiseState = { value: 0, min: 0, max: 0, step: 20 };
 let raiseControlsDisabled = false;
 let leavingEndedRoom = false;
@@ -894,7 +892,7 @@ function playerTableStatus(player, isActiveTurn = player.isTurn) {
   if (player.sittingOut) return player.cards.length && isBettingPhase(state.phase) ? "Sits out next" : "Sitting out";
 
   if (playerIsOut(player)) return "Out";
-  if (["lobby", "complete"].includes(state?.phase)) return "Waiting";
+  if (["lobby", "complete"].includes(state?.phase)) return player.ready || player.isBot ? "Ready" : "Not ready";
   if (player.waitingForNextHand) return "Next hand";
   if (player.folded) return "Folded";
   if (player.allIn) return "All in";
@@ -958,15 +956,11 @@ function renderActionFeed(newEntryId = "") {
     const action = showStreetAction
       ? compactPlayerAction(entry, player)
       : playerTableStatus(player, isActing);
-    const showTurnClock = isActing && state.turnEndsAt && isBettingPhase(state.phase) && !player.isBot;
-    const turnClock = showTurnClock
-      ? ` <span class="turn-clock" data-turn-countdown>${escapeHtml(`${turnSecondsRemaining()}s`)}</span>`
-      : "";
     return `
       <article class="table-player-row ${isActing ? "turn" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}" ${playerColorStyle(player)}>
         <i class="player-dot" aria-hidden="true"></i>
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
-        <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}${turnClock}</span>
+        <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}</span>
         <strong class="player-stack">${playerStackLabel(player)}</strong>
       </article>
     `;
@@ -1001,65 +995,12 @@ function playActionSound(entry) {
 }
 
 
-function livePots() {
-  if (Array.isArray(state?.pots) && state.pots.length) return state.pots;
-  if (Array.isArray(state?.sidePots) && state.sidePots.length) return state.sidePots;
-  return [];
-}
-
-/** "Main pot $X · Side pot $Y" when 2+ pots exist; otherwise null. */
-function sidePotBreakdown() {
-  const pots = livePots();
-  if (pots.length < 2) return null;
-  return pots
-    .map((pot) => `${pot.label || "Pot"} ${formatAmount(pot.amount, pot.amountCents)}`)
-    .join(" · ");
-}
-
-function potCaption() {
-  return sidePotBreakdown() || `Pot ${formatAmount(state.pot, state.potCents)}`;
-}
-
-function renderSidePots() {
-  const host = potValue?.closest(".table-meta") || potValue?.parentElement?.parentElement;
-  if (!host) return;
-  const potBox = potValue?.closest("div") || potValue?.parentElement;
-  let breakdown = host.querySelector("[data-pot-breakdown]");
-  let list = host.querySelector("[data-side-pots]");
-  const pots = livePots();
-  const summary = sidePotBreakdown();
-
-  if (potBox) {
-    const label = potBox.querySelector("span");
-    if (label) label.textContent = pots.length >= 2 ? "Total pot" : "Pot";
-  }
-
-  if (!summary) {
-    if (breakdown) breakdown.remove();
-    if (list) list.remove();
-    return;
-  }
-
-  // Inline summary: "Main pot $X · Side pot $Y" (hide when only one pot).
-  if (!breakdown) {
-    breakdown = document.createElement("div");
-    breakdown.className = "pot-breakdown";
-    breakdown.dataset.potBreakdown = "1";
-    host.appendChild(breakdown);
-  }
-  breakdown.textContent = summary;
-
-  // Prefer the inline caption over separate chips so the table stays readable.
-  if (list) list.remove();
-}
-
 function render() {
   if (!state) return;
   const isFirstTableRender = lastCommunitySignature === null;
   showTable(state);
   roomCode.textContent = state.id;
   potValue.textContent = formatAmount(state.pot, state.potCents);
-  renderSidePots();
   if (lastPot !== null && lastPot !== state.pot) {
     replayAnimation(potValue.closest("div"), "value-changed", 480);
   }
@@ -1131,8 +1072,6 @@ function render() {
   }
 
   renderControls(hero);
-  syncNextHandCountdown();
-  syncTurnCountdown();
   if (!gameMenuModal.classList.contains("hidden")) {
     renderMenuPlayers();
     addBotBtn.classList.toggle("hidden", !state?.canAddBot);
@@ -1188,8 +1127,8 @@ function renderControls(hero) {
   if (state.canAddBot) {
     addButton("+ Add CPU player", "room:addBot", "secondary lobby-add-bot");
   }
-  if (state.nextHandStartsAt && ["lobby", "complete"].includes(state.phase)) {
-    addNextHandCountdown();
+  if (state.canReady) {
+    addButton(state.isReady ? "Not ready" : "Ready up", "game:ready", state.isReady ? "secondary" : "", keybindLabel(keybinds.ready));
   }
   if (state.canShowHand) {
     addButton("Show hand", "game:showCards", "secondary", keybindLabel(keybinds.showHand));
@@ -1197,20 +1136,17 @@ function renderControls(hero) {
 
   if (!state.isYourTurn || !hero) {
     if (["lobby", "complete"].includes(state.phase)) {
-      const active = state.players.filter((player) => player.stack > 0 && !player.sittingOut);
-      if (active.length < 2) {
-        turnInfo.textContent = "Waiting for at least two active players.";
-      } else if (state.nextHandStartsAt) {
-        turnInfo.textContent = nextHandCountdownLabel();
-      } else {
-        turnInfo.textContent = "Waiting for the next hand…";
-      }
+      const humans = state.players.filter((player) => !player.isBot && !player.sittingOut && player.stack > 0);
+      const readyCount = humans.filter((player) => player.ready).length;
+      turnInfo.textContent = humans.length < 2 && state.players.filter((player) => player.stack > 0 && !player.sittingOut).length < 2
+        ? "Waiting for at least two active players."
+        : `${readyCount} of ${humans.length} players ready.`;
       return;
     }
     const currentIndex = findLastIndex(state.players, (player) => player.id === state.turn);
     const current = currentIndex >= 0 ? state.players[currentIndex] : null;
     turnInfo.textContent = current
-      ? `${potCaption()}. ${current.name} is acting${turnCountdownSuffix()}.`
+      ? `Pot ${formatAmount(state.pot, state.potCents)}. ${current.name} is acting.`
       : "Waiting for the host.";
     if (hero && isBettingPhase(state.phase) && !hero.folded && !hero.allIn) {
       // Fold only when facing a bet — free checks must not offer a fold misclick.
@@ -1222,10 +1158,9 @@ function renderControls(hero) {
   }
 
   turnInfo.textContent = state.toCall > 0
-    ? `${potCaption()}. Call ${formatAmount(state.toCall, state.toCallCents)} to continue${turnCountdownSuffix()}.`
-    : `${potCaption()}. Your turn: check or bet${turnCountdownSuffix()}.`;
+    ? `Pot ${formatAmount(state.pot, state.potCents)}. Call ${formatAmount(state.toCall, state.toCallCents)} to continue.`
+    : `Pot ${formatAmount(state.pot, state.potCents)}. Your turn: check or bet.`;
   turnInfo.classList.add("your-turn");
-  if (state.turnEndsAt) addTurnCountdown();
   if (state.toCall > 0) addActionButton("Fold", { type: "fold" }, "danger");
   addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" });
 
@@ -1342,105 +1277,6 @@ function setButtonLabel(button, label, shortcut = "") {
   button.setAttribute("aria-label", shortcut ? `${label} (${shortcut})` : label);
 }
 
-
-function nextHandSecondsRemaining() {
-  if (!state?.nextHandStartsAt) return 0;
-  return Math.max(0, Math.ceil((state.nextHandStartsAt - Date.now()) / 1000));
-}
-
-function nextHandCountdownLabel() {
-  const seconds = nextHandSecondsRemaining();
-  return seconds > 0 ? `Next hand in ${seconds}s` : "Starting…";
-}
-
-function addNextHandCountdown() {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.disabled = true;
-  button.className = "secondary next-hand-countdown";
-  button.dataset.nextHandCountdown = "1";
-  button.textContent = nextHandCountdownLabel();
-  button.setAttribute("aria-label", button.textContent);
-  gameButtons.appendChild(button);
-}
-
-function syncNextHandCountdown() {
-  clearInterval(nextHandCountdownTimer);
-  nextHandCountdownTimer = null;
-  if (!state?.nextHandStartsAt || !["lobby", "complete"].includes(state.phase)) return;
-  const tick = () => {
-    const label = nextHandCountdownLabel();
-    const button = gameButtons.querySelector("[data-next-hand-countdown]");
-    if (button) {
-      button.textContent = label;
-      button.setAttribute("aria-label", label);
-    }
-    if (["lobby", "complete"].includes(state.phase) && !state.isYourTurn) {
-      const active = state.players.filter((player) => player.stack > 0 && !player.sittingOut);
-      if (active.length >= 2) turnInfo.textContent = label;
-    }
-    if (nextHandSecondsRemaining() <= 0 && !button) clearInterval(nextHandCountdownTimer);
-  };
-  tick();
-  nextHandCountdownTimer = setInterval(tick, 250);
-}
-
-function turnSecondsRemaining() {
-  if (!state?.turnEndsAt || !isBettingPhase(state.phase) || !state.turn) return 0;
-  return Math.max(0, Math.ceil((state.turnEndsAt - Date.now()) / 1000));
-}
-
-function turnCountdownSuffix() {
-  const seconds = turnSecondsRemaining();
-  return seconds > 0 ? ` · ${seconds}s` : "";
-}
-
-function turnCountdownLabel() {
-  const seconds = turnSecondsRemaining();
-  return seconds > 0 ? `${seconds}s` : "…";
-}
-
-function addTurnCountdown() {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.disabled = true;
-  button.className = "secondary turn-countdown";
-  button.dataset.turnActionCountdown = "1";
-  button.textContent = turnCountdownLabel();
-  button.setAttribute("aria-label", `Turn timer ${button.textContent}`);
-  gameButtons.appendChild(button);
-}
-
-function syncTurnCountdown() {
-  clearInterval(turnCountdownTimer);
-  turnCountdownTimer = null;
-  if (!state?.turnEndsAt || !isBettingPhase(state.phase) || !state.turn) return;
-  const tick = () => {
-    const seconds = turnSecondsRemaining();
-    const clock = `${seconds}s`;
-    const button = gameButtons.querySelector("[data-turn-action-countdown]");
-    if (button) {
-      button.textContent = seconds > 0 ? clock : "…";
-      button.setAttribute("aria-label", `Turn timer ${button.textContent}`);
-    }
-    document.querySelectorAll("[data-turn-countdown]").forEach((node) => {
-      node.textContent = clock;
-    });
-    if (state.isYourTurn) {
-      turnInfo.textContent = state.toCall > 0
-        ? `${potCaption()}. Call ${formatAmount(state.toCall, state.toCallCents)} to continue${turnCountdownSuffix()}.`
-        : `${potCaption()}. Your turn: check or bet${turnCountdownSuffix()}.`;
-    } else {
-      const current = currentTurnPlayer();
-      if (current && isBettingPhase(state.phase)) {
-        turnInfo.textContent = `${potCaption()}. ${current.name} is acting${turnCountdownSuffix()}.`;
-      }
-    }
-    if (seconds <= 0) clearInterval(turnCountdownTimer);
-  };
-  tick();
-  turnCountdownTimer = setInterval(tick, 250);
-}
 
 function addButton(label, eventName, className = "", shortcut = "") {
   const button = document.createElement("button");
@@ -1891,9 +1727,9 @@ document.addEventListener("keydown", (event) => {
     showGameMenu();
     return;
   }
-  if (matchesKeybind(event, "ready")) {
-    // Ready up was replaced by an auto-start countdown.
+  if (matchesKeybind(event, "ready") && state.canReady) {
     event.preventDefault();
+    if (!event.repeat) emitWithAck("game:ready", {});
     return;
   }
   if (matchesKeybind(event, "showHand") && state.canShowHand) {
