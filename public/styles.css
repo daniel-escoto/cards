@@ -1502,6 +1502,10 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
   gap: 8px;
 }
 
+.raise-row.merge-check-bet {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .raise-action {
   min-height: 0;
   height: var(--raise-row-height);
@@ -2052,6 +2056,10 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
   .raise-row {
     grid-template-columns: minmax(0, 1fr) minmax(96px, auto);
     gap: 6px;
+  }
+
+  .raise-row.merge-check-bet {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .raise-action {
