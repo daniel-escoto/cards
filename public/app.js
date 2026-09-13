@@ -1167,8 +1167,9 @@ function renderControls(hero) {
   addActionButton(state.toCall > 0 ? `Call ${formatAmount(state.toCall, state.toCallCents)}` : "Check", { type: state.toCall > 0 ? "call" : "check" });
 
   const maxRaise = hero.bet + hero.stack;
-  // Show the bet panel for full raises and for short all-in shoves (canRaise may be false).
-  if (maxRaise > state.currentBet && (state.canRaise || state.canShove)) {
+  // All in (and the bet panel) must stay available whenever the hero can put more
+  // chips in — including a short all-in below min-raise. Do not gate on canRaise.
+  if (maxRaise > state.currentBet) {
     configureRaiseControls(hero);
   }
 }
@@ -1177,7 +1178,8 @@ function configureRaiseControls(hero, disabled = false) {
   const maxRaise = hero.bet + hero.stack;
   if (maxRaise <= state.currentBet) return;
   betControls.classList.remove("hidden");
-  const canFullRaise = Boolean(state.canRaise) && maxRaise >= state.minRaiseTo;
+  // Full min-raise tools only when the stack can meet minRaiseTo; otherwise jam-only.
+  const canFullRaise = maxRaise >= state.minRaiseTo;
   const minRaise = canFullRaise ? Math.min(maxRaise, state.minRaiseTo) : maxRaise;
   const preferredRaise = canFullRaise
     ? Math.max(minRaise, state.currentBet + state.bigBlind)
@@ -1220,19 +1222,26 @@ function renderBetPresets(hero, disabled, canFullRaise = true) {
         }),
         bounds,
       );
-      // Skip presets that collapse to all-in so All in stays visible.
+      // Never let ½ pot / Pot replace All in when they clamp to the same amount.
       if (value < raiseState.max) options.push({ label: preset.label, value });
     }
   }
-  // Always keep All in, even when it matches a pot size.
-  options.push({ label: "All in", value: raiseState.max });
+  // Always keep a distinct All in control (do not unique-filter it away).
+  const allInTo = raiseState.max;
+  options.push({ label: "All in", value: allInTo, allIn: true });
   betPresets.innerHTML = "";
   options.forEach((option) => {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = option.label;
     button.disabled = disabled;
-    button.addEventListener("click", () => setRaiseState({ value: option.value }));
+    button.addEventListener("click", () => {
+      setRaiseState({ value: option.value });
+      // Tapping All in sends the all-in raise-to immediately on your turn.
+      if (option.allIn && !disabled && state?.isYourTurn) {
+        emitWithAck("game:action", { type: "raise", raiseTo: allInTo });
+      }
+    });
     betPresets.appendChild(button);
   });
 }
