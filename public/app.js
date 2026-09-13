@@ -220,13 +220,16 @@ const KEYBIND_DEFINITIONS = [
   { id: "fold", label: "Fold", defaultKey: "f" },
   { id: "call", label: "Check / call", defaultKey: "c" },
   { id: "raise", label: "Bet / raise", defaultKey: "r" },
-  { id: "raiseUp", label: "Increase bet", defaultKey: "ArrowUp" },
-  { id: "raiseDown", label: "Decrease bet", defaultKey: "ArrowDown" },
+  { id: "raiseUp", label: "Increase bet", defaultKey: "ArrowUp", defaultAliases: ["ArrowRight"] },
+  { id: "raiseDown", label: "Decrease bet", defaultKey: "ArrowDown", defaultAliases: ["ArrowLeft"] },
   { id: "ready", label: "Ready up", defaultKey: "Space" },
   { id: "showHand", label: "Show hand", defaultKey: "h" },
   { id: "menu", label: "Table menu", defaultKey: "m" },
 ];
 const DEFAULT_KEYBINDS = Object.fromEntries(KEYBIND_DEFINITIONS.map((item) => [item.id, item.defaultKey]));
+const DEFAULT_KEYBIND_ALIASES = Object.fromEntries(
+  KEYBIND_DEFINITIONS.map((item) => [item.id, [...(item.defaultAliases || [])]])
+);
 let keybinds = loadKeybinds();
 let recordingKeybindAction = "";
 
@@ -262,6 +265,19 @@ function keybindLabel(key) {
   })[key] || (key?.length === 1 ? key.toUpperCase() : key);
 }
 
+function activeKeybindAliases(action) {
+  const claimed = new Set(Object.values(keybinds));
+  return (DEFAULT_KEYBIND_ALIASES[action] || []).filter((key) => !claimed.has(key));
+}
+
+function keysForAction(action) {
+  return [...new Set([keybinds[action], ...activeKeybindAliases(action)].filter(Boolean))];
+}
+
+function keybindDisplay(action) {
+  return keysForAction(action).map(keybindLabel).join(" / ");
+}
+
 function saveKeybinds() {
   localStorage.setItem("holdem:keybinds", JSON.stringify(keybinds));
 }
@@ -271,7 +287,7 @@ function renderKeybinds() {
     <div class="keybind-row">
       <span>${label}</span>
       <button type="button" class="keybind-button ${recordingKeybindAction === id ? "recording" : ""}" data-keybind-action="${id}" aria-label="Set key for ${label}">
-        ${recordingKeybindAction === id ? "Press a key…" : escapeHtml(keybindLabel(keybinds[id]))}
+        ${recordingKeybindAction === id ? "Press a key…" : escapeHtml(keybindDisplay(id))}
       </button>
     </div>
   `).join("");
@@ -303,7 +319,7 @@ function assignKeybind(action, key) {
 }
 
 function matchesKeybind(event, action) {
-  return normalizedKey(event.key) === keybinds[action];
+  return keysForAction(action).includes(normalizedKey(event.key));
 }
 
 renderKeybinds();
