@@ -565,8 +565,8 @@ function updateTableActionLabel() {
   const onlineReady = Boolean(socket?.connected);
   tableActionBtn.disabled = joinPending || (offlineHost ? false : !onlineReady);
   blindFields.classList.toggle("hidden", isJoining);
-  moneyModeLabel?.classList.toggle("hidden", isJoining);
-  buyInLabel.classList.toggle("hidden", isJoining || !moneyMode);
+  moneyModeLabel?.classList.toggle("hidden", isJoining || offlineHost);
+  buyInLabel.classList.toggle("hidden", isJoining || offlineHost || !moneyMode);
   roomCodeLabel.classList.toggle("hidden", !isJoining);
   hostModeBtn.classList.toggle("selected", !isJoining);
   joinModeBtn.classList.toggle("selected", isJoining);
