@@ -85,4 +85,4 @@ engine.setRandomInt((max) => 0);
   session.dispose();
 }
 
-console.log("Shared engine + offline practice smoke checks passed.");
+console.log("Shared engine + offline host smoke checks passed.");

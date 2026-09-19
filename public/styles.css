@@ -223,23 +223,26 @@ label {
 }
 
 .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 14px; background: rgba(4,9,12,.42); }
-.mode-switch-three { grid-template-columns: 1fr 1fr 1fr; }
-.practice-hint {
+.offline-hint {
   margin: 0;
   padding: 0 2px;
   color: var(--muted);
   font-size: 0.92rem;
   line-height: 1.35;
 }
-.practice-fields {
+.host-bot-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
-.practice-fields .form-field:last-child {
+.host-bot-fields .form-field:first-child {
   grid-column: 1 / -1;
 }
-.practice-fields select {
+.host-bot-fields #startingStackLabel,
+.host-bot-fields label:has(#botCountInput) {
+  grid-column: 1 / -1;
+}
+.host-bot-fields select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -248,7 +251,7 @@ label {
   padding: 0.7rem 0.85rem;
   font: inherit;
 }
-:root[data-theme="light"] .practice-fields select {
+:root[data-theme="light"] .host-bot-fields select {
   background: rgba(24, 38, 33, 0.055);
 }
 .mode-option { min-height: 42px; padding: 0 10px; border-radius: 10px; color: var(--muted); background: transparent; font-size: 13px; }

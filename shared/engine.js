@@ -1122,7 +1122,7 @@ function isSoloHumanFolded(room) {
       deadPot: 0,
       acted: new Set(),
       raiseEligible: new Set(),
-      message: "Practice table ready. Ready up to deal.",
+      message: "Table ready. Ready up to deal.",
       winners: [],
       actionLog: [],
       handNumber: 0,
@@ -1183,7 +1183,7 @@ function isSoloHumanFolded(room) {
     room.raiseEligible = new Set();
     room.winners = [];
     room.actionLog = [];
-    room.message = "Practice restarted. Ready up when you want the next hand.";
+    room.message = "Table restarted. Ready up when you want the next hand.";
   }
 
   function endPracticeGame(room) {
