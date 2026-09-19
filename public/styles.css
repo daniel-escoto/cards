@@ -977,17 +977,18 @@ select:focus {
 }
 
 /* Option D art box — larger pip field; indices still sit in the outer margin.
+   Court art needs a deeper inset so the framed display clears the corner indexes.
    Container queries measure width inside the card padding. */
 .card-art {
   display: none;
   position: absolute;
-  inset: 11% 8%;
+  inset: 12% 9%;
   pointer-events: none;
 }
 .card-art svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .card-pip { fill: currentColor; font-family: inherit; font-weight: inherit; text-anchor: middle; dominant-baseline: central; }
-.card-art-court { inset: 9% 6%; }
-.card-art-ace { inset: 12% 12%; }
+.card-art-court { inset: 18% 14%; }
+.card-art-ace { inset: 15% 15%; }
 .court-ink { fill: var(--black-card); }
 .court-red { fill: var(--red-card); }
 .court-paper { fill: var(--card-paper); }
