@@ -1,0 +1,17 @@
+{
+  "name": "Texas Hold'em",
+  "short_name": "Hold'em",
+  "description": "Private-room multiplayer Hold'em with offline practice vs bots.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090d10",
+  "theme_color": "#090d10",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
