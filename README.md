@@ -1,14 +1,16 @@
 # Table Stakes Hold'em
 
-A private-room multiplayer Texas hold'em game for friends. The server owns all game state and clients connect over Socket.IO.
+A private-room multiplayer Texas hold'em game for friends. The server owns online game state and clients connect over Socket.IO. **Practice** mode runs the same rules engine entirely in the browser (vs CPU bots, no network after first visit).
 
 ## Features
 
 - Host or join private tables with a room code/link
+- Offline **Practice** vs bots (6-max / 9-max, chip stacks only)
 - Money-game join preview with buy-in and blinds; join during a hand and play on the next deal
 - 2 to 9 players
-- Server-side deck, betting order, blinds, streets, side pots, and showdown payouts
-- Poker hand evaluation via `pokersolver`
+- Shared pure engine for deck, betting, blinds, streets, side pots, showdown, and bots (`shared/`)
+- Poker hand evaluation via vendored `pokersolver` (Node + browser)
+- Minimal PWA shell cache so Practice works offline after the first load
 - Responsive UI for desktop and mobile browsers
 
 ## Run locally
@@ -19,6 +21,8 @@ npm start
 ```
 
 Open `http://localhost:3000`.
+
+Use the lobby **Practice** tab to play vs bots without a room. Host/Join still require the server.
 
 ## Smoke test
 

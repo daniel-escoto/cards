@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
     <meta id="themeColor" name="theme-color" content="#090d10" />
     <title>Texas Hold'em</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <script>
       const initialTheme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
       document.documentElement.dataset.theme = initialTheme;
@@ -23,10 +27,12 @@
         </div>
 
         <form id="joinForm" class="join-panel">
-          <div class="mode-switch" role="tablist" aria-label="Table action">
-            <button id="hostModeBtn" class="mode-option selected" type="button" role="tab" aria-selected="true">Host a table</button>
-            <button id="joinModeBtn" class="mode-option" type="button" role="tab" aria-selected="false">Join a table</button>
+          <div class="mode-switch mode-switch-three" role="tablist" aria-label="Table action">
+            <button id="hostModeBtn" class="mode-option selected" type="button" role="tab" aria-selected="true">Host</button>
+            <button id="joinModeBtn" class="mode-option" type="button" role="tab" aria-selected="false">Join</button>
+            <button id="practiceModeBtn" class="mode-option" type="button" role="tab" aria-selected="false">Practice</button>
           </div>
+          <p id="practiceHint" class="practice-hint hidden">Play vs bots on this device — no room code, no network after first visit.</p>
           <label class="form-field name-field">
             <span>Display name</span>
             <input id="nameInput" autocomplete="nickname" maxlength="18" placeholder="Your name" required />
@@ -35,6 +41,33 @@
             <span>Room code</span>
             <input id="roomInput" maxlength="6" placeholder="ABC123" autocapitalize="characters" spellcheck="false" />
           </label>
+          <div id="practiceFields" class="practice-fields hidden">
+            <label class="form-field">
+              <span>Table size</span>
+              <select id="tableSizeInput">
+                <option value="6" selected>6-max</option>
+                <option value="9">9-max</option>
+              </select>
+            </label>
+            <label class="form-field">
+              <span>Starting stack</span>
+              <input id="startingStackInput" type="number" min="20" max="1000000" step="1" value="1000" inputmode="numeric" />
+            </label>
+            <label class="form-field">
+              <span>Bot seats</span>
+              <select id="botCountInput">
+                <option value="fill" selected>Fill table</option>
+                <option value="1">1 bot</option>
+                <option value="2">2 bots</option>
+                <option value="3">3 bots</option>
+                <option value="4">4 bots</option>
+                <option value="5">5 bots</option>
+                <option value="6">6 bots</option>
+                <option value="7">7 bots</option>
+                <option value="8">8 bots</option>
+              </select>
+            </label>
+          </div>
           <div id="blindFields" class="blind-fields">
             <label class="form-field">
               <span id="smallBlindLabel">Small blind</span>
@@ -45,7 +78,7 @@
               <input id="bigBlindInput" type="number" min="2" max="100000" step="1" value="20" inputmode="decimal" />
             </label>
           </div>
-          <label class="checkbox-label">
+          <label id="moneyModeLabel" class="checkbox-label">
             <input id="moneyModeInput" type="checkbox" />
             <span class="switch-control" aria-hidden="true"></span>
             <span class="checkbox-copy">
@@ -230,6 +263,9 @@
       <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
     </main>
 
+    <script src="/shared/pokersolver.js"></script>
+    <script src="/shared/engine.js"></script>
+    <script src="/practice.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/raise-sizing.js"></script>
     <script src="/card-art.js"></script>

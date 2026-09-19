@@ -1,9 +1,11 @@
-const socket = io({
-  reconnection: true,
-  reconnectionAttempts: Infinity,
-  reconnectionDelay: 500,
-  reconnectionDelayMax: 4000,
-});
+const socket = typeof io === "function"
+  ? io({
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 500,
+    reconnectionDelayMax: 4000,
+  })
+  : null;
 
 const welcome = document.querySelector("#welcome");
 const themeColor = document.querySelector("#themeColor");
@@ -15,6 +17,13 @@ const roomInput = document.querySelector("#roomInput");
 const roomCodeLabel = document.querySelector("#roomCodeLabel");
 const hostModeBtn = document.querySelector("#hostModeBtn");
 const joinModeBtn = document.querySelector("#joinModeBtn");
+const practiceModeBtn = document.querySelector("#practiceModeBtn");
+const practiceHint = document.querySelector("#practiceHint");
+const practiceFields = document.querySelector("#practiceFields");
+const tableSizeInput = document.querySelector("#tableSizeInput");
+const startingStackInput = document.querySelector("#startingStackInput");
+const botCountInput = document.querySelector("#botCountInput");
+const moneyModeLabel = document.querySelector("#moneyModeLabel");
 const blindFields = document.querySelector("#blindFields");
 const smallBlindInput = document.querySelector("#smallBlindInput");
 const bigBlindInput = document.querySelector("#bigBlindInput");
@@ -345,6 +354,7 @@ function matchesKeybind(event, action) {
 renderKeybinds();
 
 let state = null;
+let practiceSession = null;
 let raiseState = { value: 0, min: 0, max: 0, step: 20 };
 let raiseControlsDisabled = false;
 /**
@@ -487,19 +497,68 @@ function lockMobileGameOverscroll(event) {
   if (!canScrollDown && !canScrollUp) event.preventDefault();
 }
 
+function isOfflinePractice() {
+  return Boolean(practiceSession || state?.offline);
+}
+
+function disposePracticeSession() {
+  if (!practiceSession) return;
+  practiceSession.dispose();
+  practiceSession = null;
+}
+
+function applyRoomUpdate(room) {
+  if (leavingEndedRoom) return;
+  if (isGameOver(room) || isEndedGameReturn(state, room)) {
+    leavingEndedRoom = true;
+    if (isOfflinePractice()) {
+      disposePracticeSession();
+      showScoreScreen(room);
+      return;
+    }
+    socket?.emit("room:leave");
+    showScoreScreen(room);
+    return;
+  }
+
+  const newTurn = room.isYourTurn && (!state?.isYourTurn || state.id !== room.id
+    || state.handNumber !== room.handNumber || state.phase !== room.phase);
+  state = room;
+  if (newTurn) tableSounds.turn();
+  const self = state.players.find((player) => player.isYou && !player.isBot);
+  if (self) {
+    nameInput.value = self.name;
+    localStorage.setItem("holdem:name", self.name);
+  }
+  joinError.textContent = "";
+  render();
+}
+
 function updateTableActionLabel() {
   const isJoining = tableMode === "join";
-  if (!joinPending) tableActionBtn.textContent = isJoining ? (acceptedMoneyTerms ? "Join table · Play next hand" : "Join table") : "Host table";
+  const isPractice = tableMode === "practice";
+  if (!joinPending) {
+    tableActionBtn.textContent = isPractice
+      ? "Start practice"
+      : isJoining
+        ? (acceptedMoneyTerms ? "Join table · Play next hand" : "Join table")
+        : "Host table";
+  }
   joinPreview.classList.toggle("hidden", !isJoining || !acceptedMoneyTerms);
-  tableActionBtn.disabled = joinPending || !socket.connected;
+  practiceHint?.classList.toggle("hidden", !isPractice);
+  practiceFields?.classList.toggle("hidden", !isPractice);
+  const onlineReady = Boolean(socket?.connected);
+  tableActionBtn.disabled = joinPending || (isPractice ? false : !onlineReady);
   blindFields.classList.toggle("hidden", isJoining);
-  moneyModeInput.closest("label").classList.toggle("hidden", isJoining);
-  buyInLabel.classList.toggle("hidden", isJoining || !moneyModeInput.checked);
+  moneyModeLabel?.classList.toggle("hidden", isJoining || isPractice);
+  buyInLabel.classList.toggle("hidden", isJoining || isPractice || !moneyModeInput.checked);
   roomCodeLabel.classList.toggle("hidden", !isJoining);
-  hostModeBtn.classList.toggle("selected", !isJoining);
+  hostModeBtn.classList.toggle("selected", tableMode === "host");
   joinModeBtn.classList.toggle("selected", isJoining);
-  hostModeBtn.setAttribute("aria-selected", String(!isJoining));
+  practiceModeBtn?.classList.toggle("selected", isPractice);
+  hostModeBtn.setAttribute("aria-selected", String(tableMode === "host"));
   joinModeBtn.setAttribute("aria-selected", String(isJoining));
+  practiceModeBtn?.setAttribute("aria-selected", String(isPractice));
 }
 
 function syncBlindInputMode() {
@@ -603,7 +662,8 @@ function showTable(room) {
   welcome.classList.add("hidden");
   scoreView.classList.add("hidden");
   tableView.classList.remove("hidden");
-  setRoomUrl(room.id);
+  if (room?.offline) clearRoomUrl();
+  else setRoomUrl(room.id);
 }
 
 function hideGameMenu() {
@@ -647,7 +707,7 @@ function roundStatus(player) {
 function renderMenuPlayers() {
   if (!state) return;
   if (document.activeElement?.matches("[data-player-name]")) return;
-  menuRoomCode.textContent = state.id;
+  menuRoomCode.textContent = isOfflinePractice() ? "Practice" : state.id;
   const hero = activeHero();
   if (state.moneyMode && hero) {
     moneyDetails.innerHTML = `
@@ -743,7 +803,9 @@ function showGameMenu() {
   const hero = activeHero();
   sitOutBtn.classList.toggle("hidden", !hero || state?.phase === "gameover");
   if (hero) sitOutBtn.textContent = hero.sittingOut ? "I’m back" : "Sit out next hand";
-  moneyPanel.classList.toggle("hidden", !state?.moneyMode);
+  moneyPanel.classList.toggle("hidden", !state?.moneyMode || isOfflinePractice());
+  shareGameBtn.classList.toggle("hidden", isOfflinePractice());
+  sharePanel.classList.add("hidden");
   blindPanel.classList.toggle("hidden", !state?.canChangeBlinds);
   if (state?.canChangeBlinds) {
     const moneyMode = state.moneyMode;
@@ -765,6 +827,7 @@ function showGameMenu() {
 }
 
 function showWelcome(status = "") {
+  disposePracticeSession();
   state = null;
   lastActionEntryId = "";
   lastCommunitySignature = null;
@@ -781,6 +844,7 @@ function showWelcome(status = "") {
   welcome.classList.remove("hidden");
   joinError.textContent = status;
   clearRoomUrl();
+  updateTableActionLabel();
 }
 
 function showScoreScreen(room) {
@@ -1005,7 +1069,13 @@ function render() {
   if (!state) return;
   const isFirstTableRender = lastCommunitySignature === null;
   showTable(state);
-  roomCode.textContent = state.id;
+  const offline = isOfflinePractice();
+  roomCode.textContent = offline ? "Practice" : state.id;
+  roomCodeBtn.classList.toggle("offline-practice", offline);
+  roomCodeBtn.disabled = offline;
+  const roomEyebrow = roomCodeBtn.querySelector(".eyebrow");
+  if (roomEyebrow) roomEyebrow.textContent = offline ? "Mode" : "Room";
+  menuRoomCode.textContent = offline ? "Practice" : state.id;
   potValue.textContent = formatAmount(state.pot, state.potCents);
   if (lastPot !== null && lastPot !== state.pot) {
     replayAnimation(potValue.closest("div"), "value-changed", 480);
@@ -1406,6 +1476,17 @@ function showSharePanel() {
 }
 
 function emitWithAck(eventName, payload) {
+  if (practiceSession) {
+    const response = practiceSession.handle(eventName, payload || {});
+    if (!response?.ok) {
+      joinError.textContent = response?.error || "Action failed.";
+    }
+    return;
+  }
+  if (!socket) {
+    joinError.textContent = "Connecting...";
+    return;
+  }
   socket.timeout(4000).emit(eventName, payload, (error, response) => {
     if (error) {
       joinError.textContent = "Reconnecting to the table...";
@@ -1420,9 +1501,50 @@ function emitWithAck(eventName, payload) {
   });
 }
 
+function startPractice() {
+  joinError.textContent = "";
+  if (typeof PracticeSession?.createPracticeSession !== "function" || typeof HoldemEngine === "undefined") {
+    joinError.textContent = "Practice engine failed to load. Refresh and try again.";
+    return;
+  }
+  const name = nameInput.value.trim();
+  if (!name) {
+    joinError.textContent = "Enter a display name.";
+    return;
+  }
+  localStorage.setItem("holdem:name", name);
+  moneyModeInput.checked = false;
+  disposePracticeSession();
+  const tableSize = Math.max(2, Math.min(9, Math.floor(Number(tableSizeInput?.value) || 6)));
+  const startingStack = Math.max(20, Math.floor(Number(startingStackInput?.value) || 1000));
+  const botRaw = botCountInput?.value || "fill";
+  const botCount = botRaw === "fill" ? tableSize - 1 : Math.max(1, Math.min(tableSize - 1, Math.floor(Number(botRaw) || 1)));
+  practiceSession = PracticeSession.createPracticeSession({
+    name,
+    playerId: getDeviceId() || "practice-hero",
+    tableSize,
+    startingStack,
+    botCount,
+    smallBlind: Math.max(1, Math.floor(Number(smallBlindInput.value) || 10)),
+    bigBlind: Math.max(2, Math.floor(Number(bigBlindInput.value) || 20)),
+    onUpdate: applyRoomUpdate,
+  });
+  clearRoomUrl();
+  leavingEndedRoom = false;
+  practiceSession.publish();
+}
+
 function joinOrCreate(mode) {
   joinError.textContent = "";
+  if (mode === "practice") {
+    startPractice();
+    return;
+  }
   if (joinPending) return;
+  if (!socket) {
+    joinError.textContent = "Online play needs a connection.";
+    return;
+  }
   if (!socket.connected) {
     joinError.textContent = "Connecting...";
     socket.once("connect", () => joinOrCreate(mode));
@@ -1534,13 +1656,19 @@ roomInput.addEventListener("input", () => {
 });
 hostModeBtn.addEventListener("click", () => setTableMode("host"));
 joinModeBtn.addEventListener("click", () => setTableMode("join", true));
+practiceModeBtn?.addEventListener("click", () => {
+  moneyModeInput.checked = false;
+  syncBlindInputMode();
+  setTableMode("practice");
+});
 moneyModeInput.addEventListener("change", () => {
   syncBlindInputMode();
   updateTableActionLabel();
 });
 joinForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  joinOrCreate(tableMode === "join" ? "join" : "create");
+  if (tableMode === "practice") joinOrCreate("practice");
+  else joinOrCreate(tableMode === "join" ? "join" : "create");
 });
 syncBlindInputMode();
 updateTableActionLabel();
@@ -1580,7 +1708,7 @@ menuBtn.addEventListener("click", () => {
 });
 
 roomCodeBtn.addEventListener("click", async () => {
-  if (!state?.id) return;
+  if (!state?.id || isOfflinePractice()) return;
   const inviteUrl = new URL(window.location.origin + window.location.pathname);
   inviteUrl.searchParams.set("room", state.id);
   await navigator.clipboard.writeText(inviteUrl.toString());
@@ -1673,40 +1801,27 @@ copyShareBtn.addEventListener("click", () => copyText(shareLink.value, copyShare
 
 backToMenuBtn.addEventListener("click", () => {
   hideGameMenu();
-  socket.emit("room:leave");
+  if (isOfflinePractice()) {
+    showWelcome();
+    return;
+  }
+  socket?.emit("room:leave");
   showWelcome();
 });
 
 scoreMenuBtn.addEventListener("click", () => showWelcome());
 
-socket.on("room:update", (room) => {
-  if (leavingEndedRoom) return;
-  if (isGameOver(room) || isEndedGameReturn(state, room)) {
-    leavingEndedRoom = true;
-    socket.emit("room:leave");
-    showScoreScreen(room);
-    return;
-  }
-
-  const newTurn = room.isYourTurn && (!state?.isYourTurn || state.id !== room.id
-    || state.handNumber !== room.handNumber || state.phase !== room.phase);
-  state = room;
-  if (newTurn) tableSounds.turn();
-  const self = state.players.find((player) => player.isYou && !player.isBot);
-  if (self) {
-    nameInput.value = self.name;
-    localStorage.setItem("holdem:name", self.name);
-  }
-  joinError.textContent = "";
-  render();
+socket?.on("room:update", (room) => {
+  if (practiceSession) return;
+  applyRoomUpdate(room);
 });
 
-socket.on("room:kicked", () => {
+socket?.on("room:kicked", () => {
   showWelcome("You were kicked from the table.");
 });
 
 function attemptAutoRejoin() {
-  if (!state) return;
+  if (!state || practiceSession || !socket) return;
   const roomId = (state?.id || roomInput.value.trim()).toUpperCase();
   const name = nameInput.value.trim() || localStorage.getItem("holdem:name") || "Player";
   const rejoinKey = `${socket.id}:${roomId}`;
@@ -1736,24 +1851,24 @@ function autoJoinInitialRoom() {
   joinOrCreate("join");
 }
 
-socket.on("connect", () => {
+socket?.on("connect", () => {
   updateTableActionLabel();
   autoJoinInitialRoom();
   attemptAutoRejoin();
 });
-socket.on("disconnect", updateTableActionLabel);
+socket?.on("disconnect", updateTableActionLabel);
 autoJoinInitialRoom();
 attemptAutoRejoin();
 
 window.addEventListener("focus", attemptAutoRejoin);
 function reportVisibility() {
-  if (state && socket.connected) socket.emit("room:presence", { hidden: document.hidden });
+  if (state && !practiceSession && socket?.connected) socket.emit("room:presence", { hidden: document.hidden });
   if (!document.hidden) attemptAutoRejoin();
 }
 
 document.addEventListener("visibilitychange", reportVisibility);
 window.addEventListener("pagehide", () => {
-  if (state && socket.connected) socket.emit("room:presence", { hidden: true });
+  if (state && !practiceSession && socket?.connected) socket.emit("room:presence", { hidden: true });
 });
 window.addEventListener("pageshow", () => {
   setViewportHeight();
@@ -1778,6 +1893,12 @@ document.addEventListener("touchend", () => { previousGameTouchY = null; }, { pa
 document.addEventListener("touchcancel", () => { previousGameTouchY = null; }, { passive: true });
 
 setViewportHeight();
+
+if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
 
 document.addEventListener("keydown", (event) => {
   if (recordingKeybindAction) {
