@@ -976,18 +976,18 @@ select:focus {
   font-size: 16px;
 }
 
-/* Keep compact cards unchanged; reserve space above and below the pip field
-   for the indices. Container queries measure width inside the card padding. */
+/* Option D art box — larger pip field; indices still sit in the outer margin.
+   Container queries measure width inside the card padding. */
 .card-art {
   display: none;
   position: absolute;
-  inset: 25% 18%;
+  inset: 11% 8%;
   pointer-events: none;
 }
 .card-art svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .card-pip { fill: currentColor; font-family: inherit; font-weight: inherit; text-anchor: middle; dominant-baseline: central; }
-.card-art-court { inset: 14% 10%; }
-.card-art-ace { inset: 17% 17%; }
+.card-art-court { inset: 9% 6%; }
+.card-art-ace { inset: 12% 12%; }
 .court-ink { fill: var(--black-card); }
 .court-red { fill: var(--red-card); }
 .court-paper { fill: var(--card-paper); }
@@ -997,12 +997,9 @@ select:focus {
 .court-stem { stroke: var(--court-accent); stroke-width: 2.5; }
 .court-trim { display: none; fill: none; stroke: var(--court-trim); stroke-width: 2; stroke-linejoin: round; }
 .court-detail { display: none; fill: var(--court-trim); }
-@container (min-width: 56px) {
+/* 48px covers desktop hole cards (~60px with padding) and board cards alike. */
+@container (min-width: 48px) {
   .card-art { display: block; }
-}
-.hero-hand .card-art { display: none; }
-@container (min-width: 76px) {
-  .hero-hand .card-art { display: block; }
 }
 
 .community .card {

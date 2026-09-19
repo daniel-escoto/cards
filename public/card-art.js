@@ -1,15 +1,16 @@
 /* Shared, resolution-independent artwork. Indices remain in the card template. */
 const CardArt = (() => {
+  // Option D — airy French-suited grid (viewBox 0 0 100 144).
   const layouts = {
     2: [[50, 20], [50, 124]],
     3: [[50, 20], [50, 72], [50, 124]],
-    4: [[22, 20], [78, 20], [22, 124], [78, 124]],
-    5: [[22, 20], [78, 20], [50, 72], [22, 124], [78, 124]],
-    6: [[22, 20], [78, 20], [22, 72], [78, 72], [22, 124], [78, 124]],
-    7: [[22, 20], [78, 20], [50, 46], [22, 72], [78, 72], [22, 124], [78, 124]],
-    8: [[22, 20], [78, 20], [50, 46], [22, 72], [78, 72], [50, 98], [22, 124], [78, 124]],
-    9: [[22, 18], [78, 18], [22, 54], [78, 54], [50, 72], [22, 90], [78, 90], [22, 126], [78, 126]],
-    10: [[22, 18], [78, 18], [50, 36], [22, 54], [78, 54], [22, 90], [78, 90], [50, 108], [22, 126], [78, 126]],
+    4: [[24, 20], [76, 20], [24, 124], [76, 124]],
+    5: [[24, 20], [76, 20], [50, 72], [24, 124], [76, 124]],
+    6: [[24, 20], [76, 20], [24, 72], [76, 72], [24, 124], [76, 124]],
+    7: [[24, 20], [76, 20], [50, 44], [24, 72], [76, 72], [24, 124], [76, 124]],
+    8: [[24, 20], [76, 20], [50, 44], [24, 72], [76, 72], [50, 100], [24, 124], [76, 124]],
+    9: [[24, 18], [76, 18], [24, 48], [76, 48], [50, 72], [24, 96], [76, 96], [24, 126], [76, 126]],
+    10: [[24, 18], [76, 18], [50, 38], [24, 48], [76, 48], [24, 96], [76, 96], [50, 106], [24, 126], [76, 126]],
   };
 
   function courtHalf(rank) {
@@ -45,6 +46,15 @@ const CardArt = (() => {
       <path class="court-detail" d="m29 61 3 3-3 3-3-3Zm35 2 3 3-3 3-3-3Z"/>`;
   }
 
+  function pipSize(rank) {
+    return rank === "10" ? 33 : 36;
+  }
+
+  function renderPip([x, y], suit, size) {
+    const flip = y > 72 ? ` transform="rotate(180 ${x} ${y})"` : "";
+    return `<text class="card-pip" x="${x}" y="${y}" font-size="${size}"${flip}>${suit}</text>`;
+  }
+
   function render(rank, suit) {
     if (!["♠", "♥", "♦", "♣"].includes(suit)) return "";
     let content;
@@ -55,16 +65,17 @@ const CardArt = (() => {
       content = `<g>${half}</g><g transform="rotate(180 50 72)">${half}</g>`;
     } else if (rank === "A") {
       type = "ace";
-      content = `<text class="card-pip" x="50" y="72" font-size="92">${suit}</text>`;
+      content = `<text class="card-pip" x="50" y="72" font-size="86">${suit}</text>`;
     } else {
       const points = layouts[rank];
       if (!points) return "";
-      content = points.map(([x, y]) => `<text class="card-pip" x="${x}" y="${y}" font-size="${points.length > 8 ? 28 : 32}">${suit}</text>`).join("");
+      const size = pipSize(rank);
+      content = points.map((point) => renderPip(point, suit, size)).join("");
     }
     return `<span class="card-art card-art-${type}" aria-hidden="true"><svg viewBox="0 0 100 144" focusable="false" xmlns="http://www.w3.org/2000/svg">${content}</svg></span>`;
   }
 
-  return { render };
+  return { render, layouts };
 })();
 
 if (typeof module !== "undefined") module.exports = CardArt;
