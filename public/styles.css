@@ -922,6 +922,9 @@ select:focus {
 }
 
 .card {
+  --card-paper: #f7f1e6;
+  --court-accent: #145343;
+  --court-trim: #f7f1e6;
   width: clamp(50px, 5vw, 68px);
   aspect-ratio: 0.72;
   position: relative;
@@ -929,7 +932,8 @@ select:focus {
   grid-template-rows: auto 1fr auto;
   padding: 8px;
   border-radius: 9px;
-  background: #f7f1e6;
+  background: var(--card-paper);
+  container-type: inline-size;
   color: var(--black-card);
   font-weight: 950;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.24);
@@ -953,11 +957,13 @@ select:focus {
 }
 
 .card-corner-top {
+  grid-row: 1;
   justify-self: start;
   align-self: start;
 }
 
 .card-corner-bottom {
+  grid-row: 3;
   justify-self: end;
   align-self: end;
 }
@@ -968,6 +974,31 @@ select:focus {
 
 .card-corner-suit {
   font-size: 16px;
+}
+
+/* Keep compact cards unchanged; add art only once the card has room for it.
+   Container width excludes the card's padding (44px is a 60px card). */
+.card-art {
+  display: none;
+  position: absolute;
+  inset: 18% 16%;
+  pointer-events: none;
+}
+.card-art svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.card-pip { fill: currentColor; font-family: inherit; font-weight: inherit; text-anchor: middle; dominant-baseline: central; }
+.card-art-court { inset: 14% 10%; }
+.card-art-ace { inset: 17% 17%; }
+.court-ink { fill: var(--black-card); }
+.court-red { fill: var(--red-card); }
+.court-paper { fill: var(--card-paper); }
+.court-accent { fill: var(--court-accent); }
+.court-line, .court-outline { stroke: var(--black-card); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.court-line { fill: none; }
+.court-stem { stroke: var(--court-accent); stroke-width: 2.5; }
+.court-trim { display: none; fill: none; stroke: var(--court-trim); stroke-width: 2; stroke-linejoin: round; }
+.court-detail { display: none; fill: var(--court-trim); }
+@container (min-width: 44px) {
+  .card-art { display: block; }
 }
 
 .community .card {
@@ -1393,6 +1424,18 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 :root[data-deck="minimal"] .card { border-radius: 5px; box-shadow: 0 5px 14px rgba(0,0,0,.2); }
 :root[data-deck="minimal"] .card:not(.back) { border: 1px solid #a9b0aa; background: #fffefa; }
 :root[data-deck="minimal"] .card.back { border: 3px solid #d5a542; background: #f6f1e7; box-shadow: inset 0 0 0 3px #f6f1e7, inset 0 0 0 5px #485650, 0 8px 20px rgba(0,0,0,.2); }
+
+/* Court colors follow each deck's existing paper, ink, and back design. */
+:root[data-deck="midnight"] .card { --card-paper: #eef4f3; --court-accent: #397c7a; --court-trim: #a6d2cb; }
+:root[data-deck="ruby"] .card { --card-paper: #fbf0e5; --court-accent: #711c2a; --court-trim: #d4b59f; }
+:root[data-deck="heritage"] .card { --card-paper: #f3ead4; --court-accent: #b99a5d; --court-trim: #f3ead4; }
+:root[data-deck="riviera"] .card { --card-paper: #fbfaf4; --court-accent: #236eaa; --court-trim: #fbfaf4; }
+:root[data-deck="minimal"] .card { --card-paper: #fffefa; --court-accent: #485650; --court-trim: #fffefa; }
+:root[data-deck="minimal"] .court-detail,
+:root[data-deck="minimal"] .court-trim { display: none; }
+:root[data-deck="heritage"] .card-art-court { inset: 18% 14%; border: 1px solid #b99a5d; }
+:root[data-deck="heritage"] .court-detail,
+:root[data-deck="heritage"] .court-trim { display: block; }
 
 @media (max-width: 390px) {
   .deck-choice { grid-template-columns: 48px minmax(0, 1fr); gap: 6px; padding: 7px 5px; }

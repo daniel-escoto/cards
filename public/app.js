@@ -239,7 +239,7 @@ soundEnabledInput.checked = tableSounds.enabled;
 
 const KEYBIND_DEFINITIONS = [
   { id: "fold", label: "Fold", defaultKey: "f" },
-  { id: "call", label: "Check / call", defaultKey: "c" },
+  { id: "call", label: "Check / call / ready up", defaultKey: "c" },
   { id: "raise", label: "Bet / raise", defaultKey: "r" },
   { id: "raiseUp", label: "Increase bet", defaultKey: "ArrowUp", defaultAliases: ["ArrowRight"] },
   { id: "raiseDown", label: "Decrease bet", defaultKey: "ArrowDown", defaultAliases: ["ArrowLeft"] },
@@ -547,6 +547,7 @@ function cardTemplate(card, extraClass = "") {
       <span class="card-corner card-corner-top">
         <span class="card-rank">${card.rank}</span>
       </span>
+      ${CardArt.render(card.rank, card.suit)}
       <span class="card-corner card-corner-bottom">
         <span class="card-corner-suit suit">${card.suit}</span>
       </span>
@@ -1138,7 +1139,9 @@ function renderControls(hero) {
     addButton("+ Add CPU player", "room:addBot", "secondary lobby-add-bot");
   }
   if (state.canReady) {
-    addButton(state.isReady ? "Not ready" : "Ready up", "game:ready", state.isReady ? "secondary" : "", keybindLabel(keybinds.ready));
+    const readyShortcut = state.isReady ? keybindLabel(keybinds.ready)
+      : [keybinds.ready, keybinds.call].filter(Boolean).map(keybindLabel).join(" / ");
+    addButton(state.isReady ? "Not ready" : "Ready up", "game:ready", state.isReady ? "secondary" : "", readyShortcut);
   }
   if (state.canShowHand) {
     addButton("Show hand", "game:showCards", "secondary", keybindLabel(keybinds.showHand));
@@ -1810,6 +1813,11 @@ document.addEventListener("keydown", (event) => {
   if (matchesKeybind(event, "ready") && state.canReady) {
     event.preventDefault();
     if (!event.repeat) emitWithAck("game:ready", {});
+    return;
+  }
+  if (matchesKeybind(event, "call") && state.canReady) {
+    event.preventDefault();
+    if (!event.repeat && !state.isReady) emitWithAck("game:ready", { ready: true });
     return;
   }
   if (matchesKeybind(event, "showHand") && state.canShowHand) {
