@@ -976,12 +976,12 @@ select:focus {
   font-size: 16px;
 }
 
-/* Keep compact cards unchanged; add art only once the card has room for it.
-   Container width excludes the card's padding (44px is a 60px card). */
+/* Keep compact cards unchanged; reserve space above and below the pip field
+   for the indices. Container queries measure width inside the card padding. */
 .card-art {
   display: none;
   position: absolute;
-  inset: 18% 16%;
+  inset: 25% 18%;
   pointer-events: none;
 }
 .card-art svg { display: block; width: 100%; height: 100%; overflow: visible; }
@@ -997,8 +997,12 @@ select:focus {
 .court-stem { stroke: var(--court-accent); stroke-width: 2.5; }
 .court-trim { display: none; fill: none; stroke: var(--court-trim); stroke-width: 2; stroke-linejoin: round; }
 .court-detail { display: none; fill: var(--court-trim); }
-@container (min-width: 44px) {
+@container (min-width: 56px) {
   .card-art { display: block; }
+}
+.hero-hand .card-art { display: none; }
+@container (min-width: 76px) {
+  .hero-hand .card-art { display: block; }
 }
 
 .community .card {
@@ -2124,4 +2128,3 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
     padding: 0 10px;
   }
 }
-

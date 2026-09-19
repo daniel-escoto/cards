@@ -59,7 +59,7 @@ const CardArt = (() => {
     } else {
       const points = layouts[rank];
       if (!points) return "";
-      content = points.map(([x, y]) => `<text class="card-pip" x="${x}" y="${y}" font-size="${points.length > 8 ? 38 : 44}">${suit}</text>`).join("");
+      content = points.map(([x, y]) => `<text class="card-pip" x="${x}" y="${y}" font-size="${points.length > 8 ? 28 : 32}">${suit}</text>`).join("");
     }
     return `<span class="card-art card-art-${type}" aria-hidden="true"><svg viewBox="0 0 100 144" focusable="false" xmlns="http://www.w3.org/2000/svg">${content}</svg></span>`;
   }
