@@ -966,6 +966,7 @@ select:focus {
   grid-row: 3;
   justify-self: end;
   align-self: end;
+  transform: rotate(180deg);
 }
 
 .card-rank {
@@ -976,9 +977,8 @@ select:focus {
   font-size: 16px;
 }
 
-/* Option D art box — larger pip field; indices still sit in the outer margin.
-   Court art needs a deeper inset so the framed display clears the corner indexes.
-   Container queries measure width inside the card padding. */
+/* Center card art (pips/aces/courts) kept in the repo but hidden for now —
+   corner indexes only. Re-enable by setting display:block (e.g. via @container). */
 .card-art {
   display: none;
   position: absolute;
@@ -998,10 +998,6 @@ select:focus {
 .court-stem { stroke: var(--court-accent); stroke-width: 2.5; }
 .court-trim { display: none; fill: none; stroke: var(--court-trim); stroke-width: 2; stroke-linejoin: round; }
 .court-detail { display: none; fill: var(--court-trim); }
-/* 48px covers desktop hole cards (~60px with padding) and board cards alike. */
-@container (min-width: 48px) {
-  .card-art { display: block; }
-}
 
 .community .card {
   width: clamp(56px, 5.6vw, 76px);
@@ -1690,6 +1686,11 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 
   .hero-hand .card {
     width: clamp(60px, 4.5vw, 72px);
+  }
+
+  /* Big hole cards: classic mirrored bottom index */
+  .hero-hand .card .card-corner-bottom {
+    transform: rotate(180deg);
   }
 
   .control-panel {
