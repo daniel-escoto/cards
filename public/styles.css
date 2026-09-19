@@ -697,15 +697,6 @@ select:focus {
   font-size: 12px;
 }
 
-.shown-hand .card .card-corner-bottom {
-  transform: none;
-}
-
-.shown-hand .card .card-rank,
-.shown-hand .card .card-corner-suit {
-  font-size: 18px;
-}
-
 .menu-player-stats {
   justify-content: flex-start;
   flex-wrap: wrap;
@@ -966,15 +957,23 @@ select:focus {
   grid-row: 3;
   justify-self: end;
   align-self: end;
-  transform: rotate(180deg);
 }
 
 .card-rank {
-  font-size: 16px;
+  font-size: 18px;
 }
 
 .card-corner-suit {
-  font-size: 16px;
+  font-size: 18px;
+}
+
+/* Bigger cards: same rank TL / suit BR layout, larger type only.
+   48px content ≈ 60px hole card (6px padding) / ~64px board card (8px). */
+@container (min-width: 48px) {
+  .card-rank,
+  .card-corner-suit {
+    font-size: 22px;
+  }
 }
 
 /* Center card art (pips/aces/courts) kept in the repo but hidden for now —
@@ -1001,11 +1000,6 @@ select:focus {
 
 .community .card {
   width: clamp(56px, 5.6vw, 76px);
-}
-
-.community .card-rank,
-.community .card-corner-suit {
-  font-size: 18px;
 }
 
 .players {
@@ -1502,15 +1496,6 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
   display: grid;
 }
 
-.hero-hand .card .card-corner-bottom {
-  transform: none;
-}
-
-.hero-hand .card .card-rank,
-.hero-hand .card .card-corner-suit {
-  font-size: 18px;
-}
-
 .bet-controls {
   --raise-row-height: 46px;
   display: grid;
@@ -1686,11 +1671,6 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 
   .hero-hand .card {
     width: clamp(60px, 4.5vw, 72px);
-  }
-
-  /* Big hole cards: classic mirrored bottom index */
-  .hero-hand .card .card-corner-bottom {
-    transform: rotate(180deg);
   }
 
   .control-panel {
@@ -2046,15 +2026,6 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 
   .community .card {
     width: clamp(44px, 11.5vw, 56px);
-  }
-
-  .card .card-corner-bottom {
-    transform: none;
-  }
-
-  .card .card-rank,
-  .card .card-corner-suit {
-    font-size: 18px;
   }
 
   .control-panel {
