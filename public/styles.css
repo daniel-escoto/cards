@@ -964,15 +964,18 @@ select:focus {
 }
 
 .card-corner-suit {
-  font-size: 18px;
+  font-size: 20px;
 }
 
 /* Bigger cards: same rank TL / suit BR layout, larger type only.
    48px content ≈ 60px hole card (6px padding) / ~64px board card (8px). */
 @container (min-width: 48px) {
-  .card-rank,
-  .card-corner-suit {
+  .card-rank {
     font-size: 22px;
+  }
+
+  .card-corner-suit {
+    font-size: 26px;
   }
 }
 
