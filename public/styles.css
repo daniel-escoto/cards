@@ -966,6 +966,7 @@ select:focus {
   grid-row: 3;
   justify-self: end;
   align-self: end;
+  transform: rotate(180deg);
 }
 
 .card-rank {
@@ -1685,6 +1686,11 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 
   .hero-hand .card {
     width: clamp(60px, 4.5vw, 72px);
+  }
+
+  /* Big hole cards: classic mirrored bottom index */
+  .hero-hand .card .card-corner-bottom {
+    transform: rotate(180deg);
   }
 
   .control-panel {

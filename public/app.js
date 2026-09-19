@@ -542,14 +542,14 @@ function cardTemplate(card, extraClass = "") {
   const className = extraClass ? ` ${extraClass}` : "";
   if (!card) return `<div class="card back${className}"><span></span><span></span></div>`;
   const cardName = `${card.rank}${card.suit}`;
+  const index = `
+      <span class="card-rank">${card.rank}</span>
+      <span class="card-corner-suit suit">${card.suit}</span>`;
   return `
     <div class="card ${card.color === "red" ? "red" : ""}${className}" aria-label="${escapeHtml(cardName)}">
-      <span class="card-corner card-corner-top">
-        <span class="card-rank">${card.rank}</span>
+      <span class="card-corner card-corner-top">${index}
       </span>
-      ${CardArt.render(card.rank, card.suit)}
-      <span class="card-corner card-corner-bottom">
-        <span class="card-corner-suit suit">${card.suit}</span>
+      <span class="card-corner card-corner-bottom">${index}
       </span>
     </div>
   `;
