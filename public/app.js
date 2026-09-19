@@ -662,7 +662,8 @@ function showTable(room) {
   welcome.classList.add("hidden");
   scoreView.classList.add("hidden");
   tableView.classList.remove("hidden");
-  setRoomUrl(room.id);
+  if (room?.offline) clearRoomUrl();
+  else setRoomUrl(room.id);
 }
 
 function hideGameMenu() {
