@@ -39,28 +39,14 @@
             <span>Room code</span>
             <input id="roomInput" maxlength="6" placeholder="ABC123" autocapitalize="characters" spellcheck="false" />
           </label>
-          <div id="hostBotFields" class="host-bot-fields">
+          <div id="blindFields" class="blind-fields">
             <label class="form-field">
-              <span>Table size</span>
-              <select id="tableSizeInput">
-                <option value="6" selected>6-max</option>
-                <option value="9">9-max</option>
-              </select>
+              <span id="smallBlindLabel">Small blind</span>
+              <input id="smallBlindInput" type="number" min="1" max="100000" step="1" value="10" inputmode="decimal" />
             </label>
             <label class="form-field">
-              <span>Bot seats</span>
-              <select id="botCountInput">
-                <option value="0" selected>None — wait for friends</option>
-                <option value="fill">Fill table</option>
-                <option value="1">1 bot</option>
-                <option value="2">2 bots</option>
-                <option value="3">3 bots</option>
-                <option value="4">4 bots</option>
-                <option value="5">5 bots</option>
-                <option value="6">6 bots</option>
-                <option value="7">7 bots</option>
-                <option value="8">8 bots</option>
-              </select>
+              <span id="bigBlindLabel">Big blind</span>
+              <input id="bigBlindInput" type="number" min="2" max="100000" step="1" value="20" inputmode="decimal" />
             </label>
           </div>
           <label id="moneyModeLabel" class="checkbox-label">

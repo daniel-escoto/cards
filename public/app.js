@@ -17,10 +17,12 @@ const roomInput = document.querySelector("#roomInput");
 const roomCodeLabel = document.querySelector("#roomCodeLabel");
 const hostModeBtn = document.querySelector("#hostModeBtn");
 const joinModeBtn = document.querySelector("#joinModeBtn");
-const hostBotFields = document.querySelector("#hostBotFields");
-const tableSizeInput = document.querySelector("#tableSizeInput");
-const botCountInput = document.querySelector("#botCountInput");
 const moneyModeLabel = document.querySelector("#moneyModeLabel");
+const blindFields = document.querySelector("#blindFields");
+const smallBlindInput = document.querySelector("#smallBlindInput");
+const bigBlindInput = document.querySelector("#bigBlindInput");
+const smallBlindLabel = document.querySelector("#smallBlindLabel");
+const bigBlindLabel = document.querySelector("#bigBlindLabel");
 const moneyModeInput = document.querySelector("#moneyModeInput");
 const buyInLabel = document.querySelector("#buyInLabel");
 const buyInInput = document.querySelector("#buyInInput");
@@ -500,18 +502,10 @@ function disposePracticeSession() {
   practiceSession = null;
 }
 
-function hostBotSelection() {
-  const tableSize = Math.max(2, Math.min(9, Math.floor(Number(tableSizeInput?.value) || 6)));
-  const botRaw = botCountInput?.value || "0";
-  if (botRaw === "fill") return { tableSize, botCount: tableSize - 1 };
-  const botCount = Math.max(0, Math.min(tableSize - 1, Math.floor(Number(botRaw) || 0)));
-  return { tableSize, botCount };
-}
-
-/** Local offline path when Host seats bots and leaves no open seats for friends. */
-function shouldHostOffline() {
-  if (moneyModeInput.checked) return false;
-  return hostBotSelection().botCount > 0;
+function hostUsesOfflinePath() {
+  // Chip Host with no server connection → local table (add bots in-game).
+  // Connected chip Host and money Host stay on online create-room.
+  return !moneyModeInput.checked && !socket?.connected;
 }
 
 function applyRoomUpdate(room) {
@@ -544,23 +538,45 @@ function applyRoomUpdate(room) {
 function updateTableActionLabel() {
   const isJoining = tableMode === "join";
   const moneyMode = moneyModeInput.checked;
-  const offlineHost = !isJoining && shouldHostOffline();
+  const offlineHost = !isJoining && hostUsesOfflinePath();
   if (!joinPending) {
     tableActionBtn.textContent = isJoining
       ? (acceptedMoneyTerms ? "Join table · Play next hand" : "Join table")
       : "Host table";
   }
   joinPreview.classList.toggle("hidden", !isJoining || !acceptedMoneyTerms);
-  hostBotFields?.classList.toggle("hidden", isJoining || moneyMode);
   const onlineReady = Boolean(socket?.connected);
   tableActionBtn.disabled = joinPending || (offlineHost ? false : !onlineReady);
-  moneyModeLabel?.classList.toggle("hidden", isJoining || offlineHost);
-  buyInLabel.classList.toggle("hidden", isJoining || offlineHost || !moneyMode);
+  blindFields?.classList.toggle("hidden", isJoining);
+  moneyModeLabel?.classList.toggle("hidden", isJoining);
+  buyInLabel.classList.toggle("hidden", isJoining || !moneyMode);
   roomCodeLabel.classList.toggle("hidden", !isJoining);
   hostModeBtn.classList.toggle("selected", !isJoining);
   joinModeBtn.classList.toggle("selected", isJoining);
   hostModeBtn.setAttribute("aria-selected", String(!isJoining));
   joinModeBtn.setAttribute("aria-selected", String(isJoining));
+}
+
+function syncBlindInputMode() {
+  if (!blindFields || !smallBlindInput || !bigBlindInput) return;
+  const moneyMode = moneyModeInput.checked;
+  const previousMode = blindFields.dataset.mode || "chips";
+  if ((moneyMode ? "money" : "chips") !== previousMode) {
+    if (moneyMode) {
+      smallBlindInput.value = (Number(smallBlindInput.value || 10) / 100).toFixed(2);
+      bigBlindInput.value = (Number(bigBlindInput.value || 20) / 100).toFixed(2);
+    } else {
+      smallBlindInput.value = String(Math.max(1, Math.round(Number(smallBlindInput.value || 0.1) * 100)));
+      bigBlindInput.value = String(Math.max(2, Math.round(Number(bigBlindInput.value || 0.2) * 100)));
+    }
+  }
+  blindFields.dataset.mode = moneyMode ? "money" : "chips";
+  if (smallBlindLabel) smallBlindLabel.textContent = moneyMode ? "Small blind ($)" : "Small blind";
+  if (bigBlindLabel) bigBlindLabel.textContent = moneyMode ? "Big blind ($)" : "Big blind";
+  smallBlindInput.min = moneyMode ? "0.01" : "1";
+  bigBlindInput.min = moneyMode ? "0.02" : "2";
+  smallBlindInput.step = moneyMode ? "0.01" : "1";
+  bigBlindInput.step = moneyMode ? "0.01" : "1";
 }
 
 function setTableMode(mode, focusRoom = false) {
@@ -1498,12 +1514,13 @@ function startOfflineHost() {
   localStorage.setItem("holdem:name", name);
   moneyModeInput.checked = false;
   disposePracticeSession();
-  const { tableSize, botCount } = hostBotSelection();
   practiceSession = PracticeSession.createPracticeSession({
     name,
     playerId: getDeviceId() || "offline-hero",
-    tableSize,
-    botCount,
+    tableSize: typeof HoldemEngine?.MAX_PLAYERS === "number" ? HoldemEngine.MAX_PLAYERS : 9,
+    botCount: 0,
+    smallBlind: Math.max(1, Math.floor(Number(smallBlindInput?.value) || 10)),
+    bigBlind: Math.max(2, Math.floor(Number(bigBlindInput?.value) || 20)),
     onUpdate: applyRoomUpdate,
   });
   clearRoomUrl();
@@ -1513,7 +1530,7 @@ function startOfflineHost() {
 
 function joinOrCreate(mode) {
   joinError.textContent = "";
-  if (mode === "create" && shouldHostOffline()) {
+  if (mode === "create" && hostUsesOfflinePath()) {
     startOfflineHost();
     return;
   }
@@ -1547,9 +1564,11 @@ function joinOrCreate(mode) {
     payload.moneyMode = moneyModeInput.checked;
     payload.buyInCents = moneyCentsFromInput(buyInInput);
     if (payload.moneyMode) {
-      // Lobby no longer collects blinds; match prior Host defaults ($0.10 / $0.20).
-      payload.smallBlindCents = 10;
-      payload.bigBlindCents = 20;
+      payload.smallBlindCents = Math.round(Number(smallBlindInput.value) * 100);
+      payload.bigBlindCents = Math.round(Number(bigBlindInput.value) * 100);
+    } else {
+      payload.smallBlind = Math.max(1, Math.floor(Number(smallBlindInput.value) || 10));
+      payload.bigBlind = Math.max(2, Math.floor(Number(bigBlindInput.value) || 20));
     }
   }
   joinPending = true;
@@ -1631,16 +1650,15 @@ roomInput.addEventListener("input", () => {
 });
 hostModeBtn.addEventListener("click", () => setTableMode("host"));
 joinModeBtn.addEventListener("click", () => setTableMode("join", true));
-botCountInput?.addEventListener("change", () => updateTableActionLabel());
-tableSizeInput?.addEventListener("change", () => updateTableActionLabel());
 moneyModeInput.addEventListener("change", () => {
-  if (moneyModeInput.checked && botCountInput) botCountInput.value = "0";
+  syncBlindInputMode();
   updateTableActionLabel();
 });
 joinForm.addEventListener("submit", (event) => {
   event.preventDefault();
   joinOrCreate(tableMode === "join" ? "join" : "create");
 });
+syncBlindInputMode();
 updateTableActionLabel();
 
 joinForm.addEventListener("focusin", (event) => {

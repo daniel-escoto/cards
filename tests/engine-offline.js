@@ -85,4 +85,27 @@ engine.setRandomInt((max) => 0);
   session.dispose();
 }
 
+{
+  const solo = engine.createPracticeRoom({
+    name: "Solo",
+    playerId: "hero",
+    botCount: 0,
+  });
+  assert.equal(solo.players.length, 1);
+  assert.equal(solo.players.filter((player) => player.isBot).length, 0);
+  assert.equal(solo.tableSize, engine.MAX_PLAYERS);
+  assert.equal(engine.serializeRoom(solo, "hero").canAddBot, true);
+
+  const session = createPracticeSession({
+    name: "Solo",
+    playerId: "hero",
+    botCount: 0,
+    onUpdate: () => {},
+  });
+  const added = session.handle("room:addBot", {});
+  assert.equal(added.ok, true);
+  assert.equal(session.snapshot().players.length, 2);
+  session.dispose();
+}
+
 console.log("Shared engine + offline host smoke checks passed.");
