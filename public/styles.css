@@ -223,24 +223,10 @@ label {
 }
 
 .mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 14px; background: rgba(4,9,12,.42); }
-.offline-hint {
-  margin: 0;
-  padding: 0 2px;
-  color: var(--muted);
-  font-size: 0.92rem;
-  line-height: 1.35;
-}
 .host-bot-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-}
-.host-bot-fields .form-field:first-child {
-  grid-column: 1 / -1;
-}
-.host-bot-fields #startingStackLabel,
-.host-bot-fields label:has(#botCountInput) {
-  grid-column: 1 / -1;
 }
 .host-bot-fields select {
   width: 100%;
