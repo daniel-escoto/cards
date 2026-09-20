@@ -508,6 +508,35 @@ function hostUsesOfflinePath() {
   return !moneyModeInput.checked && !socket?.connected;
 }
 
+/**
+ * Mid-session disconnect while solo in a chip room → continue on the local engine.
+ * Money / multi-human / already-offline keep reconnect behavior.
+ */
+function handoffOnlineToOffline() {
+  if (practiceSession || !state) return false;
+  if (typeof PracticeSession?.canHandoffToOffline !== "function"
+    || typeof PracticeSession?.createPracticeSessionFromSnapshot !== "function") {
+    return false;
+  }
+  if (!PracticeSession.canHandoffToOffline(state)) return false;
+
+  const snapshot = state;
+  try {
+    practiceSession = PracticeSession.createPracticeSessionFromSnapshot(snapshot, {
+      onUpdate: applyRoomUpdate,
+    });
+  } catch {
+    practiceSession = null;
+    return false;
+  }
+
+  clearRoomUrl();
+  lastAutoRejoinKey = "";
+  showToast("Connection lost — continuing offline");
+  practiceSession.publish();
+  return true;
+}
+
 function applyRoomUpdate(room) {
   if (leavingEndedRoom) return;
   if (isGameOver(room) || isEndedGameReturn(state, room)) {
@@ -1809,8 +1838,10 @@ socket?.on("room:kicked", () => {
 });
 
 function attemptAutoRejoin() {
-  if (!state || practiceSession || !socket) return;
+  // After an offline handoff, stay on the local table for the rest of the session.
+  if (!state || practiceSession || isOfflineSession() || !socket) return;
   const roomId = (state?.id || roomInput.value.trim()).toUpperCase();
+  if (!roomId || roomId === "PRACTICE") return;
   const name = nameInput.value.trim() || localStorage.getItem("holdem:name") || "Player";
   const rejoinKey = `${socket.id}:${roomId}`;
   if (socket.connected && roomId && rejoinKey !== lastAutoRejoinKey && !leavingEndedRoom) {
@@ -1844,7 +1875,10 @@ socket?.on("connect", () => {
   autoJoinInitialRoom();
   attemptAutoRejoin();
 });
-socket?.on("disconnect", updateTableActionLabel);
+socket?.on("disconnect", () => {
+  updateTableActionLabel();
+  handoffOnlineToOffline();
+});
 autoJoinInitialRoom();
 attemptAutoRejoin();
 
