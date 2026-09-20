@@ -1,5 +1,5 @@
 /* Minimal app-shell cache for offline bot-only Host. Online multiplayer still needs network. */
-const CACHE_NAME = "cards-shell-v4";
+const CACHE_NAME = "cards-shell-v5";
 const APP_SHELL = [
   "/",
   "/index.html",
