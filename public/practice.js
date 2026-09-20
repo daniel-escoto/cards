@@ -15,9 +15,24 @@
   const CPU_ACTION_DELAY_MS = 250;
   const SHOWDOWN_DELAY_MS = 1600;
 
+  /**
+   * Solo chip online tables may continue locally after a disconnect.
+   * Money games, multi-human rooms, and already-offline sessions stay online/reconnect.
+   */
+  function canHandoffToOffline(state) {
+    if (!state || typeof state !== "object") return false;
+    if (state.offline) return false;
+    if (state.moneyMode) return false;
+    if (!state.phase) return false;
+    if (!Array.isArray(state.players) || state.players.length === 0) return false;
+    const humans = state.players.filter((player) => !player.isBot);
+    if (humans.length !== 1) return false;
+    return Boolean(humans[0].isYou);
+  }
+
   function createPracticeSession(options = {}) {
-    const room = engine.createPracticeRoom(options);
-    const viewerId = room.hostId;
+    const room = options.room || engine.createPracticeRoom(options);
+    const viewerId = options.viewerId || room.hostId;
     let onUpdate = typeof options.onUpdate === "function" ? options.onUpdate : null;
     let disposed = false;
 
@@ -57,7 +72,7 @@
     }
 
     function handle(eventName, payload = {}) {
-      if (disposed) return { ok: false, error: "Offline session ended." };
+      if (disposed) return { ok: false, error: "Practice session ended." };
 
       if (eventName === "game:ready") {
         const hero = room.players.find((player) => player.id === viewerId);
@@ -90,7 +105,7 @@
         const added = room.players[room.players.length - 1];
         if (added?.isBot) added.stack = Math.max(1, Math.floor(Number(room.startingStack) || engine.STARTING_STACK));
         room.tableSize = room.players.length;
-        room.message = `${added.name} joined the table.`;
+        room.message = `${added.name} joined the practice table.`;
         publish();
         return { ok: true };
       }
@@ -140,7 +155,7 @@
         return { ok: true };
       }
 
-      return { ok: false, error: "Not available in offline mode." };
+      return { ok: false, error: "Not available in practice mode." };
     }
 
     function dispose() {
@@ -166,5 +181,18 @@
     };
   }
 
-  return { createPracticeSession };
+  function createPracticeSessionFromSnapshot(snapshot, options = {}) {
+    const room = engine.hydratePracticeRoomFromSnapshot(snapshot);
+    return createPracticeSession({
+      ...options,
+      room,
+      viewerId: room.hostId,
+    });
+  }
+
+  return {
+    canHandoffToOffline,
+    createPracticeSession,
+    createPracticeSessionFromSnapshot,
+  };
 });

@@ -1206,6 +1206,206 @@ function isSoloHumanFolded(room) {
     room.actionLog = [];
   }
 
+  function cardCodeFromPublic(card) {
+    if (!card) return null;
+    if (typeof card === "string") {
+      const raw = card.trim();
+      if (/^[2-9TJQKA][shdc]$/i.test(raw)) {
+        return `${raw[0].toUpperCase()}${raw[1].toLowerCase()}`;
+      }
+      return null;
+    }
+    if (card.code && /^[2-9TJQKA][shdc]$/i.test(card.code)) {
+      return `${card.code[0].toUpperCase()}${card.code[1].toLowerCase()}`;
+    }
+    return null;
+  }
+
+  function inferBaseBlindsFromSnapshot(snapshot) {
+    const small = Math.max(1, Math.floor(Number(snapshot?.smallBlind) || DEFAULT_SMALL_BLIND));
+    const big = Math.max(small + 1, Math.floor(Number(snapshot?.bigBlind) || DEFAULT_BIG_BLIND));
+    const handNumber = Math.max(0, Math.floor(Number(snapshot?.handNumber) || 0));
+    if (handNumber <= 0) return { smallBlind: small, bigBlind: big };
+    const level = blindLevelForHand(handNumber);
+    return {
+      smallBlind: Math.max(1, Math.round(small * DEFAULT_SMALL_BLIND / level.smallBlind)),
+      bigBlind: Math.max(2, Math.round(big * DEFAULT_BIG_BLIND / level.bigBlind)),
+    };
+  }
+
+  function reconstructBettingSets(room, snapshotBigBlind) {
+    room.acted = new Set();
+    room.raiseEligible = new Set(canActPlayers(room).map((player) => player.id));
+    if (!["preflop", "flop", "turn", "river"].includes(room.phase)) return;
+
+    const openingBet = room.phase === "preflop"
+      ? Math.max(1, Math.floor(Number(snapshotBigBlind) || room.baseBigBlind || DEFAULT_BIG_BLIND))
+      : 0;
+    let streetBet = openingBet;
+    let minRaise = openingBet || Math.max(1, Math.floor(Number(room.minRaise) || DEFAULT_BIG_BLIND));
+
+    for (const entry of room.actionLog || []) {
+      if (entry.phase !== room.phase) continue;
+      const action = String(entry.action || "");
+      const playerId = entry.playerId;
+      if (!playerId) continue;
+      if (/^Posts\b/i.test(action)) continue;
+
+      if (/^Folds$/i.test(action) || /^Checks$/i.test(action) || /^Calls\b/i.test(action)) {
+        room.acted.add(playerId);
+        room.raiseEligible.delete(playerId);
+        continue;
+      }
+
+      const raiseMatch = /^Raises to\s+(\d+)/i.exec(action);
+      if (!raiseMatch) continue;
+      const target = Math.floor(Number(raiseMatch[1]));
+      if (!Number.isFinite(target)) continue;
+      const raiseSize = target - streetBet;
+      const isFullRaise = raiseSize >= minRaise;
+      streetBet = Math.max(streetBet, target);
+      room.acted = new Set([playerId]);
+      if (isFullRaise) {
+        minRaise = Math.max(1, raiseSize);
+        room.raiseEligible = new Set(
+          canActPlayers(room).filter((player) => player.id !== playerId).map((player) => player.id),
+        );
+      } else {
+        room.raiseEligible.delete(playerId);
+      }
+    }
+
+    // Keep the player to act eligible to respond if reconstruction drifted.
+    if (room.turn && canActPlayers(room).some((player) => player.id === room.turn)) {
+      room.acted.delete(room.turn);
+      room.raiseEligible.add(room.turn);
+    }
+  }
+
+  function hydratePracticeRoomFromSnapshot(snapshot) {
+    if (!snapshot || !Array.isArray(snapshot.players) || !snapshot.players.length) {
+      throw new Error("Cannot hydrate practice room without players.");
+    }
+    if (snapshot.moneyMode) {
+      throw new Error("Money-mode rooms cannot be hydrated into practice.");
+    }
+
+    const hero = snapshot.players.find((player) => player.isYou && !player.isBot)
+      || snapshot.players.find((player) => !player.isBot);
+    if (!hero) throw new Error("Cannot hydrate practice room without a human player.");
+
+    const viewerId = hero.id;
+    const bases = inferBaseBlindsFromSnapshot(snapshot);
+    const handNumber = Math.max(0, Math.floor(Number(snapshot.handNumber) || 0));
+    const phase = String(snapshot.phase || "lobby");
+    const knownCodes = new Set();
+
+    const players = snapshot.players.map((seat, index) => {
+      const player = makePlayer({
+        id: seat.id,
+        name: cleanName(seat.name),
+        isBot: Boolean(seat.isBot),
+      });
+      player.color = cleanPlayerColor(seat.color) || (seat.isBot ? null : PLAYER_COLORS[index % PLAYER_COLORS.length]);
+      player.stack = Math.max(0, Math.floor(Number(seat.stack) || 0));
+      player.bet = Math.max(0, Math.floor(Number(seat.bet) || 0));
+      player.invested = Math.max(0, Math.floor(Number(seat.invested) || 0));
+      player.folded = Boolean(seat.folded);
+      player.allIn = Boolean(seat.allIn) || (player.stack <= 0 && isHandInProgress({ phase }));
+      player.showCards = Boolean(seat.showCards);
+      player.ready = Boolean(seat.ready || seat.isBot);
+      player.sittingOut = Boolean(seat.sittingOut);
+      player.connected = true;
+      player.buyInsCents = Math.max(0, Math.floor(Number(seat.buyInsCents) || 0));
+      player.cashOutCents = Math.max(0, Math.floor(Number(seat.cashOutCents) || 0));
+      player.hand = [];
+      for (const card of seat.cards || []) {
+        const code = cardCodeFromPublic(card);
+        if (!code) continue;
+        player.hand.push(code);
+        knownCodes.add(code);
+      }
+      return player;
+    });
+
+    const community = [];
+    for (const card of snapshot.community || []) {
+      const code = cardCodeFromPublic(card);
+      if (!code) continue;
+      community.push(code);
+      knownCodes.add(code);
+    }
+
+    const remaining = allCards.filter((card) => !knownCodes.has(card));
+    for (let i = remaining.length - 1; i > 0; i -= 1) {
+      const j = randomInt(i + 1);
+      [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
+    }
+
+    const handActive = isHandInProgress({ phase }) || phase === "complete";
+    for (const player of players) {
+      const seat = snapshot.players.find((item) => item.id === player.id);
+      if (!handActive) {
+        player.hand = [];
+        continue;
+      }
+      if (player.sittingOut || seat?.waitingForNextHand) continue;
+      while (player.hand.length < 2 && remaining.length) player.hand.push(remaining.pop());
+    }
+
+    const investedTotal = players.reduce((sum, player) => sum + player.invested, 0);
+    const pot = Math.max(0, Math.floor(Number(snapshot.pot) || investedTotal));
+    const deadPot = Math.max(0, pot - investedTotal);
+    const dealerIndex = Math.max(0, players.findIndex((player) => {
+      const seat = snapshot.players.find((item) => item.id === player.id);
+      return Boolean(seat?.dealer);
+    }));
+
+    const room = {
+      id: "PRACTICE",
+      hostId: viewerId,
+      tableSize: Math.max(players.length, Math.floor(Number(snapshot.tableSize) || players.length)),
+      status: snapshot.status || (isHandInProgress({ phase }) ? "playing" : phase === "gameover" ? "complete" : "lobby"),
+      phase,
+      deck: remaining,
+      community,
+      dealer: dealerIndex >= 0 ? dealerIndex : 0,
+      turn: snapshot.turn || null,
+      currentBet: Math.max(0, Math.floor(Number(snapshot.currentBet) || 0)),
+      minRaise: Math.max(1, Math.floor(Number(snapshot.minRaise) || bases.bigBlind)),
+      deadPot,
+      acted: new Set(),
+      raiseEligible: new Set(),
+      message: snapshot.message || "Continuing offline.",
+      winners: Array.isArray(snapshot.winners) ? snapshot.winners.map((winner) => ({ ...winner })) : [],
+      actionLog: Array.isArray(snapshot.actionLog) ? snapshot.actionLog.map((entry) => ({ ...entry })) : [],
+      handNumber,
+      moneyMode: false,
+      moneyUnitCents: null,
+      buyInCents: 0,
+      baseSmallBlind: bases.smallBlind,
+      baseBigBlind: bases.bigBlind,
+      chipValueCents: Math.max(1, Math.floor(Number(snapshot.chipValueCents) || 1)),
+      settlements: [],
+      moneyLedger: [],
+      offline: true,
+      startingStack: Math.max(
+        STARTING_STACK,
+        ...players.map((player) => player.stack + player.invested),
+      ),
+      showdownTimer: null,
+      botTimer: null,
+      players,
+      handedOffFromOnline: true,
+    };
+
+    if (["preflop", "flop", "turn", "river"].includes(room.phase)) {
+      reconstructBettingSets(room, snapshot.bigBlind);
+    }
+
+    return room;
+  }
+
 
   return {
     STARTING_STACK,
@@ -1285,5 +1485,9 @@ function isSoloHumanFolded(room) {
     createPracticeRoom,
     restartPracticeRoom,
     endPracticeGame,
+    cardCodeFromPublic,
+    inferBaseBlindsFromSnapshot,
+    reconstructBettingSets,
+    hydratePracticeRoomFromSnapshot,
   };
 });

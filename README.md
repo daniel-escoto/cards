@@ -12,6 +12,7 @@ A private-room multiplayer Texas hold'em game for friends. The server owns onlin
 - Shared pure engine for deck, betting, blinds, streets, side pots, showdown, and bots (`shared/`)
 - Poker hand evaluation via vendored `pokersolver` (Node + browser)
 - Minimal PWA shell cache so chip Host works offline after the first load when the server is unreachable
+- Solo chip online tables hand off to the local engine if Socket.IO drops mid-session (money / multi-human rooms keep reconnect)
 - Responsive UI for desktop and mobile browsers
 
 ## Run locally
