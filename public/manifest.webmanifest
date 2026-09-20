@@ -1,7 +1,7 @@
 {
   "name": "Texas Hold'em",
   "short_name": "Hold'em",
-  "description": "Private-room multiplayer Hold'em with offline practice vs bots.",
+  "description": "Private-room multiplayer Hold'em with local bot tables offline.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#090d10",

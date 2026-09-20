@@ -57,7 +57,7 @@
     }
 
     function handle(eventName, payload = {}) {
-      if (disposed) return { ok: false, error: "Practice session ended." };
+      if (disposed) return { ok: false, error: "Offline session ended." };
 
       if (eventName === "game:ready") {
         const hero = room.players.find((player) => player.id === viewerId);
@@ -90,7 +90,7 @@
         const added = room.players[room.players.length - 1];
         if (added?.isBot) added.stack = Math.max(1, Math.floor(Number(room.startingStack) || engine.STARTING_STACK));
         room.tableSize = room.players.length;
-        room.message = `${added.name} joined the practice table.`;
+        room.message = `${added.name} joined the table.`;
         publish();
         return { ok: true };
       }
@@ -140,7 +140,7 @@
         return { ok: true };
       }
 
-      return { ok: false, error: "Not available in practice mode." };
+      return { ok: false, error: "Not available in offline mode." };
     }
 
     function dispose() {

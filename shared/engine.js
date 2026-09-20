@@ -1122,7 +1122,7 @@ function isSoloHumanFolded(room) {
       deadPot: 0,
       acted: new Set(),
       raiseEligible: new Set(),
-      message: "Practice table ready. Ready up to deal.",
+      message: "Table ready. Ready up to deal.",
       winners: [],
       actionLog: [],
       handNumber: 0,
@@ -1141,12 +1141,20 @@ function isSoloHumanFolded(room) {
       players: [hero],
     };
 
-    const targetSeats = Math.min(MAX_PLAYERS, Math.max(2, 1 + botCount));
-    addComputerPlayers(room, targetSeats);
-    for (const player of room.players) {
-      if (player.isBot) player.stack = startingStack;
+    const targetSeats = botCount > 0
+      ? Math.min(MAX_PLAYERS, Math.max(2, 1 + botCount))
+      : 0;
+    if (targetSeats > 0) {
+      addComputerPlayers(room, targetSeats);
+      for (const player of room.players) {
+        if (player.isBot) player.stack = startingStack;
+      }
+      room.tableSize = room.players.length;
+    } else {
+      // Solo offline host; seats fill via in-table Add CPU (up to MAX_PLAYERS).
+      room.tableSize = MAX_PLAYERS;
+      room.message = "Table ready. Add CPU players, then ready up to deal.";
     }
-    room.tableSize = room.players.length;
     return room;
   }
 
@@ -1183,7 +1191,7 @@ function isSoloHumanFolded(room) {
     room.raiseEligible = new Set();
     room.winners = [];
     room.actionLog = [];
-    room.message = "Practice restarted. Ready up when you want the next hand.";
+    room.message = "Table restarted. Ready up when you want the next hand.";
   }
 
   function endPracticeGame(room) {

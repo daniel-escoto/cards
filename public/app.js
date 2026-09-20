@@ -17,12 +17,6 @@ const roomInput = document.querySelector("#roomInput");
 const roomCodeLabel = document.querySelector("#roomCodeLabel");
 const hostModeBtn = document.querySelector("#hostModeBtn");
 const joinModeBtn = document.querySelector("#joinModeBtn");
-const practiceModeBtn = document.querySelector("#practiceModeBtn");
-const practiceHint = document.querySelector("#practiceHint");
-const practiceFields = document.querySelector("#practiceFields");
-const tableSizeInput = document.querySelector("#tableSizeInput");
-const startingStackInput = document.querySelector("#startingStackInput");
-const botCountInput = document.querySelector("#botCountInput");
 const moneyModeLabel = document.querySelector("#moneyModeLabel");
 const blindFields = document.querySelector("#blindFields");
 const smallBlindInput = document.querySelector("#smallBlindInput");
@@ -47,6 +41,7 @@ const backToMenuBtn = document.querySelector("#backToMenuBtn");
 const sitOutBtn = document.querySelector("#sitOutBtn");
 const hostActionsPanel = document.querySelector("#hostActionsPanel");
 const menuRoomCode = document.querySelector("#menuRoomCode");
+const menuRoomEyebrow = document.querySelector("#menuRoomEyebrow");
 const menuPlayers = document.querySelector("#menuPlayers");
 const feltChoices = document.querySelector("#feltChoices");
 const deckChoices = document.querySelector("#deckChoices");
@@ -497,7 +492,7 @@ function lockMobileGameOverscroll(event) {
   if (!canScrollDown && !canScrollUp) event.preventDefault();
 }
 
-function isOfflinePractice() {
+function isOfflineSession() {
   return Boolean(practiceSession || state?.offline);
 }
 
@@ -507,11 +502,17 @@ function disposePracticeSession() {
   practiceSession = null;
 }
 
+function hostUsesOfflinePath() {
+  // Chip Host with no server connection → local table (add bots in-game).
+  // Connected chip Host and money Host stay on online create-room.
+  return !moneyModeInput.checked && !socket?.connected;
+}
+
 function applyRoomUpdate(room) {
   if (leavingEndedRoom) return;
   if (isGameOver(room) || isEndedGameReturn(state, room)) {
     leavingEndedRoom = true;
-    if (isOfflinePractice()) {
+    if (isOfflineSession()) {
       disposePracticeSession();
       showScoreScreen(room);
       return;
@@ -536,32 +537,28 @@ function applyRoomUpdate(room) {
 
 function updateTableActionLabel() {
   const isJoining = tableMode === "join";
-  const isPractice = tableMode === "practice";
+  const moneyMode = moneyModeInput.checked;
+  const offlineHost = !isJoining && hostUsesOfflinePath();
   if (!joinPending) {
-    tableActionBtn.textContent = isPractice
-      ? "Start practice"
-      : isJoining
-        ? (acceptedMoneyTerms ? "Join table · Play next hand" : "Join table")
-        : "Host table";
+    tableActionBtn.textContent = isJoining
+      ? (acceptedMoneyTerms ? "Join table · Play next hand" : "Join table")
+      : "Host table";
   }
   joinPreview.classList.toggle("hidden", !isJoining || !acceptedMoneyTerms);
-  practiceHint?.classList.toggle("hidden", !isPractice);
-  practiceFields?.classList.toggle("hidden", !isPractice);
   const onlineReady = Boolean(socket?.connected);
-  tableActionBtn.disabled = joinPending || (isPractice ? false : !onlineReady);
-  blindFields.classList.toggle("hidden", isJoining);
-  moneyModeLabel?.classList.toggle("hidden", isJoining || isPractice);
-  buyInLabel.classList.toggle("hidden", isJoining || isPractice || !moneyModeInput.checked);
+  tableActionBtn.disabled = joinPending || (offlineHost ? false : !onlineReady);
+  blindFields?.classList.toggle("hidden", isJoining);
+  moneyModeLabel?.classList.toggle("hidden", isJoining);
+  buyInLabel.classList.toggle("hidden", isJoining || !moneyMode);
   roomCodeLabel.classList.toggle("hidden", !isJoining);
-  hostModeBtn.classList.toggle("selected", tableMode === "host");
+  hostModeBtn.classList.toggle("selected", !isJoining);
   joinModeBtn.classList.toggle("selected", isJoining);
-  practiceModeBtn?.classList.toggle("selected", isPractice);
-  hostModeBtn.setAttribute("aria-selected", String(tableMode === "host"));
+  hostModeBtn.setAttribute("aria-selected", String(!isJoining));
   joinModeBtn.setAttribute("aria-selected", String(isJoining));
-  practiceModeBtn?.setAttribute("aria-selected", String(isPractice));
 }
 
 function syncBlindInputMode() {
+  if (!blindFields || !smallBlindInput || !bigBlindInput) return;
   const moneyMode = moneyModeInput.checked;
   const previousMode = blindFields.dataset.mode || "chips";
   if ((moneyMode ? "money" : "chips") !== previousMode) {
@@ -574,8 +571,8 @@ function syncBlindInputMode() {
     }
   }
   blindFields.dataset.mode = moneyMode ? "money" : "chips";
-  smallBlindLabel.textContent = moneyMode ? "Small blind ($)" : "Small blind";
-  bigBlindLabel.textContent = moneyMode ? "Big blind ($)" : "Big blind";
+  if (smallBlindLabel) smallBlindLabel.textContent = moneyMode ? "Small blind ($)" : "Small blind";
+  if (bigBlindLabel) bigBlindLabel.textContent = moneyMode ? "Big blind ($)" : "Big blind";
   smallBlindInput.min = moneyMode ? "0.01" : "1";
   bigBlindInput.min = moneyMode ? "0.02" : "2";
   smallBlindInput.step = moneyMode ? "0.01" : "1";
@@ -707,7 +704,8 @@ function roundStatus(player) {
 function renderMenuPlayers() {
   if (!state) return;
   if (document.activeElement?.matches("[data-player-name]")) return;
-  menuRoomCode.textContent = isOfflinePractice() ? "Practice" : state.id;
+  menuRoomCode.textContent = isOfflineSession() ? "Offline" : state.id;
+  if (menuRoomEyebrow) menuRoomEyebrow.textContent = isOfflineSession() ? "Mode" : "Room";
   const hero = activeHero();
   if (state.moneyMode && hero) {
     moneyDetails.innerHTML = `
@@ -803,8 +801,8 @@ function showGameMenu() {
   const hero = activeHero();
   sitOutBtn.classList.toggle("hidden", !hero || state?.phase === "gameover");
   if (hero) sitOutBtn.textContent = hero.sittingOut ? "I’m back" : "Sit out next hand";
-  moneyPanel.classList.toggle("hidden", !state?.moneyMode || isOfflinePractice());
-  shareGameBtn.classList.toggle("hidden", isOfflinePractice());
+  moneyPanel.classList.toggle("hidden", !state?.moneyMode || isOfflineSession());
+  shareGameBtn.classList.toggle("hidden", isOfflineSession());
   sharePanel.classList.add("hidden");
   blindPanel.classList.toggle("hidden", !state?.canChangeBlinds);
   if (state?.canChangeBlinds) {
@@ -1069,13 +1067,14 @@ function render() {
   if (!state) return;
   const isFirstTableRender = lastCommunitySignature === null;
   showTable(state);
-  const offline = isOfflinePractice();
-  roomCode.textContent = offline ? "Practice" : state.id;
+  const offline = isOfflineSession();
+  roomCode.textContent = offline ? "Offline" : state.id;
   roomCodeBtn.classList.toggle("offline-practice", offline);
   roomCodeBtn.disabled = offline;
   const roomEyebrow = roomCodeBtn.querySelector(".eyebrow");
   if (roomEyebrow) roomEyebrow.textContent = offline ? "Mode" : "Room";
-  menuRoomCode.textContent = offline ? "Practice" : state.id;
+  menuRoomCode.textContent = offline ? "Offline" : state.id;
+  if (menuRoomEyebrow) menuRoomEyebrow.textContent = offline ? "Mode" : "Room";
   potValue.textContent = formatAmount(state.pot, state.potCents);
   if (lastPot !== null && lastPot !== state.pot) {
     replayAnimation(potValue.closest("div"), "value-changed", 480);
@@ -1501,10 +1500,10 @@ function emitWithAck(eventName, payload) {
   });
 }
 
-function startPractice() {
+function startOfflineHost() {
   joinError.textContent = "";
   if (typeof PracticeSession?.createPracticeSession !== "function" || typeof HoldemEngine === "undefined") {
-    joinError.textContent = "Practice engine failed to load. Refresh and try again.";
+    joinError.textContent = "Offline engine failed to load. Refresh and try again.";
     return;
   }
   const name = nameInput.value.trim();
@@ -1515,18 +1514,13 @@ function startPractice() {
   localStorage.setItem("holdem:name", name);
   moneyModeInput.checked = false;
   disposePracticeSession();
-  const tableSize = Math.max(2, Math.min(9, Math.floor(Number(tableSizeInput?.value) || 6)));
-  const startingStack = Math.max(20, Math.floor(Number(startingStackInput?.value) || 1000));
-  const botRaw = botCountInput?.value || "fill";
-  const botCount = botRaw === "fill" ? tableSize - 1 : Math.max(1, Math.min(tableSize - 1, Math.floor(Number(botRaw) || 1)));
   practiceSession = PracticeSession.createPracticeSession({
     name,
-    playerId: getDeviceId() || "practice-hero",
-    tableSize,
-    startingStack,
-    botCount,
-    smallBlind: Math.max(1, Math.floor(Number(smallBlindInput.value) || 10)),
-    bigBlind: Math.max(2, Math.floor(Number(bigBlindInput.value) || 20)),
+    playerId: getDeviceId() || "offline-hero",
+    tableSize: typeof HoldemEngine?.MAX_PLAYERS === "number" ? HoldemEngine.MAX_PLAYERS : 9,
+    botCount: 0,
+    smallBlind: Math.max(1, Math.floor(Number(smallBlindInput?.value) || 10)),
+    bigBlind: Math.max(2, Math.floor(Number(bigBlindInput?.value) || 20)),
     onUpdate: applyRoomUpdate,
   });
   clearRoomUrl();
@@ -1536,8 +1530,8 @@ function startPractice() {
 
 function joinOrCreate(mode) {
   joinError.textContent = "";
-  if (mode === "practice") {
-    startPractice();
+  if (mode === "create" && hostUsesOfflinePath()) {
+    startOfflineHost();
     return;
   }
   if (joinPending) return;
@@ -1656,19 +1650,13 @@ roomInput.addEventListener("input", () => {
 });
 hostModeBtn.addEventListener("click", () => setTableMode("host"));
 joinModeBtn.addEventListener("click", () => setTableMode("join", true));
-practiceModeBtn?.addEventListener("click", () => {
-  moneyModeInput.checked = false;
-  syncBlindInputMode();
-  setTableMode("practice");
-});
 moneyModeInput.addEventListener("change", () => {
   syncBlindInputMode();
   updateTableActionLabel();
 });
 joinForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  if (tableMode === "practice") joinOrCreate("practice");
-  else joinOrCreate(tableMode === "join" ? "join" : "create");
+  joinOrCreate(tableMode === "join" ? "join" : "create");
 });
 syncBlindInputMode();
 updateTableActionLabel();
@@ -1708,7 +1696,7 @@ menuBtn.addEventListener("click", () => {
 });
 
 roomCodeBtn.addEventListener("click", async () => {
-  if (!state?.id || isOfflinePractice()) return;
+  if (!state?.id || isOfflineSession()) return;
   const inviteUrl = new URL(window.location.origin + window.location.pathname);
   inviteUrl.searchParams.set("room", state.id);
   await navigator.clipboard.writeText(inviteUrl.toString());
@@ -1801,7 +1789,7 @@ copyShareBtn.addEventListener("click", () => copyText(shareLink.value, copyShare
 
 backToMenuBtn.addEventListener("click", () => {
   hideGameMenu();
-  if (isOfflinePractice()) {
+  if (isOfflineSession()) {
     showWelcome();
     return;
   }
