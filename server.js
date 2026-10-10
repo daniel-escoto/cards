@@ -86,10 +86,16 @@ const {
 } = engine;
 
 setRandomInt((maxExclusive) => crypto.randomInt(maxExclusive));
-const DISCONNECT_GRACE_MS = Math.max(0, Number(process.env.DISCONNECT_GRACE_MS) || 30000);
+function envNonNegativeMs(name, fallback) {
+  if (process.env[name] == null || process.env[name] === "") return fallback;
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) ? Math.max(0, value) : fallback;
+}
+// Allow 0 via env (tests); `Number("0") || fallback` would incorrectly keep the default.
+const DISCONNECT_GRACE_MS = envNonNegativeMs("DISCONNECT_GRACE_MS", 30000);
 const BACKGROUND_DISCONNECT_GRACE_MS = Math.max(
   DISCONNECT_GRACE_MS,
-  Number(process.env.BACKGROUND_DISCONNECT_GRACE_MS) || 5 * 60 * 1000,
+  envNonNegativeMs("BACKGROUND_DISCONNECT_GRACE_MS", 5 * 60 * 1000),
 );
 const BACKGROUND_PRESENCE_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DATA_DIR || path.join(__dirname, ".data");
@@ -309,6 +315,7 @@ function scheduleDormantRoomCleanup(room) {
     clearTimeout(current.showdownTimer);
     clearTurnTimer(current);
     clearReadyTimer(current);
+    clearSpectators(current);
     clearTimeout(current.dormantTimer);
     rooms.delete(current.id);
     scheduleSave();
@@ -323,6 +330,7 @@ function preserveSettledMoneyRoom(room) {
   clearTimeout(room.showdownTimer);
   clearTurnTimer(room);
   clearReadyTimer(room);
+  clearSpectators(room);
   room.botTimer = null;
   room.showdownTimer = null;
   room.hostId = null;
@@ -337,6 +345,7 @@ function preserveSettledMoneyRoom(room) {
   room.winners = [];
   room.actionLog = [];
   room.players = [];
+  room.spectators = [];
   room.status = "complete";
   room.phase = "gameover";
   room.settlements = optimizeSettlements(room.moneyLedger || []);
@@ -432,6 +441,8 @@ function restoreRoom(raw) {
       cashOutCents: Math.max(0, Math.floor(Number(entry.cashOutCents) || 0)),
     })) : [],
     players: Array.isArray(raw.players) ? raw.players.map(restorePlayer) : [],
+    // Spectators are never persisted; reconnecting watchers rejoin via room:watch.
+    spectators: [],
     botTimer: null,
     showdownTimer: null,
     turnTimer: null,
@@ -589,6 +600,8 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
     turnTimerPlayerId: null,
     readyTimer: null,
     readyEndsAt: null,
+    // Spectators are in-memory only — never written to rooms.json.
+    spectators: [],
     players: [
       {
         id: hostId,
@@ -672,6 +685,108 @@ function attachSocketToPlayer(socket, room, player) {
   socketRoom.set(socket.id, room.id);
   socketPlayer.set(socket.id, player.id);
   socket.join(room.id);
+}
+
+function ensureSpectators(room) {
+  if (!Array.isArray(room.spectators)) room.spectators = [];
+  return room.spectators;
+}
+
+function findSpectator(room, spectatorId) {
+  return ensureSpectators(room).find((item) => item.id === spectatorId) || null;
+}
+
+function watchingCount(room) {
+  return ensureSpectators(room).filter((item) => item.connected).length;
+}
+
+function roomSeatCap(room) {
+  return room.tableSize || MAX_PLAYERS;
+}
+
+function roomIsFull(room) {
+  if (room.players.some((player) => player.isBot)) return false;
+  return room.players.length >= roomSeatCap(room);
+}
+
+/** Whether a spectator (or new guest) could take a seat under current join rules. */
+function canTakeSeatNow(room) {
+  if (!room || room.phase === "gameover") return false;
+  if (roomIsFull(room)) return false;
+  const botSeat = room.players.find((player) => player.isBot);
+  if (botSeat) {
+    if (isHandInProgress(room)) return false;
+    return true;
+  }
+  if (!room.moneyMode && room.phase !== "lobby" && room.phase !== "complete") {
+    return false;
+  }
+  return room.players.length < roomSeatCap(room);
+}
+
+function makeSpectator({ id, socketId, name, reconnectTokenHash }) {
+  return {
+    id,
+    name: cleanName(name),
+    reconnectTokenHash: reconnectTokenHash || null,
+    socketIds: new Set(socketId ? [socketId] : []),
+    connected: Boolean(socketId),
+    disconnectExpiresAt: null,
+    disconnectTimer: null,
+    backgroundedUntil: null,
+  };
+}
+
+function attachSocketToSpectator(socket, room, spectator) {
+  if (!spectator.socketIds) spectator.socketIds = new Set();
+  clearTimeout(spectator.disconnectTimer);
+  spectator.disconnectTimer = null;
+  spectator.disconnectExpiresAt = null;
+  spectator.backgroundedUntil = null;
+  spectator.socketIds.add(socket.id);
+  spectator.connected = true;
+  socketRoom.set(socket.id, room.id);
+  socketPlayer.set(socket.id, spectator.id);
+  socket.join(room.id);
+}
+
+function removeSpectator(room, spectator) {
+  if (!room || !spectator) return;
+  clearTimeout(spectator.disconnectTimer);
+  spectator.disconnectTimer = null;
+  const list = ensureSpectators(room);
+  const index = list.findIndex((item) => item.id === spectator.id);
+  if (index >= 0) list.splice(index, 1);
+  for (const socketId of spectator.socketIds || []) {
+    detachSocketFromRoom(socketId, room.id);
+  }
+  spectator.socketIds = new Set();
+  spectator.connected = false;
+}
+
+function clearSpectators(room) {
+  if (!room) return;
+  for (const spectator of [...ensureSpectators(room)]) {
+    removeSpectator(room, spectator);
+  }
+}
+
+function moneyTermsForRoom(room) {
+  const blinds = currentBlinds(room);
+  return {
+    roomId: room.id,
+    buyInCents: room.buyInCents,
+    smallBlindCents: chipsToCents(room, blinds.smallBlind),
+    bigBlindCents: chipsToCents(room, blinds.bigBlind),
+  };
+}
+
+function moneyTermsAccepted(room, acceptedMoneyTerms) {
+  const moneyTerms = moneyTermsForRoom(room);
+  return Boolean(
+    acceptedMoneyTerms
+    && Object.keys(moneyTerms).every((key) => acceptedMoneyTerms[key] === moneyTerms[key]),
+  );
 }
 
 function replaceActedId(room, oldId, newId) {
@@ -1222,6 +1337,8 @@ function serializeRoom(room, viewerId) {
   dedupePlayersById(room);
   const pot = collectPot(room);
   const viewer = room.players.find((player) => player.id === viewerId);
+  // Spectator viewers have no seat: reuse visibleHoleCards / sanitizeActionLog with a non-player id.
+  const isSpectator = Boolean(!viewer && findSpectator(room, viewerId));
   const toCall = viewer && !viewer.folded && !viewer.allIn ? Math.max(0, room.currentBet - viewer.bet) : 0;
   const minRaiseTo = room.currentBet + room.minRaise;
   const { smallBlind, bigBlind } = currentBlinds(room);
@@ -1259,28 +1376,31 @@ function serializeRoom(room, viewerId) {
       color: room.players.find((player) => player.id === entry.playerId)?.color || null,
     })) : [],
     turn: room.turn,
-    isYourTurn: room.turn === viewerId,
+    isYourTurn: Boolean(viewer) && room.turn === viewerId,
     // Full min-raise is possible. Short all-in shoves still use raiseOpen via canShove.
     canRaise: raiseOpen && viewerMaxBet >= minRaiseTo,
     canShove: raiseOpen && viewerMaxBet > room.currentBet,
     canCashIn: playerCanCashIn(room, viewer),
     toCall,
     toCallCents: chipsToCents(room, toCall),
-    canShowHand: room.phase === "complete" && Boolean(viewer?.hand?.length) && !viewer.showCards,
+    canShowHand: Boolean(viewer) && room.phase === "complete" && Boolean(viewer?.hand?.length) && !viewer.showCards,
     canStart: false,
     canNextHand: false,
     canReady: Boolean(viewer && !viewer.isBot && viewer.stack > 0 && !viewer.sittingOut && canReadyForHand(room) && playersWithChips(room).filter((player) => !player.sittingOut).length >= 2),
     isReady: Boolean(viewer?.ready),
-    canChangeBlinds: room.hostId === viewerId && canReadyForHand(room),
-    canChangeShotClock: room.hostId === viewerId,
+    isSpectator,
+    watchingCount: watchingCount(room),
+    canTakeSeat: isSpectator && canTakeSeatNow(room),
+    canChangeBlinds: Boolean(viewer) && room.hostId === viewerId && canReadyForHand(room),
+    canChangeShotClock: Boolean(viewer) && room.hostId === viewerId,
     turnTimeLimitMs: normalizeShotClockMs(room.turnTimeLimitMs, SHOT_CLOCK_DEFAULT_MS),
     turnEndsAt: room.turnEndsAt || null,
     readyEndsAt: room.readyEndsAt || null,
     readyTimeLimitMs: READY_TIMER_MS,
     serverNow: shotClockTime.now(),
-    canRestartGame: room.hostId === viewerId && !room.moneyMode && canAdministerGame(room),
-    canEndGame: room.hostId === viewerId && canAdministerGame(room) && (room.moneyMode || room.phase !== "lobby"),
-    canAddBot: room.hostId === viewerId && !room.moneyMode && room.handNumber === 0 && room.players.length < MAX_PLAYERS,
+    canRestartGame: Boolean(viewer) && room.hostId === viewerId && !room.moneyMode && canAdministerGame(room),
+    canEndGame: Boolean(viewer) && room.hostId === viewerId && canAdministerGame(room) && (room.moneyMode || room.phase !== "lobby"),
+    canAddBot: Boolean(viewer) && room.hostId === viewerId && !room.moneyMode && room.handNumber === 0 && room.players.length < MAX_PLAYERS,
     community: room.community.map(publicCard),
     winners: room.winners.map((winner) => ({
       ...winner,
@@ -1342,6 +1462,11 @@ function emitRoom(room) {
   for (const player of room.players) {
     for (const socketId of player.socketIds || []) {
       io.to(socketId).emit("room:update", serializeRoom(room, player.id));
+    }
+  }
+  for (const spectator of ensureSpectators(room)) {
+    for (const socketId of spectator.socketIds || []) {
+      io.to(socketId).emit("room:update", serializeRoom(room, spectator.id));
     }
   }
   scheduleSave();
@@ -1415,6 +1540,7 @@ function removePlayerAfterDisconnect(room, player) {
     }
     clearTurnTimer(room);
     clearReadyTimer(room);
+    clearSpectators(room);
     rooms.delete(room.id);
     scheduleSave();
     return;
@@ -1463,6 +1589,34 @@ function leaveCurrentRoom(socket, { removeAfterGrace = true, allowBackgroundGrac
           const latestPlayer = latestRoom?.players.find((item) => item.id === player.id);
           if (latestRoom && latestPlayer && !latestPlayer.connected) {
             removePlayerAfterDisconnect(latestRoom, latestPlayer);
+          }
+        }, graceMs);
+      }
+    }
+    detachSocketFromRoom(socket.id, room.id);
+    emitRoom(room);
+    return;
+  }
+
+  const spectator = findSpectator(room, playerId);
+  if (spectator?.socketIds) {
+    spectator.socketIds.delete(socket.id);
+    spectator.connected = spectator.socketIds.size > 0;
+    if (!spectator.connected) {
+      if (!removeAfterGrace) {
+        removeSpectator(room, spectator);
+      } else {
+        const wasRecentlyBackgrounded = allowBackgroundGrace && spectator.backgroundedUntil > Date.now();
+        const graceMs = wasRecentlyBackgrounded ? BACKGROUND_DISCONNECT_GRACE_MS : DISCONNECT_GRACE_MS;
+        spectator.backgroundedUntil = null;
+        spectator.disconnectExpiresAt = Date.now() + graceMs;
+        clearTimeout(spectator.disconnectTimer);
+        spectator.disconnectTimer = setTimeout(() => {
+          const latestRoom = rooms.get(room.id);
+          const latestSpectator = latestRoom ? findSpectator(latestRoom, spectator.id) : null;
+          if (latestRoom && latestSpectator && !latestSpectator.connected) {
+            removeSpectator(latestRoom, latestSpectator);
+            emitRoom(latestRoom);
           }
         }, graceMs);
       }
@@ -1539,6 +1693,9 @@ io.on("connection", (socket) => {
       if (!reconnectTokenMatches(existing, reconnectToken)) {
         return ack?.({ ok: false, error: "This seat belongs to another session." });
       }
+      // Drop any stale spectator entry for this device before seating.
+      const staleSpectator = findSpectator(room, playerId);
+      if (staleSpectator) removeSpectator(room, staleSpectator);
       existing.name = cleanName(name);
       attachSocketToPlayer(socket, room, existing);
       ack?.({ ok: true, roomId: room.id });
@@ -1557,6 +1714,8 @@ io.on("connection", (socket) => {
       if (!reconnectTokenMatches(reservedIdentity, reconnectToken)) {
         return ack?.({ ok: false, error: "This reserved seat belongs to another session." });
       }
+      const staleSpectator = findSpectator(room, playerId);
+      if (staleSpectator) removeSpectator(room, staleSpectator);
       convertBotToHuman(socket, room, reservedBotSeat, playerId, name, reservedBotSeat.replacedReconnectTokenHash);
       ack?.({ ok: true, roomId: room.id });
       emitRoom(room);
@@ -1564,7 +1723,11 @@ io.on("connection", (socket) => {
     }
     const botSeat = room.players.find((player) => player.isBot);
     if (botSeat) {
-      if (isHandInProgress(room)) return ack?.({ ok: false, error: "This hand is in progress. Join after it ends." });
+      if (isHandInProgress(room)) {
+        return ack?.({ ok: false, error: "This hand is in progress. Join after it ends.", canWatch: true });
+      }
+      const staleSpectator = findSpectator(room, playerId);
+      if (staleSpectator) removeSpectator(room, staleSpectator);
       const credentials = newReconnectCredentials();
       resetReadiness(room);
       convertBotToHuman(socket, room, botSeat, playerId, name, credentials.tokenHash);
@@ -1573,29 +1736,131 @@ io.on("connection", (socket) => {
       return;
     }
     const effectiveMax = room.tableSize || MAX_PLAYERS;
-    if (room.players.length >= effectiveMax) return ack?.({ ok: false, error: "Room is full." });
+    if (room.players.length >= effectiveMax) {
+      return ack?.({ ok: false, error: "Room is full.", canWatch: true });
+    }
     if (room.phase === "gameover") return ack?.({ ok: false, error: "This session has ended." });
     if (!room.moneyMode && room.phase !== "lobby" && room.phase !== "complete") {
-      return ack?.({ ok: false, error: "This hand is in progress. Join after it ends." });
+      return ack?.({ ok: false, error: "This hand is in progress. Join after it ends.", canWatch: true });
     }
     if (room.moneyMode) {
-      const blinds = currentBlinds(room);
-      const moneyTerms = {
-        roomId: room.id,
-        buyInCents: room.buyInCents,
-        smallBlindCents: chipsToCents(room, blinds.smallBlind),
-        bigBlindCents: chipsToCents(room, blinds.bigBlind),
-      };
-      if (!acceptedMoneyTerms || Object.keys(moneyTerms).some((key) => acceptedMoneyTerms[key] !== moneyTerms[key])) {
+      const moneyTerms = moneyTermsForRoom(room);
+      if (!moneyTermsAccepted(room, acceptedMoneyTerms)) {
         return ack?.({ ok: false, moneyTerms, error: "Review the buy-in and blinds before joining." });
       }
     }
+    const staleSpectator = findSpectator(room, playerId);
+    if (staleSpectator) removeSpectator(room, staleSpectator);
     const credentials = newReconnectCredentials();
     resetReadiness(room);
     room.players.push(makeHumanPlayer(room, { id: playerId, socketId: socket.id, name: cleanName(name), reconnectTokenHash: credentials.tokenHash }));
     attachSocketToPlayer(socket, room, room.players[room.players.length - 1]);
     if (room.tableSize) addComputerPlayers(room, room.tableSize);
     ack?.({ ok: true, roomId: room.id, playerId, reconnectToken: credentials.token });
+    emitRoom(room);
+  });
+
+  socket.on("room:watch", ({ roomId, name, deviceId, reconnectToken }, ack) => {
+    const room = getRoom(roomId);
+    if (!room) return ack?.({ ok: false, error: "Room not found." });
+    if (room.phase === "gameover") {
+      return ack?.({ ok: false, error: "This session has ended." });
+    }
+    const spectatorId = cleanDeviceId(deviceId, socket.id);
+    if (room.players.some((player) => player.id === spectatorId && !player.isBot)) {
+      return ack?.({ ok: false, error: "Leave your seat before watching." });
+    }
+    const existing = findSpectator(room, spectatorId);
+    if (existing) {
+      // Spectators reconnect by deviceId; a provided token must still match when present.
+      if (reconnectToken && existing.reconnectTokenHash && !reconnectTokenMatches(existing, reconnectToken)) {
+        return ack?.({ ok: false, error: "This watcher session belongs to another device." });
+      }
+      existing.name = cleanName(name);
+      attachSocketToSpectator(socket, room, existing);
+      ack?.({
+        ok: true,
+        roomId: room.id,
+        playerId: spectatorId,
+        spectator: true,
+      });
+      emitRoom(room);
+      return;
+    }
+    const credentials = newReconnectCredentials();
+    const spectator = makeSpectator({
+      id: spectatorId,
+      socketId: socket.id,
+      name,
+      reconnectTokenHash: credentials.tokenHash,
+    });
+    ensureSpectators(room).push(spectator);
+    attachSocketToSpectator(socket, room, spectator);
+    ack?.({
+      ok: true,
+      roomId: room.id,
+      playerId: spectatorId,
+      spectator: true,
+      reconnectToken: credentials.token,
+    });
+    emitRoom(room);
+  });
+
+  socket.on("room:takeSeat", ({ name, deviceId, reconnectToken, acceptedMoneyTerms } = {}, ack) => {
+    const room = rooms.get(socketRoom.get(socket.id));
+    if (!room) return ack?.({ ok: false, error: "Room not found." });
+    const spectatorId = cleanDeviceId(deviceId || socketPlayer.get(socket.id), socket.id);
+    const spectator = findSpectator(room, spectatorId);
+    if (!spectator) return ack?.({ ok: false, error: "You are not watching this table." });
+    if (spectator.reconnectTokenHash && reconnectToken && !reconnectTokenMatches(spectator, reconnectToken)) {
+      return ack?.({ ok: false, error: "This watcher session belongs to another device." });
+    }
+    if (!canTakeSeatNow(room)) {
+      return ack?.({
+        ok: false,
+        error: roomIsFull(room) ? "Room is full." : "No seat is available right now.",
+        canWatch: true,
+      });
+    }
+    if (room.moneyMode && !moneyTermsAccepted(room, acceptedMoneyTerms)) {
+      return ack?.({
+        ok: false,
+        moneyTerms: moneyTermsForRoom(room),
+        error: "Review the buy-in and blinds before joining.",
+      });
+    }
+
+    const displayName = cleanName(name || spectator.name);
+    removeSpectator(room, spectator);
+
+    const reservedBotSeat = room.players.find((player) => player.isBot && player.replacedPlayerId === spectatorId);
+    if (reservedBotSeat) {
+      convertBotToHuman(socket, room, reservedBotSeat, spectatorId, displayName, reservedBotSeat.replacedReconnectTokenHash);
+      ack?.({ ok: true, roomId: room.id, playerId: spectatorId });
+      emitRoom(room);
+      return;
+    }
+    const botSeat = room.players.find((player) => player.isBot);
+    if (botSeat) {
+      const credentials = newReconnectCredentials();
+      resetReadiness(room);
+      convertBotToHuman(socket, room, botSeat, spectatorId, displayName, credentials.tokenHash);
+      ack?.({ ok: true, roomId: room.id, playerId: spectatorId, reconnectToken: credentials.token });
+      emitRoom(room);
+      return;
+    }
+
+    const credentials = newReconnectCredentials();
+    resetReadiness(room);
+    room.players.push(makeHumanPlayer(room, {
+      id: spectatorId,
+      socketId: socket.id,
+      name: displayName,
+      reconnectTokenHash: credentials.tokenHash,
+    }));
+    attachSocketToPlayer(socket, room, room.players[room.players.length - 1]);
+    if (room.tableSize) addComputerPlayers(room, room.tableSize);
+    ack?.({ ok: true, roomId: room.id, playerId: spectatorId, reconnectToken: credentials.token });
     emitRoom(room);
   });
 
@@ -1613,6 +1878,7 @@ io.on("connection", (socket) => {
         preserveSettledMoneyRoom(room);
         return;
       }
+      clearSpectators(room);
       rooms.delete(room.id);
       scheduleSave();
       return;
@@ -1814,8 +2080,13 @@ io.on("connection", (socket) => {
     const room = rooms.get(socketRoom.get(socket.id));
     const playerId = socketPlayer.get(socket.id);
     const player = room?.players.find((item) => item.id === playerId);
-    if (!player || player.isBot) return;
-    player.backgroundedUntil = hidden ? Date.now() + BACKGROUND_PRESENCE_TTL_MS : null;
+    if (player && !player.isBot) {
+      player.backgroundedUntil = hidden ? Date.now() + BACKGROUND_PRESENCE_TTL_MS : null;
+      return;
+    }
+    const spectator = room ? findSpectator(room, playerId) : null;
+    if (!spectator) return;
+    spectator.backgroundedUntil = hidden ? Date.now() + BACKGROUND_PRESENCE_TTL_MS : null;
   });
 
   socket.on("disconnect", () => {
@@ -1886,4 +2157,8 @@ module.exports = {
   setRoomShotClock,
   setShotClockTime,
   emitRoom,
+  canTakeSeatNow,
+  clearSpectators,
+  findSpectator,
+  watchingCount,
 };
