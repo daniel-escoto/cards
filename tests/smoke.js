@@ -252,9 +252,16 @@ async function readyUp(players) {
     throw new Error("Chip totals did not balance after showdown");
   }
   const winnerIds = new Set(alice.state.winners.map((winner) => winner.playerId));
-  const hiddenOpponent = alice.state.players.find((player) => !player.isYou && !player.isBot && !winnerIds.has(player.id));
-  if (hiddenOpponent?.cards.some((card) => card?.code)) {
-    throw new Error("Expected opponent cards to stay hidden after hand completion");
+  // Show-order rules: non-winners who must show (first to act, or still live for a pot)
+  // are legitimately revealed. Only mucked hands stay private.
+  for (const player of alice.state.players.filter((item) => !item.isYou && !item.isBot && !winnerIds.has(item.id))) {
+    if (player.showCards) {
+      if (!player.cards.every((card) => card?.code)) {
+        throw new Error(`Expected required-show non-winner ${player.name} cards to be exposed`);
+      }
+    } else if (player.cards.some((card) => card?.code)) {
+      throw new Error(`Expected mucked opponent ${player.name} cards to stay hidden after hand completion`);
+    }
   }
   if (alice.state.winners.some((winner) => !alice.state.players.find((player) => player.id === winner.playerId)?.cards.every((card) => card?.code))) {
     throw new Error("Expected called-showdown winning cards to be exposed");
@@ -367,9 +374,21 @@ async function readyUp(players) {
   if (solo.state.players.reduce((sum, player) => sum + player.stack, 0) !== 4000) {
     throw new Error("Computer game chip totals did not balance");
   }
-  const hiddenCpu = solo.state.players.find((player) => player.isBot && player.cards.some((card) => !card?.code));
-  if (hiddenCpu) {
-    throw new Error("Expected CPU cards to show after hand completion");
+  // CPUs follow the same show/muck rules as humans — not force-revealed.
+  for (const player of solo.state.players.filter((item) => item.isBot)) {
+    if (player.showCards) {
+      if (!player.cards.every((card) => card?.code)) {
+        throw new Error(`Expected required-show CPU ${player.name} cards to be exposed`);
+      }
+    } else if (player.cards.some((card) => card?.code)) {
+      throw new Error(`Expected mucked CPU ${player.name} cards to stay hidden after hand completion`);
+    }
+  }
+  if (solo.state.winners.some((winner) => {
+    const seat = solo.state.players.find((player) => player.id === winner.playerId);
+    return seat && !seat.cards.every((card) => card?.code);
+  })) {
+    throw new Error("Expected showdown winner cards to be exposed");
   }
 
   const finalA = connectPlayer("FinalA");

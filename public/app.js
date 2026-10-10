@@ -1200,10 +1200,11 @@ function renderActionFeed(newEntryId = "") {
       </article>
     `;
   }).join("");
-  // Revealed hands can still include busted players who showed at showdown.
-  const shownHands = state.phase === "complete"
-    ? state.players.filter((player) => player.showCards).map(renderShownHandCard).join("")
-    : "";
+  // Revealed hands: showdown winners/mucks, voluntary shows, and all-in runout face-ups.
+  const shownHands = state.players
+    .filter((player) => player.showCards && player.cards?.some((card) => card && (card.code || card.rank)))
+    .map(renderShownHandCard)
+    .join("");
   return `${tableMarkup}${shownHands}`;
 }
 

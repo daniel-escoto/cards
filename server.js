@@ -67,6 +67,8 @@ const {
   settleShowdown,
   applyPlayerAction,
   showPlayerCards,
+  sanitizeActionLogForClient,
+  visibleHoleCards,
   cardRankValue,
   estimateComputerConfidence,
   chooseComputerRaiseTo,
@@ -219,6 +221,8 @@ function serializeRoomForStorage(room) {
     message: room.message,
     winners: room.winners,
     actionLog: room.actionLog,
+    riverAggressor: room.riverAggressor || null,
+    allInCardsExposed: Boolean(room.allInCardsExposed),
     handNumber: room.handNumber,
     moneyMode: Boolean(room.moneyMode),
     moneyUnitCents: room.moneyUnitCents === 1 ? 1 : null,
@@ -390,6 +394,8 @@ function restoreRoom(raw) {
     message: raw.message || "Room restored after update.",
     winners: Array.isArray(raw.winners) ? raw.winners : [],
     actionLog: Array.isArray(raw.actionLog) ? raw.actionLog : [],
+    riverAggressor: raw.riverAggressor || null,
+    allInCardsExposed: Boolean(raw.allInCardsExposed),
     handNumber: Math.max(0, Math.floor(Number(raw.handNumber) || 0)),
     moneyMode: Boolean(raw.moneyMode),
     moneyUnitCents: raw.moneyUnitCents === 1 ? 1 : null,
@@ -538,6 +544,8 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
     message: "Invite friends with this room link.",
     winners: [],
     actionLog: [],
+    riverAggressor: null,
+    allInCardsExposed: false,
     handNumber: 0,
     moneyMode,
     moneyUnitCents: moneyMode ? 1 : null,
@@ -777,6 +785,8 @@ function restartGame(room) {
   room.winners = [];
   room.settlements = [];
   room.actionLog = [];
+  room.riverAggressor = null;
+  room.allInCardsExposed = false;
   room.message = "Game restarted. Start a new hand when ready.";
 }
 
@@ -1147,7 +1157,8 @@ function serializeRoom(room, viewerId) {
       ...winner,
       amountCents: chipsToCents(room, winner.amount),
     })),
-    actionLog: room.actionLog,
+    actionLog: sanitizeActionLogForClient(room.actionLog),
+    allInCardsExposed: Boolean(room.allInCardsExposed),
     players: room.players.map((player, index) => ({
       id: player.id,
       name: player.name,
@@ -1176,9 +1187,7 @@ function serializeRoom(room, viewerId) {
       isYou: player.id === viewerId,
       canMakeHost: room.hostId === viewerId && player.id !== viewerId && !player.isBot && player.connected,
       canKick: room.hostId === viewerId && player.id !== viewerId && !isHandInProgress(room),
-      cards: player.id === viewerId || player.showCards
-        ? player.hand.map(publicCard)
-        : player.hand.map(() => null),
+      cards: visibleHoleCards(player, viewerId),
     })),
   };
 }
