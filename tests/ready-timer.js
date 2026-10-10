@@ -210,9 +210,20 @@ assert.equal(READY_TIMER_MS, 20000);
 }
 
 {
+  // First-deal lobby (handNumber 0) does not arm the ready timer.
+  installFakeClock();
+  const firstLobby = makeReadyRoom({ phase: "lobby" });
+  firstLobby.handNumber = 0;
+  scheduleReadyTimer(firstLobby);
+  assert.equal(firstLobby.readyEndsAt, null, "pre-first-hand lobby stays untimed");
+  cleanupRoom(firstLobby);
+  resetShotClockTime();
+}
+
+{
   // Sit back in rejoins for the next ready cycle.
   installFakeClock();
-  const room = makeReadyRoom({ phase: "lobby" });
+  const room = makeReadyRoom({ phase: "complete" });
   room.players[1].sittingOut = true;
   room.players[0].ready = false;
   scheduleReadyTimer(room);
@@ -264,7 +275,7 @@ assert.equal(READY_TIMER_MS, 20000);
 {
   // Shot clock Off disables the ready timer; Ready still works manually.
   installFakeClock();
-  const room = makeReadyRoom({ phase: "lobby" });
+  const room = makeReadyRoom({ phase: "complete" });
   const off = setRoomShotClock(room, 0);
   assert.equal(off.ok, true);
   scheduleReadyTimer(room);
@@ -283,6 +294,7 @@ assert.equal(READY_TIMER_MS, 20000);
   // Fewer than 2 eligible after timeout: keep waiting (no hand start).
   installFakeClock();
   const room = makeReadyRoom({ phase: "lobby" });
+  room.handNumber = 2; // post-hand lobby (e.g. after host end / restart edge)
   // Neither readies; both sit out → only 0 eligible
   scheduleReadyTimer(room);
   advance(READY_TIMER_MS);
@@ -297,7 +309,7 @@ assert.equal(READY_TIMER_MS, 20000);
 {
   // Everyone readies early → start immediately; deadline clears.
   installFakeClock();
-  const room = makeReadyRoom({ phase: "lobby" });
+  const room = makeReadyRoom({ phase: "complete" });
   scheduleReadyTimer(room);
   assert.ok(room.readyEndsAt);
   room.players[0].ready = true;

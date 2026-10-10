@@ -1059,13 +1059,16 @@ function armReadyTimeout(room, delayMs) {
 }
 
 /**
- * Absolute readyEndsAt is set once while waiting between hands.
+ * Absolute readyEndsAt is set once while waiting between hands (after a hand
+ * has completed — not during the first-deal lobby while the table fills).
  * Reconnect / broadcast / rooms.json restore only re-arm the remaining time.
  * Host shot-clock Off disables the ready timer entirely.
  */
 function scheduleReadyTimer(room) {
   const limitMs = normalizeShotClockMs(room?.turnTimeLimitMs, SHOT_CLOCK_DEFAULT_MS);
-  if (!room || !limitMs || !canReadyForHand(room)) {
+  // First lobby (handNumber 0) keeps today's untimed Ready; timer starts after a hand completes.
+  const betweenHands = canReadyForHand(room) && (room.phase === "complete" || room.handNumber > 0);
+  if (!room || !limitMs || !betweenHands) {
     clearReadyTimer(room);
     return;
   }
