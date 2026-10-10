@@ -115,8 +115,13 @@ const DEFAULT_DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DA
 const STATE_FILE = process.env.GAME_STATE_FILE || path.join(DEFAULT_DATA_DIR, "rooms.json");
 /** Cap for waiting on in-progress hands during SIGTERM (must stay under Railway's ~30s drain). */
 const DEPLOY_HAND_WAIT_MS = envNonNegativeMs("DEPLOY_HAND_WAIT_MS", 25000);
-/** After this boot window without a handoff message, take full Redis ownership (crash safety). */
-const DEPLOY_TAKEOVER_MS = envNonNegativeMs("DEPLOY_TAKEOVER_MS", 35000);
+/**
+ * Crash-safety takeover if the draining instance never writes a handoff marker.
+ * Keep under Railway's ~30s drain/overlap window so we don't sit passive too long.
+ */
+const DEPLOY_TAKEOVER_MS = envNonNegativeMs("DEPLOY_TAKEOVER_MS", 20000);
+/** How often a booting Redis replica polls the durable holdem:handoff key. */
+const DEPLOY_HANDOFF_POLL_MS = envNonNegativeMs("DEPLOY_HANDOFF_POLL_MS", 200);
 const SAVE_DEBOUNCE_MS = 150;
 const SHOWDOWN_DELAY_MS = 1600;
 const CPU_ACTION_DELAY_MS = 250;
@@ -240,6 +245,11 @@ let serverListening = false;
 let stateStore = null;
 let unsubscribeHandoff = null;
 let takeoverTimer = null;
+let handoffPollTimer = null;
+/** Wall time when this process began waiting for Redis handoff (for accepting markers). */
+let handoffWaitStartedAtMs = 0;
+/** Last handoff marker observed (used for timer pad on takeover). */
+let lastHandoffMeta = null;
 
 function getStateStore() {
   if (!stateStore) stateStore = createStateStore({ filePath: STATE_FILE });
@@ -250,6 +260,9 @@ function getStateStore() {
 function setStateStore(store) {
   stateStore = store;
   handoffComplete = !store || store.kind !== "redis";
+  lastHandoffMeta = null;
+  handoffWaitStartedAtMs = 0;
+  clearHandoffWaiters();
 }
 
 function usingRedis() {
@@ -280,7 +293,8 @@ async function claimRoomForLiveActivity(roomId) {
         if (existing) clearRoomRuntime(existing);
         const room = restoreRoom(raw);
         if (room) {
-          extendDeadlinesAfterRestore(room, downtimeMsFromSavedAt(payload.savedAt, shotClockTime.now()));
+          // Only pad by a real handoff flush gap — never by idle time since last save.
+          extendDeadlinesAfterRestore(room, handoffPadMs(lastHandoffMeta, shotClockTime.now()));
           rooms.set(room.id, room);
         }
       }
@@ -405,13 +419,19 @@ function serializeRoomForStorage(room) {
   };
 }
 
-function buildRoomsPayload(roomList) {
-  return {
+function buildRoomsPayload(roomList, options = {}) {
+  const savedAt = new Date().toISOString();
+  const payload = {
     version: 1,
-    savedAt: new Date().toISOString(),
+    savedAt,
     buildId: BUILD_ID,
     rooms: roomList.map(serializeRoomForStorage),
   };
+  if (options.shutdownFlush) {
+    // Marks a SIGTERM final flush so restore pad uses the real handoff gap.
+    payload.shutdownFlushedAt = savedAt;
+  }
+  return payload;
 }
 
 /**
@@ -426,9 +446,10 @@ async function saveRoomsNow(options = {}) {
   }
   const store = getStateStore();
   const writeAll = options.all === true || handoffComplete || !usingRedis() || shuttingDown;
+  const shutdownFlush = options.shutdownFlush === true || (options.all === true && shuttingDown);
   let payload;
   if (writeAll) {
-    payload = buildRoomsPayload([...rooms.values()]);
+    payload = buildRoomsPayload([...rooms.values()], { shutdownFlush });
   } else {
     const existing = (await store.load()) || { version: 1, rooms: [] };
     const byId = new Map(
@@ -512,6 +533,29 @@ function downtimeMsFromSavedAt(savedAt, now = Date.now()) {
   const savedMs = Date.parse(savedAt);
   if (!Number.isFinite(savedMs)) return 0;
   return Math.max(0, now - savedMs);
+}
+
+/**
+ * Timer pad for Redis handoff only: age of the draining instance's flush marker.
+ * Idle time since the last debounced save must NOT pad live clocks.
+ */
+function handoffPadMs(handoffMeta, now = Date.now()) {
+  if (!handoffMeta || typeof handoffMeta !== "object") return 0;
+  const stamp = handoffMeta.flushedAt || handoffMeta.shutdownFlushedAt || handoffMeta.at;
+  return downtimeMsFromSavedAt(stamp, now);
+}
+
+/**
+ * Decide restore pad:
+ * - explicit downtimeMs option wins
+ * - Redis: 0 unless a handoff flush marker is provided (real deploy gap only)
+ * - file: age of savedAt (true process downtime)
+ */
+function restoreDowntimeMs(payload, options = {}, now = shotClockTime.now()) {
+  if (options.downtimeMs != null) return Math.max(0, Math.floor(Number(options.downtimeMs) || 0));
+  if (options.handoffMeta) return handoffPadMs(options.handoffMeta, now);
+  if (usingRedis()) return 0;
+  return downtimeMsFromSavedAt(payload?.savedAt || payload?.shutdownFlushedAt, now);
 }
 
 function clearRoomDormancy(room) {
@@ -771,14 +815,14 @@ function clearRoomRuntime(room) {
 /**
  * Apply a persisted payload into memory.
  * @param {object|null} payload
- * @param {{ replaceNonLive?: boolean, activate?: boolean, markLive?: boolean }} options
+ * @param {{ replaceNonLive?: boolean, activate?: boolean, markLive?: boolean, downtimeMs?: number, handoffMeta?: object }} options
  */
 function applyRoomsPayload(payload, options = {}) {
   if (!payload || !Array.isArray(payload.rooms)) return { restored: 0, downtimeMs: 0 };
   const replaceNonLive = options.replaceNonLive === true;
   const activate = options.activate !== false;
   const markLive = options.markLive === true;
-  const downtimeMs = downtimeMsFromSavedAt(payload.savedAt, shotClockTime.now());
+  const downtimeMs = restoreDowntimeMs(payload, options);
   const incomingIds = new Set();
 
   for (const rawRoom of payload.rooms) {
@@ -854,12 +898,18 @@ async function loadRooms(options = {}) {
   return { ok: true, restored, downtimeMs, migratedFromFile };
 }
 
-async function refreshNonLiveRoomsFromStore() {
+async function refreshNonLiveRoomsFromStore(options = {}) {
   if (!usingRedis()) return { ok: true, refreshed: 0 };
   try {
     const payload = await getStateStore().load();
     const before = rooms.size;
-    applyRoomsPayload(payload, { replaceNonLive: true, activate: true, markLive: false });
+    applyRoomsPayload(payload, {
+      replaceNonLive: true,
+      activate: true,
+      markLive: false,
+      downtimeMs: options.downtimeMs,
+      handoffMeta: options.handoffMeta,
+    });
     return { ok: true, refreshed: rooms.size, before };
   } catch (error) {
     console.error("Failed to refresh rooms after handoff:", error);
@@ -867,24 +917,111 @@ async function refreshNonLiveRoomsFromStore() {
   }
 }
 
-async function completeHandoffTakeover(reason = "handoff") {
-  if (handoffComplete) return;
-  await refreshNonLiveRoomsFromStore();
+function clearHandoffWaiters() {
+  if (takeoverTimer) {
+    clearTimeout(takeoverTimer);
+    takeoverTimer = null;
+  }
+  if (handoffPollTimer) {
+    clearInterval(handoffPollTimer);
+    handoffPollTimer = null;
+  }
+}
+
+/**
+ * Accept a durable handoff marker if it was written for this deploy overlap
+ * (at/flushedAt at or after we started waiting), or if it carries a shutdown flush
+ * newer than whatever we loaded at boot.
+ */
+function isRelevantHandoffMeta(meta, { waitStartedAtMs = handoffWaitStartedAtMs, now = Date.now() } = {}) {
+  if (!meta || typeof meta !== "object") return false;
+  const atMs = Date.parse(meta.at || "");
+  const flushedMs = Date.parse(meta.flushedAt || meta.shutdownFlushedAt || "");
+  const stampMs = Number.isFinite(flushedMs) ? flushedMs : atMs;
+  if (!Number.isFinite(stampMs)) return false;
+  // Allow small clock skew; markers from the draining peer land at/after wait start.
+  if (waitStartedAtMs && stampMs >= waitStartedAtMs - 5000) return true;
+  // Stop-then-start: marker may predate wait start but still be a fresh shutdown flush.
+  if (meta.shutdown === true && Number.isFinite(stampMs) && now - stampMs < 5 * 60 * 1000) return true;
+  return false;
+}
+
+async function completeHandoffTakeover(reason = "handoff", handoffMeta = null) {
+  if (handoffComplete) return { ok: false, reason: "already-complete" };
+  clearHandoffWaiters();
+
+  let meta = handoffMeta;
+  if (!meta && usingRedis()) {
+    try {
+      meta = await getStateStore().readHandoff();
+    } catch (error) {
+      console.error("Failed to read handoff key:", error);
+    }
+  }
+  if (meta) lastHandoffMeta = meta;
+
+  // Redis: pad only by the flush→restore gap. Timeout with no marker → 0 (never idle savedAt age).
+  const pad = usingRedis() ? handoffPadMs(meta, shotClockTime.now()) : 0;
+  await refreshNonLiveRoomsFromStore({ downtimeMs: pad, handoffMeta: meta });
   handoffComplete = true;
   for (const id of rooms.keys()) liveRoomIds.add(id);
-  console.log(`Redis handoff complete (${reason}); owning ${rooms.size} room(s)`);
+  console.log(
+    `Redis handoff complete (${reason}); owning ${rooms.size} room(s)`
+    + (pad ? ` (+${pad}ms timer pad)` : ""),
+  );
+  return { ok: true, reason, pad, meta };
+}
+
+async function maybeTakeoverFromHandoffKey(reason = "key") {
+  if (handoffComplete || !usingRedis()) return false;
+  let meta = null;
+  try {
+    meta = await getStateStore().readHandoff();
+  } catch (error) {
+    console.error("Failed to poll handoff key:", error);
+    return false;
+  }
+  if (!isRelevantHandoffMeta(meta)) return false;
+  await completeHandoffTakeover(reason, meta);
+  return true;
 }
 
 async function setupHandoffSubscription() {
   if (!usingRedis()) return;
   const store = getStateStore();
-  unsubscribeHandoff = await store.onHandoff(async () => {
+  handoffWaitStartedAtMs = Date.now();
+
+  // Durable key may already exist (stop-then-start: old flushed before we subscribed).
+  if (await maybeTakeoverFromHandoffKey("key-preexisting")) return;
+
+  unsubscribeHandoff = await store.onHandoff(async (raw) => {
     try {
-      await completeHandoffTakeover("pubsub");
+      let meta = null;
+      try {
+        meta = typeof raw === "string" ? JSON.parse(raw) : raw;
+      } catch {
+        meta = await store.readHandoff();
+      }
+      if (!isRelevantHandoffMeta(meta)) {
+        // Still try the key — pub/sub payload may be incomplete.
+        await maybeTakeoverFromHandoffKey("key");
+        return;
+      }
+      await completeHandoffTakeover("pubsub", meta);
     } catch (error) {
       console.error("Handoff takeover failed:", error);
     }
   });
+
+  if (DEPLOY_HANDOFF_POLL_MS > 0) {
+    handoffPollTimer = setInterval(() => {
+      maybeTakeoverFromHandoffKey("poll").catch((error) => {
+        console.error("Handoff poll failed:", error);
+      });
+    }, DEPLOY_HANDOFF_POLL_MS);
+    handoffPollTimer.unref?.();
+  }
+
   if (DEPLOY_TAKEOVER_MS > 0) {
     takeoverTimer = setTimeout(() => {
       completeHandoffTakeover("timeout").catch((error) => {
@@ -2542,14 +2679,18 @@ async function gracefulShutdown(signal = "SIGTERM", options = {}) {
 
   let payload = null;
   try {
-    payload = await saveRoomsNow({ all: true });
+    payload = await saveRoomsNow({ all: true, shutdownFlush: true });
   } catch (error) {
     console.error("Failed to flush game state on shutdown:", error);
   }
 
   if (usingRedis()) {
     try {
-      await getStateStore().publishHandoff({ buildId: BUILD_ID });
+      await getStateStore().publishHandoff({
+        buildId: BUILD_ID,
+        shutdown: true,
+        flushedAt: payload?.shutdownFlushedAt || payload?.savedAt || new Date().toISOString(),
+      });
     } catch (error) {
       console.error("Failed to publish Redis handoff:", error);
     }
@@ -2594,6 +2735,18 @@ function resetShutdownState() {
   shuttingDown = false;
   holdNewHands = false;
   suppressPersistence = false;
+  clearHandoffWaiters();
+  lastHandoffMeta = null;
+  handoffWaitStartedAtMs = 0;
+  if (typeof unsubscribeHandoff === "function") {
+    try {
+      const result = unsubscribeHandoff();
+      if (result && typeof result.then === "function") result.catch(() => {});
+    } catch {
+      // ignore
+    }
+  }
+  unsubscribeHandoff = null;
 }
 
 function markStateRestored(value = true) {
@@ -2642,6 +2795,7 @@ module.exports = {
   BLIND_LEVELS,
   BUILD_ID,
   DEPLOY_HAND_WAIT_MS,
+  DEPLOY_HANDOFF_POLL_MS,
   DEPLOY_TAKEOVER_MS,
   SETTLED_MONEY_ROOM_TTL_MS,
   DORMANT_ROOM_TTL_MS,
@@ -2670,7 +2824,12 @@ module.exports = {
   extendDeadlinesAfterRestore,
   getStateStore,
   gracefulShutdown,
+  handoffPadMs,
+  isRelevantHandoffMeta,
+  maybeTakeoverFromHandoffKey,
+  restoreDowntimeMs,
   isHoldingNewHands: () => holdNewHands,
+  isHandoffComplete: () => handoffComplete,
   isServerReady: () => stateRestored && serverListening,
   liveRoomIds,
   loadRooms,

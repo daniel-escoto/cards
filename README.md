@@ -62,7 +62,9 @@ On `SIGTERM` / `SIGINT`:
 3. If the wait cap is hit, pause timers (so nobody is auto-folded during the restart), then continue.
 4. Flush state (Redis or file), publish a Redis `holdem:handoff` message when using Redis, broadcast `server:restarting`, and close sockets.
 
-On boot the server restores rooms and extends any `turnEndsAt` / `readyEndsAt` by the downtime. With Redis, a new instance loads state at startup but treats rooms as passive until live socket activity or a handoff/takeover, so it does not fight the draining instance. After the old instance’s final flush + `holdem:handoff` publish, the new instance re-reads Redis for rooms it has not served yet and takes ownership.
+On boot the server restores rooms. **File mode** still pads `turnEndsAt` / `readyEndsAt` by time since `savedAt` (real process downtime). **Redis mode** does not pad by idle time since the last debounced save — that would inflate clocks by minutes for quiet tables. Instead the draining instance stamps `shutdownFlushedAt` on its final flush and writes a durable Redis key `holdem:handoff` (plus a pub/sub ping on `holdem:handoff-ch`). The new instance polls that key and pads only by the flush→restore gap (ideally ~0 when SIGTERM flush just happened).
+
+With Redis, a new instance loads state at startup but treats rooms as passive until live socket activity or handoff/takeover, so it does not fight the draining instance. Handoff completes when the durable key is observed (poll or pre-existing), via pub/sub, or after `DEPLOY_TAKEOVER_MS` (default 20s, crash safety).
 
 Clients show the soft banner, auto-rejoin by `deviceId`, and reload to the new build only between hands (or immediately when not in a hand).
 
@@ -74,6 +76,8 @@ Clients show the soft banner, auto-rejoin by `deviceId`, and reload to the new b
 | --- | --- |
 | `REDIS_URL` | Redis connection URL. When set, room state is stored in Redis instead of the volume file. |
 | `DEPLOY_HAND_WAIT_MS` | Max time to wait for in-progress hands on SIGTERM (default `25000`). Keep below the drain window. |
+| `DEPLOY_TAKEOVER_MS` | Max time a booting Redis replica waits for a handoff marker before taking ownership (default `20000`). Keep under 30s. |
+| `DEPLOY_HANDOFF_POLL_MS` | Poll interval for the durable `holdem:handoff` key (default `200`). |
 | `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` | Set to **`30`** on the Railway service so SIGTERM handling can finish before SIGKILL. |
 | `GAME_STATE_FILE` | File path used when `REDIS_URL` is unset (and as the source for one-time Redis migration). |
 
