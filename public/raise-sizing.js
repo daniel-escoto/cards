@@ -32,11 +32,18 @@
     return snapped;
   }
 
-  /** Raw raise-to before legality clamping: currentBet + max(bb, fraction * pot). */
-  function potPresetRaiseTo({ pot, currentBet, bigBlind, fraction }) {
+  /**
+   * Raw raise-to before legality clamping (pot-limit style):
+   *   raiseTo = currentBet + max(bb, round(fraction × (pot + toCall)))
+   * Unopened (toCall 0): fraction × pot. Facing a bet: pot-after-calling includes
+   * the call. `pot` must already include all chips in play (current-street bets).
+   */
+  function potPresetRaiseTo({ pot, currentBet, bigBlind, fraction, toCall = 0 }) {
     const potSize = Math.max(0, Number(pot) || 0);
+    const callAmount = Math.max(0, Math.floor(Number(toCall) || 0));
+    const potAfterCall = potSize + callAmount;
     const bb = Math.max(0, Math.floor(Number(bigBlind) || 0));
-    const raiseBy = Math.max(bb, Math.round(potSize * (Number(fraction) || 0)));
+    const raiseBy = Math.max(bb, Math.round(potAfterCall * (Number(fraction) || 0)));
     return Math.floor(Number(currentBet) || 0) + raiseBy;
   }
 
