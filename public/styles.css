@@ -1250,6 +1250,30 @@ select:focus {
   white-space: nowrap;
 }
 
+.seat-name-with-chips { display: flex; align-items: center; gap: 6px; }
+.seat-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.blind-chip {
+  --chip-color: #2563eb;
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  /* Solid center inside a striped edge, like a casino chip. */
+  background:
+    radial-gradient(circle, var(--chip-color) 0 54%, rgba(255, 255, 255, 0.9) 55% 59%, transparent 60%),
+    repeating-conic-gradient(var(--chip-color) 0 30deg, #fff 30deg 45deg);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.45);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+.blind-chip.big { --chip-color: #c2410c; }
+
 .pill {
   flex: 0 0 auto;
   border-radius: 999px;
@@ -2070,6 +2094,7 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 
   .table-player-row.you { background: rgba(8,31,27,.8); }
   .table-player-row .seat-name { font-size: 13px; }
+  .blind-chip { width: 16px; height: 16px; font-size: 6.5px; }
   .player-action { font-size: 11px; }
   .player-stack { padding: 3px 5px; font-size: 11px; }
 
