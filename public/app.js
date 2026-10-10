@@ -100,6 +100,14 @@ const betPresets = document.querySelector("#betPresets");
 const scoreList = document.querySelector("#scoreList");
 const scoreMenuBtn = document.querySelector("#scoreMenuBtn");
 const toast = document.querySelector("#toast");
+const reconnectBanner = document.querySelector("#reconnectBanner");
+const Deploy = typeof DeployHandoff !== "undefined" ? DeployHandoff : null;
+/** Server build id observed on this page load; used for post-deploy reload gating. */
+let knownBuildId = null;
+/** Newer build id seen mid-hand; reload once between hands. */
+let pendingServerBuildId = null;
+let expectingServerRestart = false;
+let reconnectBannerVisible = false;
 
 class TableSounds {
   constructor() {
@@ -581,6 +589,7 @@ function handoffOnlineToOffline() {
 
 function applyRoomUpdate(room) {
   if (leavingEndedRoom) return;
+  noteServerBuildId(room?.buildId, room?.phase);
   if (isGameOver(room) || isEndedGameReturn(state, room)) {
     leavingEndedRoom = true;
     if (isOfflineSession()) {
@@ -605,6 +614,7 @@ function applyRoomUpdate(room) {
   }
   joinError.textContent = "";
   render();
+  maybeReloadForPendingBuild(room?.phase);
 }
 
 function updateTableActionLabel() {
@@ -675,6 +685,48 @@ function showToast(message) {
   toast.textContent = message;
   toast.classList.remove("hidden");
   toastTimer = setTimeout(() => toast.classList.add("hidden"), 1800);
+}
+
+function setReconnectBanner(visible, message = "Updating…, reconnecting") {
+  reconnectBannerVisible = Boolean(visible);
+  if (!reconnectBanner) return;
+  reconnectBanner.textContent = message;
+  reconnectBanner.classList.toggle("hidden", !reconnectBannerVisible);
+}
+
+function noteServerBuildId(buildId, phase = state?.phase) {
+  if (!buildId) return;
+  const nextId = String(buildId);
+  if (!knownBuildId) {
+    knownBuildId = nextId;
+    return;
+  }
+  if (nextId === knownBuildId) {
+    pendingServerBuildId = null;
+    return;
+  }
+
+  const shouldReload = Deploy?.shouldReloadForNewBuild?.({
+    clientBuildId: knownBuildId,
+    serverBuildId: nextId,
+    phase,
+  });
+  if (shouldReload) {
+    pendingServerBuildId = null;
+    window.location.reload();
+    return;
+  }
+  pendingServerBuildId = nextId;
+}
+
+function maybeReloadForPendingBuild(phase = state?.phase) {
+  if (!pendingServerBuildId || !knownBuildId) return;
+  if (!Deploy?.shouldReloadForNewBuild?.({
+    clientBuildId: knownBuildId,
+    serverBuildId: pendingServerBuildId,
+    phase,
+  })) return;
+  window.location.reload();
 }
 
 function cardTemplate(card, extraClass = "") {
@@ -2399,14 +2451,34 @@ function autoJoinInitialRoom() {
   joinOrCreate("join");
 }
 
+socket?.on("server:hello", ({ buildId } = {}) => {
+  noteServerBuildId(buildId, state?.phase);
+});
+
+socket?.on("server:restarting", () => {
+  expectingServerRestart = true;
+  setReconnectBanner(true, "Updating…, reconnecting");
+});
+
 socket?.on("connect", () => {
+  expectingServerRestart = false;
+  setReconnectBanner(false);
   updateTableActionLabel();
   autoJoinInitialRoom();
   attemptAutoRejoin();
 });
+
 socket?.on("disconnect", () => {
   updateTableActionLabel();
-  handoffOnlineToOffline();
+  // Solo chip games still hand off to the local engine on true network loss.
+  if (!expectingServerRestart && handoffOnlineToOffline()) {
+    setReconnectBanner(false);
+    return;
+  }
+  // Deploy restart or multiplayer disconnect: soft banner + auto-rejoin (no scary lost state).
+  if (state && !practiceSession && !isOfflineSession()) {
+    setReconnectBanner(true, expectingServerRestart ? "Updating…, reconnecting" : "Reconnecting…");
+  }
 });
 autoJoinInitialRoom();
 attemptAutoRejoin();

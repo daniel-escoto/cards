@@ -1654,6 +1654,25 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 :root[data-theme="light"] .bet-presets button:not(:disabled):hover { color: #17201c; background: #e8ede8; }
 
 .toast { position: fixed; z-index: 50; left: 50%; bottom: max(22px, env(safe-area-inset-bottom)); transform: translateX(-50%); max-width: calc(100% - 32px); padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--accent) 52%, transparent); border-radius: 999px; color: var(--toast-text); background: var(--toast-bg); box-shadow: 0 10px 30px rgba(0,0,0,.3); font-size: 13px; font-weight: 800; white-space: nowrap; }
+.reconnect-banner {
+  position: fixed;
+  z-index: 45;
+  left: 50%;
+  top: max(12px, env(safe-area-inset-top));
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  padding: 8px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 10px;
+  color: var(--toast-text);
+  background: color-mix(in srgb, var(--toast-bg) 92%, transparent);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+}
+.reconnect-banner.hidden { display: none; }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
 
