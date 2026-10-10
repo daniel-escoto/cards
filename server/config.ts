@@ -2,19 +2,42 @@ import path = require("path");
 import crypto = require("crypto");
 import api = require("./api");
 import type { ShotClockTime } from "./server-api";
+import { createHoldemEngine, type HoldemEngine } from "../shared/create-holdem-engine";
+import PokerSolver = require("../shared/pokersolver");
 
-const PACKAGE_VERSION = (() => {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function readPackageVersion(): string {
   try {
-     
-    return (require("../package.json") as { version?: string }).version || "1.0.0";
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pkg: unknown = require("../package.json");
+    if (isRecord(pkg) && typeof pkg.version === "string" && pkg.version.trim()) {
+      return pkg.version;
+    }
   } catch {
-    return "1.0.0";
+    // fall through
   }
-})();
+  return "1.0.0";
+}
 
-// Boundary: UMD engine factory; keep loose at the assign boundary.
- 
-const engine = require("../shared/engine") as any;
+const PACKAGE_VERSION = readPackageVersion();
+
+function isHandConstructor(value: unknown): value is PokerSolver.HandConstructor {
+  if ((typeof value !== "object" && typeof value !== "function") || value === null) return false;
+  if (!("solve" in value) || !("winners" in value)) return false;
+  return typeof value.solve === "function" && typeof value.winners === "function";
+}
+
+function loadPokersolverHand(): PokerSolver.HandConstructor {
+  if (!isHandConstructor(PokerSolver.Hand)) {
+    throw new Error("pokersolver Hand missing solve/winners");
+  }
+  return PokerSolver.Hand;
+}
+
+const engine: HoldemEngine = createHoldemEngine(loadPokersolverHand());
 
 const PORT = process.env.PORT || 3000;
 /** Deploy/build identity for client version handoff (Railway commit SHA or package version). */
@@ -124,8 +147,10 @@ const DORMANT_ROOM_TTL_MS = Math.max(
 /** Injectable clock for tests (fake timers). Production uses Date/setTimeout. */
 const shotClockTime: ShotClockTime = {
   now: () => Date.now(),
-  setTimeout: (fn: () => void, ms: number) => setTimeout(fn, ms),
-  clearTimeout: (timer: ReturnType<typeof setTimeout> | null | undefined) => clearTimeout(timer!),
+  setTimeout: (fn, ms) => setTimeout(fn, ms),
+  clearTimeout: (timer) => {
+    if (timer != null) clearTimeout(timer);
+  },
 };
 
 function setShotClockTime(hooks: Partial<ShotClockTime> = {}): void {
@@ -136,9 +161,10 @@ function setShotClockTime(hooks: Partial<ShotClockTime> = {}): void {
 
 function resetShotClockTime(): void {
   shotClockTime.now = () => Date.now();
-  shotClockTime.setTimeout = (fn: () => void, ms: number) => setTimeout(fn, ms);
-  shotClockTime.clearTimeout = (timer: ReturnType<typeof setTimeout> | null | undefined) =>
-    clearTimeout(timer!);
+  shotClockTime.setTimeout = (fn, ms) => setTimeout(fn, ms);
+  shotClockTime.clearTimeout = (timer) => {
+    if (timer != null) clearTimeout(timer);
+  };
 }
 
 function normalizeShotClockMs(value: unknown, fallback = SHOT_CLOCK_DEFAULT_MS): number {

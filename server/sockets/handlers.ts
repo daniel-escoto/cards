@@ -647,10 +647,8 @@ function registerSocketHandlers(): void {
       const room = roomFromSocket(socket);
       const playerId = playerIdFromSocket(socket);
       if (!room) return ack?.({ ok: false, error: "Room not found." });
-      // Boundary: engine ack shape.
-       
-      const result = api.showPlayerCards(room, playerId) as any;
-      if (result && result.ok === false) return ack?.({ ok: false, error: result.error || "Could not show cards." });
+      const result = api.showPlayerCards(room, playerId);
+      if (!result.ok) return ack?.({ ok: false, error: result.error || "Could not show cards." });
       ack?.({ ok: true });
       api.emitRoom(room);
     });
@@ -688,10 +686,8 @@ function registerSocketHandlers(): void {
       const room = roomFromSocket(socket);
       const playerId = playerIdFromSocket(socket);
       if (!room) return ack?.({ ok: false, error: "Room not found." });
-      // Boundary: engine action result.
-       
-      const result = api.applyPlayerAction(room, playerId, { type, raiseTo }) as any;
-      if (!result?.ok) return ack?.({ ok: false, error: result?.error || "Invalid action." });
+      const result = api.applyPlayerAction(room, playerId, { type, raiseTo });
+      if (!result.ok) return ack?.({ ok: false, error: result.error || "Invalid action." });
       ack?.({ ok: true });
       api.emitRoom(room);
     });

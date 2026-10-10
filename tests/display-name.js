@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { JSDOM } = require("jsdom");
-const engine = require("../dist/shared/engine");
+const engine = require("../dist/shared/engine.node");
 const { createPracticeSession } = require("../dist/public/practice");
 
 // --- Server / engine name cleaning -------------------------------------------

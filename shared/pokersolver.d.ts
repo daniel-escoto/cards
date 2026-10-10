@@ -1,30 +1,29 @@
 /**
- * Ambient typings for the vendored pokersolver UMD build.
- * The implementation stays as plain JS — rewriting it is riskier than typing the surface we use.
+ * Ambient typings for the vendored pokersolver UMD/CJS build.
+ * Models the Hand.solve / Hand.winners surface used by the engine.
  */
 
-export interface SolvedHand {
-  name: string;
-  descr: string;
-  rank: number;
-  score: number;
-  cards: string[];
-  // Boundary: pokersolver attaches additional fields we do not model.
-   
-  [key: string]: any;
+declare namespace PokerSolver {
+  export interface SolvedHand {
+    name: string;
+    descr: string;
+    rank: number;
+    score: number;
+    cards: string[];
+  }
+
+  export interface HandConstructor {
+    solve(cards: string[], game?: string): SolvedHand;
+    winners(hands: SolvedHand[]): SolvedHand[];
+  }
+
+  export const Hand: HandConstructor;
 }
 
-export interface HandConstructor {
-  solve(cards: string[], game?: string): SolvedHand;
-  winners(hands: SolvedHand[]): SolvedHand[];
-}
-
-export const Hand: HandConstructor;
+export = PokerSolver;
 
 declare global {
   // Browser script-tag global from /shared/pokersolver.js
-   
-  var Hand: HandConstructor;
+  // eslint-disable-next-line no-var
+  var Hand: PokerSolver.HandConstructor;
 }
-
-export {};

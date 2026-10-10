@@ -6,7 +6,6 @@ import type { Express } from "express";
 import type { Server as HttpServer } from "http";
 import type { Server as IoServer } from "socket.io";
 import type {
-  BlindLevel,
   ClientRoom,
   ClientToServerEvents,
   HandoffMeta,
@@ -24,6 +23,7 @@ import type {
   SocketData,
 } from "../shared/types";
 import type { StateStore } from "../state-store-types";
+import type { HoldemEngine } from "../shared/create-holdem-engine";
 
 export type TypedIoServer = IoServer<
   ClientToServerEvents,
@@ -38,7 +38,57 @@ export interface ShotClockTime {
   clearTimeout: (timer: ReturnType<typeof setTimeout> | null | undefined) => void;
 }
 
-export interface ServerApi {
+/** Engine methods the server bag re-exports — typed via typeof of the factory return. */
+export type ServerEngineApi = Pick<
+  HoldemEngine,
+  | "blindLevelForHand"
+  | "currentBlinds"
+  | "publicCard"
+  | "cleanName"
+  | "cleanTableSize"
+  | "cleanPlayerColor"
+  | "defaultPlayerColor"
+  | "makePlayer"
+  | "computerName"
+  | "addComputerPlayers"
+  | "nextBotNumber"
+  | "canActPlayers"
+  | "nextIndex"
+  | "playerIndex"
+  | "resetHandState"
+  | "isHandInProgress"
+  | "canAdministerGame"
+  | "canReadyForHand"
+  | "resetReadiness"
+  | "maybeStartReadyHand"
+  | "playersWithChips"
+  | "maybeAdvance"
+  | "collectPot"
+  | "buildSidePots"
+  | "settleShowdown"
+  | "applyPlayerAction"
+  | "showPlayerCards"
+  | "sanitizeActionLogForClient"
+  | "visibleHoleCards"
+  | "estimateComputerConfidence"
+  | "chooseComputerRaiseTo"
+  | "preflopBlindRaiseChance"
+  | "preflopShoveRange"
+  | "estimatePreflopEquityAgainstRange"
+  | "estimatePostflopEquity"
+  | "assessPreflopAllInCall"
+  | "chooseComputerAction"
+  | "isSoloHumanFolded"
+  | "bettingComplete"
+  | "STARTING_STACK"
+  | "BLIND_LEVELS"
+  | "DEFAULT_BIG_BLIND"
+  | "DEFAULT_SMALL_BLIND"
+  | "MAX_PLAYERS"
+  | "PLAYER_COLORS"
+>;
+
+export interface ServerApi extends ServerEngineApi {
   // ── runtime flags / handles ──────────────────────────────────────────────
   saveTimer: ReturnType<typeof setTimeout> | null;
   shuttingDown: boolean;
@@ -96,95 +146,8 @@ export interface ServerApi {
   normalizeReadyTimerMs: (value: unknown, fallback?: number) => number;
   formatShotClockSeconds: (seconds: number) => string;
   envNonNegativeMs: (name: string, fallback: number) => number;
-  STARTING_STACK: number;
-  BLIND_LEVELS: BlindLevel[];
-  DEFAULT_BIG_BLIND: number;
-  DEFAULT_SMALL_BLIND: number;
-  MAX_PLAYERS: number;
-  PLAYER_COLORS: string[];
   crypto: typeof import("crypto");
   path: typeof import("path");
-
-  // ── engine re-exports used via api ───────────────────────────────────────
-  // Boundary: engine surface is wide; keep callable without re-listing every signature.
-   
-  blindLevelForHand: (...args: any[]) => any;
-   
-  currentBlinds: (...args: any[]) => { smallBlind: number; bigBlind: number };
-   
-  publicCard: (...args: any[]) => any;
-   
-  cleanName: (...args: any[]) => string;
-   
-  cleanTableSize: (...args: any[]) => number;
-   
-  cleanPlayerColor: (...args: any[]) => string | null;
-   
-  defaultPlayerColor: (...args: any[]) => string;
-   
-  makePlayer: (...args: any[]) => Player;
-   
-  computerName: (...args: any[]) => string;
-   
-  addComputerPlayers: (...args: any[]) => void;
-   
-  nextBotNumber: (...args: any[]) => number;
-   
-  canActPlayers: (...args: any[]) => Player[];
-   
-  nextIndex: (...args: any[]) => number;
-   
-  playerIndex: (...args: any[]) => number;
-   
-  resetHandState: (...args: any[]) => void;
-   
-  isHandInProgress: (...args: any[]) => boolean;
-   
-  canAdministerGame: (...args: any[]) => boolean;
-   
-  canReadyForHand: (...args: any[]) => boolean;
-   
-  resetReadiness: (...args: any[]) => void;
-   
-  maybeStartReadyHand: (...args: any[]) => boolean;
-   
-  playersWithChips: (...args: any[]) => Player[];
-   
-  maybeAdvance: (...args: any[]) => void;
-   
-  collectPot: (...args: any[]) => number;
-   
-  buildSidePots: (...args: any[]) => any;
-   
-  settleShowdown: (...args: any[]) => void;
-   
-  applyPlayerAction: (...args: any[]) => any;
-   
-  showPlayerCards: (...args: any[]) => void;
-   
-  sanitizeActionLogForClient: (...args: any[]) => any;
-   
-  visibleHoleCards: (...args: any[]) => any;
-   
-  estimateComputerConfidence: (...args: any[]) => any;
-   
-  chooseComputerRaiseTo: (...args: any[]) => any;
-   
-  preflopBlindRaiseChance: (...args: any[]) => any;
-   
-  preflopShoveRange: (...args: any[]) => any;
-   
-  estimatePreflopEquityAgainstRange: (...args: any[]) => any;
-   
-  estimatePostflopEquity: (...args: any[]) => any;
-   
-  assessPreflopAllInCall: (...args: any[]) => any;
-   
-  chooseComputerAction: (...args: any[]) => any;
-   
-  isSoloHumanFolded: (...args: any[]) => boolean;
-   
-  bettingComplete: (...args: any[]) => boolean;
 
   // ── store / lifecycle ────────────────────────────────────────────────────
   getStateStore: () => StateStore;
@@ -395,7 +358,7 @@ export interface ServerApi {
 
 /** Create the empty bag; modules fill it during require/bootstrap. */
 export function createServerApiBag(): ServerApi {
-  // Boundary: bag is filled by side-effect imports before any request handling.
-   
-  return {} as any as ServerApi;
+  // Progressive assignment during side-effect imports — Partial then sealed as ServerApi.
+  const bag: Partial<ServerApi> = {};
+  return bag as ServerApi;
 }

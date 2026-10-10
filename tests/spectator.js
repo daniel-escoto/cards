@@ -5,7 +5,7 @@ process.env.BACKGROUND_DISCONNECT_GRACE_MS = "50";
 
 const assert = require("node:assert/strict");
 const { io } = require("socket.io-client");
-const engine = require("../dist/shared/engine");
+const engine = require("../dist/shared/engine.node");
 const {
   applyReadyTimeout,
   clearReadyTimer,

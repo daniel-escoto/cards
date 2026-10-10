@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const engine = require("../dist/shared/engine");
+const engine = require("../dist/shared/engine.node");
 const {
   READY_TIMER_DEFAULT_MS,
   READY_TIMER_MAX_MS,

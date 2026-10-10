@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const engine = require("../dist/shared/engine");
+const engine = require("../dist/shared/engine.node");
 const { createPracticeSessionFromSnapshot } = require("../dist/public/practice");
 const { restoreRoom, serializeRoom, serializeRoomForStorage } = require("../dist/server");
 

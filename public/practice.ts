@@ -6,9 +6,12 @@
   factory: (engine: HoldemEngineAPI) => PracticeSessionAPI,
 ) {
   if (typeof module === "object" && module.exports) {
-    module.exports = factory(require("../shared/engine"));
+    // Node tests load the CJS engine build (browser IIFE lives at engine.js).
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    module.exports = factory(require("../shared/engine.node.js"));
   } else {
-    root.PracticeSession = factory(root.HoldemEngine!);
+    if (!root.HoldemEngine) throw new Error("PracticeSession requires HoldemEngine");
+    root.PracticeSession = factory(root.HoldemEngine);
   }
 })(typeof globalThis !== "undefined" ? globalThis : (this as typeof globalThis), function (engine: HoldemEngineAPI): PracticeSessionAPI {
   "use strict";

@@ -27,5 +27,5 @@
     "public/**/*.ts",
     "scripts/**/*.ts"
   ],
-  "exclude": ["node_modules", "dist", "tests"]
+  "exclude": ["node_modules", "dist", "tests", "shared/engine-browser.ts"]
 }
