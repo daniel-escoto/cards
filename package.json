@@ -16,7 +16,7 @@
     "test:all-in-presets": "node tests/all-in-presets.js",
     "test:check-bet-merge": "node tests/check-bet-merge.js",
     "test:call-raise-merge": "node tests/call-raise-merge.js",
-    "test:frontend": "node tests/card-art.js && node tests/keyboard.js",
+    "test:frontend": "node tests/card-art.js && node tests/keyboard.js && node tests/display-name.js",
     "test:engine-offline": "node tests/engine-offline.js",
     "test:offline-handoff": "node tests/offline-handoff.js",
     "test:turn-timer": "node tests/turn-timer.js",
@@ -36,6 +36,7 @@
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
+    "jsdom": "^29.1.1",
     "socket.io-client": "^4.8.3"
   }
 }

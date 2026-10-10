@@ -739,9 +739,67 @@ function roundStatus(player) {
   return "Out";
 }
 
+function isMenuNameEditing() {
+  // Treat the whole name form as an edit session. Checking only the text input
+  // misses the Save button (and mobile taps that blur the input without focusing
+  // the button), which let the 1s menu refresh / room:update replace the form
+  // and swallow the click before submit.
+  return Boolean(document.activeElement?.closest?.("[data-name-form]"));
+}
+
+function commitMenuDisplayName(nameForm) {
+  if (!nameForm) return false;
+  const input = nameForm.querySelector("[data-player-name]");
+  if (!input) return false;
+  const name = input.value.trim();
+  if (!name) {
+    showToast("Enter a display name.");
+    return false;
+  }
+
+  // pointerdown (Save) and submit (Enter / click) share this path; dedupe one gesture.
+  const now = Date.now();
+  if (nameForm.dataset.nameSaving === "1" && now - Number(nameForm.dataset.nameSavedAt || 0) < 750) {
+    return true;
+  }
+  nameForm.dataset.nameSaving = "1";
+  nameForm.dataset.nameSavedAt = String(now);
+
+  nameInput.value = name;
+  localStorage.setItem("holdem:name", name);
+
+  const finish = (ok, errorMessage) => {
+    delete nameForm.dataset.nameSaving;
+    if (!ok) showToast(errorMessage || "Could not update name.");
+  };
+
+  if (practiceSession) {
+    const response = practiceSession.handle("player:setName", { name });
+    input.blur();
+    finish(Boolean(response?.ok), response?.error);
+    return Boolean(response?.ok);
+  }
+  if (!socket) {
+    input.blur();
+    finish(false, "Connecting...");
+    return false;
+  }
+  socket.timeout(4000).emit("player:setName", { name }, (error, response) => {
+    if (error) {
+      finish(false, "Could not update name. Reconnecting...");
+      lastAutoRejoinKey = "";
+      attemptAutoRejoin();
+      return;
+    }
+    finish(Boolean(response?.ok), response?.error);
+  });
+  input.blur();
+  return true;
+}
+
 function renderMenuPlayers() {
   if (!state) return;
-  if (document.activeElement?.matches("[data-player-name]")) return;
+  if (isMenuNameEditing()) return;
   menuRoomCode.textContent = isOfflineSession() ? "Offline" : state.id;
   if (menuRoomEyebrow) menuRoomEyebrow.textContent = isOfflineSession() ? "Mode" : "Room";
   const hero = activeHero();
@@ -1850,9 +1908,19 @@ gameMenuModal.addEventListener("click", (event) => {
   if (event.target === gameMenuModal) hideGameMenu();
 });
 
+// Save on pointerdown (not only click/submit) so a menu re-render between blur and
+// click cannot destroy the button. preventDefault keeps the field focused through the tap.
+gameMenuModal.addEventListener("pointerdown", (event) => {
+  if (event.button != null && event.button !== 0) return;
+  const saveBtn = event.target.closest("[data-name-form] button[type='submit']");
+  if (!saveBtn) return;
+  event.preventDefault();
+  commitMenuDisplayName(saveBtn.closest("[data-name-form]"));
+});
+
 gameMenuModal.addEventListener("submit", (event) => {
+  event.preventDefault();
   if (event.target === blindForm) {
-    event.preventDefault();
     const payload = state?.moneyMode
       ? {
         smallBlindCents: Math.round(Number(menuSmallBlindInput.value) * 100),
@@ -1866,20 +1934,12 @@ gameMenuModal.addEventListener("submit", (event) => {
     return;
   }
   if (event.target === moneyPanel) {
-    event.preventDefault();
     emitWithAck("money:cashIn", { amountCents: moneyCentsFromInput(cashInInput, state?.buyInCents ? state.buyInCents / 100 : 20) });
     return;
   }
   const nameForm = event.target.closest("[data-name-form]");
   if (!nameForm) return;
-  event.preventDefault();
-  const input = nameForm.querySelector("[data-player-name]");
-  const name = input.value.trim();
-  if (!name) return;
-  nameInput.value = name;
-  localStorage.setItem("holdem:name", name);
-  input.blur();
-  emitWithAck("player:setName", { name });
+  commitMenuDisplayName(nameForm);
 });
 
 cashOutBtn.addEventListener("click", () => {
