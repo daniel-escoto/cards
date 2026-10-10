@@ -380,6 +380,7 @@ renderKeybinds();
 let state = null;
 let practiceSession = null;
 let turnCountdownTimer = null;
+let readyCountdownTimer = null;
 const lowTimeSession = (typeof TurnClockWarning !== "undefined" && TurnClockWarning.createLowTimeSession)
   ? TurnClockWarning.createLowTimeSession()
   : { turnEndsAt: null, lastSeenTickSecond: null, armed: false };
@@ -945,7 +946,7 @@ function showGameMenu() {
   addBotBtn.classList.toggle("hidden", !state?.canAddBot);
   const hero = activeHero();
   sitOutBtn.classList.toggle("hidden", !hero || state?.phase === "gameover");
-  if (hero) sitOutBtn.textContent = hero.sittingOut ? "I’m back" : "Sit out next hand";
+  if (hero) sitOutBtn.textContent = hero.sittingOut ? "Sit back in" : "Sit out next hand";
   moneyPanel.classList.toggle("hidden", !state?.moneyMode || isOfflineSession());
   shareGameBtn.classList.toggle("hidden", isOfflineSession());
   sharePanel.classList.add("hidden");
@@ -1308,6 +1309,28 @@ function syncTurnCountdown() {
   turnCountdownTimer = setInterval(tick, 200);
 }
 
+function readySecondsRemaining() {
+  if (!state?.readyEndsAt || !["lobby", "complete"].includes(state.phase)) return 0;
+  return Math.max(0, Math.ceil((state.readyEndsAt - clientNow()) / 1000));
+}
+
+function syncReadyCountdown() {
+  clearInterval(readyCountdownTimer);
+  readyCountdownTimer = null;
+  if (!state?.readyEndsAt || !["lobby", "complete"].includes(state.phase)) return;
+  const tick = () => {
+    const seconds = readySecondsRemaining();
+    const labelText = formatTurnCountdown(seconds);
+    document.querySelectorAll("[data-ready-countdown]").forEach((node) => {
+      node.textContent = `${labelText}s`;
+      node.setAttribute("aria-label", `${labelText} seconds to ready up`);
+    });
+    if (seconds <= 0) clearInterval(readyCountdownTimer);
+  };
+  tick();
+  readyCountdownTimer = setInterval(tick, 200);
+}
+
 function renderActionFeed(newEntryId = "") {
   const entries = streetActionEntries(state.actionLog, state.phase);
   const activePlayer = currentTurnPlayer();
@@ -1466,13 +1489,14 @@ function render() {
 
   renderControls(hero);
   syncTurnCountdown();
+  syncReadyCountdown();
   if (!gameMenuModal.classList.contains("hidden")) {
     renderMenuPlayers();
     addBotBtn.classList.toggle("hidden", !state?.canAddBot);
     renderShotClockChoices();
     const menuHero = activeHero();
     sitOutBtn.classList.toggle("hidden", !menuHero || state?.phase === "gameover");
-    if (menuHero) sitOutBtn.textContent = menuHero.sittingOut ? "I’m back" : "Sit out next hand";
+    if (menuHero) sitOutBtn.textContent = menuHero.sittingOut ? "Sit back in" : "Sit out next hand";
   }
   requestAnimationFrame(() => restoreActionFeedScroll(feedScroll));
 }
@@ -1510,6 +1534,7 @@ function renderControls(hero) {
 
   if (hero?.sittingOut && (!isBettingPhase(state.phase) || !hero.cards.length)) {
     turnInfo.textContent = "You’re sitting out. Your seat and stack are saved.";
+    addButton("Sit back in", "game:sitOut", "", "", { sittingOut: false });
     return;
   }
   if (hero?.waitingForNextHand) {
@@ -1539,9 +1564,19 @@ function renderControls(hero) {
     if (["lobby", "complete"].includes(state.phase)) {
       const humans = state.players.filter((player) => !player.isBot && !player.sittingOut && player.stack > 0);
       const readyCount = humans.filter((player) => player.ready).length;
-      turnInfo.textContent = humans.length < 2 && state.players.filter((player) => player.stack > 0 && !player.sittingOut).length < 2
+      const readyStatus = humans.length < 2 && state.players.filter((player) => player.stack > 0 && !player.sittingOut).length < 2
         ? "Waiting for at least two active players."
         : `${readyCount} of ${humans.length} players ready.`;
+      turnInfo.replaceChildren();
+      turnInfo.append(readyStatus);
+      if (state.readyEndsAt) {
+        const countdown = document.createElement("span");
+        countdown.className = "ready-countdown";
+        countdown.dataset.readyCountdown = "1";
+        countdown.textContent = `${formatTurnCountdown(readySecondsRemaining())}s`;
+        turnInfo.append(" · ");
+        turnInfo.append(countdown);
+      }
       return;
     }
     const currentIndex = findLastIndex(state.players, (player) => player.id === state.turn);
@@ -1749,11 +1784,11 @@ function updateConfirmPassiveButton() {
   setButtonLabel(confirmActionBtn, `${verb} ${formatted}`, shortcut);
 }
 
-function addButton(label, eventName, className = "", shortcut = "") {
+function addButton(label, eventName, className = "", shortcut = "", payload = {}) {
   const button = document.createElement("button");
   if (className) button.className = className;
   setButtonLabel(button, label, shortcut);
-  button.addEventListener("click", () => emitWithAck(eventName, {}));
+  button.addEventListener("click", () => emitWithAck(eventName, payload));
   gameButtons.appendChild(button);
 }
 
