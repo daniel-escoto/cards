@@ -33,10 +33,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isPersistedState(value: unknown): value is PersistedState {
   if (!isRecord(value)) return false;
   if (value.version !== 1) return false;
-  if (typeof value.savedAt !== "string" || typeof value.buildId !== "string") return false;
+  if (typeof value.savedAt !== "string") return false;
+  // Older saves / tests may omit buildId; accept and normalize below.
+  if (value.buildId != null && typeof value.buildId !== "string") return false;
   if (!Array.isArray(value.rooms)) return false;
   if (value.shutdownFlushedAt != null && typeof value.shutdownFlushedAt !== "string") return false;
   return true;
+}
+
+function normalizePersistedState(value: PersistedState): PersistedState {
+  return {
+    ...value,
+    buildId: typeof value.buildId === "string" ? value.buildId : "",
+  };
 }
 
 function isHandoffMeta(value: unknown): value is HandoffMeta {
@@ -47,7 +56,7 @@ function isHandoffMeta(value: unknown): value is HandoffMeta {
 function parsePersistedState(raw: string): PersistedState | null {
   try {
     const parsed: unknown = JSON.parse(raw);
-    return isPersistedState(parsed) ? parsed : null;
+    return isPersistedState(parsed) ? normalizePersistedState(parsed) : null;
   } catch {
     return null;
   }
@@ -56,7 +65,7 @@ function parsePersistedState(raw: string): PersistedState | null {
 function clonePersistedState(value: PersistedState): PersistedState {
   const parsed: unknown = JSON.parse(JSON.stringify(value));
   if (!isPersistedState(parsed)) throw new Error("Failed to clone PersistedState");
-  return parsed;
+  return normalizePersistedState(parsed);
 }
 
 function cloneHandoffMeta(value: HandoffMeta): HandoffMeta {

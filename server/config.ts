@@ -2,8 +2,7 @@ import path = require("path");
 import crypto = require("crypto");
 import api = require("./api");
 import type { ShotClockTime } from "./server-api";
-import { createHoldemEngine, type HoldemEngine } from "../shared/create-holdem-engine";
-import PokerSolver = require("../shared/pokersolver");
+import type { HoldemEngine } from "../shared/create-holdem-engine";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -23,20 +22,29 @@ function readPackageVersion(): string {
 
 const PACKAGE_VERSION = readPackageVersion();
 
-function isHandConstructor(value: unknown): value is PokerSolver.HandConstructor {
-  if ((typeof value !== "object" && typeof value !== "function") || value === null) return false;
-  if (!("solve" in value) || !("winners" in value)) return false;
-  return typeof value.solve === "function" && typeof value.winners === "function";
+function isHoldemEngine(value: unknown): value is HoldemEngine {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.buildSidePots === "function" &&
+    typeof value.setRandomInt === "function" &&
+    typeof value.applyPlayerAction === "function"
+  );
 }
 
-function loadPokersolverHand(): PokerSolver.HandConstructor {
-  if (!isHandConstructor(PokerSolver.Hand)) {
-    throw new Error("pokersolver Hand missing solve/winners");
+/**
+ * Load the Node CJS engine singleton (dist/shared/engine.node.js).
+ * Build copies tsc's engine.js there before esbuild overwrites engine.js with the browser IIFE.
+ * Sharing this module keeps server re-exports identical to `require("../shared/engine.node")`.
+ */
+function loadSharedEngine(): HoldemEngine {
+  const loaded: unknown = require("../shared/engine.node");
+  if (!isHoldemEngine(loaded)) {
+    throw new Error("shared engine.node missing expected HoldemEngine API");
   }
-  return PokerSolver.Hand;
+  return loaded;
 }
 
-const engine: HoldemEngine = createHoldemEngine(loadPokersolverHand());
+const engine: HoldemEngine = loadSharedEngine();
 
 const PORT = process.env.PORT || 3000;
 /** Deploy/build identity for client version handoff (Railway commit SHA or package version). */
