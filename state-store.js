@@ -2,18 +2,21 @@
  * Room-state persistence: file (local/dev) or Redis (Railway overlap-safe deploys).
  *
  * Serialized payload shape matches rooms.json:
- *   { version, savedAt, buildId, rooms: [...] }
+ *   { version, savedAt, buildId, rooms: [...], shutdownFlushedAt? }
  *
  * Redis keys / channels:
  *   holdem:game-state  — JSON payload
- *   holdem:handoff     — pub/sub after the draining instance's final flush
+ *   holdem:handoff     — durable handoff marker (SET) after the draining instance's final flush
+ *   holdem:handoff-ch  — pub/sub channel (fast path; key poll is the reliable path)
  */
 
 const fs = require("fs");
 const path = require("path");
 
 const REDIS_STATE_KEY = "holdem:game-state";
-const REDIS_HANDOFF_CHANNEL = "holdem:handoff";
+/** Durable handoff marker the new instance polls (pub/sub alone can miss under deploy timing). */
+const REDIS_HANDOFF_KEY = "holdem:handoff";
+const REDIS_HANDOFF_CHANNEL = "holdem:handoff-ch";
 
 function createFileStateStore(filePath) {
   return {
@@ -37,6 +40,9 @@ function createFileStateStore(filePath) {
     async publishHandoff() {
       // File mode has no overlapping replica.
     },
+    async readHandoff() {
+      return null;
+    },
     async onHandoff() {
       return () => {};
     },
@@ -51,6 +57,7 @@ function createFileStateStore(filePath) {
 function createMemoryRedisBacking() {
   return {
     value: null,
+    handoff: null,
     handlers: new Set(),
   };
 }
@@ -67,14 +74,23 @@ function createMemoryStateStore(backing = createMemoryRedisBacking()) {
       backing.value = JSON.parse(JSON.stringify(payload));
     },
     async publishHandoff(meta = {}) {
-      const message = JSON.stringify({ at: new Date().toISOString(), ...meta });
+      const message = {
+        at: new Date().toISOString(),
+        ...meta,
+      };
+      backing.handoff = JSON.parse(JSON.stringify(message));
+      const raw = JSON.stringify(message);
       for (const handler of [...backing.handlers]) {
         try {
-          await handler(message);
+          await handler(raw);
         } catch (error) {
           console.error("Handoff handler error:", error);
         }
       }
+    },
+    async readHandoff() {
+      if (backing.handoff == null) return null;
+      return JSON.parse(JSON.stringify(backing.handoff));
     },
     async onHandoff(handler) {
       const wrapped = (message) => handler(message);
@@ -87,6 +103,16 @@ function createMemoryStateStore(backing = createMemoryRedisBacking()) {
   };
 }
 
+function parseHandoffRaw(raw) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function createRedisStateStore(redisUrl, { createClient } = {}) {
   // Lazy require so file-only environments never load the redis package path in tests that mock.
   const redis = createClient ? null : require("redis");
@@ -95,7 +121,6 @@ function createRedisStateStore(redisUrl, { createClient } = {}) {
   const client = makeClient({ url: redisUrl });
   const subscriber = makeClient({ url: redisUrl });
   let connectPromise = null;
-  let handoffHandler = null;
 
   async function ensureConnected() {
     if (!connectPromise) {
@@ -128,22 +153,29 @@ function createRedisStateStore(redisUrl, { createClient } = {}) {
     },
     async publishHandoff(meta = {}) {
       await ensureConnected();
-      await client.publish(
-        REDIS_HANDOFF_CHANNEL,
-        JSON.stringify({ at: new Date().toISOString(), ...meta }),
-      );
+      const message = {
+        at: new Date().toISOString(),
+        ...meta,
+      };
+      const raw = JSON.stringify(message);
+      // Durable key first so a polling replica can observe handoff even if pub/sub is missed.
+      await client.set(REDIS_HANDOFF_KEY, raw);
+      await client.publish(REDIS_HANDOFF_CHANNEL, raw);
+    },
+    async readHandoff() {
+      await ensureConnected();
+      return parseHandoffRaw(await client.get(REDIS_HANDOFF_KEY));
     },
     async onHandoff(handler) {
       await ensureConnected();
-      handoffHandler = (message) => handler(message);
-      await subscriber.subscribe(REDIS_HANDOFF_CHANNEL, handoffHandler);
+      const listener = (message) => handler(message);
+      await subscriber.subscribe(REDIS_HANDOFF_CHANNEL, listener);
       return async () => {
         try {
           await subscriber.unsubscribe(REDIS_HANDOFF_CHANNEL);
         } catch {
           // ignore
         }
-        handoffHandler = null;
       };
     },
     async close() {
@@ -183,6 +215,7 @@ function createStateStore(options = {}) {
 
 module.exports = {
   REDIS_STATE_KEY,
+  REDIS_HANDOFF_KEY,
   REDIS_HANDOFF_CHANNEL,
   createFileStateStore,
   createMemoryRedisBacking,

@@ -19,19 +19,28 @@ const {
 } = require("../state-store");
 const {
   DEPLOY_HAND_WAIT_MS,
+  DEPLOY_HANDOFF_POLL_MS,
+  DEPLOY_TAKEOVER_MS,
   STATE_FILE,
   anyHandInProgress,
+  completeHandoffTakeover,
   gracefulShutdown,
+  handoffPadMs,
   io,
+  isHandoffComplete,
+  isRelevantHandoffMeta,
   liveRoomIds,
   loadRooms,
   markServerListening,
   markStateRestored,
+  maybeTakeoverFromHandoffKey,
   resetShutdownState,
+  resetShotClockTime,
   rooms,
   saveRoomsNow,
   serializeRoom,
   server,
+  setShotClockTime,
   setStateStore,
   setupHandoffSubscription,
   tryStartReadyHand,
@@ -41,6 +50,19 @@ const {
 
 assert.equal(STATE_FILE, STATE_PATH);
 assert.equal(DEPLOY_HAND_WAIT_MS, 25000);
+assert.ok(DEPLOY_TAKEOVER_MS < 30000, "takeover timeout must stay under Railway's ~30s window");
+assert.equal(DEPLOY_TAKEOVER_MS, 20000);
+assert.equal(DEPLOY_HANDOFF_POLL_MS, 200);
+assert.equal(handoffPadMs(null), 0);
+assert.equal(handoffPadMs({ flushedAt: new Date(1_000_000).toISOString() }, 1_000_040), 40);
+assert.equal(
+  isRelevantHandoffMeta(
+    { at: new Date(1_000_000).toISOString(), shutdown: true, flushedAt: new Date(1_000_000).toISOString() },
+    { waitStartedAtMs: 1_000_010, now: 1_000_100 },
+  ),
+  true,
+  "handoff stamped just before wait start still counts (clock skew)",
+);
 
 function makeStoredRoom(id = "REDIS1", phase = "flop") {
   return {
@@ -231,13 +253,123 @@ function cleanupRooms() {
     }
   }
 
-  // --- Handoff refreshes non-live rooms ---
+  // --- Redis boot must NOT pad clocks by idle time since last save ---
+  {
+    const backing = createMemoryRedisBacking();
+    setStateStore(createMemoryStateStore(backing));
+    cleanupRooms();
+    resetShutdownState();
+
+    const deadline = 5_000_000;
+    const idleSavedAt = new Date(deadline - 459_235).toISOString();
+    const stored = makeStoredRoom("PAD001", "flop");
+    stored.turnEndsAt = deadline;
+    stored.turnTimerPlayerId = "hero";
+    await createMemoryStateStore(backing).save({
+      version: 1,
+      savedAt: idleSavedAt,
+      buildId: "idle",
+      rooms: [stored],
+    });
+
+    let fakeNow = deadline + 1000;
+    setShotClockTime({ now: () => fakeNow });
+    const result = await loadRooms({ activate: false, markLive: false });
+    assert.equal(result.downtimeMs, 0, "redis boot pad must ignore idle savedAt age");
+    assert.equal(rooms.get("PAD001").turnEndsAt, deadline, "turnEndsAt must stay unpadded on redis boot");
+    cleanupRooms();
+    resetShotClockTime();
+    resetShutdownState();
+  }
+
+  // --- Handoff pad uses flush marker gap only ---
+  {
+    const backing = createMemoryRedisBacking();
+    setStateStore(createMemoryStateStore(backing));
+    cleanupRooms();
+    resetShutdownState();
+
+    const deadline = 9_000_000;
+    const stored = makeStoredRoom("PAD002", "flop");
+    stored.turnEndsAt = deadline;
+    stored.turnTimerPlayerId = "hero";
+    await createMemoryStateStore(backing).save({
+      version: 1,
+      savedAt: new Date(deadline - 400_000).toISOString(),
+      shutdownFlushedAt: new Date(deadline + 50).toISOString(),
+      rooms: [stored],
+    });
+    await loadRooms({ activate: false, markLive: false });
+    assert.equal(rooms.get("PAD002").turnEndsAt, deadline);
+
+    let fakeNow = deadline + 80;
+    setShotClockTime({ now: () => fakeNow });
+    const flushedAt = new Date(deadline + 50).toISOString();
+    const takeover = await completeHandoffTakeover("poll", {
+      at: flushedAt,
+      flushedAt,
+      shutdown: true,
+      buildId: "old",
+    });
+    assert.equal(takeover.ok, true);
+    assert.equal(takeover.pad, 30, "pad is now - flushedAt, not idle save age");
+    assert.equal(rooms.get("PAD002").turnEndsAt, deadline + 30);
+    assert.equal(isHandoffComplete(), true);
+    cleanupRooms();
+    resetShotClockTime();
+    resetShutdownState();
+  }
+
+  // --- Handoff via durable key alone (no pub/sub delivery) ---
+  {
+    const backing = createMemoryRedisBacking();
+    const store = createMemoryStateStore(backing);
+    setStateStore(store);
+    cleanupRooms();
+    resetShutdownState();
+
+    await store.save({
+      version: 1,
+      savedAt: new Date().toISOString(),
+      rooms: [makeStoredRoom("KEY01", "flop")],
+    });
+    await loadRooms({ activate: false, markLive: false });
+    assert.equal(rooms.get("KEY01").phase, "flop");
+    assert.equal(isHandoffComplete(), false);
+
+    // Start waiters; then write the key without invoking pub/sub handlers.
+    await setupHandoffSubscription();
+    assert.equal(isHandoffComplete(), false);
+    backing.handlers.clear();
+    backing.handoff = {
+      at: new Date().toISOString(),
+      flushedAt: new Date().toISOString(),
+      shutdown: true,
+      buildId: "old",
+    };
+    await store.save({
+      version: 1,
+      savedAt: new Date().toISOString(),
+      shutdownFlushedAt: new Date().toISOString(),
+      rooms: [makeStoredRoom("KEY01", "complete")],
+    });
+
+    const tookOver = await maybeTakeoverFromHandoffKey("poll");
+    assert.equal(tookOver, true, "durable handoff key must complete takeover without pub/sub");
+    assert.equal(isHandoffComplete(), true);
+    assert.equal(rooms.get("KEY01").phase, "complete");
+    cleanupRooms();
+    resetShutdownState();
+  }
+
+  // --- Pub/sub handoff still refreshes non-live rooms ---
   {
     const backing = createMemoryRedisBacking();
     const oldStore = createMemoryStateStore(backing);
     const newStore = createMemoryStateStore(backing);
     setStateStore(newStore);
     cleanupRooms();
+    resetShutdownState();
 
     await oldStore.save({
       version: 1,
@@ -251,10 +383,44 @@ function cleanupRooms() {
     await oldStore.save({
       version: 1,
       savedAt: new Date().toISOString(),
+      shutdownFlushedAt: new Date().toISOString(),
       rooms: [makeStoredRoom("HAND01", "complete")],
     });
-    await oldStore.publishHandoff({ buildId: "old" });
+    await oldStore.publishHandoff({
+      buildId: "old",
+      shutdown: true,
+      flushedAt: new Date().toISOString(),
+    });
     assert.equal(rooms.get("HAND01").phase, "complete");
+    assert.equal(isHandoffComplete(), true);
+    cleanupRooms();
+    resetShutdownState();
+  }
+
+  // --- Preexisting handoff key at boot (stop-then-start) ---
+  {
+    const backing = createMemoryRedisBacking();
+    const store = createMemoryStateStore(backing);
+    setStateStore(store);
+    cleanupRooms();
+    resetShutdownState();
+
+    await store.save({
+      version: 1,
+      savedAt: new Date().toISOString(),
+      shutdownFlushedAt: new Date().toISOString(),
+      rooms: [makeStoredRoom("PRE01", "complete")],
+    });
+    backing.handoff = {
+      at: new Date().toISOString(),
+      flushedAt: new Date().toISOString(),
+      shutdown: true,
+      buildId: "previous",
+    };
+    await loadRooms({ activate: false, markLive: false });
+    await setupHandoffSubscription();
+    assert.equal(isHandoffComplete(), true, "preexisting shutdown handoff key takes ownership immediately");
+    assert.equal(rooms.get("PRE01").phase, "complete");
     cleanupRooms();
     resetShutdownState();
   }
