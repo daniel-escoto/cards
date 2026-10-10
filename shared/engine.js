@@ -280,6 +280,8 @@ function resetHandState(room) {
   room.deadPot = 0;
   room.acted = new Set();
   room.raiseEligible = new Set();
+  room.smallBlindPlayerId = null;
+  room.bigBlindPlayerId = null;
   room.winners = [];
   room.actionLog = [];
   room.riverAggressor = null;
@@ -378,6 +380,8 @@ function startHand(room) {
   const bigBlindIndex = nextIndex(room, smallBlindIndex, (p) => p.stack > 0 && !p.sittingOut);
   postBlind(room, smallBlindIndex, smallBlind);
   postBlind(room, bigBlindIndex, bigBlind);
+  room.smallBlindPlayerId = room.players[smallBlindIndex].id;
+  room.bigBlindPlayerId = room.players[bigBlindIndex].id;
   logAction(room, `${room.players[smallBlindIndex].name} posts small blind ${smallBlind}.`, {
     playerId: room.players[smallBlindIndex].id,
     action: `Posts small blind ${smallBlind}`,
@@ -1225,6 +1229,8 @@ function isSoloHumanFolded(room) {
         disconnectExpiresAt: player.disconnectExpiresAt || null,
         isHost: player.id === room.hostId,
         dealer: index === room.dealer,
+        isSmallBlind: Boolean(room.smallBlindPlayerId) && player.id === room.smallBlindPlayerId,
+        isBigBlind: Boolean(room.bigBlindPlayerId) && player.id === room.bigBlindPlayerId,
         isTurn: room.turn === player.id,
         isYou: player.id === viewerId,
         canMakeHost: false,
@@ -1334,6 +1340,8 @@ function isSoloHumanFolded(room) {
     room.deadPot = 0;
     room.acted = new Set();
     room.raiseEligible = new Set();
+    room.smallBlindPlayerId = null;
+    room.bigBlindPlayerId = null;
     room.winners = [];
     room.actionLog = [];
     room.riverAggressor = null;
@@ -1519,6 +1527,8 @@ function isSoloHumanFolded(room) {
       deck: remaining,
       community,
       dealer: dealerIndex >= 0 ? dealerIndex : 0,
+      smallBlindPlayerId: snapshot.players.find((seat) => seat.isSmallBlind)?.id || null,
+      bigBlindPlayerId: snapshot.players.find((seat) => seat.isBigBlind)?.id || null,
       turn: snapshot.turn || null,
       currentBet: Math.max(0, Math.floor(Number(snapshot.currentBet) || 0)),
       minRaise: Math.max(1, Math.floor(Number(snapshot.minRaise) || bases.bigBlind)),

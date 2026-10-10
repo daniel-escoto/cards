@@ -230,6 +230,8 @@ function serializeRoomForStorage(room) {
     deck: room.deck,
     community: room.community,
     dealer: room.dealer,
+    smallBlindPlayerId: room.smallBlindPlayerId || null,
+    bigBlindPlayerId: room.bigBlindPlayerId || null,
     turn: room.turn,
     currentBet: room.currentBet,
     minRaise: room.minRaise,
@@ -411,6 +413,8 @@ function restoreRoom(raw) {
     deck: Array.isArray(raw.deck) ? raw.deck : [],
     community: Array.isArray(raw.community) ? raw.community : [],
     dealer: Math.max(0, Math.floor(Number(raw.dealer) || 0)),
+    smallBlindPlayerId: raw.smallBlindPlayerId || null,
+    bigBlindPlayerId: raw.bigBlindPlayerId || null,
     turn: raw.turn || null,
     currentBet: Math.max(0, Math.floor(Number(raw.currentBet) || 0)),
     minRaise: Math.max(1, Math.floor(Number(raw.minRaise) || DEFAULT_BIG_BLIND)),
@@ -918,6 +922,8 @@ function restartGame(room) {
   room.deck = [];
   room.community = [];
   room.dealer = 0;
+  room.smallBlindPlayerId = null;
+  room.bigBlindPlayerId = null;
   room.turn = null;
   room.currentBet = 0;
   room.handNumber = 0;
@@ -1426,6 +1432,8 @@ function serializeRoom(room, viewerId) {
       disconnectExpiresAt: player.disconnectExpiresAt || null,
       isHost: player.id === room.hostId,
       dealer: index === room.dealer,
+      isSmallBlind: Boolean(room.smallBlindPlayerId) && player.id === room.smallBlindPlayerId,
+      isBigBlind: Boolean(room.bigBlindPlayerId) && player.id === room.bigBlindPlayerId,
       isTurn: room.turn === player.id,
       isYou: player.id === viewerId,
       canMakeHost: room.hostId === viewerId && player.id !== viewerId && !player.isBot && player.connected,

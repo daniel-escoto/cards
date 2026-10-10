@@ -1112,13 +1112,15 @@ function compactPlayerAction(entry, player) {
     : raw.replace(/\.$/, "");
   const amount = (value) => formatAmount(Number(value), Math.round(Number(value) * (state?.chipValueCents || 0)));
   return withoutName
-    .replace(/^Posts small blind\s+(\d+)/i, (_, value) => `SB ${amount(value)}`)
-    .replace(/^Posts big blind\s+(\d+)/i, (_, value) => `BB ${amount(value)}`)
     .replace(/^Calls\s+(\d+)/i, (_, value) => `call ${amount(value)}`)
     .replace(/^Checks$/i, "check")
     .replace(/^Folds$/i, "fold")
     .replace(/^Raises to\s+(\d+)/i, (_, value) => `raise ${amount(value)}`)
     .replace(/^Wins\s+(\d+)/i, (_, value) => `+${amount(value)}`);
+}
+
+function isBlindPost(entry) {
+  return /^Posts (small|big) blind\b/i.test(entry?.action || "");
 }
 
 function actionTokenClass(entry, player) {
@@ -1333,6 +1335,12 @@ function syncTurnCountdown() {
   turnCountdownTimer = setInterval(tick, 200);
 }
 
+function blindChipMarkup(player) {
+  if (player.isBigBlind) return '<span class="blind-chip big" title="Big blind" aria-label="Big blind">BB</span>';
+  if (player.isSmallBlind) return '<span class="blind-chip small" title="Small blind" aria-label="Small blind">SB</span>';
+  return "";
+}
+
 function readySecondsRemaining() {
   if (!state?.readyEndsAt || !["lobby", "complete"].includes(state.phase)) return 0;
   return Math.max(0, Math.ceil((state.readyEndsAt - clientNow()) / 1000));
@@ -1360,6 +1368,8 @@ function renderActionFeed(newEntryId = "") {
   const activePlayer = currentTurnPlayer();
   const latestByPlayer = new Map();
   entries.forEach((entry) => {
+    // Blind posts aren't actions; the SB/BB chips mark those seats for the whole hand.
+    if (isBlindPost(entry)) return;
     const player = playerForAction(entry);
     if (player) latestByPlayer.set(player.id, entry);
   });
@@ -1390,7 +1400,7 @@ function renderActionFeed(newEntryId = "") {
     return `
       <article class="table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${lowTime ? "low-time" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${showClock ? ' data-turn-seat-clock="1"' : ""}${styleAttr}>
         <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
-        <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
+        <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>${blindChipMarkup(player)}</span>
         <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}${clockMarkup}</span>
         <strong class="player-stack">${playerStackLabel(player)}</strong>
         ${barMarkup}
