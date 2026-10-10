@@ -6,6 +6,7 @@ const {
   createLowTimeSession,
   resetLowTimeSession,
   consumeLowTimeTick,
+  consumeDeadlineTimeout,
 } = require("../public/turn-clock-warning");
 
 const ENDS = 1_000_000;
@@ -35,6 +36,7 @@ assert.equal(lowTimeTickSecond(ENDS, ENDS), null);
   const session = createLowTimeSession();
   assert.equal(consumeLowTimeTick(session, { turnEndsAt: ENDS, now: ENDS - 8000 }), null);
   assert.equal(session.armed, true, "armed while still above threshold");
+  assert.equal(session.sawActive, true);
 
   assert.equal(consumeLowTimeTick(session, { turnEndsAt: ENDS, now: ENDS - 4999 }), 5);
   assert.equal(consumeLowTimeTick(session, { turnEndsAt: ENDS, now: ENDS - 4500 }), null, "same second no double tick");
@@ -96,6 +98,91 @@ assert.equal(lowTimeTickSecond(ENDS, ENDS), null);
     now += 100;
   }
   assert.deepEqual(fired, [5, 4, 3, 2, 1], "exactly one tick per second bucket");
+}
+
+// --- consumeDeadlineTimeout: fires once at expiry when previously active ---
+{
+  const session = createLowTimeSession();
+  assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS - 2000 }), false);
+  assert.equal(session.sawActive, true);
+  assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS - 1 }), false);
+  assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS }), true, "fires at exact deadline");
+  assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS + 50 }), false, "no double timeout");
+  assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS + 500 }), false);
+}
+
+// --- Timeout when server clears deadline after expiry ---
+{
+  const session = createLowTimeSession();
+  consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS - 500 });
+  assert.equal(
+    consumeDeadlineTimeout(session, { turnEndsAt: null, now: ENDS + 20 }),
+    true,
+    "clear-after-expiry still fires once",
+  );
+  assert.equal(session.turnEndsAt, null);
+  assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: null, now: ENDS + 100 }), false);
+}
+
+// --- Early act/clear before deadline: no timeout ---
+{
+  const session = createLowTimeSession();
+  consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS - 8000 });
+  assert.equal(
+    consumeDeadlineTimeout(session, { turnEndsAt: null, now: ENDS - 7000 }),
+    false,
+    "acting early must not play timeout",
+  );
+  assert.equal(session.sawActive, false);
+}
+
+// --- Mid-join after expiry / refresh: no catch-up timeout ---
+{
+  const session = createLowTimeSession();
+  assert.equal(
+    consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS + 100 }),
+    false,
+    "never saw active remaining — no timeout",
+  );
+  assert.equal(session.timeoutConsumed, false);
+  assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: null, now: ENDS + 200 }), false);
+}
+
+// --- New deadline after timeout does not replay old one ---
+{
+  const session = createLowTimeSession();
+  consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS - 100 });
+  assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS }), true);
+  const nextEnds = ENDS + 30_000;
+  assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: nextEnds, now: nextEnds - 1000 }), false);
+  assert.equal(session.turnEndsAt, nextEnds);
+  assert.equal(session.sawActive, true);
+  assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: nextEnds, now: nextEnds }), true);
+}
+
+// --- Deadline swap past previous expiry fires previous timeout once ---
+{
+  const session = createLowTimeSession();
+  consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS - 100 });
+  const nextEnds = ENDS + 30_000;
+  assert.equal(
+    consumeDeadlineTimeout(session, { turnEndsAt: nextEnds, now: ENDS + 10 }),
+    true,
+    "switching away after expiry surfaces the prior timeout",
+  );
+  assert.equal(session.turnEndsAt, nextEnds);
+  assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: nextEnds, now: ENDS + 20 }), false);
+}
+
+// --- Tick + timeout together across the final second ---
+{
+  const session = createLowTimeSession();
+  assert.equal(consumeLowTimeTick(session, { turnEndsAt: ENDS, now: ENDS - 8000 }), null);
+  assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS - 8000 }), false);
+  assert.equal(consumeLowTimeTick(session, { turnEndsAt: ENDS, now: ENDS - 1000 }), 1);
+  assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS - 100 }), false);
+  assert.equal(consumeLowTimeTick(session, { turnEndsAt: ENDS, now: ENDS }), null);
+  assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS }), true);
 }
 
 console.log("Turn clock low-time warning checks passed.");

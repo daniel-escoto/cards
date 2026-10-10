@@ -288,6 +288,29 @@ class TableSounds {
       // Autoplay / AudioContext failures must never throw into the UI loop.
     }
   }
+
+  /** Short descending blip when shot-clock or ready-up timer hits 0. Distinct from the soft tick. */
+  timerTimeout() {
+    try {
+      if (!this.enabled) return;
+      const context = this.unlock();
+      if (!context || context.state !== "running") return;
+      const start = context.currentTime;
+      const oscillator = context.createOscillator();
+      const envelope = this.output(0);
+      oscillator.type = "triangle";
+      oscillator.frequency.setValueAtTime(420, start);
+      oscillator.frequency.exponentialRampToValueAtTime(160, start + 0.14);
+      envelope.gain.setValueAtTime(0.0001, start);
+      envelope.gain.exponentialRampToValueAtTime(0.11, start + 0.012);
+      envelope.gain.exponentialRampToValueAtTime(0.0001, start + 0.18);
+      oscillator.connect(envelope);
+      oscillator.start(start);
+      oscillator.stop(start + 0.2);
+    } catch (_) {
+      // Autoplay / AudioContext failures must never throw into the UI loop.
+    }
+  }
 }
 
 const tableSounds = new TableSounds();
@@ -406,11 +429,14 @@ let turnCountdownTimer = null;
 let readyCountdownTimer = null;
 const lowTimeSession = (typeof TurnClockWarning !== "undefined" && TurnClockWarning.createLowTimeSession)
   ? TurnClockWarning.createLowTimeSession()
-  : { turnEndsAt: null, lastSeenTickSecond: null, armed: false };
+  : { turnEndsAt: null, lastSeenTickSecond: null, armed: false, sawActive: false, timeoutConsumed: false };
 const readyLowTimeSession = (typeof TurnClockWarning !== "undefined" && TurnClockWarning.createLowTimeSession)
   ? TurnClockWarning.createLowTimeSession()
-  : { turnEndsAt: null, lastSeenTickSecond: null, armed: false };
+  : { turnEndsAt: null, lastSeenTickSecond: null, armed: false, sawActive: false, timeoutConsumed: false };
 let lowTimeVibratedForEndsAt = null;
+/** Absolute deadlines for which this client was eligible to hear timer cues (survives server clear). */
+let shotClockCueEligibleForEndsAt = null;
+let readyCueEligibleForEndsAt = null;
 let raiseState = { value: 0, min: 0, max: 0, step: 20 };
 let raiseControlsDisabled = false;
 /**
@@ -1409,26 +1435,52 @@ function lowTimeWarningActive() {
   return TurnClockWarning.isLowTime(state.turnEndsAt, clientNow());
 }
 
+function canHearShotClockCues() {
+  return Boolean(state?.isYourTurn) && !isSpectatorView() && !document.hidden;
+}
+
+function playTimerTimeoutIfEligible(eligibleForEndsAt, endsAt) {
+  if (endsAt == null || eligibleForEndsAt !== endsAt || document.hidden || isSpectatorView()) return;
+  tableSounds.timerTimeout();
+}
+
 function syncLowTimeWarningEffects(now = clientNow()) {
   if (!state?.turnEndsAt || !state?.turnTimeLimitMs || !isBettingPhase(state.phase) || !state.turn) {
+    const previousEnds = lowTimeSession.turnEndsAt;
+    const timedOut = typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeDeadlineTimeout
+      ? TurnClockWarning.consumeDeadlineTimeout(lowTimeSession, { turnEndsAt: null, now })
+      : false;
+    if (timedOut) playTimerTimeoutIfEligible(shotClockCueEligibleForEndsAt, previousEnds);
     if (typeof TurnClockWarning !== "undefined" && TurnClockWarning.resetLowTimeSession) {
       TurnClockWarning.resetLowTimeSession(lowTimeSession);
     } else {
       lowTimeSession.turnEndsAt = null;
       lowTimeSession.lastSeenTickSecond = null;
       lowTimeSession.armed = false;
+      lowTimeSession.sawActive = false;
+      lowTimeSession.timeoutConsumed = false;
     }
     lowTimeVibratedForEndsAt = null;
+    shotClockCueEligibleForEndsAt = null;
     return;
   }
 
   const endsAt = state.turnEndsAt;
+  if (canHearShotClockCues() && now < endsAt) {
+    shotClockCueEligibleForEndsAt = endsAt;
+  }
+
+  const timedOut = typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeDeadlineTimeout
+    ? TurnClockWarning.consumeDeadlineTimeout(lowTimeSession, { turnEndsAt: endsAt, now })
+    : false;
+  if (timedOut) playTimerTimeoutIfEligible(shotClockCueEligibleForEndsAt, endsAt);
+
   const tickSecond = typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeLowTimeTick
     ? TurnClockWarning.consumeLowTimeTick(lowTimeSession, { turnEndsAt: endsAt, now })
     : null;
 
-  // Sound + vibrate only on the acting player's own device.
-  if (tickSecond != null && state.isYourTurn && !document.hidden) {
+  // Sound + vibrate only on the acting player's own device (never spectators).
+  if (tickSecond != null && canHearShotClockCues()) {
     tableSounds.shotClockTick();
     if (tickSecond === 5 && lowTimeVibratedForEndsAt !== endsAt) {
       lowTimeVibratedForEndsAt = endsAt;
@@ -1527,26 +1579,46 @@ function readyLowTimeWarningActive() {
   return TurnClockWarning.isLowTime(state.readyEndsAt, clientNow());
 }
 
+function canHearReadyClockCues() {
+  return Boolean(state?.canReady && !state?.isReady) && !isSpectatorView() && !document.hidden;
+}
+
 function syncReadyLowTimeWarningEffects(now = clientNow()) {
   if (!readyTimerActive()) {
+    const previousEnds = readyLowTimeSession.turnEndsAt;
+    const timedOut = typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeDeadlineTimeout
+      ? TurnClockWarning.consumeDeadlineTimeout(readyLowTimeSession, { turnEndsAt: null, now })
+      : false;
+    if (timedOut) playTimerTimeoutIfEligible(readyCueEligibleForEndsAt, previousEnds);
     if (typeof TurnClockWarning !== "undefined" && TurnClockWarning.resetLowTimeSession) {
       TurnClockWarning.resetLowTimeSession(readyLowTimeSession);
     } else {
       readyLowTimeSession.turnEndsAt = null;
       readyLowTimeSession.lastSeenTickSecond = null;
       readyLowTimeSession.armed = false;
+      readyLowTimeSession.sawActive = false;
+      readyLowTimeSession.timeoutConsumed = false;
     }
+    readyCueEligibleForEndsAt = null;
     return;
   }
 
   const endsAt = state.readyEndsAt;
+  if (canHearReadyClockCues() && now < endsAt) {
+    readyCueEligibleForEndsAt = endsAt;
+  }
+
+  const timedOut = typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeDeadlineTimeout
+    ? TurnClockWarning.consumeDeadlineTimeout(readyLowTimeSession, { turnEndsAt: endsAt, now })
+    : false;
+  if (timedOut) playTimerTimeoutIfEligible(readyCueEligibleForEndsAt, endsAt);
+
   const tickSecond = typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeLowTimeTick
     ? TurnClockWarning.consumeLowTimeTick(readyLowTimeSession, { turnEndsAt: endsAt, now })
     : null;
 
-  // Quiet tick only for the local player who still needs to ready (same helper as shot clock).
-  const localNeedsReady = Boolean(state.canReady && !state.isReady);
-  if (tickSecond != null && localNeedsReady && !document.hidden) {
+  // Quiet tick only for the local player who still needs to ready (never spectators).
+  if (tickSecond != null && canHearReadyClockCues()) {
     tableSounds.shotClockTick();
   }
 }

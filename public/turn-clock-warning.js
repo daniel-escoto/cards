@@ -44,6 +44,10 @@
       lastSeenTickSecond: null,
       /** False until the first observation of a deadline; prevents reconnect catch-up ticks. */
       armed: false,
+      /** True once this client observed rem > 0 for the current deadline. */
+      sawActive: false,
+      /** True once the timeout cue was consumed for the current deadline. */
+      timeoutConsumed: false,
     };
   }
 
@@ -52,6 +56,17 @@
     session.turnEndsAt = null;
     session.lastSeenTickSecond = null;
     session.armed = false;
+    session.sawActive = false;
+    session.timeoutConsumed = false;
+  }
+
+  function syncDeadlineIdentity(session, ends) {
+    if (session.turnEndsAt === ends) return;
+    session.turnEndsAt = ends;
+    session.lastSeenTickSecond = null;
+    session.armed = false;
+    session.sawActive = false;
+    session.timeoutConsumed = false;
   }
 
   /**
@@ -73,14 +88,12 @@
       return null;
     }
 
-    if (session.turnEndsAt !== ends) {
-      session.turnEndsAt = ends;
-      session.lastSeenTickSecond = null;
-      session.armed = false;
-    }
+    syncDeadlineIdentity(session, ends);
 
     const rem = remainingMs(ends, now);
     const threshold = Number(thresholdMs) || LOW_TIME_MS;
+
+    if (rem > 0) session.sawActive = true;
 
     if (rem > threshold) {
       // Still above the warning window — arm so entry into low time can tick.
@@ -90,7 +103,7 @@
     }
 
     if (!(rem > 0)) {
-      // Expired — stop immediately; next deadline gets a fresh session via turnEndsAt change.
+      // Expired — stop ticks; timeout is handled separately via consumeDeadlineTimeout.
       session.lastSeenTickSecond = null;
       session.armed = false;
       return null;
@@ -118,6 +131,70 @@
     return tickSecond;
   }
 
+  /**
+   * Returns true exactly once when a deadline this client previously observed as
+   * still-active (rem > 0) is now at or past expiry.
+   *
+   * - Pass the live `turnEndsAt` while the clock is running, or `null` when the
+   *   server clears it (act / sit-out / hand start).
+   * - Early clear before the deadline does not fire.
+   * - Mid-join after expiry (never saw rem > 0) does not fire — no refresh catch-up.
+   * - At most one timeout per absolute deadline value.
+   */
+  function consumeDeadlineTimeout(session, { turnEndsAt, now } = {}) {
+    if (!session) return false;
+
+    const clock = Number(now);
+    const ends = Number(turnEndsAt);
+    const hasEnds = Number.isFinite(ends) && ends > 0;
+
+    if (!hasEnds) {
+      const previousEnds = Number(session.turnEndsAt);
+      const shouldFire = Boolean(
+        Number.isFinite(previousEnds)
+        && previousEnds > 0
+        && session.sawActive
+        && !session.timeoutConsumed
+        && Number.isFinite(clock)
+        && clock >= previousEnds,
+      );
+      if (shouldFire) session.timeoutConsumed = true;
+      resetLowTimeSession(session);
+      return shouldFire;
+    }
+
+    // Deadline identity changed: resolve timeout for the previous absolute deadline first.
+    if (session.turnEndsAt != null && session.turnEndsAt !== ends) {
+      const previousEnds = Number(session.turnEndsAt);
+      const shouldFire = Boolean(
+        Number.isFinite(previousEnds)
+        && previousEnds > 0
+        && session.sawActive
+        && !session.timeoutConsumed
+        && Number.isFinite(clock)
+        && clock >= previousEnds,
+      );
+      syncDeadlineIdentity(session, ends);
+      if (shouldFire) {
+        // Previous deadline timed out; adopt the new deadline without also
+        // evaluating it in this same poll (next poll handles the new clock).
+        return true;
+      }
+    } else {
+      syncDeadlineIdentity(session, ends);
+    }
+
+    const rem = remainingMs(ends, clock);
+    if (rem > 0) {
+      session.sawActive = true;
+      return false;
+    }
+
+    if (!session.sawActive || session.timeoutConsumed) return false;
+    session.timeoutConsumed = true;
+    return true;
+  }
+
   return {
     LOW_TIME_MS,
     remainingMs,
@@ -126,5 +203,6 @@
     createLowTimeSession,
     resetLowTimeSession,
     consumeLowTimeTick,
+    consumeDeadlineTimeout,
   };
 });
