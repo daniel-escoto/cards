@@ -32,7 +32,8 @@ assert.equal(engine.cleanName(null), "Player");
 
 // --- In-table Save button (DOM click / pointerdown, not Enter) ---------------
 function loadAppDom() {
-  const html = fs.readFileSync(path.join(__dirname, "../public/index.html"), "utf8")
+  const html = fs
+    .readFileSync(path.join(__dirname, "../public/index.html"), "utf8")
     .replace(/<script src="[^"]+"><\/script>/g, "");
   const emits = [];
   const dom = new JSDOM(html, {
@@ -48,7 +49,9 @@ function loadAppDom() {
         removeListener() {},
         addEventListener() {},
         removeEventListener() {},
-        dispatchEvent() { return false; },
+        dispatchEvent() {
+          return false;
+        },
       });
       window.io = () => {
         const socket = {
@@ -122,14 +125,20 @@ function mountNameForm(document, name = "Alice") {
 
   // Reproduce the failure mode: after the control is pressed, a menu refresh
   // replaces the form (as the 1s timer / room:update did when focus left the input).
-  button.dispatchEvent(new window.PointerEvent("pointerdown", {
-    bubbles: true,
-    cancelable: true,
-    button: 0,
-  }));
+  button.dispatchEvent(
+    new window.PointerEvent("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    }),
+  );
   menuPlayers.innerHTML = "<p>re-rendered</p>";
 
-  assert.equal(emits.length, 1, "Save pointerdown must emit before a re-render can tear down the button");
+  assert.equal(
+    emits.length,
+    1,
+    "Save pointerdown must emit before a re-render can tear down the button",
+  );
   assert.deepEqual(emits[0], { event: "player:setName", payload: { name: "Alice Renamed" } });
   assert.equal(window.localStorage.getItem("holdem:name"), "Alice Renamed");
   assert.equal(document.querySelector("#nameInput").value, "Alice Renamed");
@@ -163,11 +172,13 @@ function mountNameForm(document, name = "Alice") {
   const { input, button } = mountNameForm(document, "Dave");
   input.focus();
   input.value = "   ";
-  button.dispatchEvent(new window.PointerEvent("pointerdown", {
-    bubbles: true,
-    cancelable: true,
-    button: 0,
-  }));
+  button.dispatchEvent(
+    new window.PointerEvent("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    }),
+  );
   assert.equal(emits.length, 0, "blank names must not be sent");
   const toast = document.querySelector("#toast");
   assert.equal(toast.classList.contains("hidden"), false, "blank names show an error toast");
@@ -197,7 +208,9 @@ function mountNameForm(document, name = "Alice") {
   function connect(name) {
     const socket = io(url, { transports: ["websocket"], forceNew: true });
     const player = { socket, name, deviceId: `dn-${name}-${Date.now()}`, state: null };
-    socket.on("room:update", (state) => { player.state = state; });
+    socket.on("room:update", (state) => {
+      player.state = state;
+    });
     return player;
   }
   async function wait(check, label) {
@@ -209,14 +222,19 @@ function mountNameForm(document, name = "Alice") {
   }
   function emit(socket, event, payload = {}) {
     return new Promise((resolve, reject) => {
-      socket.timeout(4000).emit(event, payload, (err, result) => (err ? reject(err) : resolve(result)));
+      socket
+        .timeout(4000)
+        .emit(event, payload, (err, result) => (err ? reject(err) : resolve(result)));
     });
   }
 
   const alice = connect("Alice");
   const bob = connect("Bob");
   await wait(() => alice.socket.connected && bob.socket.connected, "connect");
-  const created = await emit(alice.socket, "room:create", { name: "Alice", deviceId: alice.deviceId });
+  const created = await emit(alice.socket, "room:create", {
+    name: "Alice",
+    deviceId: alice.deviceId,
+  });
   assert.equal(created.ok, true);
   await emit(bob.socket, "room:join", {
     roomId: created.roomId,
@@ -227,24 +245,38 @@ function mountNameForm(document, name = "Alice") {
 
   const renamed = await emit(bob.socket, "player:setName", { name: "  Bobby Tables  " });
   assert.equal(renamed.ok, true);
-  await wait(() => alice.state?.players?.some((player) => player.name === "Bobby Tables"), "alice sees rename");
-  await wait(() => bob.state?.players?.find((player) => player.isYou)?.name === "Bobby Tables", "bob sees own rename");
+  await wait(
+    () => alice.state?.players?.some((player) => player.name === "Bobby Tables"),
+    "alice sees rename",
+  );
+  await wait(
+    () => bob.state?.players?.find((player) => player.isYou)?.name === "Bobby Tables",
+    "bob sees own rename",
+  );
 
   // No uniqueness rule — duplicates / case variants are allowed.
   const dup = await emit(alice.socket, "player:setName", { name: "bobby tables" });
   assert.equal(dup.ok, true);
   await wait(
-    () => bob.state?.players?.filter((player) => player.name.toLowerCase() === "bobby tables").length === 2,
+    () =>
+      bob.state?.players?.filter((player) => player.name.toLowerCase() === "bobby tables")
+        .length === 2,
     "duplicate names ok",
   );
 
   const long = await emit(bob.socket, "player:setName", { name: "X".repeat(40) });
   assert.equal(long.ok, true);
-  await wait(() => alice.state?.players?.some((player) => player.name === "X".repeat(18)), "max length trim");
+  await wait(
+    () => alice.state?.players?.some((player) => player.name === "X".repeat(18)),
+    "max length trim",
+  );
 
   const emoji = await emit(bob.socket, "player:setName", { name: "♠️Queen" });
   assert.equal(emoji.ok, true);
-  await wait(() => alice.state?.players?.some((player) => player.name === "♠️Queen"), "unicode name");
+  await wait(
+    () => alice.state?.players?.some((player) => player.name === "♠️Queen"),
+    "unicode name",
+  );
 
   alice.socket.close();
   bob.socket.close();

@@ -172,8 +172,8 @@ function moneyTermsForRoom(room) {
 function moneyTermsAccepted(room, acceptedMoneyTerms) {
   const moneyTerms = moneyTermsForRoom(room);
   return Boolean(
-    acceptedMoneyTerms
-    && Object.keys(moneyTerms).every((key) => acceptedMoneyTerms[key] === moneyTerms[key]),
+    acceptedMoneyTerms &&
+    Object.keys(moneyTerms).every((key) => acceptedMoneyTerms[key] === moneyTerms[key]),
   );
 }
 

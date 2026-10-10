@@ -77,7 +77,12 @@ engine.setRandomInt((_max) => 0);
 
   const ready = session.handle("game:ready", {});
   assert.equal(ready.ok, true);
-  assert.ok(updates.at(-1).phase === "preflop" || updates.at(-1).phase === "complete" || updates.at(-1).phase === "showdown" || updates.at(-1).isYourTurn !== undefined);
+  assert.ok(
+    updates.at(-1).phase === "preflop" ||
+      updates.at(-1).phase === "complete" ||
+      updates.at(-1).phase === "showdown" ||
+      updates.at(-1).isYourTurn !== undefined,
+  );
 
   const blocked = session.handle("money:cashIn", { amountCents: 2000 });
   assert.equal(blocked.ok, false);

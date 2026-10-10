@@ -84,14 +84,14 @@ Clients show the soft banner, auto-rejoin by `deviceId`, and reload to the new b
 
 ### Env vars
 
-| Variable | Purpose |
-| --- | --- |
-| `REDIS_URL` | Redis connection URL. When set, room state is stored in Redis instead of the volume file. |
-| `DEPLOY_HAND_WAIT_MS` | Max time to wait for in-progress hands on SIGTERM (default `25000`). Keep below the drain window. |
-| `DEPLOY_TAKEOVER_MS` | Max time a booting Redis replica waits for a handoff marker before taking ownership (default `20000`). Keep under 30s. |
-| `DEPLOY_HANDOFF_POLL_MS` | Poll interval for the durable `holdem:handoff` key (default `200`). |
-| `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` | Set to **`30`** on the Railway service so SIGTERM handling can finish before SIGKILL. |
-| `GAME_STATE_FILE` | File path used when `REDIS_URL` is unset (and as the source for one-time Redis migration). |
+| Variable                              | Purpose                                                                                                                |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `REDIS_URL`                           | Redis connection URL. When set, room state is stored in Redis instead of the volume file.                              |
+| `DEPLOY_HAND_WAIT_MS`                 | Max time to wait for in-progress hands on SIGTERM (default `25000`). Keep below the drain window.                      |
+| `DEPLOY_TAKEOVER_MS`                  | Max time a booting Redis replica waits for a handoff marker before taking ownership (default `20000`). Keep under 30s. |
+| `DEPLOY_HANDOFF_POLL_MS`              | Poll interval for the durable `holdem:handoff` key (default `200`).                                                    |
+| `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` | Set to **`30`** on the Railway service so SIGTERM handling can finish before SIGKILL.                                  |
+| `GAME_STATE_FILE`                     | File path used when `REDIS_URL` is unset (and as the source for one-time Redis migration).                             |
 
 ### Railway settings (Daniel)
 

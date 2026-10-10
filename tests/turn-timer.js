@@ -146,10 +146,7 @@ function makeHandRoom({
   return room;
 }
 
-assert.deepEqual(
-  SHOT_CLOCK_OPTIONS_MS,
-  [0, 15000, 30000, 60000, 90000, 120000, 300000],
-);
+assert.deepEqual(SHOT_CLOCK_OPTIONS_MS, [0, 15000, 30000, 60000, 90000, 120000, 300000]);
 assert.equal(SHOT_CLOCK_DEFAULT_MS, 30000);
 assert.equal(SHOT_CLOCK_MIN_MS, 10000);
 assert.equal(SHOT_CLOCK_MAX_MS, 600000);

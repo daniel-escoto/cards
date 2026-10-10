@@ -37,8 +37,12 @@ for (const key of Object.keys(flags)) {
   Object.defineProperty(api, key, {
     enumerable: true,
     configurable: true,
-    get() { return flags[key]; },
-    set(v) { flags[key] = v; },
+    get() {
+      return flags[key];
+    },
+    set(v) {
+      flags[key] = v;
+    },
   });
 }
 

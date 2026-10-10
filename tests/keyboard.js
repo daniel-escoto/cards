@@ -10,7 +10,11 @@ let handler;
 let menuOpen = false;
 const bindings = { call: "c", ready: " ", fold: "f" };
 const context = {
-  document: { addEventListener: (name, callback) => { handler = callback; } },
+  document: {
+    addEventListener: (name, callback) => {
+      handler = callback;
+    },
+  },
   recordingKeybindAction: "",
   mergePassiveConfirm: false,
   atPassiveDetent: () => true,
@@ -18,12 +22,21 @@ const context = {
   state: { canReady: true, isReady: false, isYourTurn: false },
   gameMenuModal: { classList: { contains: () => !menuOpen } },
   matchesKeybind: (event, action) => event.key === bindings[action],
-  emitWithAck: (event, payload) => messages.push({ event, payload: JSON.parse(JSON.stringify(payload)) }),
+  emitWithAck: (event, payload) =>
+    messages.push({ event, payload: JSON.parse(JSON.stringify(payload)) }),
 };
 vm.runInNewContext(listener, context);
 function press(key, options = {}) {
   let prevented = false;
-  handler({ key, repeat: false, target: { matches: () => false }, preventDefault: () => { prevented = true; }, ...options });
+  handler({
+    key,
+    repeat: false,
+    target: { matches: () => false },
+    preventDefault: () => {
+      prevented = true;
+    },
+    ...options,
+  });
   return prevented;
 }
 assert(press("c"));
@@ -45,7 +58,11 @@ assert.equal(messages.length, 0);
 press("x");
 assert.equal(messages.pop().event, "game:ready", "Honor custom bindings");
 press(" ");
-assert.deepEqual(messages.pop(), { event: "game:ready", payload: {} }, "Keep the dedicated ready toggle");
+assert.deepEqual(
+  messages.pop(),
+  { event: "game:ready", payload: {} },
+  "Keep the dedicated ready toggle",
+);
 context.state = { canReady: false, isYourTurn: true, toCall: 0 };
 press("x");
 assert.deepEqual(messages.pop(), { event: "game:action", payload: { type: "check" } });
@@ -57,7 +74,10 @@ press("x");
 assert.deepEqual(messages.pop(), { event: "game:action", payload: { type: "call" } });
 context.atPassiveDetent = () => false;
 press("x");
-assert.deepEqual(messages.pop(), { event: "game:action", payload: { type: "raise", raiseTo: 100 } });
+assert.deepEqual(messages.pop(), {
+  event: "game:action",
+  payload: { type: "raise", raiseTo: 100 },
+});
 context.state.isYourTurn = false;
 press("x");
 assert.equal(messages.length, 0, "Do not act outside the player's turn");

@@ -17,9 +17,9 @@ async function wait(check) {
 
 function send(p, event, payload = {}) {
   return new Promise((resolve, reject) => {
-    p.socket.timeout(4000).emit(event, payload, (error, result) => (
-      error ? reject(error) : resolve(result)
-    ));
+    p.socket
+      .timeout(4000)
+      .emit(event, payload, (error, result) => (error ? reject(error) : resolve(result)));
   });
 }
 
@@ -51,18 +51,21 @@ function identity(p) {
     markServerListening(true);
     const { port } = server.address();
     url = `http://127.0.0.1:${port}`;
-    closeServer = () => new Promise((resolve) => {
-      io.close(() => {
-        server.close(() => resolve());
+    closeServer = () =>
+      new Promise((resolve) => {
+        io.close(() => {
+          server.close(() => resolve());
+        });
       });
-    });
   }
 
   async function player(name) {
     const socket = io(url, { transports: ["websocket"], forceNew: true });
     sockets.push(socket);
     const p = { socket, name, deviceId: `money-${name}-${Date.now()}`, state: null };
-    socket.on("room:update", (state) => { p.state = state; });
+    socket.on("room:update", (state) => {
+      p.state = state;
+    });
     await wait(() => socket.connected);
     return p;
   }
@@ -122,7 +125,10 @@ function identity(p) {
     await wait(() => late.state.phase === "preflop" && late.state.handNumber === 2);
     assert.equal(hero().waitingForNextHand, false);
     assert.equal(hero().cards.length, 2);
-    assert.equal(late.state.players.reduce((sum, p) => sum + p.stackCents + p.investedCents, 0), 7500);
+    assert.equal(
+      late.state.players.reduce((sum, p) => sum + p.stackCents + p.investedCents, 0),
+      7500,
+    );
     const currentCards = hero().cards;
     await ok(late, "game:sitOut", { sittingOut: true });
     await wait(() => hero().sittingOut);
@@ -166,9 +172,11 @@ function identity(p) {
     for (const socket of sockets) socket.disconnect();
     if (closeServer) await closeServer();
   }
-})().then(() => {
-  process.exit(process.exitCode || 0);
-}).catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+})()
+  .then(() => {
+    process.exit(process.exitCode || 0);
+  })
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });

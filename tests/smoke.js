@@ -17,8 +17,12 @@ function connectPlayer(name) {
     name,
     deviceId: `device-${name.toLowerCase()}`,
     socket,
-    get state() { return state; },
-    get kicked() { return kicked; },
+    get state() {
+      return state;
+    },
+    get kicked() {
+      return kicked;
+    },
   };
 }
 
@@ -26,14 +30,19 @@ function emit(socket, event, payload = {}) {
   return new Promise((resolve, reject) => {
     const nextPayload = { ...payload };
     if (event === "room:join") {
-      const credentials = reconnectCredentials.get(`${String(payload.roomId).toUpperCase()}:${payload.deviceId}`);
+      const credentials = reconnectCredentials.get(
+        `${String(payload.roomId).toUpperCase()}:${payload.deviceId}`,
+      );
       if (credentials) nextPayload.reconnectToken = credentials.reconnectToken;
     }
     socket.emit(event, nextPayload, (response) => {
       if (!response?.ok) reject(new Error(response?.error || `${event} failed`));
       else {
         if ((event === "room:create" || event === "room:join") && response.reconnectToken) {
-          reconnectCredentials.set(`${String(response.roomId).toUpperCase()}:${payload.deviceId}`, response);
+          reconnectCredentials.set(
+            `${String(response.roomId).toUpperCase()}:${payload.deviceId}`,
+            response,
+          );
         }
         resolve(response);
       }
@@ -88,22 +97,46 @@ async function readyUp(players) {
   const carmen = connectPlayer("Carmen");
   const players = [alice, bob, carmen];
 
-  await waitFor(() => alice.socket.connected && bob.socket.connected && carmen.socket.connected, "connections");
-  const created = await emit(alice.socket, "room:create", { name: alice.name, deviceId: alice.deviceId });
-  const qrResponse = await fetch(`${URL}/qr.svg?text=${encodeURIComponent(`${URL}/?room=${created.roomId}`)}`);
+  await waitFor(
+    () => alice.socket.connected && bob.socket.connected && carmen.socket.connected,
+    "connections",
+  );
+  const created = await emit(alice.socket, "room:create", {
+    name: alice.name,
+    deviceId: alice.deviceId,
+  });
+  const qrResponse = await fetch(
+    `${URL}/qr.svg?text=${encodeURIComponent(`${URL}/?room=${created.roomId}`)}`,
+  );
   if (!qrResponse.ok || !(await qrResponse.text()).includes("<svg")) {
     throw new Error("Expected QR endpoint to return SVG");
   }
-  await emit(bob.socket, "room:join", { roomId: created.roomId, name: bob.name, deviceId: bob.deviceId });
-  await emit(carmen.socket, "room:join", { roomId: created.roomId, name: carmen.name, deviceId: carmen.deviceId });
-  await waitFor(() => players.every((player) => player.state?.players.length === 3), "all players in room");
+  await emit(bob.socket, "room:join", {
+    roomId: created.roomId,
+    name: bob.name,
+    deviceId: bob.deviceId,
+  });
+  await emit(carmen.socket, "room:join", {
+    roomId: created.roomId,
+    name: carmen.name,
+    deviceId: carmen.deviceId,
+  });
+  await waitFor(
+    () => players.every((player) => player.state?.players.length === 3),
+    "all players in room",
+  );
   const impersonator = connectPlayer("Impersonator");
   await waitFor(() => impersonator.socket.connected, "impersonator connection");
-  await expectDirectReject(impersonator.socket, "room:join", {
-    roomId: created.roomId,
-    name: "Impersonator",
-    deviceId: alice.deviceId,
-  }, "seat impersonation without reconnect token");
+  await expectDirectReject(
+    impersonator.socket,
+    "room:join",
+    {
+      roomId: created.roomId,
+      name: "Impersonator",
+      deviceId: alice.deviceId,
+    },
+    "seat impersonation without reconnect token",
+  );
   impersonator.socket.disconnect();
   if (alice.state.players.find((player) => player.name === "Alice")?.isHost !== true) {
     throw new Error("Expected host to be marked");
@@ -111,13 +144,24 @@ async function readyUp(players) {
   if (new Set(alice.state.players.map((player) => player.color).filter(Boolean)).size !== 3) {
     throw new Error("Expected real players to receive distinct colors");
   }
-  const nextColor = alice.state.playerColors.find((color) => color !== bob.state.players.find((player) => player.isYou)?.color);
+  const nextColor = alice.state.playerColors.find(
+    (color) => color !== bob.state.players.find((player) => player.isYou)?.color,
+  );
   await emit(bob.socket, "player:setColor", { color: nextColor });
-  await waitFor(() => alice.state?.players.find((player) => player.name === "Bob")?.color === nextColor, "player color update");
+  await waitFor(
+    () => alice.state?.players.find((player) => player.name === "Bob")?.color === nextColor,
+    "player color update",
+  );
   await emit(bob.socket, "player:setName", { name: "Bobby Tables" });
-  await waitFor(() => alice.state?.players.find((player) => player.name === "Bobby Tables"), "player name update");
+  await waitFor(
+    () => alice.state?.players.find((player) => player.name === "Bobby Tables"),
+    "player name update",
+  );
   await emit(bob.socket, "player:setName", { name: "Bob" });
-  await waitFor(() => alice.state?.players.find((player) => player.name === "Bob"), "player name restore");
+  await waitFor(
+    () => alice.state?.players.find((player) => player.name === "Bob"),
+    "player name restore",
+  );
 
   const opsHost = connectPlayer("OpsHost");
   const opsNextHost = connectPlayer("OpsNextHost");
@@ -126,7 +170,10 @@ async function readyUp(players) {
     () => opsHost.socket.connected && opsNextHost.socket.connected && opsKicked.socket.connected,
     "host ops connections",
   );
-  const opsRoom = await emit(opsHost.socket, "room:create", { name: opsHost.name, deviceId: opsHost.deviceId });
+  const opsRoom = await emit(opsHost.socket, "room:create", {
+    name: opsHost.name,
+    deviceId: opsHost.deviceId,
+  });
   await emit(opsNextHost.socket, "room:join", {
     roomId: opsRoom.roomId,
     name: opsNextHost.name,
@@ -156,12 +203,22 @@ async function readyUp(players) {
   const addedBot = opsHost.state.players.find((player) => player.isBot);
   if (!addedBot?.canKick) throw new Error("Expected host to be able to kick CPU players");
   await emit(opsHost.socket, "room:kick", { playerId: addedBot.id });
-  await waitFor(() => opsHost.state?.players.length === 3 && !opsHost.state.players.some((player) => player.isBot), "host kicks CPU player");
+  await waitFor(
+    () =>
+      opsHost.state?.players.length === 3 && !opsHost.state.players.some((player) => player.isBot),
+    "host kicks CPU player",
+  );
   await emit(opsHost.socket, "room:makeHost", { playerId: nextHostId });
-  await waitFor(() => opsNextHost.state?.players.find((player) => player.name === "OpsNextHost")?.isHost, "host ops transfer");
+  await waitFor(
+    () => opsNextHost.state?.players.find((player) => player.name === "OpsNextHost")?.isHost,
+    "host ops transfer",
+  );
   await emit(opsNextHost.socket, "room:kick", { playerId: kickedId });
   await waitFor(
-    () => opsKicked.kicked && opsHost.state?.players.length === 2 && !opsHost.state.players.some((player) => player.name === "OpsKicked"),
+    () =>
+      opsKicked.kicked &&
+      opsHost.state?.players.length === 2 &&
+      !opsHost.state.players.some((player) => player.name === "OpsKicked"),
     "host ops kick",
   );
   opsHost.socket.disconnect();
@@ -170,12 +227,23 @@ async function readyUp(players) {
 
   const aliceAgain = connectPlayer("Alice");
   await waitFor(() => aliceAgain.socket.connected, "host duplicate connection");
-  await emit(aliceAgain.socket, "room:join", { roomId: created.roomId, name: aliceAgain.name, deviceId: alice.deviceId });
-  await waitFor(() => alice.state?.players.length === 3 && aliceAgain.state?.players.length === 3, "duplicate host updates");
+  await emit(aliceAgain.socket, "room:join", {
+    roomId: created.roomId,
+    name: aliceAgain.name,
+    deviceId: alice.deviceId,
+  });
+  await waitFor(
+    () => alice.state?.players.length === 3 && aliceAgain.state?.players.length === 3,
+    "duplicate host updates",
+  );
 
   const bobAgain = connectPlayer("Bob");
   await waitFor(() => bobAgain.socket.connected, "rejoin connection");
-  await emit(bobAgain.socket, "room:join", { roomId: created.roomId, name: bobAgain.name, deviceId: bob.deviceId });
+  await emit(bobAgain.socket, "room:join", {
+    roomId: created.roomId,
+    name: bobAgain.name,
+    deviceId: bob.deviceId,
+  });
   await waitFor(() => bobAgain.state?.players.length === 3, "idempotent rejoin");
   if (bobAgain.state.players.filter((player) => player.name === "Bob").length !== 1) {
     throw new Error("Rejoin created a duplicate player");
@@ -183,16 +251,27 @@ async function readyUp(players) {
   const bobId = alice.state.players.find((player) => player.name === "Bob")?.id;
   const aliceId = alice.state.players.find((player) => player.name === "Alice")?.id;
   await emit(alice.socket, "room:makeHost", { playerId: bobId });
-  await waitFor(() => bobAgain.state?.players.find((player) => player.name === "Bob")?.isHost, "host transfer to Bob");
+  await waitFor(
+    () => bobAgain.state?.players.find((player) => player.name === "Bob")?.isHost,
+    "host transfer to Bob",
+  );
   await emit(bobAgain.socket, "room:makeHost", { playerId: aliceId });
-  await waitFor(() => alice.state?.players.find((player) => player.name === "Alice")?.isHost, "host transfer back to Alice");
+  await waitFor(
+    () => alice.state?.players.find((player) => player.name === "Alice")?.isHost,
+    "host transfer back to Alice",
+  );
   bob.socket.disconnect();
   players[1] = bobAgain;
 
   await expectReject(alice.socket, "game:start", {}, "host bypassing readiness");
   await emit(alice.socket, "game:ready", { ready: true });
   await emit(bobAgain.socket, "game:ready", { ready: true });
-  await waitFor(() => alice.state?.phase === "lobby" && alice.state.players.filter((player) => player.ready).length === 2, "partial readiness");
+  await waitFor(
+    () =>
+      alice.state?.phase === "lobby" &&
+      alice.state.players.filter((player) => player.ready).length === 2,
+    "partial readiness",
+  );
   await emit(carmen.socket, "game:ready", { ready: true });
   await waitFor(() => alice.state?.phase === "preflop", "hand start");
   if (alice.state.canRestartGame || alice.state.canEndGame) {
@@ -205,7 +284,12 @@ async function readyUp(players) {
   await expectReject(bobAgain.socket, "game:end", {}, "non-host end game");
   await expectReject(alice.socket, "game:restart", {}, "live-hand restart");
   await expectReject(alice.socket, "game:end", {}, "live-hand end game");
-  await expectReject(alice.socket, "game:setBlinds", { smallBlind: 20, bigBlind: 40 }, "live-hand blind change");
+  await expectReject(
+    alice.socket,
+    "game:setBlinds",
+    { smallBlind: 20, bigBlind: 40 },
+    "live-hand blind change",
+  );
   const bobViewOfAlice = bobAgain.state.players.find((player) => player.name === "Alice");
   if (bobViewOfAlice?.cards.some((card) => card?.code)) {
     throw new Error("Expected table cards to stay hidden from opponents");
@@ -219,8 +303,15 @@ async function readyUp(players) {
   carmen.socket.disconnect();
   const carmenAgain = connectPlayer("Carmen");
   await waitFor(() => carmenAgain.socket.connected, "in-progress rejoin connection");
-  await emit(carmenAgain.socket, "room:join", { roomId: created.roomId, name: carmenAgain.name, deviceId: carmen.deviceId });
-  await waitFor(() => carmenAgain.state?.phase === "preflop" && carmenAgain.state?.players.length === 3, "in-progress existing player rejoin");
+  await emit(carmenAgain.socket, "room:join", {
+    roomId: created.roomId,
+    name: carmenAgain.name,
+    deviceId: carmen.deviceId,
+  });
+  await waitFor(
+    () => carmenAgain.state?.phase === "preflop" && carmenAgain.state?.players.length === 3,
+    "in-progress existing player rejoin",
+  );
   players[2] = carmenAgain;
   aliceAgain.socket.disconnect();
   let sawBettingAction = false;
@@ -233,20 +324,28 @@ async function readyUp(players) {
     }
     const type = current.state.toCall > 0 ? "call" : "check";
     await emit(current.socket, "game:action", { type });
-    sawBettingAction = sawBettingAction || Boolean(alice.state.actionLog?.some((entry) => (
-      entry.text.includes("calls") || entry.text.includes("checks")
-    )));
+    sawBettingAction =
+      sawBettingAction ||
+      Boolean(
+        alice.state.actionLog?.some(
+          (entry) => entry.text.includes("calls") || entry.text.includes("checks"),
+        ),
+      );
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
 
-  if (alice.state.phase !== "complete") throw new Error(`Expected complete hand, got ${alice.state.phase}`);
+  if (alice.state.phase !== "complete")
+    throw new Error(`Expected complete hand, got ${alice.state.phase}`);
   if (!sawBettingAction) throw new Error("Expected action log to include betting actions");
   if (!alice.state.winners.length) throw new Error("Expected at least one winner");
-  if (alice.state.canAddBot) throw new Error("Expected add CPU player to stay hidden after the game begins");
+  if (alice.state.canAddBot)
+    throw new Error("Expected add CPU player to stay hidden after the game begins");
   await expectReject(alice.socket, "room:addBot", {}, "adding a CPU player after the game begins");
-  const duplicateWinner = alice.state.winners.find((winner, index, list) => (
-    list.findIndex((item) => item.playerId === winner.playerId && item.hand === winner.hand) !== index
-  ));
+  const duplicateWinner = alice.state.winners.find(
+    (winner, index, list) =>
+      list.findIndex((item) => item.playerId === winner.playerId && item.hand === winner.hand) !==
+      index,
+  );
   if (duplicateWinner) throw new Error("Expected same-player same-hand side pots to be combined");
   if (alice.state.players.reduce((sum, player) => sum + player.stack, 0) !== 3000) {
     throw new Error("Chip totals did not balance after showdown");
@@ -254,30 +353,52 @@ async function readyUp(players) {
   const winnerIds = new Set(alice.state.winners.map((winner) => winner.playerId));
   // Show-order rules: non-winners who must show (first to act, or still live for a pot)
   // are legitimately revealed. Only mucked hands stay private.
-  for (const player of alice.state.players.filter((item) => !item.isYou && !item.isBot && !winnerIds.has(item.id))) {
+  for (const player of alice.state.players.filter(
+    (item) => !item.isYou && !item.isBot && !winnerIds.has(item.id),
+  )) {
     if (player.showCards) {
       if (!player.cards.every((card) => card?.code)) {
         throw new Error(`Expected required-show non-winner ${player.name} cards to be exposed`);
       }
     } else if (player.cards.some((card) => card?.code)) {
-      throw new Error(`Expected mucked opponent ${player.name} cards to stay hidden after hand completion`);
+      throw new Error(
+        `Expected mucked opponent ${player.name} cards to stay hidden after hand completion`,
+      );
     }
   }
-  if (alice.state.winners.some((winner) => !alice.state.players.find((player) => player.id === winner.playerId)?.cards.every((card) => card?.code))) {
+  if (
+    alice.state.winners.some(
+      (winner) =>
+        !alice.state.players
+          .find((player) => player.id === winner.playerId)
+          ?.cards.every((card) => card?.code),
+    )
+  ) {
     throw new Error("Expected called-showdown winning cards to be exposed");
   }
   await emit(alice.socket, "game:showCards");
   await waitFor(() => alice.state.players.find((player) => player.isYou)?.showCards, "show hand");
-  if (!bobAgain.state.players.find((player) => player.name === "Alice")?.cards.every((card) => card?.code)) {
+  if (
+    !bobAgain.state.players
+      .find((player) => player.name === "Alice")
+      ?.cards.every((card) => card?.code)
+  ) {
     throw new Error("Expected shown hand to be visible to other players");
   }
   const completedHandNumber = alice.state.handNumber;
   await readyUp(players);
-  await waitFor(() => alice.state?.phase === "preflop" && alice.state?.handNumber === completedHandNumber + 1, "next hand start");
+  await waitFor(
+    () => alice.state?.phase === "preflop" && alice.state?.handNumber === completedHandNumber + 1,
+    "next hand start",
+  );
   if (alice.state.actionLog.some((entry) => !entry.id.startsWith(`${alice.state.handNumber}-`))) {
     throw new Error("Expected next hand to reset previous hand history");
   }
-  if (!alice.state.actionLog.some((entry) => entry.id.startsWith(`${alice.state.handNumber}-`) && entry.text.includes("blind"))) {
+  if (
+    !alice.state.actionLog.some(
+      (entry) => entry.id.startsWith(`${alice.state.handNumber}-`) && entry.text.includes("blind"),
+    )
+  ) {
     throw new Error("Expected new hand history to include blind posts");
   }
 
@@ -296,7 +417,11 @@ async function readyUp(players) {
   await new Promise((resolve) => setTimeout(resolve, 900));
   const idleReturn = connectPlayer("Idle");
   await waitFor(() => idleReturn.socket.connected, "idle game rejoin connection");
-  await emit(idleReturn.socket, "room:join", { roomId: idle.state.id, name: idleReturn.name, deviceId: idle.deviceId });
+  await emit(idleReturn.socket, "room:join", {
+    roomId: idle.state.id,
+    name: idleReturn.name,
+    deviceId: idle.deviceId,
+  });
   await waitFor(() => idleReturn.state?.phase === "preflop", "idle game rejoin");
   const idleReturnSignature = `${idleReturn.state.phase}:${idleReturn.state.turn}:${idleReturn.state.actionLog.length}:${idleReturn.state.pot}`;
   if (idleReturnSignature !== idleSignature) {
@@ -314,7 +439,11 @@ async function readyUp(players) {
   if (solo.state.players.filter((player) => player.isBot).length !== 3) {
     throw new Error("Expected three computer players");
   }
-  if (!solo.state.players.filter((player) => player.isBot).every((player) => /^[A-Z][a-z]+[A-Z][a-z]+$/.test(player.name))) {
+  if (
+    !solo.state.players
+      .filter((player) => player.isBot)
+      .every((player) => /^[A-Z][a-z]+[A-Z][a-z]+$/.test(player.name))
+  ) {
     throw new Error("Expected procedural gamer tags for CPU players");
   }
   if (solo.state.players.some((player) => player.isBot && !player.connected)) {
@@ -338,10 +467,18 @@ async function readyUp(players) {
     }
     await new Promise((resolve) => setTimeout(resolve, 75));
   }
-  if (solo.state.phase !== "complete") throw new Error(`Expected computer hand to complete, got ${solo.state.phase}`);
+  if (solo.state.phase !== "complete")
+    throw new Error(`Expected computer hand to complete, got ${solo.state.phase}`);
 
-  await emit(dana.socket, "room:join", { roomId: solo.state.id, name: dana.name, deviceId: dana.deviceId });
-  await waitFor(() => dana.state?.phase === "complete" && dana.state?.players.length === 4, "between-hand bot takeover");
+  await emit(dana.socket, "room:join", {
+    roomId: solo.state.id,
+    name: dana.name,
+    deviceId: dana.deviceId,
+  });
+  await waitFor(
+    () => dana.state?.phase === "complete" && dana.state?.players.length === 4,
+    "between-hand bot takeover",
+  );
   if (dana.state.players.filter((player) => player.isBot).length !== 2) {
     throw new Error("Expected joining player to take a CPU seat");
   }
@@ -353,17 +490,39 @@ async function readyUp(players) {
   }, "leave grace timer");
   const danaReturn = connectPlayer("Dana");
   await waitFor(() => danaReturn.socket.connected, "reserved seat rejoin connection");
-  await emit(danaReturn.socket, "room:join", { roomId: solo.state.id, name: danaReturn.name, deviceId: dana.deviceId });
-  await waitFor(() => danaReturn.state?.players[danaSeatIndex]?.name === "Dana" && danaReturn.state.players[danaSeatIndex].connected, "same seat rejoin");
+  await emit(danaReturn.socket, "room:join", {
+    roomId: solo.state.id,
+    name: danaReturn.name,
+    deviceId: dana.deviceId,
+  });
+  await waitFor(
+    () =>
+      danaReturn.state?.players[danaSeatIndex]?.name === "Dana" &&
+      danaReturn.state.players[danaSeatIndex].connected,
+    "same seat rejoin",
+  );
   if (danaReturn.state.players.filter((player) => player.isBot).length !== 2) {
     throw new Error("Expected rejoin before grace to keep the reserved seat");
   }
   danaReturn.socket.disconnect();
-  await waitFor(() => solo.state?.players.filter((player) => player.isBot).length === 3, "drop-out CPU replacement", 35000);
+  await waitFor(
+    () => solo.state?.players.filter((player) => player.isBot).length === 3,
+    "drop-out CPU replacement",
+    35000,
+  );
   const danaLate = connectPlayer("Dana");
   await waitFor(() => danaLate.socket.connected, "late reserved seat rejoin connection");
-  await emit(danaLate.socket, "room:join", { roomId: solo.state.id, name: danaLate.name, deviceId: dana.deviceId });
-  await waitFor(() => danaLate.state?.players[danaSeatIndex]?.name === "Dana" && danaLate.state.players[danaSeatIndex].connected, "same replacement seat rejoin");
+  await emit(danaLate.socket, "room:join", {
+    roomId: solo.state.id,
+    name: danaLate.name,
+    deviceId: dana.deviceId,
+  });
+  await waitFor(
+    () =>
+      danaLate.state?.players[danaSeatIndex]?.name === "Dana" &&
+      danaLate.state.players[danaSeatIndex].connected,
+    "same replacement seat rejoin",
+  );
   if (danaLate.state.players.filter((player) => player.isBot).length !== 2) {
     throw new Error("Expected late rejoin to reclaim the replacement CPU seat");
   }
@@ -381,30 +540,52 @@ async function readyUp(players) {
         throw new Error(`Expected required-show CPU ${player.name} cards to be exposed`);
       }
     } else if (player.cards.some((card) => card?.code)) {
-      throw new Error(`Expected mucked CPU ${player.name} cards to stay hidden after hand completion`);
+      throw new Error(
+        `Expected mucked CPU ${player.name} cards to stay hidden after hand completion`,
+      );
     }
   }
-  if (solo.state.winners.some((winner) => {
-    const seat = solo.state.players.find((player) => player.id === winner.playerId);
-    return seat && !seat.cards.every((card) => card?.code);
-  })) {
+  if (
+    solo.state.winners.some((winner) => {
+      const seat = solo.state.players.find((player) => player.id === winner.playerId);
+      return seat && !seat.cards.every((card) => card?.code);
+    })
+  ) {
     throw new Error("Expected showdown winner cards to be exposed");
   }
 
   const finalA = connectPlayer("FinalA");
   const finalB = connectPlayer("FinalB");
-  await waitFor(() => finalA.socket.connected && finalB.socket.connected, "final table connections");
+  await waitFor(
+    () => finalA.socket.connected && finalB.socket.connected,
+    "final table connections",
+  );
   const finalRoom = await emit(finalA.socket, "room:create", {
     name: finalA.name,
     deviceId: finalA.deviceId,
     smallBlind: 5,
     bigBlind: 10,
   });
-  await emit(finalB.socket, "room:join", { roomId: finalRoom.roomId, name: finalB.name, deviceId: finalB.deviceId });
-  await waitFor(() => finalA.state?.players.length === 2 && finalB.state?.players.length === 2, "final table seated");
-  await expectReject(finalB.socket, "game:setBlinds", { smallBlind: 6, bigBlind: 12 }, "non-host blind change");
+  await emit(finalB.socket, "room:join", {
+    roomId: finalRoom.roomId,
+    name: finalB.name,
+    deviceId: finalB.deviceId,
+  });
+  await waitFor(
+    () => finalA.state?.players.length === 2 && finalB.state?.players.length === 2,
+    "final table seated",
+  );
+  await expectReject(
+    finalB.socket,
+    "game:setBlinds",
+    { smallBlind: 6, bigBlind: 12 },
+    "non-host blind change",
+  );
   await emit(finalA.socket, "game:setBlinds", { smallBlind: 6, bigBlind: 12 });
-  await waitFor(() => finalA.state?.smallBlind === 6 && finalA.state?.bigBlind === 12, "host blind change");
+  await waitFor(
+    () => finalA.state?.smallBlind === 6 && finalA.state?.bigBlind === 12,
+    "host blind change",
+  );
 
   for (let hand = 0; hand < 10 && finalA.state.phase !== "gameover"; hand += 1) {
     await readyUp([finalA, finalB]);
@@ -424,12 +605,18 @@ async function readyUp(players) {
       if (maxRaise > current.state.currentBet) {
         await emit(current.socket, "game:action", { type: "raise", raiseTo: maxRaise });
       } else {
-        await emit(current.socket, "game:action", { type: current.state.toCall > 0 ? "call" : "check" });
+        await emit(current.socket, "game:action", {
+          type: current.state.toCall > 0 ? "call" : "check",
+        });
       }
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
     if (finalA.state.phase === "showdown") {
-      await waitFor(() => ["complete", "gameover"].includes(finalA.state?.phase), "showdown reveal", 4000);
+      await waitFor(
+        () => ["complete", "gameover"].includes(finalA.state?.phase),
+        "showdown reveal",
+        4000,
+      );
     }
   }
 
@@ -461,7 +648,10 @@ async function readyUp(players) {
     deviceId: clampedHost.deviceId,
     tableSize: 10,
   });
-  await waitFor(() => clampedHost.state?.players.length === 9, "oversized tableSize clamps to nine");
+  await waitFor(
+    () => clampedHost.state?.players.length === 9,
+    "oversized tableSize clamps to nine",
+  );
   const fillHost = connectPlayer("FillHost");
   await waitFor(() => fillHost.socket.connected, "fill host connection");
   await emit(fillHost.socket, "room:create", {
@@ -472,7 +662,10 @@ async function readyUp(players) {
   for (let i = 0; i < 8; i += 1) {
     await emit(fillHost.socket, "room:addBot");
   }
-  await waitFor(() => fillHost.state?.players.length === 9 && !fillHost.state.canAddBot, "host can seat eight CPUs for nine-max");
+  await waitFor(
+    () => fillHost.state?.players.length === 9 && !fillHost.state.canAddBot,
+    "host can seat eight CPUs for nine-max",
+  );
   nineHost.socket.disconnect();
   clampedHost.socket.disconnect();
   fillHost.socket.disconnect();
@@ -492,16 +685,27 @@ async function readyUp(players) {
     throw new Error("Expected money-mode blinds to preserve dollar amounts");
   }
   await emit(cashHost.socket, "game:setBlinds", { smallBlindCents: 12, bigBlindCents: 24 });
-  await waitFor(() => cashHost.state?.smallBlindCents === 12 && cashHost.state?.bigBlindCents === 24, "cash blind change");
+  await waitFor(
+    () => cashHost.state?.smallBlindCents === 12 && cashHost.state?.bigBlindCents === 24,
+    "cash blind change",
+  );
   await emit(cashHost.socket, "money:cashIn", { amountCents: 101 });
-  await waitFor(() => cashHost.state?.players.find((player) => player.isYou)?.stackCents === 2601, "cent-precise cash-in");
+  await waitFor(
+    () => cashHost.state?.players.find((player) => player.isYou)?.stackCents === 2601,
+    "cent-precise cash-in",
+  );
   const cashGuest = connectPlayer("CashGuest");
   await waitFor(() => cashGuest.socket.connected, "cash guest connection");
   await emit(cashGuest.socket, "room:join", {
     roomId: cashRoom.roomId,
     name: cashGuest.name,
     deviceId: cashGuest.deviceId,
-    acceptedMoneyTerms: { roomId: cashRoom.roomId, buyInCents: 2500, smallBlindCents: 12, bigBlindCents: 24 },
+    acceptedMoneyTerms: {
+      roomId: cashRoom.roomId,
+      buyInCents: 2500,
+      smallBlindCents: 12,
+      bigBlindCents: 24,
+    },
   });
   await waitFor(() => cashHost.state?.players.length === 2, "cash guest seated");
   await emit(cashGuest.socket, "money:cashOut");
@@ -510,7 +714,11 @@ async function readyUp(players) {
   await emit(cashHost.socket, "game:end");
   await waitFor(() => cashHost.state?.phase === "gameover", "cash game settlement");
   const departedLedger = cashHost.state.ledger.find((entry) => entry.name === "CashGuest");
-  if (!departedLedger || departedLedger.buyInsCents !== 2500 || departedLedger.cashOutCents !== 2500) {
+  if (
+    !departedLedger ||
+    departedLedger.buyInsCents !== 2500 ||
+    departedLedger.cashOutCents !== 2500
+  ) {
     throw new Error("Expected departed cash player to remain in the final ledger");
   }
 

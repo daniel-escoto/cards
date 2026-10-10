@@ -13,7 +13,10 @@ function clearHandoffWaiters() {
   }
 }
 
-function isRelevantHandoffMeta(meta, { waitStartedAtMs = api.handoffWaitStartedAtMs, now = Date.now() } = {}) {
+function isRelevantHandoffMeta(
+  meta,
+  { waitStartedAtMs = api.handoffWaitStartedAtMs, now = Date.now() } = {},
+) {
   if (!meta || typeof meta !== "object") return false;
   const atMs = Date.parse(meta.at || "");
   const flushedMs = Date.parse(meta.flushedAt || meta.shutdownFlushedAt || "");
@@ -22,7 +25,8 @@ function isRelevantHandoffMeta(meta, { waitStartedAtMs = api.handoffWaitStartedA
   // Allow small clock skew; markers from the draining peer land at/after wait start.
   if (waitStartedAtMs && stampMs >= waitStartedAtMs - 5000) return true;
   // Stop-then-start: marker may predate wait start but still be a fresh shutdown flush.
-  if (meta.shutdown === true && Number.isFinite(stampMs) && now - stampMs < 5 * 60 * 1000) return true;
+  if (meta.shutdown === true && Number.isFinite(stampMs) && now - stampMs < 5 * 60 * 1000)
+    return true;
   return false;
 }
 
@@ -46,8 +50,8 @@ async function completeHandoffTakeover(reason = "handoff", handoffMeta = null) {
   api.handoffComplete = true;
   for (const id of api.rooms.keys()) api.liveRoomIds.add(id);
   console.log(
-    `Redis handoff complete (${reason}); owning ${api.rooms.size} room(s)`
-    + (pad ? ` (+${pad}ms timer pad)` : ""),
+    `Redis handoff complete (${reason}); owning ${api.rooms.size} room(s)` +
+      (pad ? ` (+${pad}ms timer pad)` : ""),
   );
   return { ok: true, reason, pad, meta };
 }

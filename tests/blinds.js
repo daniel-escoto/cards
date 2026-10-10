@@ -24,7 +24,15 @@ for (const [handNumber, smallBlind, bigBlind] of expected) {
   );
 }
 
-assert.strictEqual(blindLevelForHand(0), BLIND_LEVELS[0], "lobby/default state should use opening blinds");
-assert.strictEqual(blindLevelForHand("bad"), BLIND_LEVELS[0], "invalid hand numbers should use opening blinds");
+assert.strictEqual(
+  blindLevelForHand(0),
+  BLIND_LEVELS[0],
+  "lobby/default state should use opening blinds",
+);
+assert.strictEqual(
+  blindLevelForHand("bad"),
+  BLIND_LEVELS[0],
+  "invalid hand numbers should use opening blinds",
+);
 
 console.log("Blind schedule test passed");

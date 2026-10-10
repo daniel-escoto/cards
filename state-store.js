@@ -204,10 +204,13 @@ function createStateStore(options = {}) {
   if (redisUrl) {
     return createRedisStateStore(redisUrl, { createClient: options.createClient });
   }
-  const filePath = options.filePath
-    || process.env.GAME_STATE_FILE
-    || path.join(
-      process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DATA_DIR || path.join(__dirname, ".data"),
+  const filePath =
+    options.filePath ||
+    process.env.GAME_STATE_FILE ||
+    path.join(
+      process.env.RAILWAY_VOLUME_MOUNT_PATH ||
+        process.env.DATA_DIR ||
+        path.join(__dirname, ".data"),
       "rooms.json",
     );
   return createFileStateStore(filePath);

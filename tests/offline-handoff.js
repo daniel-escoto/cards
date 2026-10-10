@@ -14,38 +14,65 @@ function publicSnapshot(room, viewerId) {
 
 {
   assert.equal(canHandoffToOffline(null), false);
-  assert.equal(canHandoffToOffline({ offline: true, moneyMode: false, phase: "flop", players: [{ isBot: false, isYou: true }] }), false);
-  assert.equal(canHandoffToOffline({ moneyMode: true, phase: "flop", players: [{ isBot: false, isYou: true }] }), false);
+  assert.equal(
+    canHandoffToOffline({
+      offline: true,
+      moneyMode: false,
+      phase: "flop",
+      players: [{ isBot: false, isYou: true }],
+    }),
+    false,
+  );
+  assert.equal(
+    canHandoffToOffline({
+      moneyMode: true,
+      phase: "flop",
+      players: [{ isBot: false, isYou: true }],
+    }),
+    false,
+  );
   assert.equal(canHandoffToOffline({ moneyMode: false, phase: "flop", players: [] }), false);
-  assert.equal(canHandoffToOffline({
-    moneyMode: false,
-    phase: "flop",
-    players: [
-      { isBot: false, isYou: true },
-      { isBot: false, isYou: false },
-    ],
-  }), false);
-  assert.equal(canHandoffToOffline({
-    moneyMode: false,
-    phase: "flop",
-    players: [
-      { isBot: false, isYou: false },
-      { isBot: true, isYou: false },
-    ],
-  }), false);
-  assert.equal(canHandoffToOffline({
-    moneyMode: false,
-    phase: "preflop",
-    players: [
-      { isBot: false, isYou: true },
-      { isBot: true, isYou: false },
-    ],
-  }), true);
-  assert.equal(canHandoffToOffline({
-    moneyMode: false,
-    phase: "lobby",
-    players: [{ isBot: false, isYou: true }],
-  }), true);
+  assert.equal(
+    canHandoffToOffline({
+      moneyMode: false,
+      phase: "flop",
+      players: [
+        { isBot: false, isYou: true },
+        { isBot: false, isYou: false },
+      ],
+    }),
+    false,
+  );
+  assert.equal(
+    canHandoffToOffline({
+      moneyMode: false,
+      phase: "flop",
+      players: [
+        { isBot: false, isYou: false },
+        { isBot: true, isYou: false },
+      ],
+    }),
+    false,
+  );
+  assert.equal(
+    canHandoffToOffline({
+      moneyMode: false,
+      phase: "preflop",
+      players: [
+        { isBot: false, isYou: true },
+        { isBot: true, isYou: false },
+      ],
+    }),
+    true,
+  );
+  assert.equal(
+    canHandoffToOffline({
+      moneyMode: false,
+      phase: "lobby",
+      players: [{ isBot: false, isYou: true }],
+    }),
+    true,
+  );
 }
 
 {
@@ -62,16 +89,26 @@ function publicSnapshot(room, viewerId) {
   assert.equal(room.phase, "preflop");
 
   // Drive to a known hero-to-act spot when possible.
-  for (let guard = 0; guard < 12 && room.turn && room.turn !== "hero" && engine.isHandInProgress(room); guard += 1) {
+  for (
+    let guard = 0;
+    guard < 12 && room.turn && room.turn !== "hero" && engine.isHandInProgress(room);
+    guard += 1
+  ) {
     const actor = room.players.find((player) => player.id === room.turn);
     if (!actor?.isBot) break;
-    engine.applyPlayerAction(room, actor.id, { type: actor.bet < room.currentBet ? "call" : "check" });
+    engine.applyPlayerAction(room, actor.id, {
+      type: actor.bet < room.currentBet ? "call" : "check",
+    });
   }
 
   const before = publicSnapshot(room, "hero");
   assert.equal(canHandoffToOffline({ ...before, offline: false }), true);
 
-  const hydrated = engine.hydratePracticeRoomFromSnapshot({ ...before, offline: false, id: "ABCD" });
+  const hydrated = engine.hydratePracticeRoomFromSnapshot({
+    ...before,
+    offline: false,
+    id: "ABCD",
+  });
   assert.equal(hydrated.offline, true);
   assert.equal(hydrated.moneyMode, false);
   assert.equal(hydrated.hostId, "hero");
@@ -84,13 +121,18 @@ function publicSnapshot(room, viewerId) {
   assert.equal(engine.collectPot(hydrated), before.pot);
 
   const hero = hydrated.players.find((player) => player.id === "hero");
-  assert.deepEqual(hero.hand, before.players.find((player) => player.isYou).cards.map((card) => card.code));
-  assert.ok(hydrated.players.every((player) => {
-    const seat = before.players.find((item) => item.id === player.id);
-    if (seat.waitingForNextHand || seat.sittingOut) return player.hand.length === 0;
-    if (!engine.isHandInProgress(hydrated) && hydrated.phase !== "complete") return true;
-    return player.hand.length === 2;
-  }));
+  assert.deepEqual(
+    hero.hand,
+    before.players.find((player) => player.isYou).cards.map((card) => card.code),
+  );
+  assert.ok(
+    hydrated.players.every((player) => {
+      const seat = before.players.find((item) => item.id === player.id);
+      if (seat.waitingForNextHand || seat.sittingOut) return player.hand.length === 0;
+      if (!engine.isHandInProgress(hydrated) && hydrated.phase !== "complete") return true;
+      return player.hand.length === 2;
+    }),
+  );
 
   // Bot hole cards were hidden online; hydration invents replacements so play can continue.
   const bot = hydrated.players.find((player) => player.isBot);
@@ -131,7 +173,10 @@ function publicSnapshot(room, viewerId) {
   assert.equal(updates[0].moneyMode, false);
   assert.equal(updates[0].phase, snap.phase);
   assert.equal(updates[0].pot, snap.pot);
-  assert.equal(updates[0].players.find((player) => player.isYou).stack, snap.players.find((player) => player.isYou).stack);
+  assert.equal(
+    updates[0].players.find((player) => player.isYou).stack,
+    snap.players.find((player) => player.isYou).stack,
+  );
 
   // Reconnect must not be implied — session stays the practice controller.
   assert.equal(session.snapshot().offline, true);

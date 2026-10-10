@@ -28,15 +28,21 @@ const APP_SHELL = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()),
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => cache.addAll(APP_SHELL))
+      .then(() => self.skipWaiting()),
   );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(
-      keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)),
-    )).then(() => self.clients.claim()),
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))),
+      )
+      .then(() => self.clients.claim()),
   );
 });
 
@@ -52,41 +58,49 @@ self.addEventListener("fetch", (event) => {
   // Always network for the service worker script so deploys activate cleanly.
   if (url.pathname === "/sw.js") return;
 
-  event.respondWith((async () => {
-    const cached = await caches.match(request);
-    if (cached) {
-      // Stale-while-revalidate for shell assets when online.
-      event.waitUntil(
-        fetch(request).then((response) => {
-          if (response && response.ok) {
-            return caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
-          }
-          return undefined;
-        }).catch(() => undefined),
-      );
-      return cached;
-    }
+  event.respondWith(
+    (async () => {
+      const cached = await caches.match(request);
+      if (cached) {
+        // Stale-while-revalidate for shell assets when online.
+        event.waitUntil(
+          fetch(request)
+            .then((response) => {
+              if (response && response.ok) {
+                return caches
+                  .open(CACHE_NAME)
+                  .then((cache) => cache.put(request, response.clone()));
+              }
+              return undefined;
+            })
+            .catch(() => undefined),
+        );
+        return cached;
+      }
 
-    try {
-      const response = await fetch(request);
-      if (response && response.ok && shouldCache(url.pathname)) {
-        const copy = response.clone();
-        const cache = await caches.open(CACHE_NAME);
-        cache.put(request, copy);
+      try {
+        const response = await fetch(request);
+        if (response && response.ok && shouldCache(url.pathname)) {
+          const copy = response.clone();
+          const cache = await caches.open(CACHE_NAME);
+          cache.put(request, copy);
+        }
+        return response;
+      } catch (error) {
+        if (request.mode === "navigate") {
+          const fallback = await caches.match("/index.html");
+          if (fallback) return fallback;
+        }
+        throw error;
       }
-      return response;
-    } catch (error) {
-      if (request.mode === "navigate") {
-        const fallback = await caches.match("/index.html");
-        if (fallback) return fallback;
-      }
-      throw error;
-    }
-  })());
+    })(),
+  );
 });
 
 function shouldCache(pathname) {
-  return APP_SHELL.includes(pathname)
-    || pathname.startsWith("/shared/")
-    || pathname === "/manifest.webmanifest";
+  return (
+    APP_SHELL.includes(pathname) ||
+    pathname.startsWith("/shared/") ||
+    pathname === "/manifest.webmanifest"
+  );
 }

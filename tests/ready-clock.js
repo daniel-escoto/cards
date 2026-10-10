@@ -14,10 +14,22 @@ assert.equal(readyPhaseActive("showdown"), false);
 const ends = 1_000_000;
 const human = { isBot: false, sittingOut: false, ready: false, stack: 1000 };
 assert.equal(seatShowsReadyClock(human, { readyEndsAt: ends, phase: "complete" }), true);
-assert.equal(seatShowsReadyClock({ ...human, ready: true }, { readyEndsAt: ends, phase: "complete" }), false);
-assert.equal(seatShowsReadyClock({ ...human, isBot: true }, { readyEndsAt: ends, phase: "complete" }), false);
-assert.equal(seatShowsReadyClock({ ...human, sittingOut: true }, { readyEndsAt: ends, phase: "complete" }), false);
-assert.equal(seatShowsReadyClock({ ...human, stack: 0 }, { readyEndsAt: ends, phase: "complete" }), false);
+assert.equal(
+  seatShowsReadyClock({ ...human, ready: true }, { readyEndsAt: ends, phase: "complete" }),
+  false,
+);
+assert.equal(
+  seatShowsReadyClock({ ...human, isBot: true }, { readyEndsAt: ends, phase: "complete" }),
+  false,
+);
+assert.equal(
+  seatShowsReadyClock({ ...human, sittingOut: true }, { readyEndsAt: ends, phase: "complete" }),
+  false,
+);
+assert.equal(
+  seatShowsReadyClock({ ...human, stack: 0 }, { readyEndsAt: ends, phase: "complete" }),
+  false,
+);
 assert.equal(seatShowsReadyClock(human, { readyEndsAt: null, phase: "complete" }), false);
 assert.equal(seatShowsReadyClock(human, { readyEndsAt: ends, phase: "preflop" }), false);
 assert.equal(seatShowsReadyClock(null, { readyEndsAt: ends, phase: "lobby" }), false);

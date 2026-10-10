@@ -27,7 +27,7 @@ assert.strictEqual(
 const first = player({ bet: 40 });
 const second = player({ bet: 40 });
 assert.strictEqual(
-  bettingComplete({ players: [first, second], currentBet: 40, acted: new Set(), }),
+  bettingComplete({ players: [first, second], currentBet: 40, acted: new Set() }),
   false,
   "betting should continue when multiple players can still act",
 );

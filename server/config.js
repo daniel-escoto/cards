@@ -13,7 +13,9 @@ const PACKAGE_VERSION = (() => {
 
 const PORT = process.env.PORT || 3000;
 /** Deploy/build identity for client version handoff (Railway commit SHA or package version). */
-const BUILD_ID = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.BUILD_ID || PACKAGE_VERSION).trim() || PACKAGE_VERSION;
+const BUILD_ID =
+  String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.BUILD_ID || PACKAGE_VERSION).trim() ||
+  PACKAGE_VERSION;
 const DEFAULT_BUY_IN_CENTS = 2000;
 
 const {
@@ -79,7 +81,10 @@ const BACKGROUND_DISCONNECT_GRACE_MS = Math.max(
   envNonNegativeMs("BACKGROUND_DISCONNECT_GRACE_MS", 5 * 60 * 1000),
 );
 const BACKGROUND_PRESENCE_TTL_MS = 10 * 60 * 1000;
-const DEFAULT_DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DATA_DIR || path.join(__dirname, "..", ".data");
+const DEFAULT_DATA_DIR =
+  process.env.RAILWAY_VOLUME_MOUNT_PATH ||
+  process.env.DATA_DIR ||
+  path.join(__dirname, "..", ".data");
 const STATE_FILE = process.env.GAME_STATE_FILE || path.join(DEFAULT_DATA_DIR, "rooms.json");
 /** Cap for waiting on in-progress hands during SIGTERM (must stay under Railway's ~30s drain). */
 const DEPLOY_HAND_WAIT_MS = envNonNegativeMs("DEPLOY_HAND_WAIT_MS", 25000);
@@ -105,7 +110,10 @@ const READY_TIMER_DEFAULT_MS = 20000;
 const READY_TIMER_MS = READY_TIMER_DEFAULT_MS;
 const READY_TIMER_MIN_MS = 5000;
 const READY_TIMER_MAX_MS = 300000;
-const DORMANT_ROOM_TTL_MS = Math.max(60000, Number(process.env.DORMANT_ROOM_TTL_MS) || 60 * 60 * 1000);
+const DORMANT_ROOM_TTL_MS = Math.max(
+  60000,
+  Number(process.env.DORMANT_ROOM_TTL_MS) || 60 * 60 * 1000,
+);
 /** Injectable clock for tests (fake timers). Production uses Date/setTimeout. */
 const shotClockTime = {
   now: () => Date.now(),

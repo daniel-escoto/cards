@@ -222,7 +222,10 @@ assert.equal(normalizeReadyTimerMs("abc"), READY_TIMER_DEFAULT_MS);
   assert.equal(room.players[1].sittingOut, true, "non-ready human sits out");
   assert.equal(room.players[1].stack, 1000, "sit-out keeps stack");
   assert.equal(room.players[2].sittingOut, false, "bots are never sat out");
-  assert.ok(["preflop", "flop", "turn", "river"].includes(room.phase), "hand starts with ready + bot");
+  assert.ok(
+    ["preflop", "flop", "turn", "river"].includes(room.phase),
+    "hand starts with ready + bot",
+  );
   assert.equal(room.readyEndsAt, null, "deadline clears at hand start");
   assert.ok(!room.players[1].hand.length, "sat-out player is not dealt");
   assert.ok(room.players[0].hand.length === 2, "ready player is dealt");
@@ -323,7 +326,11 @@ assert.equal(normalizeReadyTimerMs("abc"), READY_TIMER_DEFAULT_MS);
   assert.equal(shotOff.ok, true);
   assert.equal(room.turnTimeLimitMs, 0);
   scheduleReadyTimer(room);
-  assert.equal(room.readyEndsAt, fakeNow + READY_TIMER_DEFAULT_MS, "ready timer still arms when shot clock is Off");
+  assert.equal(
+    room.readyEndsAt,
+    fakeNow + READY_TIMER_DEFAULT_MS,
+    "ready timer still arms when shot clock is Off",
+  );
   cleanupRoom(room);
   resetShotClockTime();
 }

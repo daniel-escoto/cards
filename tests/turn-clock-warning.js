@@ -39,12 +39,20 @@ assert.equal(lowTimeTickSecond(ENDS, ENDS), null);
   assert.equal(session.sawActive, true);
 
   assert.equal(consumeLowTimeTick(session, { turnEndsAt: ENDS, now: ENDS - 4999 }), 5);
-  assert.equal(consumeLowTimeTick(session, { turnEndsAt: ENDS, now: ENDS - 4500 }), null, "same second no double tick");
+  assert.equal(
+    consumeLowTimeTick(session, { turnEndsAt: ENDS, now: ENDS - 4500 }),
+    null,
+    "same second no double tick",
+  );
   assert.equal(consumeLowTimeTick(session, { turnEndsAt: ENDS, now: ENDS - 4000 }), 4);
   assert.equal(consumeLowTimeTick(session, { turnEndsAt: ENDS, now: ENDS - 3000 }), 3);
   assert.equal(consumeLowTimeTick(session, { turnEndsAt: ENDS, now: ENDS - 2000 }), 2);
   assert.equal(consumeLowTimeTick(session, { turnEndsAt: ENDS, now: ENDS - 1000 }), 1);
-  assert.equal(consumeLowTimeTick(session, { turnEndsAt: ENDS, now: ENDS - 100 }), null, "still in second 1");
+  assert.equal(
+    consumeLowTimeTick(session, { turnEndsAt: ENDS, now: ENDS - 100 }),
+    null,
+    "still in second 1",
+  );
   assert.equal(consumeLowTimeTick(session, { turnEndsAt: ENDS, now: ENDS }), null, "expired stops");
 }
 
@@ -70,7 +78,11 @@ assert.equal(lowTimeTickSecond(ENDS, ENDS), null);
   assert.equal(consumeLowTimeTick(session, { turnEndsAt: ENDS, now: ENDS - 4500 }), 5);
 
   const nextEnds = ENDS + 30_000;
-  assert.equal(consumeLowTimeTick(session, { turnEndsAt: nextEnds, now: nextEnds - 4500 }), null, "new deadline mid-window skips");
+  assert.equal(
+    consumeLowTimeTick(session, { turnEndsAt: nextEnds, now: nextEnds - 4500 }),
+    null,
+    "new deadline mid-window skips",
+  );
   assert.equal(session.turnEndsAt, nextEnds);
   assert.equal(consumeLowTimeTick(session, { turnEndsAt: nextEnds, now: nextEnds - 4000 }), 4);
 }
@@ -106,8 +118,16 @@ assert.equal(lowTimeTickSecond(ENDS, ENDS), null);
   assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS - 2000 }), false);
   assert.equal(session.sawActive, true);
   assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS - 1 }), false);
-  assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS }), true, "fires at exact deadline");
-  assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS + 50 }), false, "no double timeout");
+  assert.equal(
+    consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS }),
+    true,
+    "fires at exact deadline",
+  );
+  assert.equal(
+    consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS + 50 }),
+    false,
+    "no double timeout",
+  );
   assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS + 500 }), false);
 }
 
@@ -154,7 +174,10 @@ assert.equal(lowTimeTickSecond(ENDS, ENDS), null);
   consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS - 100 });
   assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: ENDS, now: ENDS }), true);
   const nextEnds = ENDS + 30_000;
-  assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: nextEnds, now: nextEnds - 1000 }), false);
+  assert.equal(
+    consumeDeadlineTimeout(session, { turnEndsAt: nextEnds, now: nextEnds - 1000 }),
+    false,
+  );
   assert.equal(session.turnEndsAt, nextEnds);
   assert.equal(session.sawActive, true);
   assert.equal(consumeDeadlineTimeout(session, { turnEndsAt: nextEnds, now: nextEnds }), true);

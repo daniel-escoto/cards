@@ -1,9 +1,5 @@
 const assert = require("node:assert/strict");
-const {
-  legalRaiseTo,
-  potPresetRaiseTo,
-  clampRaiseTo,
-} = require("../public/raise-sizing.js");
+const { legalRaiseTo, potPresetRaiseTo, clampRaiseTo } = require("../public/raise-sizing.js");
 
 function serverAccepts(raiseTo, { currentBet, minRaise, playerBet, playerStack }) {
   const target = Math.floor(Number(raiseTo));
@@ -45,10 +41,7 @@ function legalPreset(args, bounds) {
     toCall: 0,
   });
   assert.equal(raw, 60, "full pot open stays pot-sized");
-  assert.equal(
-    legalRaiseTo(raw, { minRaiseTo: 20, maxRaiseTo: 1000, step: 20 }),
-    60,
-  );
+  assert.equal(legalRaiseTo(raw, { minRaiseTo: 20, maxRaiseTo: 1000, step: 20 }), 60);
   assert.equal(
     serverAccepts(60, { currentBet: 0, minRaise: 20, playerBet: 0, playerStack: 1000 }),
     true,
@@ -190,10 +183,7 @@ function legalPreset(args, bounds) {
     toCall: 0,
   });
   assert.equal(raw, 38);
-  assert.equal(
-    legalRaiseTo(raw, { minRaiseTo: 10, maxRaiseTo: 5000, step: 10 }),
-    40,
-  );
+  assert.equal(legalRaiseTo(raw, { minRaiseTo: 10, maxRaiseTo: 5000, step: 10 }), 40);
 }
 
 {
@@ -210,10 +200,7 @@ function legalPreset(args, bounds) {
 
 // Omitted toCall defaults to 0 (unopened / check option).
 {
-  assert.equal(
-    potPresetRaiseTo({ pot: 80, currentBet: 0, bigBlind: 20, fraction: 0.5 }),
-    40,
-  );
+  assert.equal(potPresetRaiseTo({ pot: 80, currentBet: 0, bigBlind: 20, fraction: 0.5 }), 40);
 }
 
 // Preset → clamp with Call/Raise merge must keep the sized raise (not snap to Call).

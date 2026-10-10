@@ -21,23 +21,30 @@ function render() {
     watchingCountEl.classList.toggle("hidden", count <= 0);
   }
 
-  const communitySignature = state.community.map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`).join("|");
+  const communitySignature = state.community
+    .map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`)
+    .join("|");
   const expectedCommunityCards = state.phase === "lobby" ? 0 : 5;
-  if (communitySignature !== lastCommunitySignature || community.children.length !== expectedCommunityCards) {
+  if (
+    communitySignature !== lastCommunitySignature ||
+    community.children.length !== expectedCommunityCards
+  ) {
     const previousCommunity = lastCommunitySignature ? lastCommunitySignature.split("|") : [];
     const isInitialBoard = community.children.length === 0 && state.phase !== "lobby";
     const newCommunityCardCount = state.community.filter((card, index) => {
       const cardCode = card?.code || `${card?.rank || ""}${card?.suit || ""}`;
       return Boolean(card && previousCommunity[index] !== cardCode);
     }).length;
-    community.innerHTML = state.phase === "lobby"
-      ? ""
-      : Array.from({ length: 5 }, (_, index) => {
-        const card = state.community[index] || null;
-        const cardCode = card?.code || `${card?.rank || ""}${card?.suit || ""}`;
-        const isNewCard = isInitialBoard || Boolean(card && previousCommunity[index] !== cardCode);
-        return cardTemplate(card, isNewCard ? "card-entering" : "");
-      }).join("");
+    community.innerHTML =
+      state.phase === "lobby"
+        ? ""
+        : Array.from({ length: 5 }, (_, index) => {
+            const card = state.community[index] || null;
+            const cardCode = card?.code || `${card?.rank || ""}${card?.suit || ""}`;
+            const isNewCard =
+              isInitialBoard || Boolean(card && previousCommunity[index] !== cardCode);
+            return cardTemplate(card, isNewCard ? "card-entering" : "");
+          }).join("");
     lastCommunitySignature = communitySignature;
     if (!isFirstTableRender && newCommunityCardCount) tableSounds.deal(newCommunityCardCount);
   }
@@ -57,7 +64,8 @@ function render() {
   lastActionEntryId = latestEntryId;
 
   const hero = activeHero();
-  const showHeroCards = state.phase !== "lobby" && state.phase !== "gameover" && Boolean(hero?.cards?.length);
+  const showHeroCards =
+    state.phase !== "lobby" && state.phase !== "gameover" && Boolean(hero?.cards?.length);
   const heroSignature = showHeroCards
     ? hero.cards.map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`).join("|")
     : "";
@@ -69,14 +77,18 @@ function render() {
     if (heroSignature && !document.hidden) tableSounds.deal(hero?.cards?.length || 1);
     lastHeroSignature = heroSignature;
   }
-  const winnerMarkup = state.winners.map((winner) => {
-    const winnerPlayer = state.players.find((player) => player.id === winner.playerId || player.name === winner.name);
-    return `
+  const winnerMarkup = state.winners
+    .map((winner) => {
+      const winnerPlayer = state.players.find(
+        (player) => player.id === winner.playerId || player.name === winner.name,
+      );
+      return `
       <div ${playerColorStyle(winnerPlayer)}>
         <span class="seat-name">${escapeHtml(winner.name)}</span> wins ${formatAmount(winner.amount, winner.amountCents)} with ${escapeHtml(winner.hand)}
       </div>
     `;
-  }).join("");
+    })
+    .join("");
   if (winnerMarkup !== lastWinnerSignature) {
     winnerList.innerHTML = winnerMarkup;
     if (winnerMarkup) {
@@ -95,7 +107,10 @@ function render() {
     renderShotClockChoices();
     renderReadyTimerChoices();
     const menuHero = activeHero();
-    sitOutBtn.classList.toggle("hidden", !menuHero || isSpectatorView() || state?.phase === "gameover");
+    sitOutBtn.classList.toggle(
+      "hidden",
+      !menuHero || isSpectatorView() || state?.phase === "gameover",
+    );
     if (menuHero) sitOutBtn.textContent = menuHero.sittingOut ? "Sit back in" : "Sit out next hand";
   }
   requestAnimationFrame(() => restoreActionFeedScroll(feedScroll));
@@ -138,11 +153,15 @@ function renderControls(hero) {
       turnInfo.textContent = "Cards down. Revealing the winner…";
       turnInfo.classList.add("showdown-message");
     } else if (["lobby", "complete"].includes(state.phase)) {
-      const humans = state.players.filter((player) => !player.isBot && !player.sittingOut && player.stack > 0);
+      const humans = state.players.filter(
+        (player) => !player.isBot && !player.sittingOut && player.stack > 0,
+      );
       const readyCount = humans.filter((player) => player.ready).length;
-      const readyStatus = humans.length < 2 && state.players.filter((player) => player.stack > 0 && !player.sittingOut).length < 2
-        ? "Watching · waiting for at least two active players."
-        : `Watching · ${readyCount} of ${humans.length} players ready.`;
+      const readyStatus =
+        humans.length < 2 &&
+        state.players.filter((player) => player.stack > 0 && !player.sittingOut).length < 2
+          ? "Watching · waiting for at least two active players."
+          : `Watching · ${readyCount} of ${humans.length} players ready.`;
       turnInfo.replaceChildren();
       turnInfo.append(readyStatus);
       appendReadyCountdown(turnInfo);
@@ -182,9 +201,15 @@ function renderControls(hero) {
     addButton("+ Add CPU player", "room:addBot", "secondary lobby-add-bot");
   }
   if (state.canReady) {
-    const readyShortcut = state.isReady ? keybindLabel(keybinds.ready)
+    const readyShortcut = state.isReady
+      ? keybindLabel(keybinds.ready)
       : [keybinds.ready, keybinds.call].filter(Boolean).map(keybindLabel).join(" / ");
-    addButton(state.isReady ? "Not ready" : "Ready up", "game:ready", state.isReady ? "secondary" : "", readyShortcut);
+    addButton(
+      state.isReady ? "Not ready" : "Ready up",
+      "game:ready",
+      state.isReady ? "secondary" : "",
+      readyShortcut,
+    );
     if (!state.isReady && readyTimerActive()) {
       appendReadyCountdown(gameButtons, { separator: false });
     }
@@ -195,11 +220,15 @@ function renderControls(hero) {
 
   if (!state.isYourTurn || !hero) {
     if (["lobby", "complete"].includes(state.phase)) {
-      const humans = state.players.filter((player) => !player.isBot && !player.sittingOut && player.stack > 0);
+      const humans = state.players.filter(
+        (player) => !player.isBot && !player.sittingOut && player.stack > 0,
+      );
       const readyCount = humans.filter((player) => player.ready).length;
-      const readyStatus = humans.length < 2 && state.players.filter((player) => player.stack > 0 && !player.sittingOut).length < 2
-        ? "Waiting for at least two active players."
-        : `${readyCount} of ${humans.length} players ready.`;
+      const readyStatus =
+        humans.length < 2 &&
+        state.players.filter((player) => player.stack > 0 && !player.sittingOut).length < 2
+          ? "Waiting for at least two active players."
+          : `${readyCount} of ${humans.length} players ready.`;
       turnInfo.replaceChildren();
       turnInfo.append(readyStatus);
       appendReadyCountdown(turnInfo);
@@ -216,9 +245,10 @@ function renderControls(hero) {
     return;
   }
 
-  turnInfo.textContent = state.toCall > 0
-    ? `Pot ${formatAmount(state.pot, state.potCents)}. Call ${formatAmount(state.toCall, state.toCallCents)} to continue.`
-    : `Pot ${formatAmount(state.pot, state.potCents)}. Your turn: check or bet.`;
+  turnInfo.textContent =
+    state.toCall > 0
+      ? `Pot ${formatAmount(state.pot, state.potCents)}. Call ${formatAmount(state.toCall, state.toCallCents)} to continue.`
+      : `Pot ${formatAmount(state.pot, state.potCents)}. Your turn: check or bet.`;
   turnInfo.classList.add("your-turn");
   renderHeroActionControls(hero, false);
 }
@@ -260,7 +290,9 @@ function configureRaiseControls(hero, disabled = false) {
     : maxRaise;
   raiseLabel.textContent = !canFullRaise
     ? "All in"
-    : (state.currentBet > 0 ? "Raise to" : "Bet amount");
+    : state.currentBet > 0
+      ? "Raise to"
+      : "Bet amount";
   raiseControlsDisabled = disabled;
   raiseActionBtn.classList.toggle("hidden", mergePassiveConfirm);
   betControls.querySelector(".raise-row")?.classList.toggle("merge-check-bet", mergePassiveConfirm);
@@ -289,7 +321,9 @@ function raiseBounds() {
 }
 
 function atPassiveDetent() {
-  return mergePassiveConfirm && RaiseSizing.isPassiveDetent(raiseState.value, state?.currentBet || 0);
+  return (
+    mergePassiveConfirm && RaiseSizing.isPassiveDetent(raiseState.value, state?.currentBet || 0)
+  );
 }
 
 function renderBetPresets(hero, disabled, canFullRaise = true) {
@@ -342,18 +376,23 @@ function setRaiseState(next) {
   raiseState.value = clampRaise(raiseState.value);
   // At the passive detent the confirm carries Call/Check; show zero increment here.
   const displayChips = atPassiveDetent() ? 0 : raiseState.value;
-  const formattedAmount = formatAmount(displayChips, Math.round(displayChips * (state?.chipValueCents || 0)));
+  const formattedAmount = formatAmount(
+    displayChips,
+    Math.round(displayChips * (state?.chipValueCents || 0)),
+  );
   raiseAmount.textContent = formattedAmount;
   const allInOnly = raiseState.max <= raiseState.min || raiseState.value >= raiseState.max;
   if (!mergePassiveConfirm) {
     setButtonLabel(
       raiseActionBtn,
-      allInOnly ? "All in" : (state?.currentBet > 0 ? "Raise" : "Bet"),
+      allInOnly ? "All in" : state?.currentBet > 0 ? "Raise" : "Bet",
       keybindLabel(keybinds.raise),
     );
   }
   raiseActionBtn.disabled = raiseControlsDisabled;
-  raiseMinus.disabled = raiseControlsDisabled || (mergePassiveConfirm ? atPassiveDetent() : raiseState.value <= raiseState.min);
+  raiseMinus.disabled =
+    raiseControlsDisabled ||
+    (mergePassiveConfirm ? atPassiveDetent() : raiseState.value <= raiseState.min);
   raisePlus.disabled = raiseControlsDisabled || raiseState.value >= raiseState.max;
   updateConfirmPassiveButton();
 }
@@ -422,9 +461,12 @@ function addButton(label, eventName, className = "", shortcut = "", payload = {}
 function addActionButton(label, payload, className = "", disabled = false) {
   const button = document.createElement("button");
   if (className) button.className = className;
-  const shortcut = payload.type === "fold"
-    ? keybindLabel(keybinds.fold)
-    : ["check", "call"].includes(payload.type) ? keybindLabel(keybinds.call) : "";
+  const shortcut =
+    payload.type === "fold"
+      ? keybindLabel(keybinds.fold)
+      : ["check", "call"].includes(payload.type)
+        ? keybindLabel(keybinds.call)
+        : "";
   setButtonLabel(button, label, shortcut);
   button.disabled = disabled;
   button.addEventListener("click", () => emitWithAck("game:action", payload));
@@ -445,7 +487,9 @@ async function copyText(text, button) {
   const original = button.textContent;
   button.textContent = "Copied";
   showToast("Copied to clipboard");
-  setTimeout(() => { button.textContent = original; }, 1200);
+  setTimeout(() => {
+    button.textContent = original;
+  }, 1200);
 }
 
 function showSharePanel() {
@@ -484,7 +528,10 @@ function emitWithAck(eventName, payload) {
 
 function startOfflineHost() {
   joinError.textContent = "";
-  if (typeof PracticeSession?.createPracticeSession !== "function" || typeof HoldemEngine === "undefined") {
+  if (
+    typeof PracticeSession?.createPracticeSession !== "function" ||
+    typeof HoldemEngine === "undefined"
+  ) {
     joinError.textContent = "Offline engine failed to load. Refresh and try again.";
     return;
   }
@@ -618,28 +665,32 @@ function watchRoom() {
   joinPending = true;
   if (watchBtn) watchBtn.textContent = "Joining...";
   updateTableActionLabel();
-  socket.timeout(4000).emit("room:watch", {
-    name,
-    roomId,
-    deviceId: credentials?.playerId || getDeviceId(),
-    reconnectToken: credentials?.reconnectToken,
-  }, (error, response) => {
-    joinPending = false;
-    updateTableActionLabel();
-    if (error) {
-      joinError.textContent = "Still connecting. Try again.";
-      return;
-    }
-    if (!response?.ok) {
-      joinError.textContent = response?.error || "Could not watch table.";
-      return;
-    }
-    acceptedMoneyTerms = null;
-    watchOfferPending = false;
-    lastAutoRejoinKey = `${socket.id}:${response.roomId || roomId}`;
-    saveRoomCredentials(response.roomId || roomId, { ...response, spectator: true });
-    setRoomUrl(response.roomId || roomId);
-  });
+  socket.timeout(4000).emit(
+    "room:watch",
+    {
+      name,
+      roomId,
+      deviceId: credentials?.playerId || getDeviceId(),
+      reconnectToken: credentials?.reconnectToken,
+    },
+    (error, response) => {
+      joinPending = false;
+      updateTableActionLabel();
+      if (error) {
+        joinError.textContent = "Still connecting. Try again.";
+        return;
+      }
+      if (!response?.ok) {
+        joinError.textContent = response?.error || "Could not watch table.";
+        return;
+      }
+      acceptedMoneyTerms = null;
+      watchOfferPending = false;
+      lastAutoRejoinKey = `${socket.id}:${response.roomId || roomId}`;
+      saveRoomCredentials(response.roomId || roomId, { ...response, spectator: true });
+      setRoomUrl(response.roomId || roomId);
+    },
+  );
 }
 
 function takeSeatFromSpectator() {
@@ -661,7 +712,9 @@ function takeSeatFromSpectator() {
     if (!response?.ok) {
       if (response?.moneyTerms) {
         acceptedMoneyTerms = response.moneyTerms;
-        showToast(`Money game · Buy-in ${formatMoney(response.moneyTerms.buyInCents)}. Confirm to take a seat.`);
+        showToast(
+          `Money game · Buy-in ${formatMoney(response.moneyTerms.buyInCents)}. Confirm to take a seat.`,
+        );
         if (state) renderControls(activeHero());
         return;
       }
@@ -673,5 +726,3 @@ function takeSeatFromSpectator() {
     saveRoomCredentials(response.roomId || state.id, { ...response, spectator: false });
   });
 }
-
-

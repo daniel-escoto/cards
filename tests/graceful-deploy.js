@@ -190,41 +190,65 @@ function connectClient(url) {
 {
   assert.equal(isActiveHandPhase("flop"), true);
   assert.equal(isActiveHandPhase("complete"), false);
-  assert.equal(shouldReloadForNewBuild({
-    clientBuildId: "aaa",
-    serverBuildId: "aaa",
-    phase: "lobby",
-  }), false);
-  assert.equal(shouldReloadForNewBuild({
-    clientBuildId: "aaa",
-    serverBuildId: "bbb",
-    phase: "flop",
-  }), false, "must not reload mid-hand");
-  assert.equal(shouldReloadForNewBuild({
-    clientBuildId: "aaa",
-    serverBuildId: "bbb",
-    phase: "preflop",
-  }), false);
-  assert.equal(shouldReloadForNewBuild({
-    clientBuildId: "aaa",
-    serverBuildId: "bbb",
-    phase: "showdown",
-  }), false);
-  assert.equal(shouldReloadForNewBuild({
-    clientBuildId: "aaa",
-    serverBuildId: "bbb",
-    phase: "complete",
-  }), true, "reload between hands");
-  assert.equal(shouldReloadForNewBuild({
-    clientBuildId: "aaa",
-    serverBuildId: "bbb",
-    phase: "lobby",
-  }), true, "reload when not in a hand");
-  assert.equal(shouldReloadForNewBuild({
-    clientBuildId: null,
-    serverBuildId: "bbb",
-    phase: "lobby",
-  }), false);
+  assert.equal(
+    shouldReloadForNewBuild({
+      clientBuildId: "aaa",
+      serverBuildId: "aaa",
+      phase: "lobby",
+    }),
+    false,
+  );
+  assert.equal(
+    shouldReloadForNewBuild({
+      clientBuildId: "aaa",
+      serverBuildId: "bbb",
+      phase: "flop",
+    }),
+    false,
+    "must not reload mid-hand",
+  );
+  assert.equal(
+    shouldReloadForNewBuild({
+      clientBuildId: "aaa",
+      serverBuildId: "bbb",
+      phase: "preflop",
+    }),
+    false,
+  );
+  assert.equal(
+    shouldReloadForNewBuild({
+      clientBuildId: "aaa",
+      serverBuildId: "bbb",
+      phase: "showdown",
+    }),
+    false,
+  );
+  assert.equal(
+    shouldReloadForNewBuild({
+      clientBuildId: "aaa",
+      serverBuildId: "bbb",
+      phase: "complete",
+    }),
+    true,
+    "reload between hands",
+  );
+  assert.equal(
+    shouldReloadForNewBuild({
+      clientBuildId: "aaa",
+      serverBuildId: "bbb",
+      phase: "lobby",
+    }),
+    true,
+    "reload when not in a hand",
+  );
+  assert.equal(
+    shouldReloadForNewBuild({
+      clientBuildId: null,
+      serverBuildId: "bbb",
+      phase: "lobby",
+    }),
+    false,
+  );
 }
 
 assert.ok(BUILD_ID);
@@ -263,8 +287,11 @@ assert.equal(downtimeMsFromSavedAt("not-a-date", 1_000_000), 0);
     fakeNow += downtimeMs;
     await loadRooms();
     const restored = rooms.get(room.id);
-    assert.equal(restored.turnEndsAt, deadline + downtimeMs,
-      "restore extends turnEndsAt by downtime so remaining time is preserved");
+    assert.equal(
+      restored.turnEndsAt,
+      deadline + downtimeMs,
+      "restore extends turnEndsAt by downtime so remaining time is preserved",
+    );
     assert.ok(restored.turnTimer, "timer re-armed after restore");
     cleanupRoom(restored);
     resetShotClockTime();
@@ -298,14 +325,18 @@ assert.equal(downtimeMsFromSavedAt("not-a-date", 1_000_000), 0);
   assert.equal(helloPayload.buildId, BUILD_ID);
 
   const created = await new Promise((resolve) => {
-    host.emit("room:create", {
-      name: "Alice",
-      deviceId: "device-alice-deploy",
-      moneyMode: true,
-      buyInCents: 2000,
-      smallBlindCents: 10,
-      bigBlindCents: 20,
-    }, resolve);
+    host.emit(
+      "room:create",
+      {
+        name: "Alice",
+        deviceId: "device-alice-deploy",
+        moneyMode: true,
+        buyInCents: 2000,
+        smallBlindCents: 10,
+        bigBlindCents: 20,
+      },
+      resolve,
+    );
   });
   assert.equal(created.ok, true);
   const roomId = created.roomId;
@@ -333,12 +364,16 @@ assert.equal(downtimeMsFromSavedAt("not-a-date", 1_000_000), 0);
     hostAgain.on("room:update", resolve);
   });
   const rejoined = await new Promise((resolve) => {
-    hostAgain.emit("room:join", {
-      roomId,
-      name: "Alice",
-      deviceId: "device-alice-deploy",
-      reconnectToken,
-    }, resolve);
+    hostAgain.emit(
+      "room:join",
+      {
+        roomId,
+        name: "Alice",
+        deviceId: "device-alice-deploy",
+        reconnectToken,
+      },
+      resolve,
+    );
   });
   assert.equal(rejoined.ok, true, "rejoin after restart keeps seat via deviceId");
   const after = await update;
@@ -359,43 +394,51 @@ assert.equal(downtimeMsFromSavedAt("not-a-date", 1_000_000), 0);
   const shutdownPromise = gracefulShutdown("SIGTERM", { exit: false, handWaitMs: 0 });
   const waitingPayload = await Promise.race([
     deployWaiting,
-    new Promise((_, reject) => setTimeout(() => reject(new Error("server:deploy-waiting not received")), 2000)),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("server:deploy-waiting not received")), 2000),
+    ),
   ]);
   assert.equal(waitingPayload.message, "Updating after this hand");
   const restartPayload = await Promise.race([
     restarting,
-    new Promise((_, reject) => setTimeout(() => reject(new Error("server:restarting not received")), 2000)),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("server:restarting not received")), 2000),
+    ),
   ]);
   assert.equal(restartPayload.buildId, BUILD_ID);
   const shutdown = await shutdownPromise;
   assert.equal(shutdown.ok, true);
   assert.ok(fs.existsSync(STATE_PATH));
-  assert.ok(JSON.parse(fs.readFileSync(STATE_PATH, "utf8")).rooms.some((item) => item.id === roomId));
+  assert.ok(
+    JSON.parse(fs.readFileSync(STATE_PATH, "utf8")).rooms.some((item) => item.id === roomId),
+  );
 
   watcher.close();
   console.log("Graceful deploy checks passed.");
-})().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-}).finally(async () => {
-  try {
-    fs.unlinkSync(STATE_PATH);
-  } catch {
-    // ignore
-  }
-  resetShotClockTime();
-  resetShutdownState();
-  try {
-    io.close();
-  } catch {
-    // already closed by gracefulShutdown
-  }
-  await new Promise((resolve) => {
+})()
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
     try {
-      server.close(() => resolve());
+      fs.unlinkSync(STATE_PATH);
     } catch {
-      resolve();
+      // ignore
     }
+    resetShotClockTime();
+    resetShutdownState();
+    try {
+      io.close();
+    } catch {
+      // already closed by gracefulShutdown
+    }
+    await new Promise((resolve) => {
+      try {
+        server.close(() => resolve());
+      } catch {
+        resolve();
+      }
+    });
+    setTimeout(() => process.exit(process.exitCode || 0), 50).unref?.();
   });
-  setTimeout(() => process.exit(process.exitCode || 0), 50).unref?.();
-});

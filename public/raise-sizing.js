@@ -80,15 +80,18 @@
    * anything below a full min raise stays on the detent — a fat-finger partial
    * nudge cannot become a tiny illegal bet/raise.
    */
-  function clampRaiseTo(rawValue, {
-    minRaiseTo,
-    maxRaiseTo,
-    step,
-    currentBet = 0,
-    mergeCheckBet = false,
-    mergeCallRaise = false,
-    hardDetent = false,
-  } = {}) {
+  function clampRaiseTo(
+    rawValue,
+    {
+      minRaiseTo,
+      maxRaiseTo,
+      step,
+      currentBet = 0,
+      mergeCheckBet = false,
+      mergeCallRaise = false,
+      hardDetent = false,
+    } = {},
+  ) {
     const detentOn = usesPassiveDetent({ mergeCheckBet, mergeCallRaise, hardDetent });
     if (detentOn) {
       const detent = passiveDetentValue(currentBet);
@@ -106,15 +109,19 @@
    * real min raise (or all-in); from min raise, the first down-step returns to
    * the detent (Check or Call).
    */
-  function nudgeRaiseTo(rawValue, direction, {
-    minRaiseTo,
-    maxRaiseTo,
-    step,
-    currentBet = 0,
-    mergeCheckBet = false,
-    mergeCallRaise = false,
-    hardDetent = false,
-  } = {}) {
+  function nudgeRaiseTo(
+    rawValue,
+    direction,
+    {
+      minRaiseTo,
+      maxRaiseTo,
+      step,
+      currentBet = 0,
+      mergeCheckBet = false,
+      mergeCallRaise = false,
+      hardDetent = false,
+    } = {},
+  ) {
     const dir = direction < 0 ? -1 : 1;
     const stride = Math.max(1, Math.floor(Number(step) || 1));
     const detentFlags = { mergeCheckBet, mergeCallRaise, hardDetent };
@@ -127,9 +134,10 @@
       ...detentFlags,
     };
     const minLegal = legalRaiseTo(minRaiseTo, { minRaiseTo, maxRaiseTo, step: stride });
-    const current = detentOn && isPassiveDetent(rawValue, currentBet)
-      ? passiveDetentValue(currentBet)
-      : legalRaiseTo(rawValue, { minRaiseTo, maxRaiseTo, step: stride });
+    const current =
+      detentOn && isPassiveDetent(rawValue, currentBet)
+        ? passiveDetentValue(currentBet)
+        : legalRaiseTo(rawValue, { minRaiseTo, maxRaiseTo, step: stride });
 
     if (detentOn) {
       if (dir > 0 && isPassiveDetent(current, currentBet)) return minLegal;

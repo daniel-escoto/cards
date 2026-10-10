@@ -1,11 +1,12 @@
-var socket = typeof io === "function"
-  ? io({
-    reconnection: true,
-    reconnectionAttempts: Infinity,
-    reconnectionDelay: 500,
-    reconnectionDelayMax: 4000,
-  })
-  : null;
+var socket =
+  typeof io === "function"
+    ? io({
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 500,
+        reconnectionDelayMax: 4000,
+      })
+    : null;
 
 var welcome = document.querySelector("#welcome");
 var themeColor = document.querySelector("#themeColor");
@@ -122,8 +123,6 @@ var pendingServerBuildId = null;
 var expectingServerRestart = false;
 var reconnectBannerVisible = false;
 
-
-
 var tableSounds = new TableSounds();
 soundEnabledInput.checked = tableSounds.enabled;
 
@@ -174,14 +173,16 @@ function saveKeybinds() {
 }
 
 function renderKeybinds() {
-  keybindList.innerHTML = KEYBIND_DEFINITIONS.map(({ id, label }) => `
+  keybindList.innerHTML = KEYBIND_DEFINITIONS.map(
+    ({ id, label }) => `
     <div class="keybind-row">
       <span>${label}</span>
       <button type="button" class="keybind-button ${recordingKeybindAction === id ? "recording" : ""}" data-keybind-action="${id}" aria-label="Set key for ${label}">
         ${recordingKeybindAction === id ? "Press a key…" : escapeHtml(keybindDisplay(id))}
       </button>
     </div>
-  `).join("");
+  `,
+  ).join("");
 }
 
 function beginKeybindRecording(action) {
@@ -217,12 +218,26 @@ var state = null;
 var practiceSession = null;
 var turnCountdownTimer = null;
 var readyCountdownTimer = null;
-var lowTimeSession = (typeof TurnClockWarning !== "undefined" && TurnClockWarning.createLowTimeSession)
-  ? TurnClockWarning.createLowTimeSession()
-  : { turnEndsAt: null, lastSeenTickSecond: null, armed: false, sawActive: false, timeoutConsumed: false };
-var readyLowTimeSession = (typeof TurnClockWarning !== "undefined" && TurnClockWarning.createLowTimeSession)
-  ? TurnClockWarning.createLowTimeSession()
-  : { turnEndsAt: null, lastSeenTickSecond: null, armed: false, sawActive: false, timeoutConsumed: false };
+var lowTimeSession =
+  typeof TurnClockWarning !== "undefined" && TurnClockWarning.createLowTimeSession
+    ? TurnClockWarning.createLowTimeSession()
+    : {
+        turnEndsAt: null,
+        lastSeenTickSecond: null,
+        armed: false,
+        sawActive: false,
+        timeoutConsumed: false,
+      };
+var readyLowTimeSession =
+  typeof TurnClockWarning !== "undefined" && TurnClockWarning.createLowTimeSession
+    ? TurnClockWarning.createLowTimeSession()
+    : {
+        turnEndsAt: null,
+        lastSeenTickSecond: null,
+        armed: false,
+        sawActive: false,
+        timeoutConsumed: false,
+      };
 var lowTimeVibratedForEndsAt = null;
 /** Absolute deadlines for which this client was eligible to hear timer cues (survives server clear). */
 var shotClockCueEligibleForEndsAt = null;
@@ -247,7 +262,11 @@ var lastPhase = "";
 var lastPot = null;
 var params = new URLSearchParams(window.location.search);
 var initialRoomParam = (params.get("room") || "").toUpperCase();
-var initialRoomId = (initialRoomParam || localStorage.getItem("holdem:lastRoom") || "").toUpperCase();
+var initialRoomId = (
+  initialRoomParam ||
+  localStorage.getItem("holdem:lastRoom") ||
+  ""
+).toUpperCase();
 if (initialRoomId) roomInput.value = initialRoomId;
 nameInput.value = localStorage.getItem("holdem:name") || "";
 var joinPending = false;
@@ -299,12 +318,15 @@ function applyTableAppearance(felt, deck, persist = false) {
 
 function renderAppearanceChoices() {
   if (!feltChoices || !deckChoices) return;
-  feltChoices.innerHTML = FELT_OPTIONS.map((option) => `
+  feltChoices.innerHTML = FELT_OPTIONS.map(
+    (option) => `
     <button type="button" class="appearance-choice felt-choice ${document.documentElement.dataset.felt === option.id ? "selected" : ""}" data-felt="${option.id}" aria-label="${option.label} felt" aria-pressed="${document.documentElement.dataset.felt === option.id}">
       <i style="--choice-color:${option.color}" aria-hidden="true"></i><span>${option.label}</span>
     </button>
-  `).join("");
-  deckChoices.innerHTML = DECK_OPTIONS.map((option) => `
+  `,
+  ).join("");
+  deckChoices.innerHTML = DECK_OPTIONS.map(
+    (option) => `
     <button type="button" class="appearance-choice deck-choice ${document.documentElement.dataset.deck === option.id ? "selected" : ""}" data-deck="${option.id}" aria-label="${option.label}: ${option.description}" aria-pressed="${document.documentElement.dataset.deck === option.id}">
       <span class="deck-preview" aria-hidden="true">
         <i class="deck-preview-back"></i>
@@ -312,7 +334,8 @@ function renderAppearanceChoices() {
       </span>
       <span class="deck-choice-copy"><strong>${option.label}</strong><small>${option.description}</small></span>
     </button>
-  `).join("");
+  `,
+  ).join("");
 }
 
 applyTableAppearance(localStorage.getItem("holdem:felt"), localStorage.getItem("holdem:deck"));
@@ -320,7 +343,8 @@ applyTableAppearance(localStorage.getItem("holdem:felt"), localStorage.getItem("
 function getDeviceId() {
   let deviceId = localStorage.getItem("holdem:deviceId");
   if (!deviceId) {
-    deviceId = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    deviceId =
+      window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     localStorage.setItem("holdem:deviceId", deviceId);
   }
   return deviceId;
@@ -328,7 +352,9 @@ function getDeviceId() {
 
 function roomCredentials(roomId) {
   try {
-    return JSON.parse(localStorage.getItem(`holdem:credentials:${String(roomId || "").toUpperCase()}`) || "null");
+    return JSON.parse(
+      localStorage.getItem(`holdem:credentials:${String(roomId || "").toUpperCase()}`) || "null",
+    );
   } catch {
     return null;
   }
@@ -361,7 +387,8 @@ function setKeyboardMode(isOpen) {
 var previousGameTouchY = null;
 
 function lockMobileGameOverscroll(event) {
-  if (!document.body.classList.contains("game-open") || !matchMedia("(max-width: 779px)").matches) return;
+  if (!document.body.classList.contains("game-open") || !matchMedia("(max-width: 779px)").matches)
+    return;
 
   const touchY = event.touches[0]?.clientY;
   const scrollRegion = event.target.closest?.(".players, .modal-panel");
@@ -369,7 +396,8 @@ function lockMobileGameOverscroll(event) {
   const movingUp = previousGameTouchY !== null && touchY < previousGameTouchY;
   previousGameTouchY = touchY;
 
-  const canScrollDown = movingUp && scrollRegion?.scrollTop < scrollRegion?.scrollHeight - scrollRegion?.clientHeight;
+  const canScrollDown =
+    movingUp && scrollRegion?.scrollTop < scrollRegion?.scrollHeight - scrollRegion?.clientHeight;
   const canScrollUp = movingDown && scrollRegion?.scrollTop > 0;
   if (!canScrollDown && !canScrollUp) event.preventDefault();
 }
@@ -396,8 +424,10 @@ function hostUsesOfflinePath() {
  */
 function handoffOnlineToOffline() {
   if (practiceSession || !state) return false;
-  if (typeof PracticeSession?.canHandoffToOffline !== "function"
-    || typeof PracticeSession?.createPracticeSessionFromSnapshot !== "function") {
+  if (
+    typeof PracticeSession?.canHandoffToOffline !== "function" ||
+    typeof PracticeSession?.createPracticeSessionFromSnapshot !== "function"
+  ) {
     return false;
   }
   if (!PracticeSession.canHandoffToOffline(state)) return false;
@@ -438,8 +468,12 @@ function applyRoomUpdate(room) {
     return;
   }
 
-  const newTurn = room.isYourTurn && (!state?.isYourTurn || state.id !== room.id
-    || state.handNumber !== room.handNumber || state.phase !== room.phase);
+  const newTurn =
+    room.isYourTurn &&
+    (!state?.isYourTurn ||
+      state.id !== room.id ||
+      state.handNumber !== room.handNumber ||
+      state.phase !== room.phase);
   syncServerTimeOffset(room);
   state = room;
   if (newTurn) tableSounds.turn();
@@ -459,7 +493,9 @@ function updateTableActionLabel() {
   const offlineHost = !isJoining && hostUsesOfflinePath();
   if (!joinPending) {
     tableActionBtn.textContent = isJoining
-      ? (acceptedMoneyTerms ? "Join table · Play next hand" : "Join table")
+      ? acceptedMoneyTerms
+        ? "Join table · Play next hand"
+        : "Join table"
       : "Host table";
   }
   joinPreview.classList.toggle("hidden", !isJoining || !acceptedMoneyTerms);
@@ -490,8 +526,12 @@ function syncBlindInputMode() {
       smallBlindInput.value = (Number(smallBlindInput.value || 10) / 100).toFixed(2);
       bigBlindInput.value = (Number(bigBlindInput.value || 20) / 100).toFixed(2);
     } else {
-      smallBlindInput.value = String(Math.max(1, Math.round(Number(smallBlindInput.value || 0.1) * 100)));
-      bigBlindInput.value = String(Math.max(2, Math.round(Number(bigBlindInput.value || 0.2) * 100)));
+      smallBlindInput.value = String(
+        Math.max(1, Math.round(Number(smallBlindInput.value || 0.1) * 100)),
+      );
+      bigBlindInput.value = String(
+        Math.max(2, Math.round(Number(bigBlindInput.value || 0.2) * 100)),
+      );
     }
   }
   blindFields.dataset.mode = moneyMode ? "money" : "chips";
@@ -557,11 +597,14 @@ function noteServerBuildId(buildId, phase = state?.phase) {
 
 function maybeReloadForPendingBuild(phase = state?.phase) {
   if (!pendingServerBuildId || !knownBuildId) return;
-  if (!Deploy?.shouldReloadForNewBuild?.({
-    clientBuildId: knownBuildId,
-    serverBuildId: pendingServerBuildId,
-    phase,
-  })) return;
+  if (
+    !Deploy?.shouldReloadForNewBuild?.({
+      clientBuildId: knownBuildId,
+      serverBuildId: pendingServerBuildId,
+      phase,
+    })
+  )
+    return;
   window.location.reload();
 }
 
@@ -576,7 +619,6 @@ function updateHeroCardVisibility() {
     card.setAttribute("aria-hidden", String(heroCardsHidden));
   });
 }
-
 
 function showTable(room) {
   setViewportHeight();
@@ -611,10 +653,14 @@ function seatedPlayers(players = state?.players) {
 }
 
 function roundStatus(player) {
-  if (player.sittingOut) return player.cards.length && isBettingPhase(state.phase) ? "Sits out next" : "Sitting out";
+  if (player.sittingOut)
+    return player.cards.length && isBettingPhase(state.phase) ? "Sits out next" : "Sitting out";
 
   if (!player.connected && player.disconnectExpiresAt) {
-    const seconds = Math.max(0, Math.ceil((new Date(player.disconnectExpiresAt).getTime() - Date.now()) / 1000));
+    const seconds = Math.max(
+      0,
+      Math.ceil((new Date(player.disconnectExpiresAt).getTime() - Date.now()) / 1000),
+    );
     return seconds > 0 ? `Away ${seconds}s` : "Away";
   }
   if (!player.connected) return "Away";
@@ -675,7 +721,10 @@ function commitMenuDisplayName(nameForm) {
 
   // pointerdown (Save) and submit (Enter / click) share this path; dedupe one gesture.
   const now = Date.now();
-  if (nameForm.dataset.nameSaving === "1" && now - Number(nameForm.dataset.nameSavedAt || 0) < 750) {
+  if (
+    nameForm.dataset.nameSaving === "1" &&
+    now - Number(nameForm.dataset.nameSavedAt || 0) < 750
+  ) {
     return true;
   }
   nameForm.dataset.nameSaving = "1";
@@ -724,7 +773,8 @@ function renderMenuPlayers() {
       <div><span>Your stack</span><strong>${formatMoney(hero.stackCents)}</strong></div>
       <div><span>Session</span><strong class="${hero.netCents >= 0 ? "positive" : "negative"}">${formatSignedMoney(hero.netCents)}</strong></div>
     `;
-    cashOutBtn.textContent = hero.stackCents > 0 ? `Leave with ${formatMoney(hero.stackCents)}` : "No stack to cash out";
+    cashOutBtn.textContent =
+      hero.stackCents > 0 ? `Leave with ${formatMoney(hero.stackCents)}` : "No stack to cash out";
     cashOutBtn.disabled = hero.stackCents <= 0;
   }
   const canRestart = Boolean(state.canRestartGame && state.phase !== "lobby");
@@ -732,15 +782,17 @@ function renderMenuPlayers() {
   restartGameBtn.classList.toggle("hidden", !canRestart);
   endGameBtn.classList.toggle("hidden", !canEnd);
   hostActionsPanel.classList.toggle("hidden", !canRestart && !canEnd);
-  menuPlayers.innerHTML = seatedPlayers().map((player) => {
-    const status = roundStatus(player);
-    const actions = player.canMakeHost || player.canKick
-      ? `<div class="menu-player-actions">
+  menuPlayers.innerHTML = seatedPlayers()
+    .map((player) => {
+      const status = roundStatus(player);
+      const actions =
+        player.canMakeHost || player.canKick
+          ? `<div class="menu-player-actions">
           ${player.canMakeHost ? `<button type="button" class="secondary" data-make-host="${escapeHtml(player.id)}">Make host</button>` : ""}
           ${player.canKick ? `<button type="button" class="danger" data-kick-player="${escapeHtml(player.id)}">Kick</button>` : ""}
         </div>`
-      : "";
-    return `
+          : "";
+      return `
     <article class="menu-player ${player.isYou ? "you" : ""} ${player.folded ? "folded" : ""} ${player.isBot ? "bot" : ""}" ${playerColorStyle(player)}>
       <div class="menu-player-main">
         <div class="menu-player-identity">
@@ -759,7 +811,9 @@ function renderMenuPlayers() {
         </div>
         ${actions}
       </div>
-      ${player.isYou && !player.isBot ? `
+      ${
+        player.isYou && !player.isBot
+          ? `
         <form class="menu-name-form" data-name-form>
           <label>
             Display name
@@ -767,10 +821,13 @@ function renderMenuPlayers() {
           </label>
           <button type="submit" class="secondary">Save</button>
         </form>
-      ` : ""}
+      `
+          : ""
+      }
     </article>
   `;
-  }).join("");
+    })
+    .join("");
   syncCashInControls();
 }
 
@@ -782,7 +839,7 @@ function heroCanCashIn() {
   const handLive = ["preflop", "flop", "turn", "river", "showdown"].includes(state.phase);
   if (!handLive) return true;
   // Same rule as the server: anyone not contesting the current pot may buy in for next hand.
-  return hero.folded || !(hero.cards?.length);
+  return hero.folded || !hero.cards?.length;
 }
 
 function syncCashInControls() {
@@ -797,9 +854,9 @@ function syncCashInControls() {
   }
   if (moneyNote) {
     moneyNote.textContent = allowed
-      ? (["preflop", "flop", "turn", "river", "showdown"].includes(state?.phase)
+      ? ["preflop", "flop", "turn", "river", "showdown"].includes(state?.phase)
         ? "Buy-in now and you’ll play on the next hand. Payments happen separately after the game."
-        : "Payments happen separately after the game.")
+        : "Payments happen separately after the game."
       : "You’re in this hand — buy-in will be available after you fold or the hand ends.";
   }
 }
@@ -813,7 +870,10 @@ function showGameMenu() {
   const hero = activeHero();
   sitOutBtn.classList.toggle("hidden", !hero || isSpectatorView() || state?.phase === "gameover");
   if (hero) sitOutBtn.textContent = hero.sittingOut ? "Sit back in" : "Sit out next hand";
-  moneyPanel.classList.toggle("hidden", !state?.moneyMode || isSpectatorView() || isOfflineSession());
+  moneyPanel.classList.toggle(
+    "hidden",
+    !state?.moneyMode || isSpectatorView() || isOfflineSession(),
+  );
   shareGameBtn.classList.toggle("hidden", isOfflineSession());
   sharePanel.classList.add("hidden");
   blindPanel.classList.toggle("hidden", !state?.canChangeBlinds || isSpectatorView());
@@ -821,7 +881,9 @@ function showGameMenu() {
     const moneyMode = state.moneyMode;
     menuSmallBlindLabel.textContent = moneyMode ? "Small blind ($)" : "Small blind";
     menuBigBlindLabel.textContent = moneyMode ? "Big blind ($)" : "Big blind";
-    menuSmallBlindInput.value = moneyMode ? (state.smallBlindCents / 100).toFixed(2) : state.smallBlind;
+    menuSmallBlindInput.value = moneyMode
+      ? (state.smallBlindCents / 100).toFixed(2)
+      : state.smallBlind;
     menuBigBlindInput.value = moneyMode ? (state.bigBlindCents / 100).toFixed(2) : state.bigBlind;
     menuSmallBlindInput.min = moneyMode ? "0.01" : "1";
     menuBigBlindInput.min = moneyMode ? "0.02" : "2";
@@ -866,11 +928,11 @@ function showWelcome(status = "") {
 }
 
 function showScoreScreen(room) {
-  const standings = [...(room.moneyMode ? room.ledger || [] : room.players)].sort((a, b) => (
+  const standings = [...(room.moneyMode ? room.ledger || [] : room.players)].sort((a, b) =>
     room.moneyMode
       ? b.netCents - a.netCents || a.name.localeCompare(b.name)
-      : b.stack - a.stack || a.name.localeCompare(b.name)
-  ));
+      : b.stack - a.stack || a.name.localeCompare(b.name),
+  );
   state = null;
   lastActionEntryId = "";
   hideGameMenu();
@@ -885,23 +947,39 @@ function showScoreScreen(room) {
       ? `<p class="eyebrow">Room ${escapeHtml(room.id)} · reopen anytime with this code</p><h2>Settle up</h2>`
       : `<p class="eyebrow">Final standings</p><h2>Game over</h2>`;
   }
-  scoreList.innerHTML = standings.map((player, index) => `
+  scoreList.innerHTML =
+    standings
+      .map(
+        (player, index) => `
     <div class="score-row ${player.isYou ? "you" : ""}" ${playerColorStyle(player)}>
       <span class="score-rank">${index + 1}</span>
       <span class="score-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
       <strong>${room.moneyMode ? formatSignedMoney(player.netCents) : player.stack}</strong>
     </div>
-  `).join("") + (room.moneyMode ? `
+  `,
+      )
+      .join("") +
+    (room.moneyMode
+      ? `
     <div class="settlement-list">
       <p class="eyebrow">Who owes whom</p>
-      ${(room.settlements || []).length ? room.settlements.map((item) => `
+      ${
+        (room.settlements || []).length
+          ? room.settlements
+              .map(
+                (item) => `
         <div class="settlement-row">
           <span>${escapeHtml(item.fromName)} pays ${escapeHtml(item.toName)}</span>
           <strong>${formatMoney(item.amountCents)}</strong>
         </div>
-      `).join("") : '<div class="settlement-row"><span>No transfers needed</span><strong>$0.00</strong></div>'}
+      `,
+              )
+              .join("")
+          : '<div class="settlement-row"><span>No transfers needed</span><strong>$0.00</strong></div>'
+      }
     </div>
-  ` : "");
+  `
+      : "");
   if (room.moneyMode && room.id) setRoomUrl(room.id);
   else clearRoomUrl();
 }
@@ -966,7 +1044,8 @@ function compactPlayerAction(entry, player) {
   const withoutName = player
     ? raw.replace(new RegExp(`^${escapeRegExp(player.name)}\\s+`, "i"), "").replace(/\.$/, "")
     : raw.replace(/\.$/, "");
-  const amount = (value) => formatAmount(Number(value), Math.round(Number(value) * (state?.chipValueCents || 0)));
+  const amount = (value) =>
+    formatAmount(Number(value), Math.round(Number(value) * (state?.chipValueCents || 0)));
   return withoutName
     .replace(/^Calls\s+(\d+)/i, (_, value) => `call ${amount(value)}`)
     .replace(/^Checks$/i, "check")
@@ -986,10 +1065,12 @@ function actionTokenClass(entry, player) {
 }
 
 function playerTableStatus(player, isActiveTurn = player.isTurn) {
-  if (player.sittingOut) return player.cards.length && isBettingPhase(state.phase) ? "Sits out next" : "Sitting out";
+  if (player.sittingOut)
+    return player.cards.length && isBettingPhase(state.phase) ? "Sits out next" : "Sitting out";
 
   if (playerIsOut(player)) return "Out";
-  if (["lobby", "complete"].includes(state?.phase)) return player.ready || player.isBot ? "Ready" : "Not ready";
+  if (["lobby", "complete"].includes(state?.phase))
+    return player.ready || player.isBot ? "Ready" : "Not ready";
   if (player.waitingForNextHand) return "Next hand";
   if (player.folded) return "Folded";
   if (player.allIn) return "All in";
@@ -1002,7 +1083,9 @@ function playerForAction(entry) {
     const byIdIndex = findLastIndex(state.players, (player) => player.id === entry.playerId);
     if (byIdIndex >= 0) return state.players[byIdIndex];
   }
-  const byNameIndex = findLastIndex(state.players, (player) => entry.text?.startsWith(`${player.name} `));
+  const byNameIndex = findLastIndex(state.players, (player) =>
+    entry.text?.startsWith(`${player.name} `),
+  );
   return byNameIndex >= 0 ? state.players[byNameIndex] : null;
 }
 
@@ -1049,14 +1132,16 @@ function renderShotClockChoices() {
   const isPreset = SHOT_CLOCK_CHOICES.some((item) => item.seconds === selected);
   const customActive = shotClockCustomOpen || (!isPreset && selected > 0);
   if (customActive) shotClockCustomOpen = true;
-  shotClockChoices.innerHTML = `${SHOT_CLOCK_CHOICES.map((item) => `
+  shotClockChoices.innerHTML = `${SHOT_CLOCK_CHOICES.map(
+    (item) => `
     <button
       type="button"
       class="appearance-choice${!customActive && item.seconds === selected ? " selected" : ""}"
       data-shot-clock="${item.seconds}"
       aria-pressed="${!customActive && item.seconds === selected ? "true" : "false"}"
     >${item.label}</button>
-  `).join("")}
+  `,
+  ).join("")}
     <button
       type="button"
       class="appearance-choice${customActive ? " selected" : ""}"
@@ -1076,14 +1161,23 @@ function commitShotClockCustom(form) {
   if (!form || !shotClockCustomInput) return false;
   const raw = shotClockCustomInput.value.trim();
   const seconds = Number(raw);
-  if (!raw || !Number.isFinite(seconds) || !Number.isInteger(seconds) || seconds < 10 || seconds > 600) {
+  if (
+    !raw ||
+    !Number.isFinite(seconds) ||
+    !Number.isInteger(seconds) ||
+    seconds < 10 ||
+    seconds > 600
+  ) {
     showToast("Enter an integer from 10 to 600 seconds.");
     return false;
   }
 
   // pointerdown (Save) and submit (Enter / click) share this path; dedupe one gesture.
   const now = Date.now();
-  if (form.dataset.shotClockSaving === "1" && now - Number(form.dataset.shotClockSavedAt || 0) < 750) {
+  if (
+    form.dataset.shotClockSaving === "1" &&
+    now - Number(form.dataset.shotClockSavedAt || 0) < 750
+  ) {
     return true;
   }
   form.dataset.shotClockSaving = "1";
@@ -1112,14 +1206,16 @@ function renderReadyTimerChoices() {
   const isPreset = READY_TIMER_CHOICES.some((item) => item.seconds === selected);
   const customActive = readyTimerCustomOpen || (!isPreset && selected > 0);
   if (customActive) readyTimerCustomOpen = true;
-  readyTimerChoices.innerHTML = `${READY_TIMER_CHOICES.map((item) => `
+  readyTimerChoices.innerHTML = `${READY_TIMER_CHOICES.map(
+    (item) => `
     <button
       type="button"
       class="appearance-choice${!customActive && item.seconds === selected ? " selected" : ""}"
       data-ready-timer="${item.seconds}"
       aria-pressed="${!customActive && item.seconds === selected ? "true" : "false"}"
     >${item.label}</button>
-  `).join("")}
+  `,
+  ).join("")}
     <button
       type="button"
       class="appearance-choice${customActive ? " selected" : ""}"
@@ -1139,14 +1235,23 @@ function commitReadyTimerCustom(form) {
   if (!form || !readyTimerCustomInput) return false;
   const raw = readyTimerCustomInput.value.trim();
   const seconds = Number(raw);
-  if (!raw || !Number.isFinite(seconds) || !Number.isInteger(seconds) || seconds < 5 || seconds > 300) {
+  if (
+    !raw ||
+    !Number.isFinite(seconds) ||
+    !Number.isInteger(seconds) ||
+    seconds < 5 ||
+    seconds > 300
+  ) {
     showToast("Enter an integer from 5 to 300 seconds.");
     return false;
   }
 
   // pointerdown (Save) and submit (Enter / click) share this path; dedupe one gesture.
   const now = Date.now();
-  if (form.dataset.readyTimerSaving === "1" && now - Number(form.dataset.readyTimerSavedAt || 0) < 750) {
+  if (
+    form.dataset.readyTimerSaving === "1" &&
+    now - Number(form.dataset.readyTimerSavedAt || 0) < 750
+  ) {
     return true;
   }
   form.dataset.readyTimerSaving = "1";
@@ -1162,7 +1267,8 @@ function commitReadyTimerCustom(form) {
 }
 
 function turnSecondsRemaining() {
-  if (!state?.turnEndsAt || !state?.turnTimeLimitMs || !isBettingPhase(state.phase) || !state.turn) return 0;
+  if (!state?.turnEndsAt || !state?.turnTimeLimitMs || !isBettingPhase(state.phase) || !state.turn)
+    return 0;
   return Math.max(0, Math.ceil((state.turnEndsAt - clientNow()) / 1000));
 }
 
@@ -1174,17 +1280,18 @@ function turnPctRemaining() {
 
 function actingSeatShowsClock(player) {
   return Boolean(
-    player
-    && !player.isBot
-    && state?.turnEndsAt
-    && state?.turnTimeLimitMs
-    && isBettingPhase(state.phase)
-    && player.id === state.turn,
+    player &&
+    !player.isBot &&
+    state?.turnEndsAt &&
+    state?.turnTimeLimitMs &&
+    isBettingPhase(state.phase) &&
+    player.id === state.turn,
   );
 }
 
 function lowTimeWarningActive() {
-  if (!state?.turnEndsAt || !state?.turnTimeLimitMs || !isBettingPhase(state.phase) || !state.turn) return false;
+  if (!state?.turnEndsAt || !state?.turnTimeLimitMs || !isBettingPhase(state.phase) || !state.turn)
+    return false;
   if (typeof TurnClockWarning === "undefined" || !TurnClockWarning.isLowTime) {
     const rem = state.turnEndsAt - clientNow();
     return rem > 0 && rem <= 5000;
@@ -1197,16 +1304,23 @@ function canHearShotClockCues() {
 }
 
 function playTimerTimeoutIfEligible(eligibleForEndsAt, endsAt) {
-  if (endsAt == null || eligibleForEndsAt !== endsAt || document.hidden || isSpectatorView()) return;
+  if (endsAt == null || eligibleForEndsAt !== endsAt || document.hidden || isSpectatorView())
+    return;
   tableSounds.timerTimeout();
 }
 
 function syncLowTimeWarningEffects(now = clientNow()) {
-  if (!state?.turnEndsAt || !state?.turnTimeLimitMs || !isBettingPhase(state.phase) || !state.turn) {
+  if (
+    !state?.turnEndsAt ||
+    !state?.turnTimeLimitMs ||
+    !isBettingPhase(state.phase) ||
+    !state.turn
+  ) {
     const previousEnds = lowTimeSession.turnEndsAt;
-    const timedOut = typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeDeadlineTimeout
-      ? TurnClockWarning.consumeDeadlineTimeout(lowTimeSession, { turnEndsAt: null, now })
-      : false;
+    const timedOut =
+      typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeDeadlineTimeout
+        ? TurnClockWarning.consumeDeadlineTimeout(lowTimeSession, { turnEndsAt: null, now })
+        : false;
     if (timedOut) playTimerTimeoutIfEligible(shotClockCueEligibleForEndsAt, previousEnds);
     if (typeof TurnClockWarning !== "undefined" && TurnClockWarning.resetLowTimeSession) {
       TurnClockWarning.resetLowTimeSession(lowTimeSession);
@@ -1227,14 +1341,16 @@ function syncLowTimeWarningEffects(now = clientNow()) {
     shotClockCueEligibleForEndsAt = endsAt;
   }
 
-  const timedOut = typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeDeadlineTimeout
-    ? TurnClockWarning.consumeDeadlineTimeout(lowTimeSession, { turnEndsAt: endsAt, now })
-    : false;
+  const timedOut =
+    typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeDeadlineTimeout
+      ? TurnClockWarning.consumeDeadlineTimeout(lowTimeSession, { turnEndsAt: endsAt, now })
+      : false;
   if (timedOut) playTimerTimeoutIfEligible(shotClockCueEligibleForEndsAt, endsAt);
 
-  const tickSecond = typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeLowTimeTick
-    ? TurnClockWarning.consumeLowTimeTick(lowTimeSession, { turnEndsAt: endsAt, now })
-    : null;
+  const tickSecond =
+    typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeLowTimeTick
+      ? TurnClockWarning.consumeLowTimeTick(lowTimeSession, { turnEndsAt: endsAt, now })
+      : null;
 
   // Sound + vibrate only on the acting player's own device (never spectators).
   if (tickSecond != null && canHearShotClockCues()) {
@@ -1255,7 +1371,12 @@ function syncLowTimeWarningEffects(now = clientNow()) {
 function syncTurnCountdown() {
   clearInterval(turnCountdownTimer);
   turnCountdownTimer = null;
-  if (!state?.turnEndsAt || !state?.turnTimeLimitMs || !isBettingPhase(state.phase) || !state.turn) {
+  if (
+    !state?.turnEndsAt ||
+    !state?.turnTimeLimitMs ||
+    !isBettingPhase(state.phase) ||
+    !state.turn
+  ) {
     syncLowTimeWarningEffects();
     return;
   }
@@ -1281,8 +1402,10 @@ function syncTurnCountdown() {
 }
 
 function blindChipMarkup(player) {
-  if (player.isBigBlind) return '<span class="blind-chip big" title="Big blind" aria-label="Big blind">BB</span>';
-  if (player.isSmallBlind) return '<span class="blind-chip small" title="Small blind" aria-label="Small blind">SB</span>';
+  if (player.isBigBlind)
+    return '<span class="blind-chip big" title="Big blind" aria-label="Big blind">BB</span>';
+  if (player.isSmallBlind)
+    return '<span class="blind-chip small" title="Small blind" aria-label="Small blind">SB</span>';
   return "";
 }
 
@@ -1318,12 +1441,12 @@ function seatShowsReadyClock(player) {
     });
   }
   return Boolean(
-    readyTimerActive()
-    && player
-    && !player.isBot
-    && !player.sittingOut
-    && !player.ready
-    && player.stack > 0,
+    readyTimerActive() &&
+    player &&
+    !player.isBot &&
+    !player.sittingOut &&
+    !player.ready &&
+    player.stack > 0,
   );
 }
 
@@ -1343,9 +1466,10 @@ function canHearReadyClockCues() {
 function syncReadyLowTimeWarningEffects(now = clientNow()) {
   if (!readyTimerActive()) {
     const previousEnds = readyLowTimeSession.turnEndsAt;
-    const timedOut = typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeDeadlineTimeout
-      ? TurnClockWarning.consumeDeadlineTimeout(readyLowTimeSession, { turnEndsAt: null, now })
-      : false;
+    const timedOut =
+      typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeDeadlineTimeout
+        ? TurnClockWarning.consumeDeadlineTimeout(readyLowTimeSession, { turnEndsAt: null, now })
+        : false;
     if (timedOut) playTimerTimeoutIfEligible(readyCueEligibleForEndsAt, previousEnds);
     if (typeof TurnClockWarning !== "undefined" && TurnClockWarning.resetLowTimeSession) {
       TurnClockWarning.resetLowTimeSession(readyLowTimeSession);
@@ -1365,14 +1489,16 @@ function syncReadyLowTimeWarningEffects(now = clientNow()) {
     readyCueEligibleForEndsAt = endsAt;
   }
 
-  const timedOut = typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeDeadlineTimeout
-    ? TurnClockWarning.consumeDeadlineTimeout(readyLowTimeSession, { turnEndsAt: endsAt, now })
-    : false;
+  const timedOut =
+    typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeDeadlineTimeout
+      ? TurnClockWarning.consumeDeadlineTimeout(readyLowTimeSession, { turnEndsAt: endsAt, now })
+      : false;
   if (timedOut) playTimerTimeoutIfEligible(readyCueEligibleForEndsAt, endsAt);
 
-  const tickSecond = typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeLowTimeTick
-    ? TurnClockWarning.consumeLowTimeTick(readyLowTimeSession, { turnEndsAt: endsAt, now })
-    : null;
+  const tickSecond =
+    typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeLowTimeTick
+      ? TurnClockWarning.consumeLowTimeTick(readyLowTimeSession, { turnEndsAt: endsAt, now })
+      : null;
 
   // Quiet tick only for the local player who still needs to ready (never spectators).
   if (tickSecond != null && canHearReadyClockCues()) {
@@ -1440,46 +1566,57 @@ function renderActionFeed(newEntryId = "") {
     const player = playerForAction(entry);
     if (player) latestByPlayer.set(player.id, entry);
   });
-  const tableMarkup = seatedPlayers().map((player) => {
-    const entry = latestByPlayer.get(player.id);
-    const isActing = player.id === activePlayer?.id;
-    const betweenHands = ["lobby", "complete"].includes(state.phase);
-    const isAllIn = Boolean(player.allIn);
-    const isOutOfAction = player.folded || isAllIn;
-    const showStreetAction = !betweenHands && entry && !isOutOfAction;
-    const action = showStreetAction
-      ? compactPlayerAction(entry, player)
-      : playerTableStatus(player, isActing);
-    const showTurnClock = isActing && actingSeatShowsClock(player);
-    const showReadyClock = !showTurnClock && seatShowsReadyClock(player);
-    const showClock = showTurnClock || showReadyClock;
-    const seconds = showTurnClock ? turnSecondsRemaining() : showReadyClock ? readySecondsRemaining() : 0;
-    const pct = showTurnClock ? turnPctRemaining() : showReadyClock ? readyPctRemaining() : 0;
-    const styleVars = [
-      player?.color ? `--player-color: ${escapeHtml(player.color)}` : "",
-      showClock ? `--turn-pct: ${pct}` : "",
-    ].filter(Boolean).join("; ");
-    const styleAttr = styleVars ? ` style="${styleVars}"` : "";
-    const countdownLabel = formatTurnCountdown(seconds);
-    const lowTime = showTurnClock
-      ? lowTimeWarningActive()
-      : showReadyClock && readyLowTimeWarningActive();
-    const countdownAttr = showTurnClock
-      ? "data-turn-countdown"
-      : showReadyClock
-        ? "data-ready-countdown"
+  const tableMarkup = seatedPlayers()
+    .map((player) => {
+      const entry = latestByPlayer.get(player.id);
+      const isActing = player.id === activePlayer?.id;
+      const betweenHands = ["lobby", "complete"].includes(state.phase);
+      const isAllIn = Boolean(player.allIn);
+      const isOutOfAction = player.folded || isAllIn;
+      const showStreetAction = !betweenHands && entry && !isOutOfAction;
+      const action = showStreetAction
+        ? compactPlayerAction(entry, player)
+        : playerTableStatus(player, isActing);
+      const showTurnClock = isActing && actingSeatShowsClock(player);
+      const showReadyClock = !showTurnClock && seatShowsReadyClock(player);
+      const showClock = showTurnClock || showReadyClock;
+      const seconds = showTurnClock
+        ? turnSecondsRemaining()
+        : showReadyClock
+          ? readySecondsRemaining()
+          : 0;
+      const pct = showTurnClock ? turnPctRemaining() : showReadyClock ? readyPctRemaining() : 0;
+      const styleVars = [
+        player?.color ? `--player-color: ${escapeHtml(player.color)}` : "",
+        showClock ? `--turn-pct: ${pct}` : "",
+      ]
+        .filter(Boolean)
+        .join("; ");
+      const styleAttr = styleVars ? ` style="${styleVars}"` : "";
+      const countdownLabel = formatTurnCountdown(seconds);
+      const lowTime = showTurnClock
+        ? lowTimeWarningActive()
+        : showReadyClock && readyLowTimeWarningActive();
+      const countdownAttr = showTurnClock
+        ? "data-turn-countdown"
+        : showReadyClock
+          ? "data-ready-countdown"
+          : "";
+      const clockAria = showReadyClock
+        ? `${countdownLabel} left to ready up`
+        : `${countdownLabel} left`;
+      const clockMarkup = showClock
+        ? `<span class="turn-clock${lowTime ? " low-time" : ""}" ${countdownAttr} aria-label="${clockAria}">${countdownLabel}</span>`
         : "";
-    const clockAria = showReadyClock ? `${countdownLabel} left to ready up` : `${countdownLabel} left`;
-    const clockMarkup = showClock
-      ? `<span class="turn-clock${lowTime ? " low-time" : ""}" ${countdownAttr} aria-label="${clockAria}">${countdownLabel}</span>`
-      : "";
-    const barMarkup = showClock ? `<span class="turn-clock-bar" aria-hidden="true"><i></i></span>` : "";
-    const seatClockAttr = showTurnClock
-      ? ' data-turn-seat-clock="1"'
-      : showReadyClock
-        ? ' data-ready-seat-clock="1"'
+      const barMarkup = showClock
+        ? `<span class="turn-clock-bar" aria-hidden="true"><i></i></span>`
         : "";
-    return `
+      const seatClockAttr = showTurnClock
+        ? ' data-turn-seat-clock="1"'
+        : showReadyClock
+          ? ' data-ready-seat-clock="1"'
+          : "";
+      return `
       <article class="table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${lowTime ? "low-time" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${seatClockAttr}${styleAttr}>
         <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
         <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>${blindChipMarkup(player)}</span>
@@ -1488,17 +1625,26 @@ function renderActionFeed(newEntryId = "") {
         ${barMarkup}
       </article>
     `;
-  }).join("");
+    })
+    .join("");
   // Revealed hands: showdown winners/mucks, voluntary shows, and all-in runout face-ups.
   const shownHands = state.players
-    .filter((player) => player.showCards && player.cards?.some((card) => card && (card.code || card.rank)))
+    .filter(
+      (player) =>
+        player.showCards && player.cards?.some((card) => card && (card.code || card.rank)),
+    )
     .map(renderShownHandCard)
     .join("");
   return `${tableMarkup}${shownHands}`;
 }
 
 function isEndedGameReturn(previous, next) {
-  return previous && previous.phase !== "lobby" && next.phase === "lobby" && next.message === "Game ended by host.";
+  return (
+    previous &&
+    previous.phase !== "lobby" &&
+    next.phase === "lobby" &&
+    next.message === "Game ended by host."
+  );
 }
 
 function isGameOver(room) {
@@ -1518,5 +1664,3 @@ function playActionSound(entry) {
     tableSounds.click();
   }
 }
-
-

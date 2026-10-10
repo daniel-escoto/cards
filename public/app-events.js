@@ -173,18 +173,23 @@ gameMenuModal.addEventListener("submit", (event) => {
   if (event.target === blindForm) {
     const payload = state?.moneyMode
       ? {
-        smallBlindCents: Math.round(Number(menuSmallBlindInput.value) * 100),
-        bigBlindCents: Math.round(Number(menuBigBlindInput.value) * 100),
-      }
+          smallBlindCents: Math.round(Number(menuSmallBlindInput.value) * 100),
+          bigBlindCents: Math.round(Number(menuBigBlindInput.value) * 100),
+        }
       : {
-        smallBlind: Math.floor(Number(menuSmallBlindInput.value)),
-        bigBlind: Math.floor(Number(menuBigBlindInput.value)),
-      };
+          smallBlind: Math.floor(Number(menuSmallBlindInput.value)),
+          bigBlind: Math.floor(Number(menuBigBlindInput.value)),
+        };
     emitWithAck("game:setBlinds", payload);
     return;
   }
   if (event.target === moneyPanel) {
-    emitWithAck("money:cashIn", { amountCents: moneyCentsFromInput(cashInInput, state?.buyInCents ? state.buyInCents / 100 : 20) });
+    emitWithAck("money:cashIn", {
+      amountCents: moneyCentsFromInput(
+        cashInInput,
+        state?.buyInCents ? state.buyInCents / 100 : 20,
+      ),
+    });
     return;
   }
   if (event.target === shotClockCustomForm || event.target?.closest?.("[data-shot-clock-form]")) {
@@ -255,23 +260,27 @@ function attemptAutoRejoin() {
     const credentials = roomCredentials(roomId);
     const asSpectator = Boolean(state?.isSpectator || credentials?.spectator);
     const eventName = asSpectator ? "room:watch" : "room:join";
-    socket.emit(eventName, {
-      roomId,
-      name,
-      deviceId: credentials?.playerId || getDeviceId(),
-      reconnectToken: credentials?.reconnectToken,
-    }, (response) => {
-      if (!response?.ok) {
-        lastAutoRejoinKey = "";
-        joinError.textContent = response?.error || "Could not rejoin table.";
-        return;
-      }
-      saveRoomCredentials(response.roomId || roomId, {
-        ...response,
-        spectator: asSpectator || Boolean(response.spectator),
-      });
-      setRoomUrl(response.roomId || roomId);
-    });
+    socket.emit(
+      eventName,
+      {
+        roomId,
+        name,
+        deviceId: credentials?.playerId || getDeviceId(),
+        reconnectToken: credentials?.reconnectToken,
+      },
+      (response) => {
+        if (!response?.ok) {
+          lastAutoRejoinKey = "";
+          joinError.textContent = response?.error || "Could not rejoin table.";
+          return;
+        }
+        saveRoomCredentials(response.roomId || roomId, {
+          ...response,
+          spectator: asSpectator || Boolean(response.spectator),
+        });
+        setRoomUrl(response.roomId || roomId);
+      },
+    );
   }
 }
 
@@ -320,13 +329,15 @@ attemptAutoRejoin();
 
 window.addEventListener("focus", attemptAutoRejoin);
 function reportVisibility() {
-  if (state && !practiceSession && socket?.connected) socket.emit("room:presence", { hidden: document.hidden });
+  if (state && !practiceSession && socket?.connected)
+    socket.emit("room:presence", { hidden: document.hidden });
   if (!document.hidden) attemptAutoRejoin();
 }
 
 document.addEventListener("visibilitychange", reportVisibility);
 window.addEventListener("pagehide", () => {
-  if (state && !practiceSession && socket?.connected) socket.emit("room:presence", { hidden: true });
+  if (state && !practiceSession && socket?.connected)
+    socket.emit("room:presence", { hidden: true });
 });
 window.addEventListener("pageshow", () => {
   setViewportHeight();
@@ -343,12 +354,28 @@ window.visualViewport?.addEventListener("resize", () => {
   requestAnimationFrame(() => scrollActionFeed());
 });
 
-document.addEventListener("touchstart", (event) => {
-  previousGameTouchY = event.touches[0]?.clientY ?? null;
-}, { passive: true });
+document.addEventListener(
+  "touchstart",
+  (event) => {
+    previousGameTouchY = event.touches[0]?.clientY ?? null;
+  },
+  { passive: true },
+);
 document.addEventListener("touchmove", lockMobileGameOverscroll, { passive: false });
-document.addEventListener("touchend", () => { previousGameTouchY = null; }, { passive: true });
-document.addEventListener("touchcancel", () => { previousGameTouchY = null; }, { passive: true });
+document.addEventListener(
+  "touchend",
+  () => {
+    previousGameTouchY = null;
+  },
+  { passive: true },
+);
+document.addEventListener(
+  "touchcancel",
+  () => {
+    previousGameTouchY = null;
+  },
+  { passive: true },
+);
 
 setViewportHeight();
 
@@ -366,7 +393,12 @@ document.addEventListener("keydown", (event) => {
       cancelKeybindRecording();
       return;
     }
-    if (event.metaKey || event.ctrlKey || event.altKey || ["Shift", "Control", "Alt", "Meta", "Tab"].includes(event.key)) {
+    if (
+      event.metaKey ||
+      event.ctrlKey ||
+      event.altKey ||
+      ["Shift", "Control", "Alt", "Meta", "Tab"].includes(event.key)
+    ) {
       showToast("Choose a single non-modifier key");
       return;
     }
@@ -382,7 +414,14 @@ document.addEventListener("keydown", (event) => {
     hideGameMenu();
     return;
   }
-  if (!state || !gameMenuModal.classList.contains("hidden") || event.metaKey || event.ctrlKey || event.altKey) return;
+  if (
+    !state ||
+    !gameMenuModal.classList.contains("hidden") ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.altKey
+  )
+    return;
   if (event.target.matches("input, select, textarea, button, [contenteditable]")) return;
   if (matchesKeybind(event, "menu")) {
     showGameMenu();
@@ -403,13 +442,17 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   if (!state.isYourTurn) return;
-  if ((matchesKeybind(event, "raiseUp") || matchesKeybind(event, "raiseDown")) && !betControls.classList.contains("hidden")) {
+  if (
+    (matchesKeybind(event, "raiseUp") || matchesKeybind(event, "raiseDown")) &&
+    !betControls.classList.contains("hidden")
+  ) {
     event.preventDefault();
     changeRaise(matchesKeybind(event, "raiseUp") ? 1 : -1);
     return;
   }
   if (event.repeat) return;
-  if (matchesKeybind(event, "fold") && state.toCall > 0) emitWithAck("game:action", { type: "fold" });
+  if (matchesKeybind(event, "fold") && state.toCall > 0)
+    emitWithAck("game:action", { type: "fold" });
   if (matchesKeybind(event, "call")) {
     if (mergePassiveConfirm) {
       if (atPassiveDetent()) {
@@ -427,4 +470,3 @@ document.addEventListener("keydown", (event) => {
     else raiseActionBtn.click();
   }
 });
-

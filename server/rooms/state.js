@@ -18,7 +18,10 @@ async function claimRoomForLiveActivity(roomId) {
         const room = restoreRoom(raw);
         if (room) {
           // Only pad by a real handoff flush gap — never by idle time since last save.
-          extendDeadlinesAfterRestore(room, handoffPadMs(api.lastHandoffMeta, api.shotClockTime.now()));
+          extendDeadlinesAfterRestore(
+            room,
+            handoffPadMs(api.lastHandoffMeta, api.shotClockTime.now()),
+          );
           api.rooms.set(room.id, room);
         }
       }
@@ -159,8 +162,10 @@ async function saveRoomsNow(options = {}) {
     api.saveTimer = null;
   }
   const store = api.getStateStore();
-  const writeAll = options.all === true || api.handoffComplete || !api.usingRedis() || api.shuttingDown;
-  const shutdownFlush = options.shutdownFlush === true || (options.all === true && api.shuttingDown);
+  const writeAll =
+    options.all === true || api.handoffComplete || !api.usingRedis() || api.shuttingDown;
+  const shutdownFlush =
+    options.shutdownFlush === true || (options.all === true && api.shuttingDown);
   let payload;
   if (writeAll) {
     payload = buildRoomsPayload([...api.rooms.values()], { shutdownFlush });
@@ -406,12 +411,14 @@ function restoreRoom(raw) {
     turnTimeLimitMs: api.normalizeShotClockMs(raw.turnTimeLimitMs, api.SHOT_CLOCK_DEFAULT_MS),
     readyTimeLimitMs: api.normalizeReadyTimerMs(raw.readyTimeLimitMs, api.READY_TIMER_DEFAULT_MS),
     settlements: Array.isArray(raw.settlements) ? raw.settlements : [],
-    moneyLedger: Array.isArray(raw.moneyLedger) ? raw.moneyLedger.map((entry) => ({
-      playerId: String(entry.playerId),
-      name: api.cleanName(entry.name),
-      buyInsCents: Math.max(0, Math.floor(Number(entry.buyInsCents) || 0)),
-      cashOutCents: Math.max(0, Math.floor(Number(entry.cashOutCents) || 0)),
-    })) : [],
+    moneyLedger: Array.isArray(raw.moneyLedger)
+      ? raw.moneyLedger.map((entry) => ({
+          playerId: String(entry.playerId),
+          name: api.cleanName(entry.name),
+          buyInsCents: Math.max(0, Math.floor(Number(entry.buyInsCents) || 0)),
+          cashOutCents: Math.max(0, Math.floor(Number(entry.cashOutCents) || 0)),
+        }))
+      : [],
     players: Array.isArray(raw.players) ? raw.players.map(restorePlayer) : [],
     // Spectators are never persisted; reconnecting watchers rejoin via room:watch.
     spectators: [],
@@ -440,7 +447,8 @@ function restoreRoom(raw) {
       if (!player.isBot) markRestoredHumanAsBot(room, player);
     }
     api.addComputerPlayers(room, room.tableSize);
-    if (!room.players.some((player) => player.id === room.hostId && !player.isBot)) chooseNextHost(room);
+    if (!room.players.some((player) => player.id === room.hostId && !player.isBot))
+      chooseNextHost(room);
   }
 
   if (!room.players.length) {
@@ -448,17 +456,21 @@ function restoreRoom(raw) {
       room.status = "complete";
       room.phase = "gameover";
       room.hostId = null;
-      room.settlements = Array.isArray(raw.settlements) && raw.settlements.length
-        ? room.settlements
-        : api.optimizeSettlements(room.moneyLedger);
+      room.settlements =
+        Array.isArray(raw.settlements) && raw.settlements.length
+          ? room.settlements
+          : api.optimizeSettlements(room.moneyLedger);
       return room;
     }
     return null;
   }
   if (!Array.isArray(raw.raiseEligible) && api.isHandInProgress(room)) {
-    room.raiseEligible = new Set(api.canActPlayers(room)
-      .filter((player) => !room.acted.has(player.id))
-      .map((player) => player.id));
+    room.raiseEligible = new Set(
+      api
+        .canActPlayers(room)
+        .filter((player) => !room.acted.has(player.id))
+        .map((player) => player.id),
+    );
   }
   if (room.dealer >= room.players.length) room.dealer = 0;
   return room;
@@ -562,13 +574,18 @@ async function loadRooms(options = {}) {
   let migratedFromFile = false;
   try {
     payload = await store.load();
-    if ((!payload || !Array.isArray(payload.rooms) || payload.rooms.length === 0) && api.usingRedis()) {
+    if (
+      (!payload || !Array.isArray(payload.rooms) || payload.rooms.length === 0) &&
+      api.usingRedis()
+    ) {
       const filePayload = await loadFilePayloadForMigration();
       if (filePayload && Array.isArray(filePayload.rooms) && filePayload.rooms.length > 0) {
         payload = filePayload;
         await store.save(payload);
         migratedFromFile = true;
-        console.log(`Migrated ${filePayload.rooms.length} room(s) from ${api.STATE_FILE} into Redis`);
+        console.log(
+          `Migrated ${filePayload.rooms.length} room(s) from ${api.STATE_FILE} into Redis`,
+        );
       }
     }
   } catch (error) {
@@ -581,8 +598,14 @@ async function loadRooms(options = {}) {
   const markLive = options.markLive ?? !api.usingRedis();
   const { restored, downtimeMs } = applyRoomsPayload(payload, { activate, markLive });
   if (restored > 0) {
-    const source = api.usingRedis() ? (migratedFromFile ? "Redis (migrated from file)" : "Redis") : api.STATE_FILE;
-    console.log(`Restored ${restored} room(s) from ${source}${downtimeMs ? ` (+${downtimeMs}ms timer pad)` : ""}`);
+    const source = api.usingRedis()
+      ? migratedFromFile
+        ? "Redis (migrated from file)"
+        : "Redis"
+      : api.STATE_FILE;
+    console.log(
+      `Restored ${restored} room(s) from ${source}${downtimeMs ? ` (+${downtimeMs}ms timer pad)` : ""}`,
+    );
   }
   return { ok: true, restored, downtimeMs, migratedFromFile };
 }
@@ -692,7 +715,11 @@ function getRoom(roomId) {
 }
 
 function cleanDeviceId(deviceId, fallback) {
-  return String(deviceId || fallback || "").trim().slice(0, 80) || fallback;
+  return (
+    String(deviceId || fallback || "")
+      .trim()
+      .slice(0, 80) || fallback
+  );
 }
 
 function cleanBlind(value, fallback) {
@@ -972,7 +999,8 @@ function serializeRoom(room, viewerId) {
   const viewer = room.players.find((player) => player.id === viewerId);
   // Spectator viewers have no seat: reuse api.visibleHoleCards / sanitizeActionLog with a non-player id.
   const isSpectator = Boolean(!viewer && findSpectator(room, viewerId));
-  const toCall = viewer && !viewer.folded && !viewer.allIn ? Math.max(0, room.currentBet - viewer.bet) : 0;
+  const toCall =
+    viewer && !viewer.folded && !viewer.allIn ? Math.max(0, room.currentBet - viewer.bet) : 0;
   const minRaiseTo = room.currentBet + room.minRaise;
   const { smallBlind, bigBlind } = api.currentBlinds(room);
   const viewerMaxBet = viewer ? viewer.bet + viewer.stack : 0;
@@ -1004,12 +1032,14 @@ function serializeRoom(room, viewerId) {
     buyInCents: room.buyInCents,
     chipValueCents: api.chipValueCents(room),
     settlements: room.settlements || [],
-    ledger: room.moneyMode ? (room.moneyLedger || []).map((entry) => ({
-      ...entry,
-      netCents: entry.cashOutCents - entry.buyInsCents,
-      isYou: entry.playerId === viewerId,
-      color: room.players.find((player) => player.id === entry.playerId)?.color || null,
-    })) : [],
+    ledger: room.moneyMode
+      ? (room.moneyLedger || []).map((entry) => ({
+          ...entry,
+          netCents: entry.cashOutCents - entry.buyInsCents,
+          isYou: entry.playerId === viewerId,
+          color: room.players.find((player) => player.id === entry.playerId)?.color || null,
+        }))
+      : [],
     turn: room.turn,
     isYourTurn: Boolean(viewer) && room.turn === viewerId,
     // Full min-raise is possible. Short all-in shoves still use raiseOpen via canShove.
@@ -1018,10 +1048,21 @@ function serializeRoom(room, viewerId) {
     canCashIn: api.playerCanCashIn(room, viewer),
     toCall,
     toCallCents: api.chipsToCents(room, toCall),
-    canShowHand: Boolean(viewer) && room.phase === "complete" && Boolean(viewer?.hand?.length) && !viewer.showCards,
+    canShowHand:
+      Boolean(viewer) &&
+      room.phase === "complete" &&
+      Boolean(viewer?.hand?.length) &&
+      !viewer.showCards,
     canStart: false,
     canNextHand: false,
-    canReady: Boolean(viewer && !viewer.isBot && viewer.stack > 0 && !viewer.sittingOut && api.canReadyForHand(room) && api.playersWithChips(room).filter((player) => !player.sittingOut).length >= 2),
+    canReady: Boolean(
+      viewer &&
+      !viewer.isBot &&
+      viewer.stack > 0 &&
+      !viewer.sittingOut &&
+      api.canReadyForHand(room) &&
+      api.playersWithChips(room).filter((player) => !player.sittingOut).length >= 2,
+    ),
     isReady: Boolean(viewer?.ready),
     isSpectator,
     watchingCount: watchingCount(room),
@@ -1034,9 +1075,19 @@ function serializeRoom(room, viewerId) {
     readyEndsAt: room.readyEndsAt || null,
     readyTimeLimitMs: api.normalizeReadyTimerMs(room.readyTimeLimitMs, api.READY_TIMER_DEFAULT_MS),
     serverNow: api.shotClockTime.now(),
-    canRestartGame: Boolean(viewer) && room.hostId === viewerId && !room.moneyMode && api.canAdministerGame(room),
-    canEndGame: Boolean(viewer) && room.hostId === viewerId && api.canAdministerGame(room) && (room.moneyMode || room.phase !== "lobby"),
-    canAddBot: Boolean(viewer) && room.hostId === viewerId && !room.moneyMode && room.handNumber === 0 && room.players.length < api.MAX_PLAYERS,
+    canRestartGame:
+      Boolean(viewer) && room.hostId === viewerId && !room.moneyMode && api.canAdministerGame(room),
+    canEndGame:
+      Boolean(viewer) &&
+      room.hostId === viewerId &&
+      api.canAdministerGame(room) &&
+      (room.moneyMode || room.phase !== "lobby"),
+    canAddBot:
+      Boolean(viewer) &&
+      room.hostId === viewerId &&
+      !room.moneyMode &&
+      room.handNumber === 0 &&
+      room.players.length < api.MAX_PLAYERS,
     community: room.community.map(api.publicCard),
     winners: room.winners.map((winner) => ({
       ...winner,
@@ -1052,13 +1103,17 @@ function serializeRoom(room, viewerId) {
       stackCents: api.chipsToCents(room, player.stack),
       buyInsCents: player.buyInsCents || 0,
       cashOutCents: player.cashOutCents || 0,
-      netCents: (player.cashOutCents || 0) + api.chipsToCents(room, player.stack) - (player.buyInsCents || 0),
+      netCents:
+        (player.cashOutCents || 0) +
+        api.chipsToCents(room, player.stack) -
+        (player.buyInsCents || 0),
       bet: player.bet,
       betCents: api.chipsToCents(room, player.bet),
       invested: player.invested,
       investedCents: api.chipsToCents(room, player.invested),
       sittingOut: Boolean(player.sittingOut),
-      waitingForNextHand: api.isHandInProgress(room) && player.hand.length === 0 && player.folded && player.stack > 0,
+      waitingForNextHand:
+        api.isHandInProgress(room) && player.hand.length === 0 && player.folded && player.stack > 0,
       folded: player.folded,
       allIn: player.allIn,
       connected: player.connected,
@@ -1072,7 +1127,8 @@ function serializeRoom(room, viewerId) {
       isBigBlind: Boolean(room.bigBlindPlayerId) && player.id === room.bigBlindPlayerId,
       isTurn: room.turn === player.id,
       isYou: player.id === viewerId,
-      canMakeHost: room.hostId === viewerId && player.id !== viewerId && !player.isBot && player.connected,
+      canMakeHost:
+        room.hostId === viewerId && player.id !== viewerId && !player.isBot && player.connected,
       canKick: room.hostId === viewerId && player.id !== viewerId && !api.isHandInProgress(room),
       cards: api.visibleHoleCards(player, viewerId),
     })),
@@ -1121,7 +1177,8 @@ function chooseNextHost(room) {
 }
 
 function transferHost(room, currentHostId, nextHostId) {
-  if (!room || room.hostId !== currentHostId) return { ok: false, error: "Only the host can make another player host." };
+  if (!room || room.hostId !== currentHostId)
+    return { ok: false, error: "Only the host can make another player host." };
   if (currentHostId === nextHostId) return { ok: false, error: "You are already the host." };
   const nextHost = room.players.find((player) => player.id === nextHostId);
   if (!nextHost) return { ok: false, error: "Player not found." };
@@ -1187,7 +1244,11 @@ function removePlayerAfterDisconnect(room, player) {
   if (api.isHandInProgress(room)) {
     if (wasTurn) {
       const fromIndex = (index - 1 + room.players.length) % room.players.length;
-      const next = api.nextIndex(room, fromIndex, (item) => !item.folded && !item.allIn && item.stack > 0);
+      const next = api.nextIndex(
+        room,
+        fromIndex,
+        (item) => !item.folded && !item.allIn && item.stack > 0,
+      );
       room.turn = next >= 0 ? room.players[next].id : null;
     }
     api.maybeAdvance(room);
@@ -1214,8 +1275,11 @@ function leaveCurrentRoom(socket, { removeAfterGrace = true, allowBackgroundGrac
           convertHumanToBot(room, player);
         }
       } else {
-        const wasRecentlyBackgrounded = allowBackgroundGrace && player.backgroundedUntil > Date.now();
-        const graceMs = wasRecentlyBackgrounded ? api.BACKGROUND_DISCONNECT_GRACE_MS : api.DISCONNECT_GRACE_MS;
+        const wasRecentlyBackgrounded =
+          allowBackgroundGrace && player.backgroundedUntil > Date.now();
+        const graceMs = wasRecentlyBackgrounded
+          ? api.BACKGROUND_DISCONNECT_GRACE_MS
+          : api.DISCONNECT_GRACE_MS;
         player.backgroundedUntil = null;
         player.disconnectExpiresAt = Date.now() + graceMs;
         clearTimeout(player.disconnectTimer);
@@ -1241,8 +1305,11 @@ function leaveCurrentRoom(socket, { removeAfterGrace = true, allowBackgroundGrac
       if (!removeAfterGrace) {
         removeSpectator(room, spectator);
       } else {
-        const wasRecentlyBackgrounded = allowBackgroundGrace && spectator.backgroundedUntil > Date.now();
-        const graceMs = wasRecentlyBackgrounded ? api.BACKGROUND_DISCONNECT_GRACE_MS : api.DISCONNECT_GRACE_MS;
+        const wasRecentlyBackgrounded =
+          allowBackgroundGrace && spectator.backgroundedUntil > Date.now();
+        const graceMs = wasRecentlyBackgrounded
+          ? api.BACKGROUND_DISCONNECT_GRACE_MS
+          : api.DISCONNECT_GRACE_MS;
         spectator.backgroundedUntil = null;
         spectator.disconnectExpiresAt = Date.now() + graceMs;
         clearTimeout(spectator.disconnectTimer);

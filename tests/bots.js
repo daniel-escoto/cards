@@ -31,9 +31,15 @@ const balancedMidPairChance = preflopBlindRaiseChance(balancedRegular, 0.54);
 const balancedBroadwayChance = preflopBlindRaiseChance(balancedRegular, 0.6);
 
 assert(loosePremiumChance >= 0.7, "premium hands should raise the blind at a high frequency");
-assert(looseWeakChance > 0 && looseWeakChance < 0.12, "weak hands should bluff occasionally, not constantly");
+assert(
+  looseWeakChance > 0 && looseWeakChance < 0.12,
+  "weak hands should bluff occasionally, not constantly",
+);
 assert(loosePremiumChance > patientPremiumChance, "loose bots should raise more than patient bots");
-assert(pressurePremiumChance > patientPremiumChance, "pressure bots should raise more than patient bots");
+assert(
+  pressurePremiumChance > patientPremiumChance,
+  "pressure bots should raise more than patient bots",
+);
 assert(pressurePremiumChance <= 0.9, "preflop raising should still respect an aggression cap");
 assert(balancedMidPairChance >= 0.35, "medium pocket pairs should raise blinds often enough");
 assert(balancedBroadwayChance >= 0.4, "suited broadway hands should raise blinds at a solid rate");
@@ -248,28 +254,57 @@ const midPairConfidence = estimateComputerConfidence(
   facingBlindRoom(3, ["9s", "9h"]).room,
   facingBlindRoom(3, ["9s", "9h"]).bot,
 );
-assert(midPairConfidence >= 0.5, "medium pocket pairs should clear the value-raise confidence floor");
+assert(
+  midPairConfidence >= 0.5,
+  "medium pocket pairs should clear the value-raise confidence floor",
+);
 
 const blindAces = actionRate((hand) => facingBlindRoom(3, hand), ["As", "Ah"], 240);
 const blindNines = actionRate((hand) => facingBlindRoom(3, hand), ["9s", "9h"], 240);
 const blindJunk = actionRate((hand) => facingBlindRoom(3, hand), ["7s", "2h"], 240);
-assert(blindAces.raise >= 0.65, `aces should usually raise blinds (got ${(blindAces.raise * 100).toFixed(1)}%)`);
-assert(blindNines.raise >= 0.3, `nines should raise blinds often enough (got ${(blindNines.raise * 100).toFixed(1)}%)`);
-assert(blindJunk.raise < 0.12, `junk should rarely raise blinds (got ${(blindJunk.raise * 100).toFixed(1)}%)`);
-assert(blindAces.avgRaiseTo >= 50, `aces opens should average above a min-raise (got ${blindAces.avgRaiseTo.toFixed(1)})`);
+assert(
+  blindAces.raise >= 0.65,
+  `aces should usually raise blinds (got ${(blindAces.raise * 100).toFixed(1)}%)`,
+);
+assert(
+  blindNines.raise >= 0.3,
+  `nines should raise blinds often enough (got ${(blindNines.raise * 100).toFixed(1)}%)`,
+);
+assert(
+  blindJunk.raise < 0.12,
+  `junk should rarely raise blinds (got ${(blindJunk.raise * 100).toFixed(1)}%)`,
+);
+assert(
+  blindAces.avgRaiseTo >= 50,
+  `aces opens should average above a min-raise (got ${blindAces.avgRaiseTo.toFixed(1)})`,
+);
 
 const threeBetAces = actionRate((hand) => facingOpenRoom(3, hand), ["As", "Ah"], 160);
 const threeBetKings = actionRate((hand) => facingOpenRoom(4, hand), ["Ks", "Kh"], 160);
-assert(threeBetAces.raise >= 0.45, `aces should 3-bet opens frequently (got ${(threeBetAces.raise * 100).toFixed(1)}%)`);
-assert(threeBetKings.raise >= 0.4, `pressure kings should 3-bet opens frequently (got ${(threeBetKings.raise * 100).toFixed(1)}%)`);
+assert(
+  threeBetAces.raise >= 0.45,
+  `aces should 3-bet opens frequently (got ${(threeBetAces.raise * 100).toFixed(1)}%)`,
+);
+assert(
+  threeBetKings.raise >= 0.4,
+  `pressure kings should 3-bet opens frequently (got ${(threeBetKings.raise * 100).toFixed(1)}%)`,
+);
 
 const checkedAces = actionRate((hand) => checkedToRoom(3, hand), ["As", "Ah"], 160);
-assert(checkedAces.raise >= 0.5, `aces should bet often when checked to (got ${(checkedAces.raise * 100).toFixed(1)}%)`);
+assert(
+  checkedAces.raise >= 0.5,
+  `aces should bet often when checked to (got ${(checkedAces.raise * 100).toFixed(1)}%)`,
+);
 
 const sizingRoom = facingBlindRoom(3, ["As", "Ah"]).room;
 const sizingBot = facingBlindRoom(3, ["As", "Ah"]).bot;
-const openSizes = Array.from({ length: 80 }, () => chooseComputerRaiseTo(sizingRoom, sizingBot, 40, 0.84));
+const openSizes = Array.from({ length: 80 }, () =>
+  chooseComputerRaiseTo(sizingRoom, sizingBot, 40, 0.84),
+);
 const aboveMin = openSizes.filter((size) => size > 40).length / openSizes.length;
-assert(aboveMin >= 0.55, `preflop opens should usually size above the min-raise (got ${(aboveMin * 100).toFixed(1)}%)`);
+assert(
+  aboveMin >= 0.55,
+  `preflop opens should usually size above the min-raise (got ${(aboveMin * 100).toFixed(1)}%)`,
+);
 
 console.log("Bot aggression test passed");
