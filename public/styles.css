@@ -1094,6 +1094,34 @@ select:focus {
   background: color-mix(in srgb, var(--accent, #7dd3a0) 88%, #fff);
   transition: width 0.2s linear;
 }
+/* Last 5s shot-clock warning: red highlight for everyone; pulse when motion is OK. */
+.table-player-row.low-time {
+  border-color: color-mix(in srgb, #ff6b6b 72%, #fff);
+  box-shadow: inset 4px 0 0 #ff6b6b, 0 0 0 1px rgba(255, 80, 80, 0.28);
+}
+.table-player-row.low-time .seat-name,
+.table-player-row.low-time .turn-clock {
+  color: #ffb4b4;
+}
+.table-player-row.low-time .turn-clock-bar > i {
+  background: color-mix(in srgb, #ff6b6b 82%, #fff);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .table-player-row.low-time {
+    animation: low-time-pulse 1s ease-in-out infinite;
+  }
+  .table-player-row.low-time .turn-clock {
+    animation: low-time-clock-pulse 1s ease-in-out infinite;
+  }
+}
+@keyframes low-time-pulse {
+  50% {
+    box-shadow: inset 4px 0 0 #ff8585, 0 0 0 1px rgba(255, 100, 100, 0.42);
+  }
+}
+@keyframes low-time-clock-pulse {
+  50% { color: #ffd0d0; }
+}
 .player-action { overflow: hidden; color: rgba(255,255,255,.9); font-size: 12px; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
 .player-stack { padding: 4px 7px; border-radius: 999px; color: #fff; background: rgba(0,0,0,.34); font-size: 12px; text-align: center; }
 .table-player-row .action-token-raise { color: #6ff0a0; }

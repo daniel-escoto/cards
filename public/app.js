@@ -253,6 +253,18 @@ class TableSounds {
       oscillator.stop(start + 0.34);
     });
   }
+
+  /** Quiet one-shot click for the acting player's last 5s shot-clock warning. */
+  shotClockTick() {
+    try {
+      if (!this.enabled) return;
+      const context = this.unlock();
+      if (!context || context.state !== "running") return;
+      this.tap(context.currentTime, 1480, 0.028, 0);
+    } catch (_) {
+      // Autoplay / AudioContext failures must never throw into the UI loop.
+    }
+  }
 }
 
 const tableSounds = new TableSounds();
@@ -368,6 +380,10 @@ renderKeybinds();
 let state = null;
 let practiceSession = null;
 let turnCountdownTimer = null;
+const lowTimeSession = (typeof TurnClockWarning !== "undefined" && TurnClockWarning.createLowTimeSession)
+  ? TurnClockWarning.createLowTimeSession()
+  : { turnEndsAt: null, lastSeenTickSecond: null, armed: false };
+let lowTimeVibratedForEndsAt = null;
 let raiseState = { value: 0, min: 0, max: 0, step: 20 };
 let raiseControlsDisabled = false;
 /**
@@ -1221,22 +1237,71 @@ function actingSeatShowsClock(player) {
   );
 }
 
+function lowTimeWarningActive() {
+  if (!state?.turnEndsAt || !state?.turnTimeLimitMs || !isBettingPhase(state.phase) || !state.turn) return false;
+  if (typeof TurnClockWarning === "undefined" || !TurnClockWarning.isLowTime) {
+    const rem = state.turnEndsAt - clientNow();
+    return rem > 0 && rem <= 5000;
+  }
+  return TurnClockWarning.isLowTime(state.turnEndsAt, clientNow());
+}
+
+function syncLowTimeWarningEffects(now = clientNow()) {
+  if (!state?.turnEndsAt || !state?.turnTimeLimitMs || !isBettingPhase(state.phase) || !state.turn) {
+    if (typeof TurnClockWarning !== "undefined" && TurnClockWarning.resetLowTimeSession) {
+      TurnClockWarning.resetLowTimeSession(lowTimeSession);
+    } else {
+      lowTimeSession.turnEndsAt = null;
+      lowTimeSession.lastSeenTickSecond = null;
+      lowTimeSession.armed = false;
+    }
+    lowTimeVibratedForEndsAt = null;
+    return;
+  }
+
+  const endsAt = state.turnEndsAt;
+  const tickSecond = typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeLowTimeTick
+    ? TurnClockWarning.consumeLowTimeTick(lowTimeSession, { turnEndsAt: endsAt, now })
+    : null;
+
+  // Sound + vibrate only on the acting player's own device.
+  if (tickSecond != null && state.isYourTurn && !document.hidden) {
+    tableSounds.shotClockTick();
+    if (tickSecond === 5 && lowTimeVibratedForEndsAt !== endsAt) {
+      lowTimeVibratedForEndsAt = endsAt;
+      try {
+        if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+          navigator.vibrate(40);
+        }
+      } catch (_) {
+        // Vibration is optional; never throw.
+      }
+    }
+  }
+}
+
 function syncTurnCountdown() {
   clearInterval(turnCountdownTimer);
   turnCountdownTimer = null;
-  if (!state?.turnEndsAt || !state?.turnTimeLimitMs || !isBettingPhase(state.phase) || !state.turn) return;
+  if (!state?.turnEndsAt || !state?.turnTimeLimitMs || !isBettingPhase(state.phase) || !state.turn) {
+    syncLowTimeWarningEffects();
+    return;
+  }
   const tick = () => {
     const seconds = turnSecondsRemaining();
     const labelText = formatTurnCountdown(seconds);
     const pct = turnPctRemaining();
+    const lowTime = lowTimeWarningActive();
     document.querySelectorAll("[data-turn-seat-clock]").forEach((row) => {
       row.style.setProperty("--turn-pct", String(pct));
+      row.classList.toggle("low-time", lowTime);
       const label = row.querySelector("[data-turn-countdown]");
       if (label) {
         label.textContent = labelText;
         label.setAttribute("aria-label", `${labelText} left`);
       }
     });
+    syncLowTimeWarningEffects();
     if (seconds <= 0) clearInterval(turnCountdownTimer);
   };
   tick();
@@ -1276,12 +1341,13 @@ function renderActionFeed(newEntryId = "") {
     ].filter(Boolean).join("; ");
     const styleAttr = styleVars ? ` style="${styleVars}"` : "";
     const countdownLabel = formatTurnCountdown(seconds);
+    const lowTime = showClock && lowTimeWarningActive();
     const clockMarkup = showClock
       ? `<span class="turn-clock" data-turn-countdown aria-label="${countdownLabel} left">${countdownLabel}</span>`
       : "";
     const barMarkup = showClock ? `<span class="turn-clock-bar" aria-hidden="true"><i></i></span>` : "";
     return `
-      <article class="table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${showClock ? ' data-turn-seat-clock="1"' : ""}${styleAttr}>
+      <article class="table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${lowTime ? "low-time" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${showClock ? ' data-turn-seat-clock="1"' : ""}${styleAttr}>
         <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
         <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>${blindChipMarkup(player)}</span>
         <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}${clockMarkup}</span>
