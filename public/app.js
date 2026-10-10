@@ -25,6 +25,9 @@ const smallBlindLabel = document.querySelector("#smallBlindLabel");
 const bigBlindLabel = document.querySelector("#bigBlindLabel");
 const moneyModeInput = document.querySelector("#moneyModeInput");
 const buyInLabel = document.querySelector("#buyInLabel");
+const houseRulesFields = document.querySelector("#houseRulesFields");
+const sevenDeuceInput = document.querySelector("#sevenDeuceInput");
+const sevenDeuceHint = document.querySelector("#sevenDeuceHint");
 const buyInInput = document.querySelector("#buyInInput");
 const tableActionBtn = document.querySelector("#tableActionBtn");
 const joinError = document.querySelector("#joinError");
@@ -56,6 +59,9 @@ const moneyPanel = document.querySelector("#moneyPanel");
 const moneyDetails = document.querySelector("#moneyDetails");
 const blindPanel = document.querySelector("#blindPanel");
 const blindForm = document.querySelector("#blindForm");
+const houseRulesPanel = document.querySelector("#houseRulesPanel");
+const menuSevenDeuceInput = document.querySelector("#menuSevenDeuceInput");
+const menuSevenDeuceHint = document.querySelector("#menuSevenDeuceHint");
 const menuSmallBlindLabel = document.querySelector("#menuSmallBlindLabel");
 const menuBigBlindLabel = document.querySelector("#menuBigBlindLabel");
 const menuSmallBlindInput = document.querySelector("#menuSmallBlindInput");
@@ -588,6 +594,8 @@ function updateTableActionLabel() {
   blindFields?.classList.toggle("hidden", isJoining);
   moneyModeLabel?.classList.toggle("hidden", isJoining);
   buyInLabel.classList.toggle("hidden", isJoining || !moneyMode);
+  houseRulesFields?.classList.toggle("hidden", isJoining);
+  if (sevenDeuceHint) sevenDeuceHint.textContent = sevenDeuceHintText(moneyMode ? "$1.00" : "100 chips");
   roomCodeLabel.classList.toggle("hidden", !isJoining);
   hostModeBtn.classList.toggle("selected", !isJoining);
   joinModeBtn.classList.toggle("selected", isJoining);
@@ -683,6 +691,10 @@ function formatSignedMoney(cents) {
 
 function formatAmount(chips, cents) {
   return state?.moneyMode ? formatMoney(cents) : String(chips);
+}
+
+function sevenDeuceHintText(bountyLabel) {
+  return `Win a hand with 7-2 offsuit and everyone else dealt in pays you ${bountyLabel} (never more than they have)`;
 }
 
 function playerStackLabel(player) {
@@ -900,6 +912,13 @@ function showGameMenu() {
   moneyPanel.classList.toggle("hidden", !state?.moneyMode || isOfflineSession());
   shareGameBtn.classList.toggle("hidden", isOfflineSession());
   sharePanel.classList.add("hidden");
+  // Everyone sees the house rules; only the host can change them, and only between hands.
+  houseRulesPanel.classList.toggle("hidden", !state?.houseRules);
+  if (state?.houseRules) {
+    menuSevenDeuceInput.checked = Boolean(state.houseRules.sevenDeuce);
+    menuSevenDeuceInput.disabled = !state.canChangeHouseRules;
+    menuSevenDeuceHint.textContent = sevenDeuceHintText(formatAmount(state.sevenDeuceBounty, state.sevenDeuceBountyCents));
+  }
   blindPanel.classList.toggle("hidden", !state?.canChangeBlinds);
   if (state?.canChangeBlinds) {
     const moneyMode = state.moneyMode;
@@ -1304,6 +1323,13 @@ function render() {
         <span class="seat-name">${escapeHtml(winner.name)}</span> wins ${formatAmount(winner.amount, winner.amountCents)} with ${escapeHtml(winner.hand)}
       </div>
     `;
+  }).join("") + (state.bounties || []).map((bounty) => {
+    const bountyPlayer = state.players.find((player) => player.id === bounty.playerId);
+    return `
+      <div ${playerColorStyle(bountyPlayer)}>
+        <span class="seat-name">${escapeHtml(bounty.name)}</span> collects a 7-2 bounty of ${formatAmount(bounty.amount, bounty.amountCents)}
+      </div>
+    `;
   }).join("");
   if (winnerMarkup !== lastWinnerSignature) {
     winnerList.innerHTML = winnerMarkup;
@@ -1691,6 +1717,7 @@ function startOfflineHost() {
     botCount: 0,
     smallBlind: Math.max(1, Math.floor(Number(smallBlindInput?.value) || 10)),
     bigBlind: Math.max(2, Math.floor(Number(bigBlindInput?.value) || 20)),
+    houseRules: { sevenDeuce: Boolean(sevenDeuceInput?.checked) },
     onUpdate: applyRoomUpdate,
   });
   clearRoomUrl();
@@ -1733,6 +1760,7 @@ function joinOrCreate(mode) {
   if (mode !== "join") {
     payload.moneyMode = moneyModeInput.checked;
     payload.buyInCents = moneyCentsFromInput(buyInInput);
+    payload.houseRules = { sevenDeuce: Boolean(sevenDeuceInput?.checked) };
     if (payload.moneyMode) {
       payload.smallBlindCents = Math.round(Number(smallBlindInput.value) * 100);
       payload.bigBlindCents = Math.round(Number(bigBlindInput.value) * 100);
@@ -1755,7 +1783,7 @@ function joinOrCreate(mode) {
       if (response?.moneyTerms) {
         acceptedMoneyTerms = response.moneyTerms;
         const terms = acceptedMoneyTerms;
-        joinPreview.textContent = `Money game · Buy-in ${formatMoney(terms.buyInCents)} · Blinds ${formatMoney(terms.smallBlindCents)}/${formatMoney(terms.bigBlindCents)}. You’ll play on the next deal. Payments happen separately after the game.`;
+        joinPreview.textContent = `Money game · Buy-in ${formatMoney(terms.buyInCents)} · Blinds ${formatMoney(terms.smallBlindCents)}/${formatMoney(terms.bigBlindCents)}${terms.sevenDeuceBountyCents ? ` · 7-2 bounty ${formatMoney(terms.sevenDeuceBountyCents)}` : ""}. You’ll play on the next deal. Payments happen separately after the game.`;
         joinError.textContent = "";
         updateTableActionLabel();
         return;
@@ -1790,6 +1818,9 @@ document.addEventListener("pointerdown", () => tableSounds.unlock(), { once: tru
 document.addEventListener("click", (event) => {
   const button = event.target.closest("button");
   if (button && !button.disabled) tableSounds.click();
+});
+menuSevenDeuceInput.addEventListener("change", () => {
+  emitWithAck("game:setHouseRules", { sevenDeuce: menuSevenDeuceInput.checked });
 });
 soundEnabledInput.addEventListener("change", () => {
   tableSounds.setEnabled(soundEnabledInput.checked);

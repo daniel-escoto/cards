@@ -29,6 +29,9 @@
   const DEFAULT_BIG_BLIND = BLIND_LEVELS[0].bigBlind;
   const DEFAULT_SMALL_BLIND = BLIND_LEVELS[0].smallBlind;
   const MAX_PLAYERS = 9;
+  // House rule: winning a hand with 7-2 offsuit collects a bounty from everyone else dealt in.
+  const SEVEN_DEUCE_BOUNTY_CENTS = 100;
+  const SEVEN_DEUCE_BOUNTY_CHIPS = 100;
   const BOT_PROFILES = [
   { tag: "cpu_7f3a", style: "Loose cannon", aggression: 1.28, looseness: 1.24, bluff: 0.13, skill: 0.58 },
   { tag: "cpu_b204", style: "Patient grinder", aggression: 0.72, looseness: 0.74, bluff: 0.025, skill: 0.82 },
@@ -76,6 +79,21 @@
     return Math.round(Number(chips) || 0) * chipValueCents(room);
   }
 
+
+function cleanHouseRules(rules) {
+  return { sevenDeuce: Boolean(rules?.sevenDeuce) };
+}
+
+function sevenDeuceBountyChips(room) {
+  if (!room?.moneyMode) return SEVEN_DEUCE_BOUNTY_CHIPS;
+  return Math.max(1, Math.round(SEVEN_DEUCE_BOUNTY_CENTS / chipValueCents(room)));
+}
+
+function isSevenDeuceOffsuit(hand) {
+  if (!Array.isArray(hand) || hand.length !== 2) return false;
+  const ranksHeld = hand.map((card) => card[0]).sort().join("");
+  return ranksHeld === "27" && hand[0][1] !== hand[1][1];
+}
 
 function blindLevelForHand(handNumber) {
   let remainingHands = Math.max(1, Math.floor(Number(handNumber) || 1));
@@ -280,6 +298,7 @@ function resetHandState(room) {
   room.acted = new Set();
   room.raiseEligible = new Set();
   room.winners = [];
+  room.bounties = [];
   room.actionLog = [];
   room.riverAggressor = null;
   room.allInCardsExposed = false;
@@ -513,6 +532,36 @@ function revealComputerHands(room) {
   }
 }
 
+function paySevenDeuceBounties(room, winnerIds) {
+  room.bounties = [];
+  if (!room.houseRules?.sevenDeuce) return;
+  const bounty = sevenDeuceBountyChips(room);
+  for (const winnerId of new Set(winnerIds)) {
+    const winner = room.players.find((player) => player.id === winnerId);
+    if (!winner || !isSevenDeuceOffsuit(winner.hand)) continue;
+    let amount = 0;
+    for (const player of room.players) {
+      if (player.id === winner.id || !player.hand.length) continue;
+      // Never takes more than a player has left, so stacks bottom out at zero.
+      const paid = Math.min(bounty, Math.max(0, player.stack));
+      player.stack -= paid;
+      amount += paid;
+    }
+    if (amount <= 0) continue;
+    winner.stack += amount;
+    winner.showCards = true;
+    room.bounties.push({ playerId: winner.id, name: winner.name, amount });
+    logAction(room, `${winner.name} collects ${amount} 7-2 bounty.`, {
+      playerId: winner.id,
+      action: `7-2 bounty ${amount}`,
+    });
+  }
+  if (room.bounties.length) {
+    const bountyText = room.bounties.map((entry) => `${entry.name} collects ${entry.amount} 7-2 bounty`).join(" · ");
+    room.message = room.message ? `${room.message} · ${bountyText}` : bountyText;
+  }
+}
+
 function awardUncontested(room, winner) {
   const amount = collectPot(room);
   winner.stack += amount;
@@ -526,6 +575,7 @@ function awardUncontested(room, winner) {
     playerId: winner.id,
     action: `Wins ${amount}`,
   });
+  paySevenDeuceBounties(room, [winner.id]);
   maybeEndGame(room);
 }
 
@@ -697,6 +747,7 @@ function settleShowdown(room) {
       action: `Wins ${winner.amount}`,
     });
   }
+  paySevenDeuceBounties(room, room.winners.map((winner) => winner.playerId));
   maybeEndGame(room);
 }
 
@@ -1168,6 +1219,10 @@ function isSoloHumanFolded(room) {
       moneyMode: Boolean(room.moneyMode),
       buyInCents: room.buyInCents || 0,
       chipValueCents: chipValueCents(room),
+      houseRules: cleanHouseRules(room.houseRules),
+      sevenDeuceBounty: sevenDeuceBountyChips(room),
+      sevenDeuceBountyCents: chipsToCents(room, sevenDeuceBountyChips(room)),
+      canChangeHouseRules: room.hostId === viewerId && canReadyForHand(room),
       settlements: room.settlements || [],
       ledger: [],
       offline: Boolean(room.offline),
@@ -1195,6 +1250,10 @@ function isSoloHumanFolded(room) {
       winners: room.winners.map((winner) => ({
         ...winner,
         amountCents: chipsToCents(room, winner.amount),
+      })),
+      bounties: (room.bounties || []).map((bounty) => ({
+        ...bounty,
+        amountCents: chipsToCents(room, bounty.amount),
       })),
       actionLog: sanitizeActionLogForClient(room.actionLog),
       allInCardsExposed: Boolean(room.allInCardsExposed),
@@ -1272,6 +1331,8 @@ function isSoloHumanFolded(room) {
       baseSmallBlind: smallBlind,
       baseBigBlind: bigBlind,
       chipValueCents: 1,
+      houseRules: cleanHouseRules(options.houseRules),
+      bounties: [],
       settlements: [],
       moneyLedger: [],
       offline: true,
@@ -1332,6 +1393,7 @@ function isSoloHumanFolded(room) {
     room.acted = new Set();
     room.raiseEligible = new Set();
     room.winners = [];
+    room.bounties = [];
     room.actionLog = [];
     room.riverAggressor = null;
     room.allInCardsExposed = false;
@@ -1524,6 +1586,8 @@ function isSoloHumanFolded(room) {
       raiseEligible: new Set(),
       message: snapshot.message || "Continuing offline.",
       winners: Array.isArray(snapshot.winners) ? snapshot.winners.map((winner) => ({ ...winner })) : [],
+      bounties: Array.isArray(snapshot.bounties) ? snapshot.bounties.map((bounty) => ({ ...bounty })) : [],
+      houseRules: cleanHouseRules(snapshot.houseRules),
       actionLog: Array.isArray(snapshot.actionLog) ? snapshot.actionLog.map((entry) => ({ ...entry })) : [],
       handNumber,
       moneyMode: false,
@@ -1561,6 +1625,8 @@ function isSoloHumanFolded(room) {
     DEFAULT_BIG_BLIND,
     DEFAULT_SMALL_BLIND,
     MAX_PLAYERS,
+    SEVEN_DEUCE_BOUNTY_CENTS,
+    SEVEN_DEUCE_BOUNTY_CHIPS,
     BOT_PROFILES,
     PLAYER_COLORS,
     ranks,
@@ -1570,6 +1636,10 @@ function isSoloHumanFolded(room) {
     randomInt,
     blindLevelForHand,
     currentBlinds,
+    cleanHouseRules,
+    sevenDeuceBountyChips,
+    isSevenDeuceOffsuit,
+    paySevenDeuceBounties,
     makeDeck,
     publicCard,
     cleanName,

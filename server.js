@@ -83,6 +83,8 @@ const {
   assessPreflopAllInCall,
   chooseComputerAction,
   isSoloHumanFolded,
+  cleanHouseRules,
+  sevenDeuceBountyChips,
 } = engine;
 
 setRandomInt((maxExclusive) => crypto.randomInt(maxExclusive));
@@ -220,6 +222,8 @@ function serializeRoomForStorage(room) {
     raiseEligible: [...(room.raiseEligible || [])],
     message: room.message,
     winners: room.winners,
+    bounties: room.bounties || [],
+    houseRules: cleanHouseRules(room.houseRules),
     actionLog: room.actionLog,
     riverAggressor: room.riverAggressor || null,
     allInCardsExposed: Boolean(room.allInCardsExposed),
@@ -316,6 +320,7 @@ function preserveSettledMoneyRoom(room) {
   room.acted = new Set();
   room.raiseEligible = new Set();
   room.winners = [];
+  room.bounties = [];
   room.actionLog = [];
   room.players = [];
   room.status = "complete";
@@ -393,6 +398,8 @@ function restoreRoom(raw) {
     raiseEligible: new Set(Array.isArray(raw.raiseEligible) ? raw.raiseEligible : []),
     message: raw.message || "Room restored after update.",
     winners: Array.isArray(raw.winners) ? raw.winners : [],
+    bounties: Array.isArray(raw.bounties) ? raw.bounties : [],
+    houseRules: cleanHouseRules(raw.houseRules),
     actionLog: Array.isArray(raw.actionLog) ? raw.actionLog : [],
     riverAggressor: raw.riverAggressor || null,
     allInCardsExposed: Boolean(raw.allInCardsExposed),
@@ -543,10 +550,12 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
     raiseEligible: new Set(),
     message: "Invite friends with this room link.",
     winners: [],
+    bounties: [],
     actionLog: [],
     riverAggressor: null,
     allInCardsExposed: false,
     handNumber: 0,
+    houseRules: cleanHouseRules(options.houseRules),
     moneyMode,
     moneyUnitCents: moneyMode ? 1 : null,
     buyInCents,
@@ -783,6 +792,7 @@ function restartGame(room) {
   room.acted = new Set();
   room.raiseEligible = new Set();
   room.winners = [];
+  room.bounties = [];
   room.settlements = [];
   room.actionLog = [];
   room.riverAggressor = null;
@@ -1125,6 +1135,10 @@ function serializeRoom(room, viewerId) {
     moneyMode: Boolean(room.moneyMode),
     buyInCents: room.buyInCents,
     chipValueCents: chipValueCents(room),
+    houseRules: cleanHouseRules(room.houseRules),
+    sevenDeuceBounty: sevenDeuceBountyChips(room),
+    sevenDeuceBountyCents: chipsToCents(room, sevenDeuceBountyChips(room)),
+    canChangeHouseRules: room.hostId === viewerId && canReadyForHand(room),
     settlements: room.settlements || [],
     ledger: room.moneyMode ? (room.moneyLedger || []).map((entry) => ({
       ...entry,
@@ -1156,6 +1170,10 @@ function serializeRoom(room, viewerId) {
     winners: room.winners.map((winner) => ({
       ...winner,
       amountCents: chipsToCents(room, winner.amount),
+    })),
+    bounties: (room.bounties || []).map((bounty) => ({
+      ...bounty,
+      amountCents: chipsToCents(room, bounty.amount),
     })),
     actionLog: sanitizeActionLogForClient(room.actionLog),
     allInCardsExposed: Boolean(room.allInCardsExposed),
@@ -1364,7 +1382,7 @@ function kickPlayerFromRoom(room, playerId) {
 io.on("connection", (socket) => {
   socket.on("room:create", ({
     name, deviceId, computerPlayers, tableSize, moneyMode, buyInCents,
-    smallBlind, bigBlind, smallBlindCents, bigBlindCents,
+    smallBlind, bigBlind, smallBlindCents, bigBlindCents, houseRules,
   }, ack) => {
     const playerId = cleanDeviceId(deviceId, socket.id);
     const cleanedBuyInCents = cleanMoneyCents(buyInCents, DEFAULT_BUY_IN_CENTS);
@@ -1388,6 +1406,7 @@ io.on("connection", (socket) => {
       buyInCents: cleanedBuyInCents,
       smallBlind: cleanSmall,
       bigBlind: cleanBig,
+      houseRules,
       reconnectTokenHash: credentials.tokenHash,
     });
     if (!room.moneyMode) addComputerPlayers(room, requestedSize || computerPlayers);
@@ -1452,6 +1471,7 @@ io.on("connection", (socket) => {
         buyInCents: room.buyInCents,
         smallBlindCents: chipsToCents(room, blinds.smallBlind),
         bigBlindCents: chipsToCents(room, blinds.bigBlind),
+        sevenDeuceBountyCents: room.houseRules?.sevenDeuce ? chipsToCents(room, sevenDeuceBountyChips(room)) : 0,
       };
       if (!acceptedMoneyTerms || Object.keys(moneyTerms).some((key) => acceptedMoneyTerms[key] !== moneyTerms[key])) {
         return ack?.({ ok: false, moneyTerms, error: "Review the buy-in and blinds before joining." });
@@ -1592,6 +1612,18 @@ io.on("connection", (socket) => {
     resetReadiness(room);
     room.minRaise = nextBig;
     room.message = `Blinds updated to ${room.moneyMode ? `$${(smallBlindCents / 100).toFixed(2)}/$${(bigBlindCents / 100).toFixed(2)}` : `${nextSmall}/${nextBig}`}.`;
+    ack?.({ ok: true });
+    emitRoom(room);
+  });
+
+  socket.on("game:setHouseRules", (rules = {}, ack) => {
+    const room = rooms.get(socketRoom.get(socket.id));
+    const playerId = socketPlayer.get(socket.id);
+    if (!room || room.hostId !== playerId) return ack?.({ ok: false, error: "Only the host can change house rules." });
+    if (!canReadyForHand(room)) return ack?.({ ok: false, error: "Change house rules between hands." });
+    room.houseRules = cleanHouseRules({ ...room.houseRules, ...rules });
+    resetReadiness(room);
+    room.message = `7-2 bounty ${room.houseRules.sevenDeuce ? "on" : "off"}.`;
     ack?.({ ok: true });
     emitRoom(room);
   });

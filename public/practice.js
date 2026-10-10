@@ -135,6 +135,17 @@
         return { ok: true };
       }
 
+      if (eventName === "game:setHouseRules") {
+        if (room.hostId !== viewerId || !engine.canReadyForHand(room)) {
+          return { ok: false, error: "Change house rules between hands." };
+        }
+        room.houseRules = engine.cleanHouseRules({ ...room.houseRules, ...payload });
+        room.message = `7-2 bounty ${room.houseRules.sevenDeuce ? "on" : "off"}.`;
+        engine.resetReadiness(room);
+        publish();
+        return { ok: true };
+      }
+
       if (eventName === "game:restart") {
         engine.restartPracticeRoom(room);
         publish();

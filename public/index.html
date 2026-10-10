@@ -57,6 +57,17 @@
               <small>Track buy-ins in dollars, without CPU players</small>
             </span>
           </label>
+          <details id="houseRulesFields" class="appearance-panel house-rules-panel">
+            <summary>House rules</summary>
+            <label class="checkbox-label">
+              <input id="sevenDeuceInput" type="checkbox" />
+              <span class="switch-control" aria-hidden="true"></span>
+              <span class="checkbox-copy">
+                <strong>7-2 bounty</strong>
+                <small id="sevenDeuceHint">Win a hand with 7-2 offsuit and everyone else dealt in pays you 100 chips</small>
+              </span>
+            </label>
+          </details>
           <label id="buyInLabel" class="form-field hidden">
             <span>Buy-in</span>
             <input id="buyInInput" type="number" min="1" max="10000" step="0.01" value="20" inputmode="decimal" />
@@ -173,6 +184,17 @@
                 <p class="shortcut-help">Choose an action, then press a key. Left/Right also adjust bet like Down/Up.</p>
                 <div id="keybindList" class="keybind-list"></div>
                 <button id="resetKeybindsBtn" class="secondary reset-keybinds" type="button">Reset to defaults</button>
+              </details>
+              <details id="houseRulesPanel" class="appearance-panel house-rules-panel hidden">
+                <summary>House rules</summary>
+                <label class="checkbox-label">
+                  <input id="menuSevenDeuceInput" type="checkbox" />
+                  <span class="switch-control" aria-hidden="true"></span>
+                  <span class="checkbox-copy">
+                    <strong>7-2 bounty</strong>
+                    <small id="menuSevenDeuceHint"></small>
+                  </span>
+                </label>
               </details>
               <details id="blindPanel" class="appearance-panel blind-settings-panel hidden">
                 <summary>Blind settings</summary>
