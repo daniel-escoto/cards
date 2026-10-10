@@ -21,7 +21,8 @@
     "test:engine-offline": "node tests/engine-offline.js",
     "test:offline-handoff": "node tests/offline-handoff.js",
     "test:turn-timer": "node tests/turn-timer.js",
-    "test": "npm run test:betting && npm run test:blinds && npm run test:bots && npm run test:money-ledger && npm run test:raise-presets && npm run test:seated-players && npm run test:side-pots-cashin && npm run test:showdown-reveal && npm run test:all-in-presets && npm run test:check-bet-merge && npm run test:call-raise-merge && npm run test:engine-offline && npm run test:offline-handoff && npm run test:turn-timer && npm run test:frontend",
+    "test:turn-clock-warning": "node tests/turn-clock-warning.js",
+    "test": "npm run test:betting && npm run test:blinds && npm run test:bots && npm run test:money-ledger && npm run test:raise-presets && npm run test:seated-players && npm run test:side-pots-cashin && npm run test:showdown-reveal && npm run test:all-in-presets && npm run test:check-bet-merge && npm run test:call-raise-merge && npm run test:engine-offline && npm run test:offline-handoff && npm run test:turn-timer && npm run test:turn-clock-warning && npm run test:frontend",
     "test:money-join": "node tests/money-join.js",
     "smoke": "node tests/smoke.js"
   },
