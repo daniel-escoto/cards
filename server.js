@@ -97,9 +97,11 @@ const STATE_FILE = process.env.GAME_STATE_FILE || path.join(DEFAULT_DATA_DIR, "r
 const SAVE_DEBOUNCE_MS = 150;
 const SHOWDOWN_DELAY_MS = 1600;
 const CPU_ACTION_DELAY_MS = 250;
-/** Allowed host shot-clock settings (ms). 0 = Off. Default 30s. */
-const SHOT_CLOCK_OPTIONS_MS = Object.freeze([0, 15000, 30000, 60000]);
+/** Host shot-clock presets (ms). 0 = Off. Default 30s. Custom values allowed in [MIN, MAX]. */
+const SHOT_CLOCK_OPTIONS_MS = Object.freeze([0, 15000, 30000, 60000, 90000, 120000, 300000]);
 const SHOT_CLOCK_DEFAULT_MS = 30000;
+const SHOT_CLOCK_MIN_MS = 10000;
+const SHOT_CLOCK_MAX_MS = 600000;
 const DORMANT_ROOM_TTL_MS = Math.max(60000, Number(process.env.DORMANT_ROOM_TTL_MS) || 60 * 60 * 1000);
 /** Injectable clock for tests (fake timers). Production uses Date/setTimeout. */
 const shotClockTime = {
@@ -123,7 +125,15 @@ function resetShotClockTime() {
 function normalizeShotClockMs(value, fallback = SHOT_CLOCK_DEFAULT_MS) {
   const ms = Math.floor(Number(value));
   if (!Number.isFinite(ms)) return fallback;
-  return SHOT_CLOCK_OPTIONS_MS.includes(ms) ? ms : fallback;
+  if (ms === 0) return 0;
+  if (ms >= SHOT_CLOCK_MIN_MS && ms <= SHOT_CLOCK_MAX_MS) return ms;
+  return fallback;
+}
+
+function formatShotClockSeconds(seconds) {
+  if (!seconds) return "Off";
+  if (seconds >= 60 && seconds % 60 === 0) return `${seconds / 60}m`;
+  return `${seconds}s`;
 }
 /** Empty settled money rooms keep their ledger this long so players can reopen settle-up by room code. */
 const SETTLED_MONEY_ROOM_TTL_MS = Math.max(
@@ -230,6 +240,8 @@ function serializeRoomForStorage(room) {
     baseSmallBlind: room.baseSmallBlind || DEFAULT_SMALL_BLIND,
     baseBigBlind: room.baseBigBlind || DEFAULT_BIG_BLIND,
     turnTimeLimitMs: normalizeShotClockMs(room.turnTimeLimitMs, SHOT_CLOCK_DEFAULT_MS),
+    turnEndsAt: room.turnEndsAt || null,
+    turnTimerPlayerId: room.turnTimerPlayerId || null,
     settlements: Array.isArray(room.settlements) ? room.settlements : [],
     moneyLedger: Array.isArray(room.moneyLedger) ? room.moneyLedger : [],
     dormantSince: room.dormantSince || null,
@@ -414,8 +426,9 @@ function restoreRoom(raw) {
     botTimer: null,
     showdownTimer: null,
     turnTimer: null,
-    turnEndsAt: null,
-    turnTimerPlayerId: null,
+    // Absolute deadline persists across process restart; timeout handle is re-armed below.
+    turnEndsAt: Number(raw.turnEndsAt) || null,
+    turnTimerPlayerId: raw.turnTimerPlayerId ? String(raw.turnTimerPlayerId) : null,
     dormantSince: Number(raw.dormantSince) || null,
     dormantTimer: null,
   };
@@ -492,6 +505,8 @@ function loadRooms() {
         rooms.set(room.id, room);
         scheduleDormantRoomCleanup(room);
         if (room.phase === "showdown") beginShowdown(room);
+        // Re-arm from persisted absolute deadline, or clear stale endsAt off betting streets.
+        scheduleHumanTurnTimer(room);
       }
     }
     if (rooms.size > 0) console.log(`Restored ${rooms.size} room(s) from ${STATE_FILE}`);
@@ -995,37 +1010,9 @@ function isBettingStreet(phase) {
   return ["preflop", "flop", "turn", "river"].includes(phase);
 }
 
-function scheduleHumanTurnTimer(room) {
-  const limitMs = normalizeShotClockMs(room?.turnTimeLimitMs, SHOT_CLOCK_DEFAULT_MS);
-  const player = room?.players.find((item) => item.id === room.turn);
-  if (
-    !room
-    || !limitMs
-    || !player
-    || player.isBot
-    || !player.connected
-    || !isHandInProgress(room)
-    || !isBettingStreet(room.phase)
-    || player.folded
-    || player.allIn
-  ) {
-    clearTurnTimer(room);
-    return;
-  }
-  // Keep the clock for the same actor across incidental emits (sit-out, presence, etc.).
-  if (
-    room.turnTimer
-    && room.turnTimerPlayerId === player.id
-    && room.turnEndsAt
-    && room.turnEndsAt > shotClockTime.now()
-  ) {
-    return;
-  }
-  clearTurnTimer(room);
-  room.turnTimerPlayerId = player.id;
-  room.turnEndsAt = shotClockTime.now() + limitMs;
-  const expectedTurn = player.id;
+function armTurnTimeout(room, expectedTurn, delayMs) {
   const roomId = room.id;
+  shotClockTime.clearTimeout(room.turnTimer);
   room.turnTimer = shotClockTime.setTimeout(() => {
     const current = rooms.get(roomId);
     if (!current) return;
@@ -1033,11 +1020,11 @@ function scheduleHumanTurnTimer(room) {
     current.turnEndsAt = null;
     current.turnTimerPlayerId = null;
     const actor = current.players.find((item) => item.id === current.turn);
+    // Still auto-act during disconnect grace — refresh/rejoin must not pause the clock.
     if (
       !actor
       || actor.id !== expectedTurn
       || actor.isBot
-      || !actor.connected
       || actor.folded
       || actor.allIn
       || !isHandInProgress(current)
@@ -1053,18 +1040,52 @@ function scheduleHumanTurnTimer(room) {
       applyPlayerAction(current, actor.id, { type: "fold" });
     }
     emitRoom(current);
-  }, limitMs);
+  }, Math.max(0, delayMs));
+}
+
+function scheduleHumanTurnTimer(room) {
+  const limitMs = normalizeShotClockMs(room?.turnTimeLimitMs, SHOT_CLOCK_DEFAULT_MS);
+  const player = room?.players.find((item) => item.id === room.turn);
+  if (
+    !room
+    || !limitMs
+    || !player
+    || player.isBot
+    || !isHandInProgress(room)
+    || !isBettingStreet(room.phase)
+    || player.folded
+    || player.allIn
+  ) {
+    clearTurnTimer(room);
+    return;
+  }
+
+  const now = shotClockTime.now();
+  // Absolute deadline is set once per turn. Reconnect, presence, and broadcasts only
+  // re-arm the timeout for the remaining time — never extend turnEndsAt.
+  if (room.turnEndsAt && room.turnTimerPlayerId === player.id) {
+    if (!room.turnTimer) {
+      armTurnTimeout(room, player.id, room.turnEndsAt - now);
+    }
+    return;
+  }
+
+  clearTurnTimer(room);
+  room.turnTimerPlayerId = player.id;
+  room.turnEndsAt = now + limitMs;
+  armTurnTimeout(room, player.id, limitMs);
 }
 
 function setRoomShotClock(room, seconds) {
   if (!room) return { ok: false, error: "Room not found." };
-  const ms = normalizeShotClockMs(
-    seconds == null ? NaN : Math.floor(Number(seconds) * 1000),
-    NaN,
-  );
-  if (!Number.isFinite(ms)) {
-    return { ok: false, error: "Shot clock must be 15s, 30s, 60s, or Off." };
+  const raw = Number(seconds);
+  if (!Number.isFinite(raw) || !Number.isInteger(raw)) {
+    return { ok: false, error: "Shot clock must be an integer from 10 to 600 seconds, or Off (0)." };
   }
+  if (raw !== 0 && (raw < SHOT_CLOCK_MIN_MS / 1000 || raw > SHOT_CLOCK_MAX_MS / 1000)) {
+    return { ok: false, error: "Shot clock must be an integer from 10 to 600 seconds, or Off (0)." };
+  }
+  const ms = raw * 1000;
   room.turnTimeLimitMs = ms;
   if (!ms) clearTurnTimer(room);
   else if (room.turnTimerPlayerId) {
@@ -1073,7 +1094,7 @@ function setRoomShotClock(room, seconds) {
     scheduleHumanTurnTimer(room);
   }
   room.message = ms
-    ? `Shot clock set to ${ms / 1000}s.`
+    ? `Shot clock set to ${formatShotClockSeconds(raw)}.`
     : "Shot clock turned off.";
   return { ok: true };
 }
@@ -1149,6 +1170,7 @@ function serializeRoom(room, viewerId) {
     canChangeShotClock: room.hostId === viewerId,
     turnTimeLimitMs: normalizeShotClockMs(room.turnTimeLimitMs, SHOT_CLOCK_DEFAULT_MS),
     turnEndsAt: room.turnEndsAt || null,
+    serverNow: shotClockTime.now(),
     canRestartGame: room.hostId === viewerId && !room.moneyMode && canAdministerGame(room),
     canEndGame: room.hostId === viewerId && canAdministerGame(room) && (room.moneyMode || room.phase !== "lobby"),
     canAddBot: room.hostId === viewerId && !room.moneyMode && room.handNumber === 0 && room.players.length < MAX_PLAYERS,
@@ -1713,6 +1735,8 @@ module.exports = {
   SETTLED_MONEY_ROOM_TTL_MS,
   DORMANT_ROOM_TTL_MS,
   SHOT_CLOCK_DEFAULT_MS,
+  SHOT_CLOCK_MAX_MS,
+  SHOT_CLOCK_MIN_MS,
   SHOT_CLOCK_OPTIONS_MS,
   autoTurnAction,
   buildSidePots,

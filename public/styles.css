@@ -1082,7 +1082,7 @@ select:focus {
 .turn-clock {
   margin-left: 6px;
   display: inline-block;
-  min-width: 1.4em;
+  min-width: 2.4em;
   color: rgba(255, 255, 255, 0.9);
   font-variant-numeric: tabular-nums;
   font-weight: 850;
@@ -1111,6 +1111,35 @@ select:focus {
 .table-player-row .action-token-raise { color: #6ff0a0; }
 .shot-clock-choices { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .shot-clock-choices .appearance-choice { min-height: 44px; font-size: 12px; font-weight: 850; }
+.shot-clock-custom-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+.shot-clock-custom-form.hidden { display: none; }
+.shot-clock-custom-form label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+}
+.shot-clock-custom-form input {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--panel) 72%, transparent);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.shot-clock-custom-form button {
+  min-height: 44px;
+  padding: 0 14px;
+}
 
 .round-roster {
   position: sticky;
