@@ -231,63 +231,63 @@ assert.ok(BUILD_ID);
 assert.equal(downtimeMsFromSavedAt(new Date(1_000_000).toISOString(), 1_000_500), 500);
 assert.equal(downtimeMsFromSavedAt("not-a-date", 1_000_000), 0);
 
-// --- Flush bypasses debounce; pause keeps deadlines; restore extends by downtime ---
-{
-  installFakeClock();
-  const room = makeHandRoom();
-  rooms.set(room.id, room);
-  scheduleHumanTurnTimer(room);
-  assert.ok(room.turnTimer);
-  const deadline = room.turnEndsAt;
-  assert.equal(deadline, fakeNow + SHOT_CLOCK_DEFAULT_MS);
-
-  scheduleSave();
-  pauseRoomTimers(room);
-  assert.equal(room.turnTimer, null, "timeout handle cleared on pause");
-  assert.equal(room.turnEndsAt, deadline, "absolute deadline kept while paused");
-
-  fakeNow = deadline + 1000;
-  const due = pendingTimers.filter((timer) => !timer.cleared && timer.at <= fakeNow);
-  assert.equal(due.length, 0, "paused timer must not fire / auto-fold");
-
-  const payload = saveRoomsNow();
-  assert.equal(payload.rooms[0].turnEndsAt, deadline);
-  assert.ok(fs.existsSync(STATE_PATH), "saveRoomsNow flushes synchronously past debounce");
-
-  rooms.clear();
-  const downtimeMs = 5_000;
-  const saved = JSON.parse(fs.readFileSync(STATE_PATH, "utf8"));
-  saved.savedAt = new Date(fakeNow).toISOString();
-  fs.writeFileSync(STATE_PATH, `${JSON.stringify(saved, null, 2)}\n`);
-  fakeNow += downtimeMs;
-  loadRooms();
-  const restored = rooms.get(room.id);
-  assert.equal(restored.turnEndsAt, deadline + downtimeMs,
-    "restore extends turnEndsAt by downtime so remaining time is preserved");
-  assert.ok(restored.turnTimer, "timer re-armed after restore");
-  cleanupRoom(restored);
-  resetShotClockTime();
-}
-
-{
-  installFakeClock();
-  const room = makeReadyRoom();
-  rooms.set(room.id, room);
-  scheduleReadyTimer(room);
-  const readyDeadline = room.readyEndsAt;
-  assert.equal(readyDeadline, fakeNow + READY_TIMER_MS);
-  pauseRoomTimers(room);
-  assert.equal(room.readyTimer, null);
-  assert.equal(room.readyEndsAt, readyDeadline);
-
-  const downtimeMs = 4_000;
-  extendDeadlinesAfterRestore(room, downtimeMs);
-  assert.equal(room.readyEndsAt, readyDeadline + downtimeMs);
-  cleanupRoom(room);
-  resetShotClockTime();
-}
-
 (async () => {
+  // --- Flush bypasses debounce; pause keeps deadlines; restore extends by downtime ---
+  {
+    installFakeClock();
+    const room = makeHandRoom();
+    rooms.set(room.id, room);
+    scheduleHumanTurnTimer(room);
+    assert.ok(room.turnTimer);
+    const deadline = room.turnEndsAt;
+    assert.equal(deadline, fakeNow + SHOT_CLOCK_DEFAULT_MS);
+
+    scheduleSave();
+    pauseRoomTimers(room);
+    assert.equal(room.turnTimer, null, "timeout handle cleared on pause");
+    assert.equal(room.turnEndsAt, deadline, "absolute deadline kept while paused");
+
+    fakeNow = deadline + 1000;
+    const due = pendingTimers.filter((timer) => !timer.cleared && timer.at <= fakeNow);
+    assert.equal(due.length, 0, "paused timer must not fire / auto-fold");
+
+    const payload = await saveRoomsNow();
+    assert.equal(payload.rooms[0].turnEndsAt, deadline);
+    assert.ok(fs.existsSync(STATE_PATH), "saveRoomsNow flushes past debounce");
+
+    rooms.clear();
+    const downtimeMs = 5_000;
+    const saved = JSON.parse(fs.readFileSync(STATE_PATH, "utf8"));
+    saved.savedAt = new Date(fakeNow).toISOString();
+    fs.writeFileSync(STATE_PATH, `${JSON.stringify(saved, null, 2)}\n`);
+    fakeNow += downtimeMs;
+    await loadRooms();
+    const restored = rooms.get(room.id);
+    assert.equal(restored.turnEndsAt, deadline + downtimeMs,
+      "restore extends turnEndsAt by downtime so remaining time is preserved");
+    assert.ok(restored.turnTimer, "timer re-armed after restore");
+    cleanupRoom(restored);
+    resetShotClockTime();
+  }
+
+  {
+    installFakeClock();
+    const room = makeReadyRoom();
+    rooms.set(room.id, room);
+    scheduleReadyTimer(room);
+    const readyDeadline = room.readyEndsAt;
+    assert.equal(readyDeadline, fakeNow + READY_TIMER_MS);
+    pauseRoomTimers(room);
+    assert.equal(room.readyTimer, null);
+    assert.equal(room.readyEndsAt, readyDeadline);
+
+    const downtimeMs = 4_000;
+    extendDeadlinesAfterRestore(room, downtimeMs);
+    assert.equal(room.readyEndsAt, readyDeadline + downtimeMs);
+    cleanupRoom(room);
+    resetShotClockTime();
+  }
+
   await new Promise((resolve) => server.listen(0, resolve));
   const { port } = server.address();
   const url = `http://127.0.0.1:${port}`;
@@ -318,14 +318,14 @@ assert.equal(downtimeMsFromSavedAt("not-a-date", 1_000_000), 0);
 
   // Simulate deploy: flush state, drop in-memory rooms, restore as a new boot would.
   host.disconnect();
-  saveRoomsNow();
+  await saveRoomsNow();
   for (const room of rooms.values()) {
     pauseRoomTimers(room);
     clearTurnTimer(room);
     clearReadyTimer(room);
   }
   rooms.clear();
-  loadRooms();
+  await loadRooms();
   assert.ok(rooms.get(roomId), "room restored from rooms.json");
 
   const { socket: hostAgain } = await connectClient(url);
@@ -347,19 +347,28 @@ assert.equal(downtimeMsFromSavedAt("not-a-date", 1_000_000), 0);
   assert.equal(after.buildId, BUILD_ID);
   hostAgain.close();
 
-  // SIGTERM path: pending debounced save + broadcast + synchronous flush.
+  // SIGTERM path: pending debounced save + broadcast + flush.
   const { socket: watcher } = await connectClient(url);
+  const deployWaiting = new Promise((resolve) => {
+    watcher.on("server:deploy-waiting", resolve);
+  });
   const restarting = new Promise((resolve) => {
     watcher.on("server:restarting", resolve);
   });
   scheduleSave();
-  const shutdown = await gracefulShutdown("SIGTERM", { exit: false });
-  assert.equal(shutdown.ok, true);
+  const shutdownPromise = gracefulShutdown("SIGTERM", { exit: false, handWaitMs: 0 });
+  const waitingPayload = await Promise.race([
+    deployWaiting,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("server:deploy-waiting not received")), 2000)),
+  ]);
+  assert.equal(waitingPayload.message, "Updating after this hand");
   const restartPayload = await Promise.race([
     restarting,
     new Promise((_, reject) => setTimeout(() => reject(new Error("server:restarting not received")), 2000)),
   ]);
   assert.equal(restartPayload.buildId, BUILD_ID);
+  const shutdown = await shutdownPromise;
+  assert.equal(shutdown.ok, true);
   assert.ok(fs.existsSync(STATE_PATH));
   assert.ok(JSON.parse(fs.readFileSync(STATE_PATH, "utf8")).rooms.some((item) => item.id === roomId));
 

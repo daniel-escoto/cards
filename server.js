@@ -7,6 +7,10 @@ const { Server } = require("socket.io");
 const engine = require("./shared/engine");
 const { customAlphabet } = require("nanoid");
 const QRCode = require("qrcode");
+const {
+  createStateStore,
+  createFileStateStore,
+} = require("./state-store");
 
 const app = express();
 const server = http.createServer(app);
@@ -109,6 +113,10 @@ const BACKGROUND_DISCONNECT_GRACE_MS = Math.max(
 const BACKGROUND_PRESENCE_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DATA_DIR || path.join(__dirname, ".data");
 const STATE_FILE = process.env.GAME_STATE_FILE || path.join(DEFAULT_DATA_DIR, "rooms.json");
+/** Cap for waiting on in-progress hands during SIGTERM (must stay under Railway's ~30s drain). */
+const DEPLOY_HAND_WAIT_MS = envNonNegativeMs("DEPLOY_HAND_WAIT_MS", 25000);
+/** After this boot window without a handoff message, take full Redis ownership (crash safety). */
+const DEPLOY_TAKEOVER_MS = envNonNegativeMs("DEPLOY_TAKEOVER_MS", 35000);
 const SAVE_DEBOUNCE_MS = 150;
 const SHOWDOWN_DELAY_MS = 1600;
 const CPU_ACTION_DELAY_MS = 250;
@@ -185,6 +193,14 @@ app.get("/api/build", (_req, res) => {
   res.json({ buildId: BUILD_ID });
 });
 
+/** 200 only after state restore + listen; 503 while booting. */
+app.get("/healthz", (_req, res) => {
+  if (!stateRestored || !serverListening) {
+    return res.status(503).type("text/plain").send("not ready");
+  }
+  res.status(200).type("text/plain").send("ok");
+});
+
 app.use(express.static("public"));
 app.use("/shared", express.static(path.join(__dirname, "shared")));
 
@@ -209,8 +225,99 @@ app.get("/qr.svg", async (req, res) => {
 const rooms = new Map();
 const socketRoom = new Map();
 const socketPlayer = new Map();
+/** Rooms that have had live socket activity on this process (overlap-safe Redis merge). */
+const liveRoomIds = new Set();
 let saveTimer = null;
 let shuttingDown = false;
+/** Stop dealing new hands while draining for deploy. */
+let holdNewHands = false;
+/** Block debounced/scheduled persists during the final flush. */
+let suppressPersistence = false;
+/** File mode / post-handoff: this process owns the full snapshot. */
+let handoffComplete = !process.env.REDIS_URL;
+let stateRestored = false;
+let serverListening = false;
+let stateStore = null;
+let unsubscribeHandoff = null;
+let takeoverTimer = null;
+
+function getStateStore() {
+  if (!stateStore) stateStore = createStateStore({ filePath: STATE_FILE });
+  return stateStore;
+}
+
+/** Test helper: inject a memory/Redis store before load/save. */
+function setStateStore(store) {
+  stateStore = store;
+  handoffComplete = !store || store.kind !== "redis";
+}
+
+function usingRedis() {
+  return getStateStore().kind === "redis";
+}
+
+function markRoomLive(roomId) {
+  if (!roomId) return;
+  liveRoomIds.add(String(roomId).toUpperCase());
+}
+
+/**
+ * Before serving a room on a Redis replica that has not taken handoff yet,
+ * re-read that room from Redis and activate timers. Marks the room live so
+ * subsequent saves merge our copy into the shared blob.
+ */
+async function claimRoomForLiveActivity(roomId) {
+  const id = String(roomId || "").toUpperCase();
+  if (!id) return null;
+  if (liveRoomIds.has(id)) return rooms.get(id) || null;
+
+  if (usingRedis() && !handoffComplete) {
+    try {
+      const payload = await getStateStore().load();
+      const raw = (payload?.rooms || []).find((room) => String(room.id).toUpperCase() === id);
+      if (raw) {
+        const existing = rooms.get(id);
+        if (existing) clearRoomRuntime(existing);
+        const room = restoreRoom(raw);
+        if (room) {
+          extendDeadlinesAfterRestore(room, downtimeMsFromSavedAt(payload.savedAt, shotClockTime.now()));
+          rooms.set(room.id, room);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to refresh room before live claim:", error);
+    }
+  }
+
+  const room = rooms.get(id);
+  if (!room) return null;
+  markRoomLive(id);
+  activateRoom(room, { scheduleSaveAfter: false });
+  return room;
+}
+
+function tryStartReadyHand(room) {
+  if (holdNewHands) return false;
+  return maybeStartReadyHand(room);
+}
+
+function anyHandInProgress() {
+  for (const room of rooms.values()) {
+    if (isHandInProgress(room)) return true;
+  }
+  return false;
+}
+
+function waitForHandsToFinish(maxMs, { now = () => Date.now(), sleep } = {}) {
+  const sleepFn = sleep || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const deadline = now() + Math.max(0, maxMs);
+  return (async () => {
+    while (anyHandInProgress() && now() < deadline) {
+      await sleepFn(50);
+    }
+    return !anyHandInProgress();
+  })();
+}
 
 
 
@@ -298,31 +405,61 @@ function serializeRoomForStorage(room) {
   };
 }
 
-function saveRoomsNow() {
+function buildRoomsPayload(roomList) {
+  return {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    buildId: BUILD_ID,
+    rooms: roomList.map(serializeRoomForStorage),
+  };
+}
+
+/**
+ * Persist room state. With Redis during overlap, merge only live rooms into the
+ * existing blob so a booting replica cannot clobber the draining instance.
+ * Pass `{ all: true }` for the final SIGTERM flush (full memory snapshot).
+ */
+async function saveRoomsNow(options = {}) {
   if (saveTimer) {
     clearTimeout(saveTimer);
     saveTimer = null;
   }
-  fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
-  const payload = {
-    version: 1,
-    savedAt: new Date().toISOString(),
-    buildId: BUILD_ID,
-    rooms: [...rooms.values()].map(serializeRoomForStorage),
-  };
-  fs.writeFileSync(STATE_FILE, `${JSON.stringify(payload, null, 2)}\n`);
+  const store = getStateStore();
+  const writeAll = options.all === true || handoffComplete || !usingRedis() || shuttingDown;
+  let payload;
+  if (writeAll) {
+    payload = buildRoomsPayload([...rooms.values()]);
+  } else {
+    const existing = (await store.load()) || { version: 1, rooms: [] };
+    const byId = new Map(
+      (Array.isArray(existing.rooms) ? existing.rooms : [])
+        .filter((room) => room && room.id)
+        .map((room) => [String(room.id).toUpperCase(), room]),
+    );
+    for (const roomId of liveRoomIds) {
+      const room = rooms.get(roomId);
+      if (room) byId.set(roomId, serializeRoomForStorage(room));
+      else byId.delete(roomId);
+    }
+    payload = {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      buildId: BUILD_ID,
+      rooms: [...byId.values()],
+    };
+  }
+  await store.save(payload);
   return payload;
 }
 
 function scheduleSave() {
-  if (shuttingDown) return;
+  if (suppressPersistence) return;
+  if (usingRedis() && !handoffComplete && liveRoomIds.size === 0) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    try {
-      saveRoomsNow();
-    } catch (error) {
+    saveRoomsNow().catch((error) => {
       console.error("Failed to save game state:", error);
-    }
+    });
   }, SAVE_DEBOUNCE_MS);
 }
 
@@ -609,30 +746,152 @@ function assignMissingPlayerColors(room) {
   }
 }
 
-function loadRooms() {
-  if (!fs.existsSync(STATE_FILE)) return;
+/** Arm timers / bots for a restored room (skip while a Redis replica is still passive). */
+function activateRoom(room, { scheduleSaveAfter = true } = {}) {
+  if (!room) return;
+  scheduleDormantRoomCleanup(room);
+  if (room.phase === "showdown") scheduleShowdown(room);
+  scheduleHumanTurnTimer(room);
+  scheduleReadyTimer(room);
+  scheduleComputerTurn(room);
+  if (scheduleSaveAfter) scheduleSave();
+}
+
+function clearRoomRuntime(room) {
+  if (!room) return;
+  pauseRoomTimers(room);
+  clearTimeout(room.botTimer);
+  clearTimeout(room.showdownTimer);
+  clearTurnTimer(room);
+  clearReadyTimer(room);
+  clearTimeout(room.dormantTimer);
+  room.dormantTimer = null;
+}
+
+/**
+ * Apply a persisted payload into memory.
+ * @param {object|null} payload
+ * @param {{ replaceNonLive?: boolean, activate?: boolean, markLive?: boolean }} options
+ */
+function applyRoomsPayload(payload, options = {}) {
+  if (!payload || !Array.isArray(payload.rooms)) return { restored: 0, downtimeMs: 0 };
+  const replaceNonLive = options.replaceNonLive === true;
+  const activate = options.activate !== false;
+  const markLive = options.markLive === true;
+  const downtimeMs = downtimeMsFromSavedAt(payload.savedAt, shotClockTime.now());
+  const incomingIds = new Set();
+
+  for (const rawRoom of payload.rooms) {
+    const id = String(rawRoom?.id || "").toUpperCase();
+    if (!id) continue;
+    incomingIds.add(id);
+    if (replaceNonLive && liveRoomIds.has(id)) continue;
+
+    if (replaceNonLive) {
+      const existing = rooms.get(id);
+      if (existing) clearRoomRuntime(existing);
+    } else if (rooms.has(id)) {
+      continue;
+    }
+
+    const room = restoreRoom(rawRoom);
+    if (!room) continue;
+    extendDeadlinesAfterRestore(room, downtimeMs);
+    rooms.set(room.id, room);
+    if (markLive) liveRoomIds.add(room.id);
+    if (activate) activateRoom(room, { scheduleSaveAfter: false });
+  }
+
+  if (replaceNonLive) {
+    for (const id of [...rooms.keys()]) {
+      if (liveRoomIds.has(id)) continue;
+      if (incomingIds.has(id)) continue;
+      const existing = rooms.get(id);
+      clearRoomRuntime(existing);
+      rooms.delete(id);
+    }
+  }
+
+  return { restored: rooms.size, downtimeMs };
+}
+
+async function loadFilePayloadForMigration() {
+  const fileStore = createFileStateStore(STATE_FILE);
+  return fileStore.load();
+}
+
+/**
+ * Restore rooms from the active store. With Redis empty, one-time migrate from GAME_STATE_FILE.
+ */
+async function loadRooms(options = {}) {
+  const store = getStateStore();
+  let payload = null;
+  let migratedFromFile = false;
   try {
-    const payload = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
-    const restoredRooms = Array.isArray(payload.rooms) ? payload.rooms : [];
-    const downtimeMs = downtimeMsFromSavedAt(payload.savedAt, shotClockTime.now());
-    for (const rawRoom of restoredRooms) {
-      const room = restoreRoom(rawRoom);
-      if (room) {
-        extendDeadlinesAfterRestore(room, downtimeMs);
-        rooms.set(room.id, room);
-        scheduleDormantRoomCleanup(room);
-        if (room.phase === "showdown") scheduleShowdown(room);
-        // Re-arm from persisted absolute deadlines (already padded for downtime).
-        scheduleHumanTurnTimer(room);
-        scheduleReadyTimer(room);
-        scheduleComputerTurn(room);
+    payload = await store.load();
+    if ((!payload || !Array.isArray(payload.rooms) || payload.rooms.length === 0) && usingRedis()) {
+      const filePayload = await loadFilePayloadForMigration();
+      if (filePayload && Array.isArray(filePayload.rooms) && filePayload.rooms.length > 0) {
+        payload = filePayload;
+        await store.save(payload);
+        migratedFromFile = true;
+        console.log(`Migrated ${filePayload.rooms.length} room(s) from ${STATE_FILE} into Redis`);
       }
     }
-    if (rooms.size > 0) {
-      console.log(`Restored ${rooms.size} room(s) from ${STATE_FILE}${downtimeMs ? ` (+${downtimeMs}ms timer pad)` : ""}`);
-    }
   } catch (error) {
-    console.error("Failed to restore game state:", error);
+    console.error("Failed to load game state:", error);
+    return { ok: false, error };
+  }
+
+  // Redis boot: keep rooms passive until handoff/live activity so we don't fight the old replica.
+  const activate = options.activate ?? (!usingRedis() || handoffComplete);
+  const markLive = options.markLive ?? !usingRedis();
+  const { restored, downtimeMs } = applyRoomsPayload(payload, { activate, markLive });
+  if (restored > 0) {
+    const source = usingRedis() ? (migratedFromFile ? "Redis (migrated from file)" : "Redis") : STATE_FILE;
+    console.log(`Restored ${restored} room(s) from ${source}${downtimeMs ? ` (+${downtimeMs}ms timer pad)` : ""}`);
+  }
+  return { ok: true, restored, downtimeMs, migratedFromFile };
+}
+
+async function refreshNonLiveRoomsFromStore() {
+  if (!usingRedis()) return { ok: true, refreshed: 0 };
+  try {
+    const payload = await getStateStore().load();
+    const before = rooms.size;
+    applyRoomsPayload(payload, { replaceNonLive: true, activate: true, markLive: false });
+    return { ok: true, refreshed: rooms.size, before };
+  } catch (error) {
+    console.error("Failed to refresh rooms after handoff:", error);
+    return { ok: false, error };
+  }
+}
+
+async function completeHandoffTakeover(reason = "handoff") {
+  if (handoffComplete) return;
+  await refreshNonLiveRoomsFromStore();
+  handoffComplete = true;
+  for (const id of rooms.keys()) liveRoomIds.add(id);
+  console.log(`Redis handoff complete (${reason}); owning ${rooms.size} room(s)`);
+}
+
+async function setupHandoffSubscription() {
+  if (!usingRedis()) return;
+  const store = getStateStore();
+  unsubscribeHandoff = await store.onHandoff(async () => {
+    try {
+      await completeHandoffTakeover("pubsub");
+    } catch (error) {
+      console.error("Handoff takeover failed:", error);
+    }
+  });
+  if (DEPLOY_TAKEOVER_MS > 0) {
+    takeoverTimer = setTimeout(() => {
+      completeHandoffTakeover("timeout").catch((error) => {
+        console.error("Timed handoff takeover failed:", error);
+      });
+    }, DEPLOY_TAKEOVER_MS);
+    takeoverTimer.unref?.();
   }
 }
 
@@ -1255,7 +1514,7 @@ function applyReadyTimeout(room) {
   } else if (satOutNames.length > 1) {
     room.message = `${satOutNames.join(", ")} sat out (ready timer).`;
   }
-  maybeStartReadyHand(room);
+  tryStartReadyHand(room);
 }
 
 function armReadyTimeout(room, delayMs) {
@@ -1468,6 +1727,7 @@ function serializeRoom(room, viewerId) {
     status: room.status,
     phase: room.phase,
     buildId: BUILD_ID,
+    updatingAfterHand: holdNewHands,
     tableSize: room.tableSize || room.players.length,
     message: room.message,
     pot,
@@ -1676,7 +1936,7 @@ function removePlayerAfterDisconnect(room, player) {
     }
     maybeAdvance(room);
   } else {
-    maybeStartReadyHand(room);
+    tryStartReadyHand(room);
   }
   emitRoom(room);
 }
@@ -1799,13 +2059,14 @@ io.on("connection", (socket) => {
       reconnectTokenHash: credentials.tokenHash,
     });
     if (!room.moneyMode) addComputerPlayers(room, requestedSize || computerPlayers);
+    markRoomLive(room.id);
     attachSocketToPlayer(socket, room, room.players[0]);
     ack?.({ ok: true, roomId: room.id, playerId, reconnectToken: credentials.token });
     emitRoom(room);
   });
 
-  socket.on("room:join", ({ roomId, name, deviceId, reconnectToken, acceptedMoneyTerms }, ack) => {
-    const room = getRoom(roomId);
+  socket.on("room:join", async ({ roomId, name, deviceId, reconnectToken, acceptedMoneyTerms }, ack) => {
+    const room = await claimRoomForLiveActivity(roomId);
     if (!room) return ack?.({ ok: false, error: "Room not found." });
     const playerId = cleanDeviceId(deviceId, socket.id);
     const existing = room.players.find((player) => player.id === playerId);
@@ -1881,8 +2142,8 @@ io.on("connection", (socket) => {
     emitRoom(room);
   });
 
-  socket.on("room:watch", ({ roomId, name, deviceId, reconnectToken }, ack) => {
-    const room = getRoom(roomId);
+  socket.on("room:watch", async ({ roomId, name, deviceId, reconnectToken }, ack) => {
+    const room = await claimRoomForLiveActivity(roomId);
     if (!room) return ack?.({ ok: false, error: "Room not found." });
     if (room.phase === "gameover") {
       return ack?.({ ok: false, error: "This session has ended." });
@@ -2044,7 +2305,7 @@ io.on("connection", (socket) => {
     player.ready = false;
     // Current cards, bets, and action remain intact; the next deal applies the break.
     room.message = player.sittingOut ? `${player.name} will sit out the next hand.` : `${player.name} is back for the next deal.`;
-    maybeStartReadyHand(room);
+    tryStartReadyHand(room);
     ack?.({ ok: true });
     emitRoom(room);
   });
@@ -2059,7 +2320,7 @@ io.on("connection", (socket) => {
     if (player.stack <= 0) return ack?.({ ok: false, error: "Cash in before readying up." });
     player.ready = ready === undefined ? !player.ready : Boolean(ready);
     room.message = player.ready ? `${player.name} is ready.` : `${player.name} is not ready.`;
-    maybeStartReadyHand(room);
+    tryStartReadyHand(room);
     ack?.({ ok: true });
     emitRoom(room);
   });
@@ -2227,16 +2488,72 @@ io.on("connection", (socket) => {
   });
 });
 
+function notifyDeployWaiting() {
+  try {
+    io.emit("server:deploy-waiting", {
+      buildId: BUILD_ID,
+      message: "Updating after this hand",
+    });
+  } catch (error) {
+    console.error("Failed to broadcast server:deploy-waiting:", error);
+  }
+  for (const room of rooms.values()) {
+    try {
+      emitRoom(room);
+    } catch (error) {
+      console.error("Failed to emit deploy-waiting room update:", error);
+    }
+  }
+}
+
 /**
- * Graceful deploy shutdown: warn clients, pause clocks, flush rooms.json
- * synchronously (bypassing the 150ms debounce), then close sockets/HTTP.
+ * Graceful deploy shutdown:
+ * 1) Hold new hands; show “Updating after this hand”
+ * 2) Wait for in-progress hands up to DEPLOY_HAND_WAIT_MS (bots/shot clocks keep running)
+ * 3) If the cap hits, pause clocks (existing restore-friendly path)
+ * 4) Flush state (Redis or file), publish Redis handoff, broadcast server:restarting, close
+ *
  * Pass `{ exit: false }` from tests so the process stays alive.
  */
-function gracefulShutdown(signal = "SIGTERM", options = {}) {
+async function gracefulShutdown(signal = "SIGTERM", options = {}) {
   const shouldExit = options.exit !== false;
-  if (shuttingDown) return Promise.resolve({ ok: false, reason: "already-shutting-down" });
+  if (shuttingDown) return { ok: false, reason: "already-shutting-down" };
   shuttingDown = true;
-  console.log(`Received ${signal}; flushing rooms and shutting down…`);
+  holdNewHands = true;
+  console.log(`Received ${signal}; holding new hands and preparing shutdown…`);
+
+  notifyDeployWaiting();
+
+  const waitMs = options.handWaitMs != null ? options.handWaitMs : DEPLOY_HAND_WAIT_MS;
+  const handsDone = await waitForHandsToFinish(waitMs, {
+    now: options.now,
+    sleep: options.sleep,
+  });
+  const timedOutWaiting = !handsDone;
+  if (timedOutWaiting) {
+    console.log(`Deploy hand wait hit ${waitMs}ms cap; pausing timers and flushing`);
+  } else {
+    console.log("No hands in progress (or hands finished); flushing and shutting down");
+  }
+
+  // Always pause before the final snapshot so deadlines stay stable across restore.
+  pauseAllRoomTimers();
+  suppressPersistence = true;
+
+  let payload = null;
+  try {
+    payload = await saveRoomsNow({ all: true });
+  } catch (error) {
+    console.error("Failed to flush game state on shutdown:", error);
+  }
+
+  if (usingRedis()) {
+    try {
+      await getStateStore().publishHandoff({ buildId: BUILD_ID });
+    } catch (error) {
+      console.error("Failed to publish Redis handoff:", error);
+    }
+  }
 
   try {
     io.emit("server:restarting", { buildId: BUILD_ID });
@@ -2244,59 +2561,88 @@ function gracefulShutdown(signal = "SIGTERM", options = {}) {
     console.error("Failed to broadcast server:restarting:", error);
   }
 
-  pauseAllRoomTimers();
-
-  let payload = null;
-  try {
-    payload = saveRoomsNow();
-  } catch (error) {
-    console.error("Failed to flush game state on shutdown:", error);
-  }
-
   return new Promise((resolve) => {
     const forceExit = setTimeout(() => {
       console.error("Forced exit after shutdown timeout");
       if (shouldExit) process.exit(1);
-      else resolve({ ok: false, payload, reason: "timeout" });
+      else resolve({ ok: false, payload, reason: "timeout", timedOutWaiting, handsDone });
     }, 8000);
     forceExit.unref?.();
 
     const finish = () => {
       clearTimeout(forceExit);
       if (shouldExit) process.exit(0);
-      else resolve({ ok: true, payload });
+      else resolve({ ok: true, payload, timedOutWaiting, handsDone });
     };
 
-    try {
-      io.close(() => {
-        server.close(finish);
-      });
-    } catch (error) {
-      console.error("Error during socket/http close:", error);
-      finish();
-    }
+    // Yield so server:restarting can flush before sockets are torn down.
+    setImmediate(() => {
+      try {
+        io.close(() => {
+          server.close(finish);
+        });
+      } catch (error) {
+        console.error("Error during socket/http close:", error);
+        finish();
+      }
+    });
   });
 }
 
 /** Test helper: allow another gracefulShutdown after an in-process shutdown. */
 function resetShutdownState() {
   shuttingDown = false;
+  holdNewHands = false;
+  suppressPersistence = false;
+}
+
+function markStateRestored(value = true) {
+  stateRestored = Boolean(value);
+}
+
+function markServerListening(value = true) {
+  serverListening = Boolean(value);
+}
+
+async function startServer() {
+  await loadRooms();
+  markStateRestored(true);
+  await setupHandoffSubscription();
+
+  process.once("SIGINT", () => {
+    gracefulShutdown("SIGINT").catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
+  });
+  process.once("SIGTERM", () => {
+    gracefulShutdown("SIGTERM").catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
+  });
+
+  await new Promise((resolve) => {
+    server.listen(PORT, () => {
+      markServerListening(true);
+      console.log(`holdem.nyc listening on http://localhost:${PORT} (build ${BUILD_ID})`);
+      resolve();
+    });
+  });
 }
 
 if (require.main === module) {
-  loadRooms();
-
-  process.once("SIGINT", () => gracefulShutdown("SIGINT"));
-  process.once("SIGTERM", () => gracefulShutdown("SIGTERM"));
-
-  server.listen(PORT, () => {
-    console.log(`holdem.nyc listening on http://localhost:${PORT} (build ${BUILD_ID})`);
+  startServer().catch((error) => {
+    console.error("Failed to start server:", error);
+    process.exit(1);
   });
 }
 
 module.exports = {
   BLIND_LEVELS,
   BUILD_ID,
+  DEPLOY_HAND_WAIT_MS,
+  DEPLOY_TAKEOVER_MS,
   SETTLED_MONEY_ROOM_TTL_MS,
   DORMANT_ROOM_TTL_MS,
   READY_TIMER_DEFAULT_MS,
@@ -2310,16 +2656,27 @@ module.exports = {
   SHOT_CLOCK_MAX_MS,
   SHOT_CLOCK_MIN_MS,
   SHOT_CLOCK_OPTIONS_MS,
+  anyHandInProgress,
   applyReadyTimeout,
+  applyRoomsPayload,
   autoTurnAction,
   buildSidePots,
   cashInPlayer,
+  claimRoomForLiveActivity,
   clearReadyTimer,
   clearTurnTimer,
+  completeHandoffTakeover,
   downtimeMsFromSavedAt,
   extendDeadlinesAfterRestore,
+  getStateStore,
   gracefulShutdown,
+  isHoldingNewHands: () => holdNewHands,
+  isServerReady: () => stateRestored && serverListening,
+  liveRoomIds,
   loadRooms,
+  markRoomLive,
+  markServerListening,
+  markStateRestored,
   pauseAllRoomTimers,
   pauseRoomTimers,
   resetShutdownState,
@@ -2356,6 +2713,11 @@ module.exports = {
   setRoomReadyTimer,
   setRoomShotClock,
   setShotClockTime,
+  setStateStore,
+  setupHandoffSubscription,
+  tryStartReadyHand,
+  usingRedis,
+  waitForHandsToFinish,
   emitRoom,
   canTakeSeatNow,
   clearSpectators,
