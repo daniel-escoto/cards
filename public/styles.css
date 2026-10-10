@@ -1515,6 +1515,12 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 
 .turn-info.your-turn { color: var(--accent); font-weight: 850; }
 
+.ready-countdown {
+  font-variant-numeric: tabular-nums;
+  font-weight: 750;
+  color: var(--accent);
+}
+
 .hero-hand {
   display: flex;
   gap: 6px;
