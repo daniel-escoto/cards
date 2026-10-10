@@ -66,6 +66,10 @@ const shotClockPanel = document.querySelector("#shotClockPanel");
 const shotClockChoices = document.querySelector("#shotClockChoices");
 const shotClockCustomForm = document.querySelector("#shotClockCustomForm");
 const shotClockCustomInput = document.querySelector("#shotClockCustomInput");
+const readyTimerPanel = document.querySelector("#readyTimerPanel");
+const readyTimerChoices = document.querySelector("#readyTimerChoices");
+const readyTimerCustomForm = document.querySelector("#readyTimerCustomForm");
+const readyTimerCustomInput = document.querySelector("#readyTimerCustomInput");
 const SHOT_CLOCK_CHOICES = [
   { seconds: 15, label: "15s" },
   { seconds: 30, label: "30s" },
@@ -76,9 +80,18 @@ const SHOT_CLOCK_CHOICES = [
   { seconds: 0, label: "Off" },
 ];
 const SHOT_CLOCK_CUSTOM = "custom";
+const READY_TIMER_CHOICES = [
+  { seconds: 10, label: "10s" },
+  { seconds: 20, label: "20s" },
+  { seconds: 30, label: "30s" },
+  { seconds: 60, label: "60s" },
+  { seconds: 0, label: "Off" },
+];
+const READY_TIMER_CUSTOM = "custom";
 /** Client clock skew vs server (serverNow - Date.now). Countdown uses absolute turnEndsAt. */
 let serverTimeOffsetMs = 0;
 let shotClockCustomOpen = false;
+let readyTimerCustomOpen = false;
 const cashInInput = document.querySelector("#cashInInput");
 const cashInBtn = document.querySelector("#cashInBtn");
 const cashOutBtn = document.querySelector("#cashOutBtn");
@@ -392,6 +405,9 @@ let practiceSession = null;
 let turnCountdownTimer = null;
 let readyCountdownTimer = null;
 const lowTimeSession = (typeof TurnClockWarning !== "undefined" && TurnClockWarning.createLowTimeSession)
+  ? TurnClockWarning.createLowTimeSession()
+  : { turnEndsAt: null, lastSeenTickSecond: null, armed: false };
+const readyLowTimeSession = (typeof TurnClockWarning !== "undefined" && TurnClockWarning.createLowTimeSession)
   ? TurnClockWarning.createLowTimeSession()
   : { turnEndsAt: null, lastSeenTickSecond: null, armed: false };
 let lowTimeVibratedForEndsAt = null;
@@ -848,6 +864,10 @@ function isMenuShotClockEditing() {
   return Boolean(document.activeElement?.closest?.("[data-shot-clock-form]"));
 }
 
+function isMenuReadyTimerEditing() {
+  return Boolean(document.activeElement?.closest?.("[data-ready-timer-form]"));
+}
+
 function syncServerTimeOffset(nextState) {
   const serverNow = Number(nextState?.serverNow);
   if (Number.isFinite(serverNow)) serverTimeOffsetMs = serverNow - Date.now();
@@ -1033,6 +1053,7 @@ function showGameMenu() {
     menuBigBlindInput.step = moneyMode ? "0.01" : "1";
   }
   renderShotClockChoices();
+  renderReadyTimerChoices();
   if (state?.moneyMode) cashInInput.value = (state.buyInCents / 100).toFixed(0);
   syncCashInControls();
   clearInterval(menuTimer);
@@ -1294,6 +1315,69 @@ function commitShotClockCustom(form) {
   return true;
 }
 
+function renderReadyTimerChoices() {
+  if (!readyTimerPanel || !readyTimerChoices) return;
+  const canEdit = Boolean(state?.canChangeReadyTimer) && !isOfflineSession();
+  readyTimerPanel.classList.toggle("hidden", !canEdit);
+  if (!canEdit) {
+    readyTimerCustomOpen = false;
+    readyTimerCustomForm?.classList.add("hidden");
+    return;
+  }
+  if (isMenuReadyTimerEditing()) return;
+  const selected = Math.floor(Number(state?.readyTimeLimitMs) / 1000);
+  const isPreset = READY_TIMER_CHOICES.some((item) => item.seconds === selected);
+  const customActive = readyTimerCustomOpen || (!isPreset && selected > 0);
+  if (customActive) readyTimerCustomOpen = true;
+  readyTimerChoices.innerHTML = `${READY_TIMER_CHOICES.map((item) => `
+    <button
+      type="button"
+      class="appearance-choice${!customActive && item.seconds === selected ? " selected" : ""}"
+      data-ready-timer="${item.seconds}"
+      aria-pressed="${!customActive && item.seconds === selected ? "true" : "false"}"
+    >${item.label}</button>
+  `).join("")}
+    <button
+      type="button"
+      class="appearance-choice${customActive ? " selected" : ""}"
+      data-ready-timer="${READY_TIMER_CUSTOM}"
+      aria-pressed="${customActive ? "true" : "false"}"
+    >Custom</button>`;
+  if (readyTimerCustomForm && readyTimerCustomInput) {
+    readyTimerCustomForm.classList.toggle("hidden", !customActive);
+    if (customActive && document.activeElement !== readyTimerCustomInput) {
+      const value = selected > 0 ? selected : 20;
+      readyTimerCustomInput.value = String(Math.min(300, Math.max(5, value)));
+    }
+  }
+}
+
+function commitReadyTimerCustom(form) {
+  if (!form || !readyTimerCustomInput) return false;
+  const raw = readyTimerCustomInput.value.trim();
+  const seconds = Number(raw);
+  if (!raw || !Number.isFinite(seconds) || !Number.isInteger(seconds) || seconds < 5 || seconds > 300) {
+    showToast("Enter an integer from 5 to 300 seconds.");
+    return false;
+  }
+
+  // pointerdown (Save) and submit (Enter / click) share this path; dedupe one gesture.
+  const now = Date.now();
+  if (form.dataset.readyTimerSaving === "1" && now - Number(form.dataset.readyTimerSavedAt || 0) < 750) {
+    return true;
+  }
+  form.dataset.readyTimerSaving = "1";
+  form.dataset.readyTimerSavedAt = String(now);
+
+  readyTimerCustomOpen = true;
+  emitWithAck("game:setReadyTimer", { seconds });
+  readyTimerCustomInput.blur();
+  queueMicrotask(() => {
+    delete form.dataset.readyTimerSaving;
+  });
+  return true;
+}
+
 function turnSecondsRemaining() {
   if (!state?.turnEndsAt || !state?.turnTimeLimitMs || !isBettingPhase(state.phase) || !state.turn) return 0;
   return Math.max(0, Math.ceil((state.turnEndsAt - clientNow()) / 1000));
@@ -1393,22 +1477,124 @@ function blindChipMarkup(player) {
   return "";
 }
 
+function readyTimerActive() {
+  if (typeof ReadyClock !== "undefined" && ReadyClock.readyPhaseActive) {
+    return Boolean(state?.readyEndsAt && ReadyClock.readyPhaseActive(state.phase));
+  }
+  return Boolean(state?.readyEndsAt && ["lobby", "complete"].includes(state.phase));
+}
+
 function readySecondsRemaining() {
-  if (!state?.readyEndsAt || !["lobby", "complete"].includes(state.phase)) return 0;
+  if (!readyTimerActive()) return 0;
+  if (typeof ReadyClock !== "undefined" && ReadyClock.readySecondsRemaining) {
+    return ReadyClock.readySecondsRemaining(state.readyEndsAt, clientNow());
+  }
   return Math.max(0, Math.ceil((state.readyEndsAt - clientNow()) / 1000));
+}
+
+function readyPctRemaining() {
+  if (!readyTimerActive()) return 0;
+  const limit = Number(state?.readyTimeLimitMs) || 20000;
+  if (typeof ReadyClock !== "undefined" && ReadyClock.readyPctRemaining) {
+    return ReadyClock.readyPctRemaining(state.readyEndsAt, limit, clientNow());
+  }
+  return Math.max(0, Math.min(1, (state.readyEndsAt - clientNow()) / limit));
+}
+
+function seatShowsReadyClock(player) {
+  if (typeof ReadyClock !== "undefined" && ReadyClock.seatShowsReadyClock) {
+    return ReadyClock.seatShowsReadyClock(player, {
+      readyEndsAt: state?.readyEndsAt,
+      phase: state?.phase,
+    });
+  }
+  return Boolean(
+    readyTimerActive()
+    && player
+    && !player.isBot
+    && !player.sittingOut
+    && !player.ready
+    && player.stack > 0,
+  );
+}
+
+function readyLowTimeWarningActive() {
+  if (!readyTimerActive()) return false;
+  if (typeof TurnClockWarning === "undefined" || !TurnClockWarning.isLowTime) {
+    const rem = state.readyEndsAt - clientNow();
+    return rem > 0 && rem <= 5000;
+  }
+  return TurnClockWarning.isLowTime(state.readyEndsAt, clientNow());
+}
+
+function syncReadyLowTimeWarningEffects(now = clientNow()) {
+  if (!readyTimerActive()) {
+    if (typeof TurnClockWarning !== "undefined" && TurnClockWarning.resetLowTimeSession) {
+      TurnClockWarning.resetLowTimeSession(readyLowTimeSession);
+    } else {
+      readyLowTimeSession.turnEndsAt = null;
+      readyLowTimeSession.lastSeenTickSecond = null;
+      readyLowTimeSession.armed = false;
+    }
+    return;
+  }
+
+  const endsAt = state.readyEndsAt;
+  const tickSecond = typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeLowTimeTick
+    ? TurnClockWarning.consumeLowTimeTick(readyLowTimeSession, { turnEndsAt: endsAt, now })
+    : null;
+
+  // Quiet tick only for the local player who still needs to ready (same helper as shot clock).
+  const localNeedsReady = Boolean(state.canReady && !state.isReady);
+  if (tickSecond != null && localNeedsReady && !document.hidden) {
+    tableSounds.shotClockTick();
+  }
+}
+
+function appendReadyCountdown(target, { separator = true } = {}) {
+  if (!target || !readyTimerActive()) return null;
+  if (separator) target.append(" · ");
+  const countdown = document.createElement("span");
+  const seconds = readySecondsRemaining();
+  const labelText = formatTurnCountdown(seconds);
+  const lowTime = readyLowTimeWarningActive();
+  countdown.className = `turn-clock${lowTime ? " low-time" : ""}`;
+  countdown.dataset.readyCountdown = "1";
+  countdown.textContent = labelText;
+  countdown.setAttribute("aria-label", `${labelText} left to ready up`);
+  target.append(countdown);
+  return countdown;
 }
 
 function syncReadyCountdown() {
   clearInterval(readyCountdownTimer);
   readyCountdownTimer = null;
-  if (!state?.readyEndsAt || !["lobby", "complete"].includes(state.phase)) return;
+  if (!readyTimerActive()) {
+    syncReadyLowTimeWarningEffects();
+    return;
+  }
   const tick = () => {
     const seconds = readySecondsRemaining();
     const labelText = formatTurnCountdown(seconds);
-    document.querySelectorAll("[data-ready-countdown]").forEach((node) => {
-      node.textContent = `${labelText}s`;
-      node.setAttribute("aria-label", `${labelText} seconds to ready up`);
+    const pct = readyPctRemaining();
+    const lowTime = readyLowTimeWarningActive();
+    document.querySelectorAll("[data-ready-seat-clock]").forEach((row) => {
+      row.style.setProperty("--turn-pct", String(pct));
+      row.classList.toggle("low-time", lowTime);
+      const label = row.querySelector("[data-ready-countdown]");
+      if (label) {
+        label.textContent = labelText;
+        label.setAttribute("aria-label", `${labelText} left to ready up`);
+        label.classList.toggle("low-time", lowTime);
+      }
     });
+    document.querySelectorAll("[data-ready-countdown]").forEach((node) => {
+      if (node.closest("[data-ready-seat-clock]")) return;
+      node.textContent = labelText;
+      node.setAttribute("aria-label", `${labelText} left to ready up`);
+      node.classList.toggle("low-time", lowTime);
+    });
+    syncReadyLowTimeWarningEffects();
     if (seconds <= 0) clearInterval(readyCountdownTimer);
   };
   tick();
@@ -1435,22 +1621,37 @@ function renderActionFeed(newEntryId = "") {
     const action = showStreetAction
       ? compactPlayerAction(entry, player)
       : playerTableStatus(player, isActing);
-    const showClock = isActing && actingSeatShowsClock(player);
-    const seconds = showClock ? turnSecondsRemaining() : 0;
-    const pct = showClock ? turnPctRemaining() : 0;
+    const showTurnClock = isActing && actingSeatShowsClock(player);
+    const showReadyClock = !showTurnClock && seatShowsReadyClock(player);
+    const showClock = showTurnClock || showReadyClock;
+    const seconds = showTurnClock ? turnSecondsRemaining() : showReadyClock ? readySecondsRemaining() : 0;
+    const pct = showTurnClock ? turnPctRemaining() : showReadyClock ? readyPctRemaining() : 0;
     const styleVars = [
       player?.color ? `--player-color: ${escapeHtml(player.color)}` : "",
       showClock ? `--turn-pct: ${pct}` : "",
     ].filter(Boolean).join("; ");
     const styleAttr = styleVars ? ` style="${styleVars}"` : "";
     const countdownLabel = formatTurnCountdown(seconds);
-    const lowTime = showClock && lowTimeWarningActive();
+    const lowTime = showTurnClock
+      ? lowTimeWarningActive()
+      : showReadyClock && readyLowTimeWarningActive();
+    const countdownAttr = showTurnClock
+      ? "data-turn-countdown"
+      : showReadyClock
+        ? "data-ready-countdown"
+        : "";
+    const clockAria = showReadyClock ? `${countdownLabel} left to ready up` : `${countdownLabel} left`;
     const clockMarkup = showClock
-      ? `<span class="turn-clock" data-turn-countdown aria-label="${countdownLabel} left">${countdownLabel}</span>`
+      ? `<span class="turn-clock${lowTime ? " low-time" : ""}" ${countdownAttr} aria-label="${clockAria}">${countdownLabel}</span>`
       : "";
     const barMarkup = showClock ? `<span class="turn-clock-bar" aria-hidden="true"><i></i></span>` : "";
+    const seatClockAttr = showTurnClock
+      ? ' data-turn-seat-clock="1"'
+      : showReadyClock
+        ? ' data-ready-seat-clock="1"'
+        : "";
     return `
-      <article class="table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${lowTime ? "low-time" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${showClock ? ' data-turn-seat-clock="1"' : ""}${styleAttr}>
+      <article class="table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${lowTime ? "low-time" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${seatClockAttr}${styleAttr}>
         <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
         <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>${blindChipMarkup(player)}</span>
         <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}${clockMarkup}</span>
@@ -1585,6 +1786,7 @@ function render() {
     renderMenuPlayers();
     addBotBtn.classList.toggle("hidden", !state?.canAddBot || isSpectatorView());
     renderShotClockChoices();
+    renderReadyTimerChoices();
     const menuHero = activeHero();
     sitOutBtn.classList.toggle("hidden", !menuHero || isSpectatorView() || state?.phase === "gameover");
     if (menuHero) sitOutBtn.textContent = menuHero.sittingOut ? "Sit back in" : "Sit out next hand";
@@ -1636,14 +1838,7 @@ function renderControls(hero) {
         : `Watching · ${readyCount} of ${humans.length} players ready.`;
       turnInfo.replaceChildren();
       turnInfo.append(readyStatus);
-      if (state.readyEndsAt) {
-        const countdown = document.createElement("span");
-        countdown.className = "ready-countdown";
-        countdown.dataset.readyCountdown = "1";
-        countdown.textContent = `${formatTurnCountdown(readySecondsRemaining())}s`;
-        turnInfo.append(" · ");
-        turnInfo.append(countdown);
-      }
+      appendReadyCountdown(turnInfo);
     } else {
       const currentIndex = findLastIndex(state.players, (player) => player.id === state.turn);
       const current = currentIndex >= 0 ? state.players[currentIndex] : null;
@@ -1683,6 +1878,9 @@ function renderControls(hero) {
     const readyShortcut = state.isReady ? keybindLabel(keybinds.ready)
       : [keybinds.ready, keybinds.call].filter(Boolean).map(keybindLabel).join(" / ");
     addButton(state.isReady ? "Not ready" : "Ready up", "game:ready", state.isReady ? "secondary" : "", readyShortcut);
+    if (!state.isReady && readyTimerActive()) {
+      appendReadyCountdown(gameButtons, { separator: false });
+    }
   }
   if (state.canShowHand) {
     addButton("Show hand", "game:showCards", "secondary", keybindLabel(keybinds.showHand));
@@ -1697,14 +1895,7 @@ function renderControls(hero) {
         : `${readyCount} of ${humans.length} players ready.`;
       turnInfo.replaceChildren();
       turnInfo.append(readyStatus);
-      if (state.readyEndsAt) {
-        const countdown = document.createElement("span");
-        countdown.className = "ready-countdown";
-        countdown.dataset.readyCountdown = "1";
-        countdown.textContent = `${formatTurnCountdown(readySecondsRemaining())}s`;
-        turnInfo.append(" · ");
-        turnInfo.append(countdown);
-      }
+      appendReadyCountdown(turnInfo);
       return;
     }
     const currentIndex = findLastIndex(state.players, (player) => player.id === state.turn);
@@ -2312,6 +2503,20 @@ gameMenuModal.addEventListener("click", (event) => {
     emitWithAck("game:setShotClock", { seconds });
     return;
   }
+  const readyTimerButton = event.target.closest("button[data-ready-timer]");
+  if (readyTimerButton) {
+    const choice = readyTimerButton.dataset.readyTimer;
+    if (choice === READY_TIMER_CUSTOM) {
+      readyTimerCustomOpen = true;
+      renderReadyTimerChoices();
+      readyTimerCustomInput?.focus();
+      return;
+    }
+    readyTimerCustomOpen = false;
+    const seconds = Math.floor(Number(choice));
+    emitWithAck("game:setReadyTimer", { seconds });
+    return;
+  }
   const hostButton = event.target.closest("[data-make-host]");
   if (hostButton) {
     makeHost(hostButton.dataset.makeHost);
@@ -2339,6 +2544,12 @@ gameMenuModal.addEventListener("pointerdown", (event) => {
   if (shotClockSaveBtn) {
     event.preventDefault();
     commitShotClockCustom(shotClockSaveBtn.closest("[data-shot-clock-form]"));
+    return;
+  }
+  const readyTimerSaveBtn = event.target.closest("[data-ready-timer-form] button[type='submit']");
+  if (readyTimerSaveBtn) {
+    event.preventDefault();
+    commitReadyTimerCustom(readyTimerSaveBtn.closest("[data-ready-timer-form]"));
   }
 });
 
@@ -2363,6 +2574,10 @@ gameMenuModal.addEventListener("submit", (event) => {
   }
   if (event.target === shotClockCustomForm || event.target?.closest?.("[data-shot-clock-form]")) {
     commitShotClockCustom(event.target.closest("[data-shot-clock-form]") || shotClockCustomForm);
+    return;
+  }
+  if (event.target === readyTimerCustomForm || event.target?.closest?.("[data-ready-timer-form]")) {
+    commitReadyTimerCustom(event.target.closest("[data-ready-timer-form]") || readyTimerCustomForm);
     return;
   }
   const nameForm = event.target.closest("[data-name-form]");

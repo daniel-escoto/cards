@@ -1,17 +1,23 @@
 const assert = require("node:assert/strict");
 const engine = require("../shared/engine");
 const {
+  READY_TIMER_DEFAULT_MS,
+  READY_TIMER_MAX_MS,
+  READY_TIMER_MIN_MS,
   READY_TIMER_MS,
+  READY_TIMER_OPTIONS_MS,
   SHOT_CLOCK_DEFAULT_MS,
   clearReadyTimer,
   clearTurnTimer,
   emitRoom,
+  normalizeReadyTimerMs,
   resetShotClockTime,
   restoreRoom,
   rooms,
   scheduleReadyTimer,
   serializeRoom,
   serializeRoomForStorage,
+  setRoomReadyTimer,
   setRoomShotClock,
   setShotClockTime,
 } = require("../server");
@@ -59,6 +65,7 @@ function makeReadyRoom({
   id = "READY1",
   phase = "complete",
   turnTimeLimitMs = SHOT_CLOCK_DEFAULT_MS,
+  readyTimeLimitMs = READY_TIMER_DEFAULT_MS,
   withBot = false,
 } = {}) {
   const room = {
@@ -87,6 +94,7 @@ function makeReadyRoom({
     settlements: [],
     moneyLedger: [],
     turnTimeLimitMs,
+    readyTimeLimitMs,
     turnTimer: null,
     turnEndsAt: null,
     turnTimerPlayerId: null,
@@ -172,6 +180,20 @@ function makeReadyRoom({
 }
 
 assert.equal(READY_TIMER_MS, 20000);
+assert.equal(READY_TIMER_DEFAULT_MS, 20000);
+assert.equal(READY_TIMER_MIN_MS, 5000);
+assert.equal(READY_TIMER_MAX_MS, 300000);
+assert.deepEqual([...READY_TIMER_OPTIONS_MS], [0, 10000, 20000, 30000, 60000]);
+
+assert.equal(normalizeReadyTimerMs(10000), 10000);
+assert.equal(normalizeReadyTimerMs(20000), 20000);
+assert.equal(normalizeReadyTimerMs(30000), 30000);
+assert.equal(normalizeReadyTimerMs(60000), 60000);
+assert.equal(normalizeReadyTimerMs(0), 0);
+assert.equal(normalizeReadyTimerMs(45000), 45000);
+assert.equal(normalizeReadyTimerMs(4000), READY_TIMER_DEFAULT_MS);
+assert.equal(normalizeReadyTimerMs(301000), READY_TIMER_DEFAULT_MS);
+assert.equal(normalizeReadyTimerMs("abc"), READY_TIMER_DEFAULT_MS);
 
 {
   installFakeClock();
@@ -181,6 +203,7 @@ assert.equal(READY_TIMER_MS, 20000);
   const view = serializeRoom(room, "alice");
   assert.equal(view.readyEndsAt, room.readyEndsAt);
   assert.equal(view.readyTimeLimitMs, READY_TIMER_MS);
+  assert.equal(view.canChangeReadyTimer, true);
   cleanupRoom(room);
   resetShotClockTime();
 }
@@ -273,20 +296,103 @@ assert.equal(READY_TIMER_MS, 20000);
 }
 
 {
-  // Shot clock Off disables the ready timer; Ready still works manually.
+  // Ready-up timer Off disables the ready timer; Ready still works manually.
   installFakeClock();
   const room = makeReadyRoom({ phase: "complete" });
-  const off = setRoomShotClock(room, 0);
+  const off = setRoomReadyTimer(room, 0);
   assert.equal(off.ok, true);
+  assert.equal(room.readyTimeLimitMs, 0);
   scheduleReadyTimer(room);
   assert.equal(room.readyEndsAt, null);
   assert.equal(serializeRoom(room, "alice").readyEndsAt, null);
+  assert.equal(serializeRoom(room, "alice").readyTimeLimitMs, 0);
 
   room.players[0].ready = true;
   room.players[1].ready = true;
   engine.maybeStartReadyHand(room);
-  assert.equal(room.phase, "preflop", "manual ready still starts when clock is Off");
+  assert.equal(room.phase, "preflop", "manual ready still starts when ready timer is Off");
   cleanupRoom(room);
+  resetShotClockTime();
+}
+
+{
+  // Shot clock Off does not disable the ready-up timer (settings are independent).
+  installFakeClock();
+  const room = makeReadyRoom({ phase: "complete" });
+  const shotOff = setRoomShotClock(room, 0);
+  assert.equal(shotOff.ok, true);
+  assert.equal(room.turnTimeLimitMs, 0);
+  scheduleReadyTimer(room);
+  assert.equal(room.readyEndsAt, fakeNow + READY_TIMER_DEFAULT_MS, "ready timer still arms when shot clock is Off");
+  cleanupRoom(room);
+  resetShotClockTime();
+}
+
+{
+  // Host presets and custom validation for ready-up timer.
+  installFakeClock();
+  const room = makeReadyRoom({ phase: "complete" });
+
+  assert.equal(setRoomReadyTimer(room, 10).ok, true);
+  assert.equal(room.readyTimeLimitMs, 10000);
+  assert.equal(room.readyEndsAt, fakeNow + 10000);
+
+  assert.equal(setRoomReadyTimer(room, 30).ok, true);
+  assert.equal(room.readyTimeLimitMs, 30000);
+  assert.equal(room.readyEndsAt, fakeNow + 30000);
+
+  assert.equal(setRoomReadyTimer(room, 60).ok, true);
+  assert.equal(room.readyTimeLimitMs, 60000);
+
+  assert.equal(setRoomReadyTimer(room, 20).ok, true);
+  assert.equal(room.readyTimeLimitMs, 20000);
+
+  assert.equal(setRoomReadyTimer(room, 45).ok, true, "custom mid-range allowed");
+  assert.equal(room.readyTimeLimitMs, 45000);
+
+  assert.equal(setRoomReadyTimer(room, 5).ok, true, "custom min allowed");
+  assert.equal(room.readyTimeLimitMs, 5000);
+  assert.equal(setRoomReadyTimer(room, 300).ok, true, "custom max allowed");
+  assert.equal(room.readyTimeLimitMs, 300000);
+
+  const tooLow = setRoomReadyTimer(room, 4);
+  assert.equal(tooLow.ok, false);
+  assert.match(tooLow.error, /5 to 300/);
+  assert.equal(room.readyTimeLimitMs, 300000, "invalid value leaves prior setting");
+
+  const tooHigh = setRoomReadyTimer(room, 301);
+  assert.equal(tooHigh.ok, false);
+  assert.match(tooHigh.error, /5 to 300/);
+
+  const nonNumeric = setRoomReadyTimer(room, "abc");
+  assert.equal(nonNumeric.ok, false);
+
+  const fractional = setRoomReadyTimer(room, 20.5);
+  assert.equal(fractional.ok, false);
+
+  cleanupRoom(room);
+  resetShotClockTime();
+}
+
+{
+  // readyTimeLimitMs persists through rooms.json restore.
+  installFakeClock();
+  const room = makeReadyRoom({ id: "READYPERSIST", readyTimeLimitMs: 45000 });
+  scheduleReadyTimer(room);
+  const deadline = room.readyEndsAt;
+  const raw = serializeRoomForStorage(room);
+  assert.equal(raw.readyTimeLimitMs, 45000);
+  assert.equal(raw.readyEndsAt, deadline);
+  cleanupRoom(room);
+
+  const restored = restoreRoom(raw);
+  rooms.set(restored.id, restored);
+  assert.equal(restored.readyTimeLimitMs, 45000);
+  assert.equal(restored.readyEndsAt, deadline);
+  scheduleReadyTimer(restored);
+  assert.equal(restored.readyEndsAt, deadline, "restore keeps readyEndsAt and readyTimeLimitMs");
+  assert.equal(serializeRoom(restored, "alice").readyTimeLimitMs, 45000);
+  cleanupRoom(restored);
   resetShotClockTime();
 }
 

@@ -1191,6 +1191,7 @@ function isSoloHumanFolded(room) {
       canChangeBlinds: room.hostId === viewerId && canReadyForHand(room),
       // Offline practice never runs a shot clock / ready timer so humans cannot get stuck alone.
       canChangeShotClock: false,
+      canChangeReadyTimer: false,
       turnTimeLimitMs: 0,
       turnEndsAt: null,
       readyEndsAt: null,

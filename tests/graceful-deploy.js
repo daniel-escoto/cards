@@ -99,6 +99,7 @@ function makeHandRoom({
     settlements: [],
     moneyLedger: [],
     turnTimeLimitMs,
+    readyTimeLimitMs: READY_TIMER_MS,
     turnTimer: null,
     turnEndsAt: null,
     turnTimerPlayerId: null,
