@@ -46,19 +46,44 @@ Check deployment status in Railway; a green GitHub test run confirms tests passe
 
 ## Persistent games
 
-The server snapshots active rooms to JSON so games can be restored after a restart or deploy. By default it writes to `RAILWAY_VOLUME_MOUNT_PATH`, `DATA_DIR`, or local `.data/rooms.json`.
+The server snapshots active rooms (same JSON shape as before). Spectators are never persisted.
 
-For production deploys, attach a Railway volume or set `GAME_STATE_FILE` to a persistent path. Without a persistent filesystem, games will still be saved locally during the process lifetime but will not survive a fresh container.
+- **Redis (production):** when `REDIS_URL` is set, state is stored under the Redis key `holdem:game-state`. This is what Railway should use so deploys can overlap without a volume.
+- **File (local / tests):** when `REDIS_URL` is unset, state is written to `GAME_STATE_FILE`, or else `RAILWAY_VOLUME_MOUNT_PATH` / `DATA_DIR` / `.data/rooms.json`.
+
+On first boot with Redis empty, if a file still exists at `GAME_STATE_FILE`, the server migrates those rooms into Redis once so live tables carry over.
 
 ## Graceful deploys
 
-On `SIGTERM` / `SIGINT` the server broadcasts `server:restarting`, pauses shot-clock and ready timers (so nobody is auto-folded or sat out during the restart), flushes `rooms.json` synchronously (bypassing the 150ms debounce), and closes cleanly. On boot it restores rooms and extends any `turnEndsAt` / `readyEndsAt` by the downtime so remaining time is preserved. Clients show a non-blocking “Updating…, reconnecting” banner, auto-rejoin by `deviceId`, and reload to the new build only between hands (or immediately when not in a hand).
+On `SIGTERM` / `SIGINT`:
+
+1. Stop dealing new hands; show clients a subtle **Updating after this hand** notice (`server:deploy-waiting` / `updatingAfterHand` on room updates). Bots and shot clocks keep running.
+2. Wait for in-progress hands to finish, up to **`DEPLOY_HAND_WAIT_MS`** (default `25000`, must stay under Railway’s ~30s drain window).
+3. If the wait cap is hit, pause timers (so nobody is auto-folded during the restart), then continue.
+4. Flush state (Redis or file), publish a Redis `holdem:handoff` message when using Redis, broadcast `server:restarting`, and close sockets.
+
+On boot the server restores rooms and extends any `turnEndsAt` / `readyEndsAt` by the downtime. With Redis, a new instance loads state at startup but treats rooms as passive until live socket activity or a handoff/takeover, so it does not fight the draining instance. After the old instance’s final flush + `holdem:handoff` publish, the new instance re-reads Redis for rooms it has not served yet and takes ownership.
+
+Clients show the soft banner, auto-rejoin by `deviceId`, and reload to the new build only between hands (or immediately when not in a hand).
+
+`GET /healthz` returns **200** only after state has been restored and the HTTP server is listening; otherwise **503**. `railway.json` sets `deploy.healthcheckPath=/healthz`.
+
+### Env vars
+
+| Variable | Purpose |
+| --- | --- |
+| `REDIS_URL` | Redis connection URL. When set, room state is stored in Redis instead of the volume file. |
+| `DEPLOY_HAND_WAIT_MS` | Max time to wait for in-progress hands on SIGTERM (default `25000`). Keep below the drain window. |
+| `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` | Set to **`30`** on the Railway service so SIGTERM handling can finish before SIGKILL. |
+| `GAME_STATE_FILE` | File path used when `REDIS_URL` is unset (and as the source for one-time Redis migration). |
 
 ### Railway settings (Daniel)
 
-Volume-backed services cannot overlap two deployments, so there is a short downtime window. Give the old process time to flush and warn clients before Railway sends `SIGKILL`:
+After this change, prefer Redis over a volume so Railway can run overlapping deploys:
 
-- Set **`RAILWAY_DEPLOYMENT_DRAINING_SECONDS=30`** on the `holdem` service (Settings → teardown / draining, or as a service variable). Default is `0`, which can kill the process before `SIGTERM` handling finishes.
-- `RAILWAY_DEPLOYMENT_OVERLAP_SECONDS` does not help here while a volume is attached (Railway will not run two volume-backed replicas at once).
+1. Add a Redis plugin/service to the `cards` project and set **`REDIS_URL`** on the `holdem` service (Railway’s Redis variable reference).
+2. Keep **`RAILWAY_DEPLOYMENT_DRAINING_SECONDS=30`**.
+3. Deploy once with Redis + the existing volume (migration copies `rooms.json` into Redis if needed).
+4. Confirm tables restore, then **remove the volume** from `holdem` so future deploys can overlap.
 
-Do not change Railway config from this repo; set the draining variable in the Railway dashboard.
+Do not change Railway config from this repo beyond `railway.json` healthcheck settings; set Redis / draining / volume in the Railway dashboard.

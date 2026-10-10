@@ -632,6 +632,10 @@ function handoffOnlineToOffline() {
 function applyRoomUpdate(room) {
   if (leavingEndedRoom) return;
   noteServerBuildId(room?.buildId, room?.phase);
+  if (room?.updatingAfterHand) {
+    expectingServerRestart = true;
+    setReconnectBanner(true, "Updating after this hand");
+  }
   if (isGameOver(room) || isEndedGameReturn(state, room)) {
     leavingEndedRoom = true;
     if (isOfflineSession()) {
@@ -2745,6 +2749,11 @@ function autoJoinInitialRoom() {
 
 socket?.on("server:hello", ({ buildId } = {}) => {
   noteServerBuildId(buildId, state?.phase);
+});
+
+socket?.on("server:deploy-waiting", ({ message } = {}) => {
+  expectingServerRestart = true;
+  setReconnectBanner(true, message || "Updating after this hand");
 });
 
 socket?.on("server:restarting", () => {
