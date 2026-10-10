@@ -24,9 +24,10 @@
     "test:blind-chips": "node tests/blind-chips.js",
     "test:turn-clock-warning": "node tests/turn-clock-warning.js",
     "test:ready-timer": "node tests/ready-timer.js",
+    "test:ready-clock": "node tests/ready-clock.js",
     "test:spectator": "node tests/spectator.js",
     "test:graceful-deploy": "node tests/graceful-deploy.js",
-    "test": "npm run test:betting && npm run test:blinds && npm run test:bots && npm run test:money-ledger && npm run test:raise-presets && npm run test:seated-players && npm run test:side-pots-cashin && npm run test:showdown-reveal && npm run test:all-in-presets && npm run test:check-bet-merge && npm run test:call-raise-merge && npm run test:engine-offline && npm run test:offline-handoff && npm run test:turn-timer && npm run test:turn-clock-warning && npm run test:ready-timer && npm run test:spectator && npm run test:graceful-deploy && npm run test:frontend && npm run test:blind-chips",
+    "test": "npm run test:betting && npm run test:blinds && npm run test:bots && npm run test:money-ledger && npm run test:raise-presets && npm run test:seated-players && npm run test:side-pots-cashin && npm run test:showdown-reveal && npm run test:all-in-presets && npm run test:check-bet-merge && npm run test:call-raise-merge && npm run test:engine-offline && npm run test:offline-handoff && npm run test:turn-timer && npm run test:turn-clock-warning && npm run test:ready-timer && npm run test:ready-clock && npm run test:spectator && npm run test:graceful-deploy && npm run test:frontend && npm run test:blind-chips",
     "test:money-join": "node tests/money-join.js",
     "smoke": "node tests/smoke.js"
   },

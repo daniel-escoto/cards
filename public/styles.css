@@ -1578,10 +1578,19 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 
 .turn-info.your-turn { color: var(--accent); font-weight: 850; }
 
-.ready-countdown {
-  font-variant-numeric: tabular-nums;
-  font-weight: 750;
-  color: var(--accent);
+/* Ready-up countdown reuses .turn-clock; standalone low-time (status / Ready button). */
+.turn-clock.low-time {
+  color: #ffb4b4;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .turn-clock.low-time {
+    animation: low-time-clock-pulse 1s ease-in-out infinite;
+  }
+}
+.game-buttons > .turn-clock {
+  align-self: center;
+  margin-left: 2px;
+  color: var(--text);
 }
 
 .hero-hand {

@@ -394,6 +394,9 @@ let readyCountdownTimer = null;
 const lowTimeSession = (typeof TurnClockWarning !== "undefined" && TurnClockWarning.createLowTimeSession)
   ? TurnClockWarning.createLowTimeSession()
   : { turnEndsAt: null, lastSeenTickSecond: null, armed: false };
+const readyLowTimeSession = (typeof TurnClockWarning !== "undefined" && TurnClockWarning.createLowTimeSession)
+  ? TurnClockWarning.createLowTimeSession()
+  : { turnEndsAt: null, lastSeenTickSecond: null, armed: false };
 let lowTimeVibratedForEndsAt = null;
 let raiseState = { value: 0, min: 0, max: 0, step: 20 };
 let raiseControlsDisabled = false;
@@ -1393,22 +1396,124 @@ function blindChipMarkup(player) {
   return "";
 }
 
+function readyTimerActive() {
+  if (typeof ReadyClock !== "undefined" && ReadyClock.readyPhaseActive) {
+    return Boolean(state?.readyEndsAt && ReadyClock.readyPhaseActive(state.phase));
+  }
+  return Boolean(state?.readyEndsAt && ["lobby", "complete"].includes(state.phase));
+}
+
 function readySecondsRemaining() {
-  if (!state?.readyEndsAt || !["lobby", "complete"].includes(state.phase)) return 0;
+  if (!readyTimerActive()) return 0;
+  if (typeof ReadyClock !== "undefined" && ReadyClock.readySecondsRemaining) {
+    return ReadyClock.readySecondsRemaining(state.readyEndsAt, clientNow());
+  }
   return Math.max(0, Math.ceil((state.readyEndsAt - clientNow()) / 1000));
+}
+
+function readyPctRemaining() {
+  if (!readyTimerActive()) return 0;
+  const limit = Number(state?.readyTimeLimitMs) || 20000;
+  if (typeof ReadyClock !== "undefined" && ReadyClock.readyPctRemaining) {
+    return ReadyClock.readyPctRemaining(state.readyEndsAt, limit, clientNow());
+  }
+  return Math.max(0, Math.min(1, (state.readyEndsAt - clientNow()) / limit));
+}
+
+function seatShowsReadyClock(player) {
+  if (typeof ReadyClock !== "undefined" && ReadyClock.seatShowsReadyClock) {
+    return ReadyClock.seatShowsReadyClock(player, {
+      readyEndsAt: state?.readyEndsAt,
+      phase: state?.phase,
+    });
+  }
+  return Boolean(
+    readyTimerActive()
+    && player
+    && !player.isBot
+    && !player.sittingOut
+    && !player.ready
+    && player.stack > 0,
+  );
+}
+
+function readyLowTimeWarningActive() {
+  if (!readyTimerActive()) return false;
+  if (typeof TurnClockWarning === "undefined" || !TurnClockWarning.isLowTime) {
+    const rem = state.readyEndsAt - clientNow();
+    return rem > 0 && rem <= 5000;
+  }
+  return TurnClockWarning.isLowTime(state.readyEndsAt, clientNow());
+}
+
+function syncReadyLowTimeWarningEffects(now = clientNow()) {
+  if (!readyTimerActive()) {
+    if (typeof TurnClockWarning !== "undefined" && TurnClockWarning.resetLowTimeSession) {
+      TurnClockWarning.resetLowTimeSession(readyLowTimeSession);
+    } else {
+      readyLowTimeSession.turnEndsAt = null;
+      readyLowTimeSession.lastSeenTickSecond = null;
+      readyLowTimeSession.armed = false;
+    }
+    return;
+  }
+
+  const endsAt = state.readyEndsAt;
+  const tickSecond = typeof TurnClockWarning !== "undefined" && TurnClockWarning.consumeLowTimeTick
+    ? TurnClockWarning.consumeLowTimeTick(readyLowTimeSession, { turnEndsAt: endsAt, now })
+    : null;
+
+  // Quiet tick only for the local player who still needs to ready (same helper as shot clock).
+  const localNeedsReady = Boolean(state.canReady && !state.isReady);
+  if (tickSecond != null && localNeedsReady && !document.hidden) {
+    tableSounds.shotClockTick();
+  }
+}
+
+function appendReadyCountdown(target, { separator = true } = {}) {
+  if (!target || !readyTimerActive()) return null;
+  if (separator) target.append(" · ");
+  const countdown = document.createElement("span");
+  const seconds = readySecondsRemaining();
+  const labelText = formatTurnCountdown(seconds);
+  const lowTime = readyLowTimeWarningActive();
+  countdown.className = `turn-clock${lowTime ? " low-time" : ""}`;
+  countdown.dataset.readyCountdown = "1";
+  countdown.textContent = labelText;
+  countdown.setAttribute("aria-label", `${labelText} left to ready up`);
+  target.append(countdown);
+  return countdown;
 }
 
 function syncReadyCountdown() {
   clearInterval(readyCountdownTimer);
   readyCountdownTimer = null;
-  if (!state?.readyEndsAt || !["lobby", "complete"].includes(state.phase)) return;
+  if (!readyTimerActive()) {
+    syncReadyLowTimeWarningEffects();
+    return;
+  }
   const tick = () => {
     const seconds = readySecondsRemaining();
     const labelText = formatTurnCountdown(seconds);
-    document.querySelectorAll("[data-ready-countdown]").forEach((node) => {
-      node.textContent = `${labelText}s`;
-      node.setAttribute("aria-label", `${labelText} seconds to ready up`);
+    const pct = readyPctRemaining();
+    const lowTime = readyLowTimeWarningActive();
+    document.querySelectorAll("[data-ready-seat-clock]").forEach((row) => {
+      row.style.setProperty("--turn-pct", String(pct));
+      row.classList.toggle("low-time", lowTime);
+      const label = row.querySelector("[data-ready-countdown]");
+      if (label) {
+        label.textContent = labelText;
+        label.setAttribute("aria-label", `${labelText} left to ready up`);
+        label.classList.toggle("low-time", lowTime);
+      }
     });
+    document.querySelectorAll("[data-ready-countdown]").forEach((node) => {
+      if (node.closest("[data-ready-seat-clock]")) return;
+      node.textContent = labelText;
+      node.setAttribute("aria-label", `${labelText} left to ready up`);
+      node.classList.toggle("low-time", lowTime);
+    });
+    syncReadyLowTimeWarningEffects();
     if (seconds <= 0) clearInterval(readyCountdownTimer);
   };
   tick();
@@ -1435,22 +1540,37 @@ function renderActionFeed(newEntryId = "") {
     const action = showStreetAction
       ? compactPlayerAction(entry, player)
       : playerTableStatus(player, isActing);
-    const showClock = isActing && actingSeatShowsClock(player);
-    const seconds = showClock ? turnSecondsRemaining() : 0;
-    const pct = showClock ? turnPctRemaining() : 0;
+    const showTurnClock = isActing && actingSeatShowsClock(player);
+    const showReadyClock = !showTurnClock && seatShowsReadyClock(player);
+    const showClock = showTurnClock || showReadyClock;
+    const seconds = showTurnClock ? turnSecondsRemaining() : showReadyClock ? readySecondsRemaining() : 0;
+    const pct = showTurnClock ? turnPctRemaining() : showReadyClock ? readyPctRemaining() : 0;
     const styleVars = [
       player?.color ? `--player-color: ${escapeHtml(player.color)}` : "",
       showClock ? `--turn-pct: ${pct}` : "",
     ].filter(Boolean).join("; ");
     const styleAttr = styleVars ? ` style="${styleVars}"` : "";
     const countdownLabel = formatTurnCountdown(seconds);
-    const lowTime = showClock && lowTimeWarningActive();
+    const lowTime = showTurnClock
+      ? lowTimeWarningActive()
+      : showReadyClock && readyLowTimeWarningActive();
+    const countdownAttr = showTurnClock
+      ? "data-turn-countdown"
+      : showReadyClock
+        ? "data-ready-countdown"
+        : "";
+    const clockAria = showReadyClock ? `${countdownLabel} left to ready up` : `${countdownLabel} left`;
     const clockMarkup = showClock
-      ? `<span class="turn-clock" data-turn-countdown aria-label="${countdownLabel} left">${countdownLabel}</span>`
+      ? `<span class="turn-clock${lowTime ? " low-time" : ""}" ${countdownAttr} aria-label="${clockAria}">${countdownLabel}</span>`
       : "";
     const barMarkup = showClock ? `<span class="turn-clock-bar" aria-hidden="true"><i></i></span>` : "";
+    const seatClockAttr = showTurnClock
+      ? ' data-turn-seat-clock="1"'
+      : showReadyClock
+        ? ' data-ready-seat-clock="1"'
+        : "";
     return `
-      <article class="table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${lowTime ? "low-time" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${showClock ? ' data-turn-seat-clock="1"' : ""}${styleAttr}>
+      <article class="table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${lowTime ? "low-time" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${seatClockAttr}${styleAttr}>
         <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
         <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>${blindChipMarkup(player)}</span>
         <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}${clockMarkup}</span>
@@ -1636,14 +1756,7 @@ function renderControls(hero) {
         : `Watching · ${readyCount} of ${humans.length} players ready.`;
       turnInfo.replaceChildren();
       turnInfo.append(readyStatus);
-      if (state.readyEndsAt) {
-        const countdown = document.createElement("span");
-        countdown.className = "ready-countdown";
-        countdown.dataset.readyCountdown = "1";
-        countdown.textContent = `${formatTurnCountdown(readySecondsRemaining())}s`;
-        turnInfo.append(" · ");
-        turnInfo.append(countdown);
-      }
+      appendReadyCountdown(turnInfo);
     } else {
       const currentIndex = findLastIndex(state.players, (player) => player.id === state.turn);
       const current = currentIndex >= 0 ? state.players[currentIndex] : null;
@@ -1683,6 +1796,9 @@ function renderControls(hero) {
     const readyShortcut = state.isReady ? keybindLabel(keybinds.ready)
       : [keybinds.ready, keybinds.call].filter(Boolean).map(keybindLabel).join(" / ");
     addButton(state.isReady ? "Not ready" : "Ready up", "game:ready", state.isReady ? "secondary" : "", readyShortcut);
+    if (!state.isReady && readyTimerActive()) {
+      appendReadyCountdown(gameButtons, { separator: false });
+    }
   }
   if (state.canShowHand) {
     addButton("Show hand", "game:showCards", "secondary", keybindLabel(keybinds.showHand));
@@ -1697,14 +1813,7 @@ function renderControls(hero) {
         : `${readyCount} of ${humans.length} players ready.`;
       turnInfo.replaceChildren();
       turnInfo.append(readyStatus);
-      if (state.readyEndsAt) {
-        const countdown = document.createElement("span");
-        countdown.className = "ready-countdown";
-        countdown.dataset.readyCountdown = "1";
-        countdown.textContent = `${formatTurnCountdown(readySecondsRemaining())}s`;
-        turnInfo.append(" · ");
-        turnInfo.append(countdown);
-      }
+      appendReadyCountdown(turnInfo);
       return;
     }
     const currentIndex = findLastIndex(state.players, (player) => player.id === state.turn);

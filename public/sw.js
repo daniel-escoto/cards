@@ -12,6 +12,7 @@ const APP_SHELL = [
   "/raise-sizing.js",
   "/card-art.js",
   "/turn-clock-warning.js",
+  "/ready-clock.js",
   "/manifest.webmanifest",
   "/shared/pokersolver.js",
   "/shared/engine.js",
