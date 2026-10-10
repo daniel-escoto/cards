@@ -1035,15 +1035,17 @@ select:focus {
 .players > .round-roster { margin-top: 0; }
 
 .table-player-row {
+  position: relative;
   min-height: 46px;
   display: grid;
-  grid-template-columns: 9px minmax(0, 1fr) minmax(72px, auto) 64px;
+  grid-template-columns: 18px minmax(0, 1fr) minmax(72px, auto) 64px;
   align-items: center;
   gap: 9px;
   padding: 8px 10px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 10px;
   background: rgba(5, 20, 17, 0.68);
+  --turn-pct: 0;
 }
 
 .table-player-row.you { background: rgba(8, 31, 27, 0.78); }
@@ -1057,10 +1059,58 @@ select:focus {
 .table-player-row.out .player-action { color: rgba(255,255,255,.68); }
 .table-player-row .seat-name,
 :root[data-theme="light"] .table-player-row .seat-name { color: #fff; }
+.seat-timer {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  position: relative;
+}
 .player-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--player-color, #fff); }
+.table-player-row.shot-clock .seat-timer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    color-mix(in srgb, var(--accent, #7dd3a0) 92%, #fff) calc(var(--turn-pct) * 1turn),
+    rgba(255, 255, 255, 0.16) 0
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+}
+.turn-clock {
+  margin-left: 6px;
+  display: inline-block;
+  min-width: 1.4em;
+  color: rgba(255, 255, 255, 0.9);
+  font-variant-numeric: tabular-nums;
+  font-weight: 850;
+}
+.turn-clock-bar {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+  pointer-events: none;
+}
+.turn-clock-bar > i {
+  display: block;
+  height: 100%;
+  width: calc(var(--turn-pct) * 100%);
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--accent, #7dd3a0) 88%, #fff);
+  transition: width 0.2s linear;
+}
 .player-action { overflow: hidden; color: rgba(255,255,255,.9); font-size: 12px; font-weight: 850; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
 .player-stack { padding: 4px 7px; border-radius: 999px; color: #fff; background: rgba(0,0,0,.34); font-size: 12px; text-align: center; }
 .table-player-row .action-token-raise { color: #6ff0a0; }
+.shot-clock-choices { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.shot-clock-choices .appearance-choice { min-height: 44px; font-size: 12px; font-weight: 850; }
 
 .round-roster {
   position: sticky;
@@ -1955,13 +2005,17 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 
   .table-player-row {
     min-height: 39px;
-    grid-template-columns: 8px minmax(0, 1fr) minmax(62px, auto) 58px;
+    grid-template-columns: 16px minmax(0, 1fr) minmax(62px, auto) 58px;
     gap: 7px;
     padding: 6px 8px;
     border-color: rgba(255,255,255,.16);
     border-radius: 8px;
     background: rgba(5,18,15,.68);
   }
+
+  .seat-timer { width: 16px; height: 16px; }
+  .turn-clock { font-size: 11px; }
+  .turn-clock-bar { left: 6px; right: 6px; bottom: 2px; }
 
   .table-player-row.you { background: rgba(8,31,27,.8); }
   .table-player-row .seat-name { font-size: 13px; }
