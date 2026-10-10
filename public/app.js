@@ -1243,6 +1243,12 @@ function syncTurnCountdown() {
   turnCountdownTimer = setInterval(tick, 200);
 }
 
+function blindChipMarkup(player) {
+  if (player.isBigBlind) return '<span class="blind-chip big" title="Big blind" aria-label="Big blind">BB</span>';
+  if (player.isSmallBlind) return '<span class="blind-chip small" title="Small blind" aria-label="Small blind">SB</span>';
+  return "";
+}
+
 function renderActionFeed(newEntryId = "") {
   const entries = streetActionEntries(state.actionLog, state.phase);
   const activePlayer = currentTurnPlayer();
@@ -1277,7 +1283,7 @@ function renderActionFeed(newEntryId = "") {
     return `
       <article class="table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${showClock ? ' data-turn-seat-clock="1"' : ""}${styleAttr}>
         <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
-        <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
+        <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>${blindChipMarkup(player)}</span>
         <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}${clockMarkup}</span>
         <strong class="player-stack">${playerStackLabel(player)}</strong>
         ${barMarkup}
