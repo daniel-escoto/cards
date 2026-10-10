@@ -207,6 +207,21 @@
                 </div>
                 <p class="shortcut-help">Auto-check if free, otherwise auto-fold. Server-enforced for online games. Custom: 10–600 seconds.</p>
               </details>
+              <details id="readyTimerPanel" class="appearance-panel shot-clock-panel hidden">
+                <summary>Ready-up timer</summary>
+                <div class="appearance-group">
+                  <span>Between hands</span>
+                  <div id="readyTimerChoices" class="appearance-choices shot-clock-choices" role="radiogroup" aria-label="Ready-up timer"></div>
+                  <form id="readyTimerCustomForm" class="shot-clock-custom-form hidden" data-ready-timer-form>
+                    <label>
+                      Seconds
+                      <input id="readyTimerCustomInput" type="number" min="5" max="300" step="1" inputmode="numeric" enterkeyhint="done" aria-label="Custom ready-up timer seconds" />
+                    </label>
+                    <button type="submit" class="secondary">Save</button>
+                  </form>
+                </div>
+                <p class="shortcut-help">Sit out players who don’t ready in time. Independent of the shot clock. Custom: 5–300 seconds.</p>
+              </details>
             </div>
           </section>
 

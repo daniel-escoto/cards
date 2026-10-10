@@ -117,8 +117,13 @@ const SHOT_CLOCK_OPTIONS_MS = Object.freeze([0, 15000, 30000, 60000, 90000, 1200
 const SHOT_CLOCK_DEFAULT_MS = 30000;
 const SHOT_CLOCK_MIN_MS = 10000;
 const SHOT_CLOCK_MAX_MS = 600000;
-/** Between-hand ready deadline when shot clock is on. Off follows the host shot-clock Off setting. */
-const READY_TIMER_MS = 20000;
+/** Host ready-up timer presets (ms). 0 = Off. Default 20s. Custom values allowed in [MIN, MAX]. */
+const READY_TIMER_OPTIONS_MS = Object.freeze([0, 10000, 20000, 30000, 60000]);
+const READY_TIMER_DEFAULT_MS = 20000;
+/** @deprecated alias — prefer READY_TIMER_DEFAULT_MS */
+const READY_TIMER_MS = READY_TIMER_DEFAULT_MS;
+const READY_TIMER_MIN_MS = 5000;
+const READY_TIMER_MAX_MS = 300000;
 const DORMANT_ROOM_TTL_MS = Math.max(60000, Number(process.env.DORMANT_ROOM_TTL_MS) || 60 * 60 * 1000);
 /** Injectable clock for tests (fake timers). Production uses Date/setTimeout. */
 const shotClockTime = {
@@ -144,6 +149,14 @@ function normalizeShotClockMs(value, fallback = SHOT_CLOCK_DEFAULT_MS) {
   if (!Number.isFinite(ms)) return fallback;
   if (ms === 0) return 0;
   if (ms >= SHOT_CLOCK_MIN_MS && ms <= SHOT_CLOCK_MAX_MS) return ms;
+  return fallback;
+}
+
+function normalizeReadyTimerMs(value, fallback = READY_TIMER_DEFAULT_MS) {
+  const ms = Math.floor(Number(value));
+  if (!Number.isFinite(ms)) return fallback;
+  if (ms === 0) return 0;
+  if (ms >= READY_TIMER_MIN_MS && ms <= READY_TIMER_MAX_MS) return ms;
   return fallback;
 }
 
@@ -276,6 +289,7 @@ function serializeRoomForStorage(room) {
     turnTimeLimitMs: normalizeShotClockMs(room.turnTimeLimitMs, SHOT_CLOCK_DEFAULT_MS),
     turnEndsAt: room.turnEndsAt || null,
     turnTimerPlayerId: room.turnTimerPlayerId || null,
+    readyTimeLimitMs: normalizeReadyTimerMs(room.readyTimeLimitMs, READY_TIMER_DEFAULT_MS),
     readyEndsAt: room.readyEndsAt || null,
     settlements: Array.isArray(room.settlements) ? room.settlements : [],
     moneyLedger: Array.isArray(room.moneyLedger) ? room.moneyLedger : [],
@@ -511,6 +525,7 @@ function restoreRoom(raw) {
     baseSmallBlind: Math.max(1, Math.floor(Number(raw.baseSmallBlind) || DEFAULT_SMALL_BLIND)),
     baseBigBlind: Math.max(2, Math.floor(Number(raw.baseBigBlind) || DEFAULT_BIG_BLIND)),
     turnTimeLimitMs: normalizeShotClockMs(raw.turnTimeLimitMs, SHOT_CLOCK_DEFAULT_MS),
+    readyTimeLimitMs: normalizeReadyTimerMs(raw.readyTimeLimitMs, READY_TIMER_DEFAULT_MS),
     settlements: Array.isArray(raw.settlements) ? raw.settlements : [],
     moneyLedger: Array.isArray(raw.moneyLedger) ? raw.moneyLedger.map((entry) => ({
       playerId: String(entry.playerId),
@@ -674,6 +689,7 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
     baseSmallBlind,
     baseBigBlind,
     turnTimeLimitMs: SHOT_CLOCK_DEFAULT_MS,
+    readyTimeLimitMs: READY_TIMER_DEFAULT_MS,
     settlements: [],
     moneyLedger: [],
     dormantSince: null,
@@ -1252,7 +1268,7 @@ function armReadyTimeout(room, delayMs) {
     current.readyEndsAt = null;
     if (
       !canReadyForHand(current)
-      || !normalizeShotClockMs(current.turnTimeLimitMs, SHOT_CLOCK_DEFAULT_MS)
+      || !normalizeReadyTimerMs(current.readyTimeLimitMs, READY_TIMER_DEFAULT_MS)
     ) {
       emitRoom(current);
       return;
@@ -1266,10 +1282,10 @@ function armReadyTimeout(room, delayMs) {
  * Absolute readyEndsAt is set once while waiting between hands (after a hand
  * has completed — not during the first-deal lobby while the table fills).
  * Reconnect / broadcast / rooms.json restore only re-arm the remaining time.
- * Host shot-clock Off disables the ready timer entirely.
+ * Host ready-up timer Off disables the timer (independent of the shot clock).
  */
 function scheduleReadyTimer(room) {
-  const limitMs = normalizeShotClockMs(room?.turnTimeLimitMs, SHOT_CLOCK_DEFAULT_MS);
+  const limitMs = normalizeReadyTimerMs(room?.readyTimeLimitMs, READY_TIMER_DEFAULT_MS);
   // First lobby (handNumber 0) keeps today's untimed Ready; timer starts after a hand completes.
   const betweenHands = canReadyForHand(room) && (room.phase === "complete" || room.handNumber > 0);
   if (!room || !limitMs || !betweenHands) {
@@ -1296,8 +1312,8 @@ function scheduleReadyTimer(room) {
     return;
   }
 
-  room.readyEndsAt = now + READY_TIMER_MS;
-  armReadyTimeout(room, READY_TIMER_MS);
+  room.readyEndsAt = now + limitMs;
+  armReadyTimeout(room, limitMs);
 }
 
 /** Auto-check when free; otherwise auto-fold. Used when a human's shot clock expires. */
@@ -1389,16 +1405,34 @@ function setRoomShotClock(room, seconds) {
   room.turnTimeLimitMs = ms;
   if (!ms) {
     clearTurnTimer(room);
-    clearReadyTimer(room);
   } else if (room.turnTimerPlayerId) {
     // Host changed the limit mid-turn — restart the clock for the current actor.
     clearTurnTimer(room);
     scheduleHumanTurnTimer(room);
   }
-  // Ready timer follows shot-clock Off; turning clocks back on re-arms via emitRoom.
   room.message = ms
     ? `Shot clock set to ${formatShotClockSeconds(raw)}.`
     : "Shot clock turned off.";
+  return { ok: true };
+}
+
+function setRoomReadyTimer(room, seconds) {
+  if (!room) return { ok: false, error: "Room not found." };
+  const raw = Number(seconds);
+  if (!Number.isFinite(raw) || !Number.isInteger(raw)) {
+    return { ok: false, error: "Ready-up timer must be an integer from 5 to 300 seconds, or Off (0)." };
+  }
+  if (raw !== 0 && (raw < READY_TIMER_MIN_MS / 1000 || raw > READY_TIMER_MAX_MS / 1000)) {
+    return { ok: false, error: "Ready-up timer must be an integer from 5 to 300 seconds, or Off (0)." };
+  }
+  const ms = raw * 1000;
+  room.readyTimeLimitMs = ms;
+  // Changing the limit (or turning Off) clears any in-flight deadline; emitRoom re-arms when On.
+  clearReadyTimer(room);
+  if (ms) scheduleReadyTimer(room);
+  room.message = ms
+    ? `Ready-up timer set to ${formatShotClockSeconds(raw)}.`
+    : "Ready-up timer turned off.";
   return { ok: true };
 }
 
@@ -1477,10 +1511,11 @@ function serializeRoom(room, viewerId) {
     canTakeSeat: isSpectator && canTakeSeatNow(room),
     canChangeBlinds: Boolean(viewer) && room.hostId === viewerId && canReadyForHand(room),
     canChangeShotClock: Boolean(viewer) && room.hostId === viewerId,
+    canChangeReadyTimer: Boolean(viewer) && room.hostId === viewerId,
     turnTimeLimitMs: normalizeShotClockMs(room.turnTimeLimitMs, SHOT_CLOCK_DEFAULT_MS),
     turnEndsAt: room.turnEndsAt || null,
     readyEndsAt: room.readyEndsAt || null,
-    readyTimeLimitMs: READY_TIMER_MS,
+    readyTimeLimitMs: normalizeReadyTimerMs(room.readyTimeLimitMs, READY_TIMER_DEFAULT_MS),
     serverNow: shotClockTime.now(),
     canRestartGame: Boolean(viewer) && room.hostId === viewerId && !room.moneyMode && canAdministerGame(room),
     canEndGame: Boolean(viewer) && room.hostId === viewerId && canAdministerGame(room) && (room.moneyMode || room.phase !== "lobby"),
@@ -2041,6 +2076,18 @@ io.on("connection", (socket) => {
     emitRoom(room);
   });
 
+  socket.on("game:setReadyTimer", ({ seconds } = {}, ack) => {
+    const room = rooms.get(socketRoom.get(socket.id));
+    const playerId = socketPlayer.get(socket.id);
+    if (!room || room.hostId !== playerId) {
+      return ack?.({ ok: false, error: "Only the host can change the ready-up timer." });
+    }
+    const result = setRoomReadyTimer(room, seconds);
+    if (!result.ok) return ack?.(result);
+    ack?.(result);
+    emitRoom(room);
+  });
+
   socket.on("game:setBlinds", ({ smallBlind, bigBlind, smallBlindCents, bigBlindCents } = {}, ack) => {
     const room = rooms.get(socketRoom.get(socket.id));
     const playerId = socketPlayer.get(socket.id);
@@ -2252,7 +2299,11 @@ module.exports = {
   BUILD_ID,
   SETTLED_MONEY_ROOM_TTL_MS,
   DORMANT_ROOM_TTL_MS,
+  READY_TIMER_DEFAULT_MS,
+  READY_TIMER_MAX_MS,
+  READY_TIMER_MIN_MS,
   READY_TIMER_MS,
+  READY_TIMER_OPTIONS_MS,
   SAVE_DEBOUNCE_MS,
   STATE_FILE,
   SHOT_CLOCK_DEFAULT_MS,
@@ -2284,6 +2335,7 @@ module.exports = {
   getRoom,
   io,
   isSettledMoneyRoom,
+  normalizeReadyTimerMs,
   normalizeShotClockMs,
   optimizeSettlements,
   preserveSettledMoneyRoom,
@@ -2301,6 +2353,7 @@ module.exports = {
   serializeRoom,
   serializeRoomForStorage,
   server,
+  setRoomReadyTimer,
   setRoomShotClock,
   setShotClockTime,
   emitRoom,
