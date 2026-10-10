@@ -1087,13 +1087,15 @@ function compactPlayerAction(entry, player) {
     : raw.replace(/\.$/, "");
   const amount = (value) => formatAmount(Number(value), Math.round(Number(value) * (state?.chipValueCents || 0)));
   return withoutName
-    .replace(/^Posts small blind\s+(\d+)/i, (_, value) => `SB ${amount(value)}`)
-    .replace(/^Posts big blind\s+(\d+)/i, (_, value) => `BB ${amount(value)}`)
     .replace(/^Calls\s+(\d+)/i, (_, value) => `call ${amount(value)}`)
     .replace(/^Checks$/i, "check")
     .replace(/^Folds$/i, "fold")
     .replace(/^Raises to\s+(\d+)/i, (_, value) => `raise ${amount(value)}`)
     .replace(/^Wins\s+(\d+)/i, (_, value) => `+${amount(value)}`);
+}
+
+function isBlindPost(entry) {
+  return /^Posts (small|big) blind\b/i.test(entry?.action || "");
 }
 
 function actionTokenClass(entry, player) {
@@ -1319,6 +1321,8 @@ function renderActionFeed(newEntryId = "") {
   const activePlayer = currentTurnPlayer();
   const latestByPlayer = new Map();
   entries.forEach((entry) => {
+    // Blind posts aren't actions; the SB/BB chips mark those seats for the whole hand.
+    if (isBlindPost(entry)) return;
     const player = playerForAction(entry);
     if (player) latestByPlayer.set(player.id, entry);
   });
