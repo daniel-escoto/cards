@@ -27,9 +27,11 @@ const moneyModeInput = document.querySelector("#moneyModeInput");
 const buyInLabel = document.querySelector("#buyInLabel");
 const buyInInput = document.querySelector("#buyInInput");
 const tableActionBtn = document.querySelector("#tableActionBtn");
+const watchBtn = document.querySelector("#watchBtn");
 const joinError = document.querySelector("#joinError");
 const roomCode = document.querySelector("#roomCode");
 const roomCodeBtn = document.querySelector("#roomCodeBtn");
+const watchingCountEl = document.querySelector("#watchingCount");
 const menuBtn = document.querySelector("#menuBtn");
 const gameMenuModal = document.querySelector("#gameMenuModal");
 const closeMenuBtn = document.querySelector("#closeMenuBtn");
@@ -409,6 +411,7 @@ const initialRoomId = (initialRoomParam || localStorage.getItem("holdem:lastRoom
 if (initialRoomId) roomInput.value = initialRoomId;
 nameInput.value = localStorage.getItem("holdem:name") || "";
 let joinPending = false;
+let watchOfferPending = false;
 let acceptedMoneyTerms = null;
 const joinPreview = document.querySelector("#joinPreview");
 let didAutoJoinInitialRoom = false;
@@ -492,11 +495,15 @@ function roomCredentials(roomId) {
 }
 
 function saveRoomCredentials(roomId, response) {
-  if (!roomId || !response?.reconnectToken) return;
-  localStorage.setItem(`holdem:credentials:${String(roomId).toUpperCase()}`, JSON.stringify({
-    playerId: response.playerId || getDeviceId(),
-    reconnectToken: response.reconnectToken,
-  }));
+  if (!roomId) return;
+  const existing = roomCredentials(roomId) || {};
+  const next = {
+    playerId: response?.playerId || existing.playerId || getDeviceId(),
+    reconnectToken: response?.reconnectToken || existing.reconnectToken || null,
+    spectator: Boolean(response?.spectator),
+  };
+  if (!next.reconnectToken && !next.spectator) return;
+  localStorage.setItem(`holdem:credentials:${String(roomId).toUpperCase()}`, JSON.stringify(next));
 }
 
 function setViewportHeight() {
@@ -612,6 +619,12 @@ function updateTableActionLabel() {
   joinPreview.classList.toggle("hidden", !isJoining || !acceptedMoneyTerms);
   const onlineReady = Boolean(socket?.connected);
   tableActionBtn.disabled = joinPending || (offlineHost ? false : !onlineReady);
+  if (watchBtn) {
+    watchBtn.classList.toggle("hidden", !isJoining);
+    watchBtn.disabled = joinPending || !onlineReady;
+    watchBtn.classList.toggle("watch-offer", Boolean(watchOfferPending));
+    watchBtn.textContent = watchOfferPending ? "Watch instead" : "Watch";
+  }
   blindFields?.classList.toggle("hidden", isJoining);
   moneyModeLabel?.classList.toggle("hidden", isJoining);
   buyInLabel.classList.toggle("hidden", isJoining || !moneyMode);
@@ -646,10 +659,15 @@ function syncBlindInputMode() {
 
 function setTableMode(mode, focusRoom = false) {
   acceptedMoneyTerms = null;
+  watchOfferPending = false;
   tableMode = mode;
   joinError.textContent = "";
   updateTableActionLabel();
   if (focusRoom && mode === "join") roomInput.focus();
+}
+
+function isSpectatorView(room = state) {
+  return Boolean(room?.isSpectator);
 }
 
 function showToast(message) {
@@ -943,14 +961,14 @@ function showGameMenu() {
   gameMenuModal.querySelectorAll(".appearance-panel, .table-actions-panel").forEach((panel) => {
     panel.open = false;
   });
-  addBotBtn.classList.toggle("hidden", !state?.canAddBot);
+  addBotBtn.classList.toggle("hidden", !state?.canAddBot || isSpectatorView());
   const hero = activeHero();
-  sitOutBtn.classList.toggle("hidden", !hero || state?.phase === "gameover");
+  sitOutBtn.classList.toggle("hidden", !hero || isSpectatorView() || state?.phase === "gameover");
   if (hero) sitOutBtn.textContent = hero.sittingOut ? "Sit back in" : "Sit out next hand";
-  moneyPanel.classList.toggle("hidden", !state?.moneyMode || isOfflineSession());
+  moneyPanel.classList.toggle("hidden", !state?.moneyMode || isSpectatorView() || isOfflineSession());
   shareGameBtn.classList.toggle("hidden", isOfflineSession());
   sharePanel.classList.add("hidden");
-  blindPanel.classList.toggle("hidden", !state?.canChangeBlinds);
+  blindPanel.classList.toggle("hidden", !state?.canChangeBlinds || isSpectatorView());
   if (state?.canChangeBlinds) {
     const moneyMode = state.moneyMode;
     menuSmallBlindLabel.textContent = moneyMode ? "Small blind ($)" : "Small blind";
@@ -974,6 +992,12 @@ function showGameMenu() {
 function showWelcome(status = "") {
   disposePracticeSession();
   state = null;
+  watchOfferPending = false;
+  acceptedMoneyTerms = null;
+  if (watchingCountEl) {
+    watchingCountEl.textContent = "";
+    watchingCountEl.classList.add("hidden");
+  }
   lastActionEntryId = "";
   lastCommunitySignature = null;
   lastHeroSignature = "";
@@ -1421,6 +1445,11 @@ function render() {
     replayAnimation(potValue.closest("div"), "value-changed", 480);
   }
   lastPot = state.pot;
+  if (watchingCountEl) {
+    const count = Number(state.watchingCount) || 0;
+    watchingCountEl.textContent = count > 0 ? `${count} watching` : "";
+    watchingCountEl.classList.toggle("hidden", count <= 0);
+  }
 
   const communitySignature = state.community.map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`).join("|");
   const expectedCommunityCards = state.phase === "lobby" ? 0 : 5;
@@ -1492,10 +1521,10 @@ function render() {
   syncReadyCountdown();
   if (!gameMenuModal.classList.contains("hidden")) {
     renderMenuPlayers();
-    addBotBtn.classList.toggle("hidden", !state?.canAddBot);
+    addBotBtn.classList.toggle("hidden", !state?.canAddBot || isSpectatorView());
     renderShotClockChoices();
     const menuHero = activeHero();
-    sitOutBtn.classList.toggle("hidden", !menuHero || state?.phase === "gameover");
+    sitOutBtn.classList.toggle("hidden", !menuHero || isSpectatorView() || state?.phase === "gameover");
     if (menuHero) sitOutBtn.textContent = menuHero.sittingOut ? "Sit back in" : "Sit out next hand";
   }
   requestAnimationFrame(() => restoreActionFeedScroll(feedScroll));
@@ -1531,6 +1560,43 @@ function renderControls(hero) {
   betPresets.innerHTML = "";
   turnInfo.textContent = "";
   turnInfo.classList.remove("your-turn");
+
+  if (isSpectatorView()) {
+    turnInfo.classList.remove("showdown-message");
+    if (state.phase === "showdown") {
+      turnInfo.textContent = "Cards down. Revealing the winner…";
+      turnInfo.classList.add("showdown-message");
+    } else if (["lobby", "complete"].includes(state.phase)) {
+      const humans = state.players.filter((player) => !player.isBot && !player.sittingOut && player.stack > 0);
+      const readyCount = humans.filter((player) => player.ready).length;
+      const readyStatus = humans.length < 2 && state.players.filter((player) => player.stack > 0 && !player.sittingOut).length < 2
+        ? "Watching · waiting for at least two active players."
+        : `Watching · ${readyCount} of ${humans.length} players ready.`;
+      turnInfo.replaceChildren();
+      turnInfo.append(readyStatus);
+      if (state.readyEndsAt) {
+        const countdown = document.createElement("span");
+        countdown.className = "ready-countdown";
+        countdown.dataset.readyCountdown = "1";
+        countdown.textContent = `${formatTurnCountdown(readySecondsRemaining())}s`;
+        turnInfo.append(" · ");
+        turnInfo.append(countdown);
+      }
+    } else {
+      const currentIndex = findLastIndex(state.players, (player) => player.id === state.turn);
+      const current = currentIndex >= 0 ? state.players[currentIndex] : null;
+      turnInfo.textContent = current
+        ? `Watching · pot ${formatAmount(state.pot, state.potCents)}. ${current.name} is acting.`
+        : `Watching · pot ${formatAmount(state.pot, state.potCents)}.`;
+    }
+    if (state.canTakeSeat) {
+      const button = document.createElement("button");
+      button.textContent = acceptedMoneyTerms ? "Take a seat · Play next hand" : "Take a seat";
+      button.addEventListener("click", () => takeSeatFromSpectator());
+      gameButtons.appendChild(button);
+    }
+    return;
+  }
 
   if (hero?.sittingOut && (!isBettingPhase(state.phase) || !hero.cards.length)) {
     turnInfo.textContent = "You’re sitting out. Your seat and stack are saved.";
@@ -1928,6 +1994,7 @@ function joinOrCreate(mode) {
     }
   }
   joinPending = true;
+  watchOfferPending = false;
   tableActionBtn.textContent = mode === "join" ? "Joining..." : "Hosting...";
   updateTableActionLabel();
   socket.timeout(4000).emit(eventName, payload, (error, response) => {
@@ -1946,13 +2013,104 @@ function joinOrCreate(mode) {
         updateTableActionLabel();
         return;
       }
+      if (response?.canWatch) {
+        watchOfferPending = true;
+        joinError.textContent = response.error || "Table is full — you can watch instead.";
+        updateTableActionLabel();
+        return;
+      }
       joinError.textContent = response?.error || "Could not join table.";
       return;
     }
     acceptedMoneyTerms = null;
+    watchOfferPending = false;
     lastAutoRejoinKey = `${socket.id}:${response.roomId || roomId}`;
     saveRoomCredentials(response.roomId || roomId, response);
     setRoomUrl(response.roomId || roomId);
+  });
+}
+
+function watchRoom() {
+  joinError.textContent = "";
+  if (joinPending) return;
+  if (tableMode !== "join") setTableMode("join");
+  if (!socket) {
+    joinError.textContent = "Online play needs a connection.";
+    return;
+  }
+  if (!socket.connected) {
+    joinError.textContent = "Connecting...";
+    socket.once("connect", () => watchRoom());
+    return;
+  }
+  const name = nameInput.value.trim();
+  if (!name) {
+    joinError.textContent = "Enter a display name.";
+    return;
+  }
+  const roomId = roomInput.value.trim().toUpperCase();
+  if (!roomId) {
+    joinError.textContent = "Enter a room code to watch.";
+    return;
+  }
+  localStorage.setItem("holdem:name", name);
+  const credentials = roomCredentials(roomId);
+  joinPending = true;
+  if (watchBtn) watchBtn.textContent = "Joining...";
+  updateTableActionLabel();
+  socket.timeout(4000).emit("room:watch", {
+    name,
+    roomId,
+    deviceId: credentials?.playerId || getDeviceId(),
+    reconnectToken: credentials?.reconnectToken,
+  }, (error, response) => {
+    joinPending = false;
+    updateTableActionLabel();
+    if (error) {
+      joinError.textContent = "Still connecting. Try again.";
+      return;
+    }
+    if (!response?.ok) {
+      joinError.textContent = response?.error || "Could not watch table.";
+      return;
+    }
+    acceptedMoneyTerms = null;
+    watchOfferPending = false;
+    lastAutoRejoinKey = `${socket.id}:${response.roomId || roomId}`;
+    saveRoomCredentials(response.roomId || roomId, { ...response, spectator: true });
+    setRoomUrl(response.roomId || roomId);
+  });
+}
+
+function takeSeatFromSpectator() {
+  if (!state?.isSpectator || !socket) return;
+  const credentials = roomCredentials(state.id) || {};
+  const payload = {
+    name: nameInput.value.trim() || localStorage.getItem("holdem:name") || "Player",
+    deviceId: credentials.playerId || getDeviceId(),
+    reconnectToken: credentials.reconnectToken,
+    acceptedMoneyTerms,
+  };
+  socket.timeout(4000).emit("room:takeSeat", payload, (error, response) => {
+    if (error) {
+      joinError.textContent = "Reconnecting to the table...";
+      lastAutoRejoinKey = "";
+      attemptAutoRejoin();
+      return;
+    }
+    if (!response?.ok) {
+      if (response?.moneyTerms) {
+        acceptedMoneyTerms = response.moneyTerms;
+        showToast(`Money game · Buy-in ${formatMoney(response.moneyTerms.buyInCents)}. Confirm to take a seat.`);
+        if (state) renderControls(activeHero());
+        return;
+      }
+      joinError.textContent = response?.error || "Could not take a seat.";
+      showToast(response?.error || "Could not take a seat.");
+      return;
+    }
+    acceptedMoneyTerms = null;
+    saveRoomCredentials(response.roomId || state.id, { ...response, spectator: false });
   });
 }
 
@@ -2002,10 +2160,12 @@ resetKeybindsBtn.addEventListener("click", () => {
 roomInput.addEventListener("input", () => {
   roomInput.value = roomInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
   acceptedMoneyTerms = null;
+  watchOfferPending = false;
   updateTableActionLabel();
 });
 hostModeBtn.addEventListener("click", () => setTableMode("host"));
 joinModeBtn.addEventListener("click", () => setTableMode("join", true));
+watchBtn?.addEventListener("click", () => watchRoom());
 moneyModeInput.addEventListener("change", () => {
   syncBlindInputMode();
   updateTableActionLabel();
@@ -2201,7 +2361,9 @@ function attemptAutoRejoin() {
   if (socket.connected && roomId && rejoinKey !== lastAutoRejoinKey && !leavingEndedRoom) {
     lastAutoRejoinKey = rejoinKey;
     const credentials = roomCredentials(roomId);
-    socket.emit("room:join", {
+    const asSpectator = Boolean(state?.isSpectator || credentials?.spectator);
+    const eventName = asSpectator ? "room:watch" : "room:join";
+    socket.emit(eventName, {
       roomId,
       name,
       deviceId: credentials?.playerId || getDeviceId(),
@@ -2212,7 +2374,10 @@ function attemptAutoRejoin() {
         joinError.textContent = response?.error || "Could not rejoin table.";
         return;
       }
-      saveRoomCredentials(response.roomId || roomId, response);
+      saveRoomCredentials(response.roomId || roomId, {
+        ...response,
+        spectator: asSpectator || Boolean(response.spectator),
+      });
       setRoomUrl(response.roomId || roomId);
     });
   }
