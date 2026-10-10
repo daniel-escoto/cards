@@ -59,13 +59,7 @@ assert.equal(nudgeRaiseTo(80, 1, facingBet), 100);
 assert.equal(nudgeRaiseTo(100, -1, facingBet), 80);
 
 // mergeCheckBet and mergeCallRaise share the same hard-detent math.
-assert.equal(
-  clampRaiseTo(50, { ...facingBet, mergeCallRaise: false, mergeCheckBet: true }),
-  40,
-);
-assert.equal(
-  nudgeRaiseTo(40, 1, { ...facingBet, mergeCallRaise: false, mergeCheckBet: true }),
-  80,
-);
+assert.equal(clampRaiseTo(50, { ...facingBet, mergeCallRaise: false, mergeCheckBet: true }), 40);
+assert.equal(nudgeRaiseTo(40, 1, { ...facingBet, mergeCallRaise: false, mergeCheckBet: true }), 80);
 
 console.log("Call/Raise merge detent checks passed.");

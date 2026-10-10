@@ -86,12 +86,16 @@ function makeMoneyRoom(overrides = {}) {
     baseSmallBlind: 1,
     baseBigBlind: 2,
     settlements: [],
-    moneyLedger: overrides.moneyLedger || players.filter((player) => !player.isBot).map((player) => ({
-      playerId: player.id,
-      name: player.name,
-      buyInsCents: player.buyInsCents,
-      cashOutCents: player.cashOutCents,
-    })),
+    moneyLedger:
+      overrides.moneyLedger ||
+      players
+        .filter((player) => !player.isBot)
+        .map((player) => ({
+          playerId: player.id,
+          name: player.name,
+          buyInsCents: player.buyInsCents,
+          cashOutCents: player.cashOutCents,
+        })),
     players,
     botTimer: null,
     showdownTimer: null,
@@ -116,13 +120,15 @@ clearRooms();
 // Last human leave keeps the money ledger addressable by room id.
 {
   const room = makeMoneyRoom({
-    players: [makeMoneyPlayer({
-      id: "alice",
-      name: "Alice",
-      stack: 800,
-      buyInsCents: 2000,
-      cashOutCents: 1200,
-    })],
+    players: [
+      makeMoneyPlayer({
+        id: "alice",
+        name: "Alice",
+        stack: 800,
+        buyInsCents: 2000,
+        cashOutCents: 1200,
+      }),
+    ],
   });
   const [alice] = room.players;
   removePlayerAfterDisconnect(room, alice);
@@ -146,15 +152,17 @@ clearRooms();
   const room = makeMoneyRoom({
     phase: "flop",
     status: "playing",
-    players: [makeMoneyPlayer({
-      id: "alice",
-      name: "Alice",
-      stack: 300,
-      invested: 200,
-      bet: 200,
-      buyInsCents: 2000,
-      cashOutCents: 0,
-    })],
+    players: [
+      makeMoneyPlayer({
+        id: "alice",
+        name: "Alice",
+        stack: 300,
+        invested: 200,
+        bet: 200,
+        buyInsCents: 2000,
+        cashOutCents: 0,
+      }),
+    ],
   });
   const [alice] = room.players;
   removePlayerAfterDisconnect(room, alice);
@@ -232,9 +240,7 @@ clearRooms();
       phase: "gameover",
       status: "complete",
       players: [],
-      moneyLedger: [
-        { playerId: "alice", name: "Alice", buyInsCents: 1000, cashOutCents: 1000 },
-      ],
+      moneyLedger: [{ playerId: "alice", name: "Alice", buyInsCents: 1000, cashOutCents: 1000 }],
     });
     preserveSettledMoneyRoom(room);
     assert.ok(getRoom("TTL001"));
@@ -257,18 +263,23 @@ clearRooms();
     const room = makeMoneyRoom({
       id: "JOIN01",
       phase: "complete",
-      players: [makeMoneyPlayer({
-        id: "alice",
-        name: "Alice",
-        stack: 1000,
-        buyInsCents: 2000,
-        cashOutCents: 1000,
-      })],
+      players: [
+        makeMoneyPlayer({
+          id: "alice",
+          name: "Alice",
+          stack: 1000,
+          buyInsCents: 2000,
+          cashOutCents: 1000,
+        }),
+      ],
     });
     removePlayerAfterDisconnect(room, room.players[0]);
     assert.ok(isSettledMoneyRoom(getRoom("JOIN01")));
 
-    const socket = clientIo(`http://127.0.0.1:${port}`, { transports: ["websocket"], forceNew: true });
+    const socket = clientIo(`http://127.0.0.1:${port}`, {
+      transports: ["websocket"],
+      forceNew: true,
+    });
     await new Promise((resolve, reject) => {
       socket.on("connect", resolve);
       socket.on("connect_error", reject);
@@ -278,11 +289,15 @@ clearRooms();
       socket.on("room:update", resolve);
     });
     const ack = await new Promise((resolve) => {
-      socket.emit("room:join", {
-        roomId: "JOIN01",
-        name: "Viewer",
-        deviceId: "viewer-device",
-      }, resolve);
+      socket.emit(
+        "room:join",
+        {
+          roomId: "JOIN01",
+          name: "Viewer",
+          deviceId: "viewer-device",
+        },
+        resolve,
+      );
     });
     assert.equal(ack.ok, true);
     assert.equal(ack.settlementView, true);

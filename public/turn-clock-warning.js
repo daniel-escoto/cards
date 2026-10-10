@@ -151,12 +151,12 @@
     if (!hasEnds) {
       const previousEnds = Number(session.turnEndsAt);
       const shouldFire = Boolean(
-        Number.isFinite(previousEnds)
-        && previousEnds > 0
-        && session.sawActive
-        && !session.timeoutConsumed
-        && Number.isFinite(clock)
-        && clock >= previousEnds,
+        Number.isFinite(previousEnds) &&
+        previousEnds > 0 &&
+        session.sawActive &&
+        !session.timeoutConsumed &&
+        Number.isFinite(clock) &&
+        clock >= previousEnds,
       );
       if (shouldFire) session.timeoutConsumed = true;
       resetLowTimeSession(session);
@@ -167,12 +167,12 @@
     if (session.turnEndsAt != null && session.turnEndsAt !== ends) {
       const previousEnds = Number(session.turnEndsAt);
       const shouldFire = Boolean(
-        Number.isFinite(previousEnds)
-        && previousEnds > 0
-        && session.sawActive
-        && !session.timeoutConsumed
-        && Number.isFinite(clock)
-        && clock >= previousEnds,
+        Number.isFinite(previousEnds) &&
+        previousEnds > 0 &&
+        session.sawActive &&
+        !session.timeoutConsumed &&
+        Number.isFinite(clock) &&
+        clock >= previousEnds,
       );
       syncDeadlineIdentity(session, ends);
       if (shouldFire) {

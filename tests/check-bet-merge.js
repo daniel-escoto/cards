@@ -53,10 +53,7 @@ assert.equal(clampRaiseTo(60, postflop), 60);
 assert.equal(clampRaiseTo(1000, postflop), 1000);
 
 // Without merge, no detent — same as legalRaiseTo.
-assert.equal(
-  clampRaiseTo(0, { ...postflop, mergeCheckBet: false }),
-  legalRaiseTo(0, postflop),
-);
+assert.equal(clampRaiseTo(0, { ...postflop, mergeCheckBet: false }), legalRaiseTo(0, postflop));
 
 // First step off Check is a real min bet (or short all-in).
 assert.equal(nudgeRaiseTo(0, 1, postflop), 20);

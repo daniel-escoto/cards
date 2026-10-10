@@ -5,15 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
     <meta id="themeColor" name="theme-color" content="#090d10" />
     <title>holdem.nyc</title>
-    <meta name="description" content="Private-room Texas Hold'em for the city. Host a table, share a code, play with friends." />
+    <meta
+      name="description"
+      content="Private-room Texas Hold'em for the city. Host a table, share a code, play with friends."
+    />
     <meta property="og:title" content="holdem.nyc" />
     <meta property="og:site_name" content="holdem.nyc" />
     <meta property="og:url" content="https://holdem.nyc" />
-    <meta property="og:description" content="Private-room Texas Hold'em for the city. Host a table, share a code, play with friends." />
+    <meta
+      property="og:description"
+      content="Private-room Texas Hold'em for the city. Host a table, share a code, play with friends."
+    />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="holdem.nyc" />
-    <meta name="twitter:description" content="Private-room Texas Hold'em for the city. Host a table, share a code, play with friends." />
+    <meta
+      name="twitter:description"
+      content="Private-room Texas Hold'em for the city. Host a table, share a code, play with friends."
+    />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -22,7 +31,8 @@
     <script>
       const initialTheme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
       document.documentElement.dataset.theme = initialTheme;
-      document.querySelector("#themeColor").content = initialTheme === "light" ? "#eef1ec" : "#090d10";
+      document.querySelector("#themeColor").content =
+        initialTheme === "light" ? "#eef1ec" : "#090d10";
     </script>
     <link rel="stylesheet" href="/styles.css" />
   </head>
@@ -38,25 +48,69 @@
 
         <form id="joinForm" class="join-panel">
           <div class="mode-switch" role="tablist" aria-label="Table action">
-            <button id="hostModeBtn" class="mode-option selected" type="button" role="tab" aria-selected="true">Host</button>
-            <button id="joinModeBtn" class="mode-option" type="button" role="tab" aria-selected="false">Join</button>
+            <button
+              id="hostModeBtn"
+              class="mode-option selected"
+              type="button"
+              role="tab"
+              aria-selected="true"
+            >
+              Host
+            </button>
+            <button
+              id="joinModeBtn"
+              class="mode-option"
+              type="button"
+              role="tab"
+              aria-selected="false"
+            >
+              Join
+            </button>
           </div>
           <label class="form-field name-field">
             <span>Display name</span>
-            <input id="nameInput" autocomplete="nickname" maxlength="18" placeholder="Your name" required />
+            <input
+              id="nameInput"
+              autocomplete="nickname"
+              maxlength="18"
+              placeholder="Your name"
+              required
+            />
           </label>
           <label id="roomCodeLabel" class="form-field hidden">
             <span>Room code</span>
-            <input id="roomInput" maxlength="6" placeholder="ABC123" autocapitalize="characters" spellcheck="false" />
+            <input
+              id="roomInput"
+              maxlength="6"
+              placeholder="ABC123"
+              autocapitalize="characters"
+              spellcheck="false"
+            />
           </label>
           <div id="blindFields" class="blind-fields">
             <label class="form-field">
               <span id="smallBlindLabel">Small blind</span>
-              <input id="smallBlindInput" type="number" min="1" max="100000" step="1" value="10" inputmode="decimal" />
+              <input
+                id="smallBlindInput"
+                type="number"
+                min="1"
+                max="100000"
+                step="1"
+                value="10"
+                inputmode="decimal"
+              />
             </label>
             <label class="form-field">
               <span id="bigBlindLabel">Big blind</span>
-              <input id="bigBlindInput" type="number" min="2" max="100000" step="1" value="20" inputmode="decimal" />
+              <input
+                id="bigBlindInput"
+                type="number"
+                min="2"
+                max="100000"
+                step="1"
+                value="20"
+                inputmode="decimal"
+              />
             </label>
           </div>
           <label id="moneyModeLabel" class="checkbox-label">
@@ -69,7 +123,15 @@
           </label>
           <label id="buyInLabel" class="form-field hidden">
             <span>Buy-in</span>
-            <input id="buyInInput" type="number" min="1" max="10000" step="0.01" value="20" inputmode="decimal" />
+            <input
+              id="buyInInput"
+              type="number"
+              min="1"
+              max="10000"
+              step="0.01"
+              value="20"
+              inputmode="decimal"
+            />
           </label>
           <p id="joinPreview" class="hidden" role="status"></p>
           <div class="actions-row">
@@ -83,7 +145,12 @@
       <section id="tableView" class="table-view hidden">
         <header class="topbar">
           <div class="room-summary">
-            <button id="roomCodeBtn" class="room-code-btn" type="button" aria-label="Copy room code">
+            <button
+              id="roomCodeBtn"
+              class="room-code-btn"
+              type="button"
+              aria-label="Copy room code"
+            >
               <span class="eyebrow">Room</span>
               <strong id="roomCode"></strong>
               <span class="copy-icon" aria-hidden="true">⧉</span>
@@ -91,7 +158,15 @@
             <span id="watchingCount" class="watching-count hidden" aria-live="polite"></span>
           </div>
           <div class="topbar-actions">
-            <button id="menuBtn" class="ghost menu-btn" type="button" aria-haspopup="dialog" aria-controls="gameMenuModal">Menu</button>
+            <button
+              id="menuBtn"
+              class="ghost menu-btn"
+              type="button"
+              aria-haspopup="dialog"
+              aria-controls="gameMenuModal"
+            >
+              Menu
+            </button>
           </div>
         </header>
 
@@ -99,7 +174,13 @@
           <div id="community" class="community"></div>
           <section class="control-panel">
             <div class="hand-row">
-              <button id="heroHand" class="hero-hand" type="button" aria-label="Hide your cards" aria-pressed="false"></button>
+              <button
+                id="heroHand"
+                class="hero-hand"
+                type="button"
+                aria-label="Hide your cards"
+                aria-pressed="false"
+              ></button>
               <div class="table-meta">
                 <div>
                   <span>Pot</span>
@@ -114,12 +195,26 @@
               <div id="betPresets" class="bet-presets" aria-label="Quick bet amounts"></div>
               <div class="raise-row">
                 <div class="raise-stepper" aria-label="Raise amount">
-                  <button id="raiseMinus" type="button" class="secondary" aria-label="Decrease raise">-</button>
+                  <button
+                    id="raiseMinus"
+                    type="button"
+                    class="secondary"
+                    aria-label="Decrease raise"
+                  >
+                    -
+                  </button>
                   <div class="raise-display">
                     <span id="raiseLabel">Raise to</span>
                     <strong id="raiseAmount">40</strong>
                   </div>
-                  <button id="raisePlus" type="button" class="secondary" aria-label="Increase raise">+</button>
+                  <button
+                    id="raisePlus"
+                    type="button"
+                    class="secondary"
+                    aria-label="Increase raise"
+                  >
+                    +
+                  </button>
                 </div>
                 <button id="raiseActionBtn" type="button" class="raise-action">Raise</button>
               </div>
@@ -140,21 +235,33 @@
         </div>
       </section>
 
-      <div id="gameMenuModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="gameMenuTitle">
+      <div
+        id="gameMenuModal"
+        class="modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="gameMenuTitle"
+      >
         <div class="modal-panel">
           <div class="modal-head">
             <div>
-              <p class="eyebrow"><span id="menuRoomEyebrow">Room</span> <span id="menuRoomCode"></span></p>
+              <p class="eyebrow">
+                <span id="menuRoomEyebrow">Room</span> <span id="menuRoomCode"></span>
+              </p>
               <h2 id="gameMenuTitle">Table menu</h2>
             </div>
-            <button id="closeMenuBtn" class="ghost icon-btn" type="button" aria-label="Close menu">×</button>
+            <button id="closeMenuBtn" class="ghost icon-btn" type="button" aria-label="Close menu">
+              ×
+            </button>
           </div>
 
           <section class="menu-section menu-section-players" aria-labelledby="menuPlayersHeading">
             <h3 id="menuPlayersHeading" class="menu-section-title">Players</h3>
             <div class="menu-section-body">
               <div id="menuPlayers" class="menu-players"></div>
-              <button id="addBotBtn" class="secondary add-bot-btn hidden" type="button">+ Add bot player</button>
+              <button id="addBotBtn" class="secondary add-bot-btn hidden" type="button">
+                + Add bot player
+              </button>
             </div>
           </section>
 
@@ -173,18 +280,30 @@
                 <summary>Table appearance</summary>
                 <div class="appearance-group">
                   <span>Felt color</span>
-                  <div id="feltChoices" class="appearance-choices color-choices" aria-label="Felt color"></div>
+                  <div
+                    id="feltChoices"
+                    class="appearance-choices color-choices"
+                    aria-label="Felt color"
+                  ></div>
                 </div>
                 <div class="appearance-group">
                   <span>Deck</span>
-                  <div id="deckChoices" class="appearance-choices deck-choices" aria-label="Deck style"></div>
+                  <div
+                    id="deckChoices"
+                    class="appearance-choices deck-choices"
+                    aria-label="Deck style"
+                  ></div>
                 </div>
               </details>
               <details class="appearance-panel shortcuts-panel">
                 <summary>Keyboard shortcuts</summary>
-                <p class="shortcut-help">Choose an action, then press a key. Left/Right also adjust bet like Down/Up.</p>
+                <p class="shortcut-help">
+                  Choose an action, then press a key. Left/Right also adjust bet like Down/Up.
+                </p>
                 <div id="keybindList" class="keybind-list"></div>
-                <button id="resetKeybindsBtn" class="secondary reset-keybinds" type="button">Reset to defaults</button>
+                <button id="resetKeybindsBtn" class="secondary reset-keybinds" type="button">
+                  Reset to defaults
+                </button>
               </details>
               <details id="blindPanel" class="appearance-panel blind-settings-panel hidden">
                 <summary>Blind settings</summary>
@@ -192,11 +311,23 @@
                   <div class="blind-fields">
                     <label>
                       <span id="menuSmallBlindLabel">Small blind</span>
-                      <input id="menuSmallBlindInput" type="number" min="1" step="1" inputmode="decimal" />
+                      <input
+                        id="menuSmallBlindInput"
+                        type="number"
+                        min="1"
+                        step="1"
+                        inputmode="decimal"
+                      />
                     </label>
                     <label>
                       <span id="menuBigBlindLabel">Big blind</span>
-                      <input id="menuBigBlindInput" type="number" min="2" step="1" inputmode="decimal" />
+                      <input
+                        id="menuBigBlindInput"
+                        type="number"
+                        min="2"
+                        step="1"
+                        inputmode="decimal"
+                      />
                     </label>
                   </div>
                   <button type="submit">Update blinds</button>
@@ -206,31 +337,73 @@
                 <summary>Shot clock</summary>
                 <div class="appearance-group">
                   <span>Turn timer</span>
-                  <div id="shotClockChoices" class="appearance-choices shot-clock-choices" role="radiogroup" aria-label="Shot clock"></div>
-                  <form id="shotClockCustomForm" class="shot-clock-custom-form hidden" data-shot-clock-form>
+                  <div
+                    id="shotClockChoices"
+                    class="appearance-choices shot-clock-choices"
+                    role="radiogroup"
+                    aria-label="Shot clock"
+                  ></div>
+                  <form
+                    id="shotClockCustomForm"
+                    class="shot-clock-custom-form hidden"
+                    data-shot-clock-form
+                  >
                     <label>
                       Seconds
-                      <input id="shotClockCustomInput" type="number" min="10" max="600" step="1" inputmode="numeric" enterkeyhint="done" aria-label="Custom shot clock seconds" />
+                      <input
+                        id="shotClockCustomInput"
+                        type="number"
+                        min="10"
+                        max="600"
+                        step="1"
+                        inputmode="numeric"
+                        enterkeyhint="done"
+                        aria-label="Custom shot clock seconds"
+                      />
                     </label>
                     <button type="submit" class="secondary">Save</button>
                   </form>
                 </div>
-                <p class="shortcut-help">Auto-check if free, otherwise auto-fold. Server-enforced for online games. Custom: 10–600 seconds.</p>
+                <p class="shortcut-help">
+                  Auto-check if free, otherwise auto-fold. Server-enforced for online games. Custom:
+                  10–600 seconds.
+                </p>
               </details>
               <details id="readyTimerPanel" class="appearance-panel shot-clock-panel hidden">
                 <summary>Ready-up timer</summary>
                 <div class="appearance-group">
                   <span>Between hands</span>
-                  <div id="readyTimerChoices" class="appearance-choices shot-clock-choices" role="radiogroup" aria-label="Ready-up timer"></div>
-                  <form id="readyTimerCustomForm" class="shot-clock-custom-form hidden" data-ready-timer-form>
+                  <div
+                    id="readyTimerChoices"
+                    class="appearance-choices shot-clock-choices"
+                    role="radiogroup"
+                    aria-label="Ready-up timer"
+                  ></div>
+                  <form
+                    id="readyTimerCustomForm"
+                    class="shot-clock-custom-form hidden"
+                    data-ready-timer-form
+                  >
                     <label>
                       Seconds
-                      <input id="readyTimerCustomInput" type="number" min="5" max="300" step="1" inputmode="numeric" enterkeyhint="done" aria-label="Custom ready-up timer seconds" />
+                      <input
+                        id="readyTimerCustomInput"
+                        type="number"
+                        min="5"
+                        max="300"
+                        step="1"
+                        inputmode="numeric"
+                        enterkeyhint="done"
+                        aria-label="Custom ready-up timer seconds"
+                      />
                     </label>
                     <button type="submit" class="secondary">Save</button>
                   </form>
                 </div>
-                <p class="shortcut-help">Sit out players who don’t ready in time. Independent of the shot clock. Custom: 5–300 seconds.</p>
+                <p class="shortcut-help">
+                  Sit out players who don’t ready in time. Independent of the shot clock. Custom:
+                  5–300 seconds.
+                </p>
               </details>
             </div>
           </section>
@@ -250,16 +423,29 @@
                 <div class="cash-in-row">
                   <label>
                     Add buy-in
-                    <input id="cashInInput" type="number" min="1" max="10000" step="0.01" value="20" inputmode="decimal" />
+                    <input
+                      id="cashInInput"
+                      type="number"
+                      min="1"
+                      max="10000"
+                      step="0.01"
+                      value="20"
+                      inputmode="decimal"
+                    />
                   </label>
                   <button id="cashInBtn" type="submit">Add</button>
                 </div>
                 <button id="cashOutBtn" type="button" class="secondary">Leave with stack</button>
-                <small class="money-note">Buy-ins during a hand are for the next deal. Payments happen separately after the game.</small>
+                <small class="money-note"
+                  >Buy-ins during a hand are for the next deal. Payments happen separately after the
+                  game.</small
+                >
               </form>
               <div class="modal-actions session-actions">
                 <button id="shareGameBtn" type="button" class="secondary">Share</button>
-                <button id="backToMenuBtn" type="button" class="secondary leave-game-btn">Leave game</button>
+                <button id="backToMenuBtn" type="button" class="secondary leave-game-btn">
+                  Leave game
+                </button>
               </div>
               <button id="sitOutBtn" type="button" class="secondary">Sit out next hand</button>
               <details id="hostActionsPanel" class="table-actions-panel host-actions-panel hidden">
@@ -274,7 +460,9 @@
         </div>
       </div>
       <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-      <div id="reconnectBanner" class="reconnect-banner hidden" role="status" aria-live="polite">Updating…, reconnecting</div>
+      <div id="reconnectBanner" class="reconnect-banner hidden" role="status" aria-live="polite">
+        Updating…, reconnecting
+      </div>
     </main>
 
     <script src="/shared/pokersolver.js"></script>
@@ -287,6 +475,11 @@
     <script src="/turn-clock-warning.js"></script>
     <script src="/ready-clock.js"></script>
     <script src="/invite-url.js"></script>
-    <script src="/app.js"></script>
+    <script src="/app-sounds.js"></script>
+    <script src="/app-format.js"></script>
+    <script src="/app-keybinds.js"></script>
+    <script src="/app-boot.js"></script>
+    <script src="/app-table.js"></script>
+    <script src="/app-events.js"></script>
   </body>
 </html>

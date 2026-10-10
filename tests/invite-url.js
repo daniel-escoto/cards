@@ -16,11 +16,7 @@ for (const host of [
   "holdem-production-b0fc.up.railway.app",
   "cards-staging.up.railway.app",
 ]) {
-  assert.equal(
-    isProductionInviteHost(host),
-    true,
-    `${host} is a production invite host`,
-  );
+  assert.equal(isProductionInviteHost(host), true, `${host} is a production invite host`);
   assert.equal(
     canonicalInviteUrl("ABCD", { hostname: host, origin: `https://${host}`, pathname: "/table" }),
     "https://holdem.nyc/?room=ABCD",

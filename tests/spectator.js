@@ -147,13 +147,22 @@ async function shutdown() {
   assert.equal(view.canShowHand, false);
   assert.equal(view.watchingCount, 1);
   for (const player of view.players) {
-    assert.ok(player.cards.every((card) => card === null), `spectator must not see ${player.id} holes pre-reveal`);
+    assert.ok(
+      player.cards.every((card) => card === null),
+      `spectator must not see ${player.id} holes pre-reveal`,
+    );
   }
 
   room.players[0].showCards = true;
   const revealed = serializeRoom(room, "watcher");
-  assert.ok(revealed.players[0].cards.every((card) => card && card.code), "spectator sees legitimate reveals");
-  assert.ok(revealed.players[1].cards.every((card) => card === null), "unrevealed holes stay hidden");
+  assert.ok(
+    revealed.players[0].cards.every((card) => card && card.code),
+    "spectator sees legitimate reveals",
+  );
+  assert.ok(
+    revealed.players[1].cards.every((card) => card === null),
+    "unrevealed holes stay hidden",
+  );
 
   const stored = serializeRoomForStorage(room);
   assert.equal("spectators" in stored, false, "spectators must not persist in rooms.json");
@@ -198,12 +207,14 @@ async function shutdown() {
     showdownTimer: null,
     dormantTimer: null,
     dormantSince: null,
-    spectators: [{
-      id: "ghost",
-      name: "Ghost",
-      socketIds: new Set(),
-      connected: true,
-    }],
+    spectators: [
+      {
+        id: "ghost",
+        name: "Ghost",
+        socketIds: new Set(),
+        connected: true,
+      },
+    ],
     players: [
       {
         id: "alice",
@@ -252,7 +263,9 @@ async function shutdown() {
 
 (async () => {
   if (server.listening) {
-    console.log("Spectator mode unit checks passed (socket suite skipped: server already listening)");
+    console.log(
+      "Spectator mode unit checks passed (socket suite skipped: server already listening)",
+    );
     return;
   }
 
@@ -271,7 +284,9 @@ async function shutdown() {
       deviceId: `spec-${name}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       state: null,
     };
-    socket.on("room:update", (state) => { player.state = state; });
+    socket.on("room:update", (state) => {
+      player.state = state;
+    });
     return player;
   }
 
@@ -298,7 +313,10 @@ async function shutdown() {
     const host = connect("Host");
     const guest = connect("Guest");
     const watcher = connect("Watcher");
-    await wait(() => host.socket.connected && guest.socket.connected && watcher.socket.connected, "connections");
+    await wait(
+      () => host.socket.connected && guest.socket.connected && watcher.socket.connected,
+      "connections",
+    );
 
     const created = await ok(host, "room:create", {
       ...identity(host),
@@ -308,7 +326,10 @@ async function shutdown() {
     await ok(guest, "room:join", { ...identity(guest), roomId: created.roomId });
     await wait(() => host.state?.players.length === 2, "two seated players");
 
-    const watched = await ok(watcher, "room:watch", { ...identity(watcher), roomId: created.roomId });
+    const watched = await ok(watcher, "room:watch", {
+      ...identity(watcher),
+      roomId: created.roomId,
+    });
     assert.equal(watched.spectator, true);
     await wait(() => watcher.state?.isSpectator === true, "spectator payload");
     assert.equal(watcher.state.players.length, 2, "spectators do not count as seats");
@@ -328,7 +349,10 @@ async function shutdown() {
     }
     const overflow = connect("Overflow");
     await wait(() => overflow.socket.connected, "overflow connect");
-    const full = await send(overflow, "room:join", { ...identity(overflow), roomId: created.roomId });
+    const full = await send(overflow, "room:join", {
+      ...identity(overflow),
+      roomId: created.roomId,
+    });
     assert.equal(full.ok, false);
     assert.equal(full.canWatch, true);
     assert.match(full.error || "", /full/i);
@@ -337,10 +361,20 @@ async function shutdown() {
     const handHost = connect("HandHost");
     const handGuest = connect("HandGuest");
     const handWatcher = connect("HandWatch");
-    await wait(() => handHost.socket.connected && handGuest.socket.connected && handWatcher.socket.connected, "hand connections");
-    const handRoom = await ok(handHost, "room:create", { ...identity(handHost), smallBlind: 5, bigBlind: 10 });
+    await wait(
+      () => handHost.socket.connected && handGuest.socket.connected && handWatcher.socket.connected,
+      "hand connections",
+    );
+    const handRoom = await ok(handHost, "room:create", {
+      ...identity(handHost),
+      smallBlind: 5,
+      bigBlind: 10,
+    });
     await ok(handGuest, "room:join", { ...identity(handGuest), roomId: handRoom.roomId });
-    const handWatchAck = await ok(handWatcher, "room:watch", { ...identity(handWatcher), roomId: handRoom.roomId });
+    const handWatchAck = await ok(handWatcher, "room:watch", {
+      ...identity(handWatcher),
+      roomId: handRoom.roomId,
+    });
     await wait(() => handWatcher.state?.isSpectator, "hand watcher joined");
     await ok(handHost, "game:ready", { ready: true });
     await ok(handGuest, "game:ready", { ready: true });
@@ -349,10 +383,26 @@ async function shutdown() {
       assert.equal(holeCodes(player.cards).length, 0, `pre-reveal spectator leak for ${player.id}`);
     }
     assert.equal(handWatcher.state.canReady, false);
-    assert.equal((await send(handWatcher, "game:ready", { ready: true })).ok, false, "spectator cannot ready");
-    assert.equal((await send(handWatcher, "game:action", { type: "fold" })).ok, false, "spectator cannot act");
-    assert.equal((await send(handWatcher, "game:sitOut", {})).ok, false, "spectator cannot sit out");
-    assert.equal((await send(handWatcher, "game:setBlinds", { smallBlind: 1, bigBlind: 2 })).ok, false, "spectator cannot change settings");
+    assert.equal(
+      (await send(handWatcher, "game:ready", { ready: true })).ok,
+      false,
+      "spectator cannot ready",
+    );
+    assert.equal(
+      (await send(handWatcher, "game:action", { type: "fold" })).ok,
+      false,
+      "spectator cannot act",
+    );
+    assert.equal(
+      (await send(handWatcher, "game:sitOut", {})).ok,
+      false,
+      "spectator cannot sit out",
+    );
+    assert.equal(
+      (await send(handWatcher, "game:setBlinds", { smallBlind: 1, bigBlind: 2 })).ok,
+      false,
+      "spectator cannot change settings",
+    );
 
     const actorId = handWatcher.state.turn;
     const actor = [handHost, handGuest].find((player) => player.deviceId === actorId);
@@ -378,9 +428,15 @@ async function shutdown() {
 
     const reconnectHost = connect("ReHost");
     const reconnectWatch = connect("ReWatch");
-    await wait(() => reconnectHost.socket.connected && reconnectWatch.socket.connected, "reconnect connections");
+    await wait(
+      () => reconnectHost.socket.connected && reconnectWatch.socket.connected,
+      "reconnect connections",
+    );
     const reRoom = await ok(reconnectHost, "room:create", { ...identity(reconnectHost) });
-    const firstWatch = await ok(reconnectWatch, "room:watch", { ...identity(reconnectWatch), roomId: reRoom.roomId });
+    const firstWatch = await ok(reconnectWatch, "room:watch", {
+      ...identity(reconnectWatch),
+      roomId: reRoom.roomId,
+    });
     await wait(() => reconnectWatch.state?.isSpectator, "initial watch");
     assert.equal(reconnectWatch.state.watchingCount, 1);
     const watcherDeviceId = reconnectWatch.deviceId;
@@ -397,7 +453,10 @@ async function shutdown() {
     });
     await wait(() => reconnectWatch2.state?.isSpectator === true, "spectator reconnected");
     assert.equal(reconnectWatch2.state.watchingCount, 1);
-    assert.equal(reconnectWatch2.state.players.some((player) => player.isYou), false);
+    assert.equal(
+      reconnectWatch2.state.players.some((player) => player.isYou),
+      false,
+    );
 
     console.log("Spectator mode tests passed");
   } finally {

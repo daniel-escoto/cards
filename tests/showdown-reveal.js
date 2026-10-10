@@ -1,8 +1,6 @@
 const assert = require("node:assert/strict");
 const engine = require("../shared/engine");
-const {
-  serializeRoom: serializeRoomServer,
-} = require("../server");
+const { serializeRoom: serializeRoomServer } = require("../server");
 
 engine.setRandomInt(() => 0);
 
@@ -100,7 +98,10 @@ function showdownRoom(players, overrides = {}) {
     dealer: 0,
     community: ["Td", "9s", "4h", "3d", "2c"],
   });
-  assert.deepEqual(engine.showdownOrder(room).map((player) => player.id), ["b", "c", "a"]);
+  assert.deepEqual(
+    engine.showdownOrder(room).map((player) => player.id),
+    ["b", "c", "a"],
+  );
   engine.settleShowdown(room);
   assert.equal(players[1].showCards, true, "first-to-show must reveal even if behind");
   assert.equal(players[2].showCards, false, "hand that cannot win/tie is auto-mucked");
@@ -110,8 +111,14 @@ function showdownRoom(players, overrides = {}) {
   const forB = engine.serializeRoom(room, "b");
   const aCards = forB.players.find((player) => player.id === "a").cards;
   const cCards = forB.players.find((player) => player.id === "c").cards;
-  assert.ok(aCards.every((card) => card && card.code), "winner cards visible to others");
-  assert.ok(cCards.every((card) => card === null), "mucked hole cards never serialized");
+  assert.ok(
+    aCards.every((card) => card && card.code),
+    "winner cards visible to others",
+  );
+  assert.ok(
+    cCards.every((card) => card === null),
+    "mucked hole cards never serialized",
+  );
 }
 
 // 4) All-in before river: hole cards exposed immediately, then board runs out.
@@ -154,7 +161,10 @@ function showdownRoom(players, overrides = {}) {
   const snap = engine.serializeRoom(room, "hero");
   const villain = snap.players.find((player) => player.id !== "hero");
   assert.ok(villain.showCards, "opponent remains revealed after all-in showdown");
-  assert.ok(villain.cards.every((card) => card && card.code), "opponent holes present post all-in reveal");
+  assert.ok(
+    villain.cards.every((card) => card && card.code),
+    "opponent holes present post all-in reveal",
+  );
 }
 
 // 5) Fold-win: winner does not show (optional Show hand still available).
@@ -185,7 +195,10 @@ function showdownRoom(players, overrides = {}) {
   assert.equal(folder.showCards, false, "folded bots are not force-shown");
   const snap = engine.serializeRoom(room, "villain");
   const heroCards = snap.players.find((player) => player.id === "hero").cards;
-  assert.ok(heroCards.every((card) => card === null), "fold-win holes stay private to others");
+  assert.ok(
+    heroCards.every((card) => card === null),
+    "fold-win holes stay private to others",
+  );
   const heroSnap = engine.serializeRoom(room, "hero");
   assert.equal(heroSnap.canShowHand, true, "winner may optionally show");
   assert.equal(engine.showPlayerCards(room, "hero").ok, true);
@@ -263,11 +276,14 @@ function showdownRoom(players, overrides = {}) {
   assert.deepEqual(pots[1].contenderIds, ["b", "c"]);
 
   engine.settleShowdown(room);
-  // A has 6-high straight (2-3-4-5-6), B has 5-high? B has 8h9d — best is 5-high straight 2-3-4-5 + Td? 
+  // A has 6-high straight (2-3-4-5-6), B has 5-high? B has 8h9d — best is 5-high straight 2-3-4-5 + Td?
   // A: 2,3,4,5,6 straight
   // B: 2,3,4,5,8 / 9 — Ace high? no straight. Pair? no. So A wins main.
   // B vs C for side: B 9-high, C AK — C has Ace high and wins side.
-  assert.ok(room.winners.some((winner) => winner.playerId === "a"), "short stack can win main");
+  assert.ok(
+    room.winners.some((winner) => winner.playerId === "a"),
+    "short stack can win main",
+  );
   assert.ok(players[0].showCards, "main pot winner shows");
 
   // Re-run with clearer hands: A wins main, B wins side, C mucks.
@@ -295,7 +311,10 @@ function showdownRoom(players, overrides = {}) {
 
   const forA = engine.serializeRoom(room2, "a");
   const cCards = forA.players.find((player) => player.id === "c").cards;
-  assert.ok(cCards.every((card) => card === null), "mucked side-pot loser not in payload");
+  assert.ok(
+    cCards.every((card) => card === null),
+    "mucked side-pot loser not in payload",
+  );
 }
 
 // 8) Per-socket payload: no opponent hole cards pre-reveal (engine + server serializers).
@@ -327,8 +346,14 @@ function showdownRoom(players, overrides = {}) {
     const bob = forAlice.players.find((player) => player.id === "bob");
     const alice = forAlice.players.find((player) => player.id === "alice");
     assert.equal(bob.showCards, false);
-    assert.ok(bob.cards.every((card) => card === null), `${serializer.name || "serializer"} hides bob`);
-    assert.ok(alice.cards.every((card) => card && card.code), "viewer sees own holes");
+    assert.ok(
+      bob.cards.every((card) => card === null),
+      `${serializer.name || "serializer"} hides bob`,
+    );
+    assert.ok(
+      alice.cards.every((card) => card && card.code),
+      "viewer sees own holes",
+    );
   }
 }
 

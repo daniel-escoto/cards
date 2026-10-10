@@ -2,15 +2,78 @@ const assert = require("node:assert/strict");
 const CardArt = require("../public/card-art");
 
 const expectedLayouts = {
-  2: [[50, 20], [50, 124]],
-  3: [[50, 20], [50, 72], [50, 124]],
-  4: [[24, 20], [76, 20], [24, 124], [76, 124]],
-  5: [[24, 20], [76, 20], [50, 72], [24, 124], [76, 124]],
-  6: [[24, 20], [76, 20], [24, 72], [76, 72], [24, 124], [76, 124]],
-  7: [[24, 20], [76, 20], [50, 44], [24, 72], [76, 72], [24, 124], [76, 124]],
-  8: [[24, 20], [76, 20], [50, 44], [24, 72], [76, 72], [50, 100], [24, 124], [76, 124]],
-  9: [[24, 18], [76, 18], [24, 48], [76, 48], [50, 72], [24, 96], [76, 96], [24, 126], [76, 126]],
-  10: [[24, 18], [76, 18], [50, 38], [24, 48], [76, 48], [24, 96], [76, 96], [50, 106], [24, 126], [76, 126]],
+  2: [
+    [50, 20],
+    [50, 124],
+  ],
+  3: [
+    [50, 20],
+    [50, 72],
+    [50, 124],
+  ],
+  4: [
+    [24, 20],
+    [76, 20],
+    [24, 124],
+    [76, 124],
+  ],
+  5: [
+    [24, 20],
+    [76, 20],
+    [50, 72],
+    [24, 124],
+    [76, 124],
+  ],
+  6: [
+    [24, 20],
+    [76, 20],
+    [24, 72],
+    [76, 72],
+    [24, 124],
+    [76, 124],
+  ],
+  7: [
+    [24, 20],
+    [76, 20],
+    [50, 44],
+    [24, 72],
+    [76, 72],
+    [24, 124],
+    [76, 124],
+  ],
+  8: [
+    [24, 20],
+    [76, 20],
+    [50, 44],
+    [24, 72],
+    [76, 72],
+    [50, 100],
+    [24, 124],
+    [76, 124],
+  ],
+  9: [
+    [24, 18],
+    [76, 18],
+    [24, 48],
+    [76, 48],
+    [50, 72],
+    [24, 96],
+    [76, 96],
+    [24, 126],
+    [76, 126],
+  ],
+  10: [
+    [24, 18],
+    [76, 18],
+    [50, 38],
+    [24, 48],
+    [76, 48],
+    [24, 96],
+    [76, 96],
+    [50, 106],
+    [24, 126],
+    [76, 126],
+  ],
 };
 
 assert.deepEqual(CardArt.layouts, expectedLayouts, "Option D airy pip layouts");
@@ -23,7 +86,10 @@ for (const suit of ["♠", "♥", "♦", "♣"]) {
     const pips = [...markup.matchAll(/<text class="card-pip"[^>]*>(.*?)<\/text>/g)];
     assert.equal(pips.length, rank === "A" ? 1 : Number(rank), `${rank}${suit} pip count`);
     assert(pips.every((pip) => pip[1] === suit));
-    assert(markup.includes('aria-hidden="true"'), "Art must not duplicate the card's accessible label");
+    assert(
+      markup.includes('aria-hidden="true"'),
+      "Art must not duplicate the card's accessible label",
+    );
 
     if (rank === "A") {
       assert(markup.includes('font-size="86"'), "Ace uses a large centered pip");
@@ -36,12 +102,12 @@ for (const suit of ["♠", "♥", "♦", "♣"]) {
         if (y > 72) {
           assert(
             markup.includes(`transform="rotate(180 ${x} ${y})"`),
-            `${rank}${suit} flips pip at (${x},${y})`
+            `${rank}${suit} flips pip at (${x},${y})`,
           );
         } else {
           assert(
             !markup.includes(`transform="rotate(180 ${x} ${y})"`),
-            `${rank}${suit} keeps centerline/top pip at (${x},${y}) upright`
+            `${rank}${suit} keeps centerline/top pip at (${x},${y}) upright`,
           );
         }
       }
@@ -51,7 +117,7 @@ for (const suit of ["♠", "♥", "♦", "♣"]) {
   assert.equal(new Set(portraits).size, 3, "Each court rank has distinct artwork");
   portraits.forEach((portrait) => {
     assert(portrait.includes('class="card-art card-art-court"'), "Court art markup present");
-    assert(portrait.includes('rotate(180 50 72)'), "Courts are reversible");
+    assert(portrait.includes("rotate(180 50 72)"), "Courts are reversible");
   });
 }
 assert.equal(CardArt.render("bad", "♠"), "");

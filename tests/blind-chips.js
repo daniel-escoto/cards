@@ -6,7 +6,9 @@ const { restoreRoom, serializeRoom, serializeRoomForStorage } = require("../serv
 engine.setRandomInt(() => 0);
 
 function blindFlags(view) {
-  return Object.fromEntries(view.players.map((player) => [player.id, [player.isSmallBlind, player.isBigBlind]]));
+  return Object.fromEntries(
+    view.players.map((player) => [player.id, [player.isSmallBlind, player.isBigBlind]]),
+  );
 }
 
 function postedBlinds(room) {
@@ -20,8 +22,10 @@ function postedBlinds(room) {
 {
   const room = engine.createPracticeRoom({ botCount: 3 });
   assert.equal(room.smallBlindPlayerId, undefined);
-  assert.ok(engine.serializeRoom(room, room.hostId).players.every((p) => !p.isSmallBlind && !p.isBigBlind),
-    "no blind chips before the first hand");
+  assert.ok(
+    engine.serializeRoom(room, room.hostId).players.every((p) => !p.isSmallBlind && !p.isBigBlind),
+    "no blind chips before the first hand",
+  );
 
   engine.startHand(room);
   const posted = postedBlinds(room);
@@ -112,9 +116,15 @@ function postedBlinds(room) {
   const flags = blindFlags(serializeRoom(restoreRoom(stored), "cara"));
   assert.deepEqual(flags, { alice: [true, false], bob: [false, true], cara: [false, false] });
 
-  const legacy = restoreRoom({ ...stored, smallBlindPlayerId: undefined, bigBlindPlayerId: undefined });
-  assert.ok(serializeRoom(legacy, "cara").players.every((p) => !p.isSmallBlind && !p.isBigBlind),
-    "older saves show no chips");
+  const legacy = restoreRoom({
+    ...stored,
+    smallBlindPlayerId: undefined,
+    bigBlindPlayerId: undefined,
+  });
+  assert.ok(
+    serializeRoom(legacy, "cara").players.every((p) => !p.isSmallBlind && !p.isBigBlind),
+    "older saves show no chips",
+  );
 }
 
 console.log("Blind chip checks passed.");

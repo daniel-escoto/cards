@@ -13,10 +13,7 @@ try {
   // ignore
 }
 
-const {
-  createMemoryRedisBacking,
-  createMemoryStateStore,
-} = require("../state-store");
+const { createMemoryRedisBacking, createMemoryStateStore } = require("../state-store");
 const {
   DEPLOY_HAND_WAIT_MS,
   DEPLOY_HANDOFF_POLL_MS,
@@ -57,7 +54,11 @@ assert.equal(handoffPadMs(null), 0);
 assert.equal(handoffPadMs({ flushedAt: new Date(1_000_000).toISOString() }, 1_000_040), 40);
 assert.equal(
   isRelevantHandoffMeta(
-    { at: new Date(1_000_000).toISOString(), shutdown: true, flushedAt: new Date(1_000_000).toISOString() },
+    {
+      at: new Date(1_000_000).toISOString(),
+      shutdown: true,
+      flushedAt: new Date(1_000_000).toISOString(),
+    },
     { waitStartedAtMs: 1_000_010, now: 1_000_100 },
   ),
   true,
@@ -165,11 +166,15 @@ function makeLiveRoom(id, phase) {
 
 function httpGet(port, urlPath) {
   return new Promise((resolve, reject) => {
-    http.get({ hostname: "127.0.0.1", port, path: urlPath }, (res) => {
-      let body = "";
-      res.on("data", (chunk) => { body += chunk; });
-      res.on("end", () => resolve({ status: res.statusCode, body }));
-    }).on("error", reject);
+    http
+      .get({ hostname: "127.0.0.1", port, path: urlPath }, (res) => {
+        let body = "";
+        res.on("data", (chunk) => {
+          body += chunk;
+        });
+        res.on("end", () => resolve({ status: res.statusCode, body }));
+      })
+      .on("error", reject);
   });
 }
 
@@ -276,7 +281,11 @@ function cleanupRooms() {
     setShotClockTime({ now: () => fakeNow });
     const result = await loadRooms({ activate: false, markLive: false });
     assert.equal(result.downtimeMs, 0, "redis boot pad must ignore idle savedAt age");
-    assert.equal(rooms.get("PAD001").turnEndsAt, deadline, "turnEndsAt must stay unpadded on redis boot");
+    assert.equal(
+      rooms.get("PAD001").turnEndsAt,
+      deadline,
+      "turnEndsAt must stay unpadded on redis boot",
+    );
     cleanupRooms();
     resetShotClockTime();
     resetShutdownState();
@@ -419,7 +428,11 @@ function cleanupRooms() {
     };
     await loadRooms({ activate: false, markLive: false });
     await setupHandoffSubscription();
-    assert.equal(isHandoffComplete(), true, "preexisting shutdown handoff key takes ownership immediately");
+    assert.equal(
+      isHandoffComplete(),
+      true,
+      "preexisting shutdown handoff key takes ownership immediately",
+    );
     assert.equal(rooms.get("PRE01").phase, "complete");
     cleanupRooms();
     resetShutdownState();
@@ -494,7 +507,9 @@ function cleanupRooms() {
     assert.equal(result.ok, true);
     assert.equal(result.handsDone, true);
     assert.equal(result.timedOutWaiting, false);
-    assert.ok(backing.value.rooms.some((item) => item.id === "WAIT01" && item.phase === "complete"));
+    assert.ok(
+      backing.value.rooms.some((item) => item.id === "WAIT01" && item.phase === "complete"),
+    );
     resetShutdownState();
   }
 
@@ -519,7 +534,9 @@ function cleanupRooms() {
       exit: false,
       handWaitMs: 120,
       now: () => now,
-      sleep: async () => { now += 60; },
+      sleep: async () => {
+        now += 60;
+      },
     });
     assert.equal(result.ok, true);
     assert.equal(result.handsDone, false);
@@ -572,30 +589,32 @@ function cleanupRooms() {
   }
 
   console.log("Redis deploy checks passed.");
-})().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-}).finally(async () => {
-  try {
-    fs.unlinkSync(STATE_PATH);
-  } catch {
-    // ignore
-  }
-  resetShutdownState();
-  markStateRestored(false);
-  markServerListening(false);
-  cleanupRooms();
-  try {
-    io.close();
-  } catch {
-    // ignore
-  }
-  await new Promise((resolve) => {
+})()
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
     try {
-      server.close(() => resolve());
+      fs.unlinkSync(STATE_PATH);
     } catch {
-      resolve();
+      // ignore
     }
+    resetShutdownState();
+    markStateRestored(false);
+    markServerListening(false);
+    cleanupRooms();
+    try {
+      io.close();
+    } catch {
+      // ignore
+    }
+    await new Promise((resolve) => {
+      try {
+        server.close(() => resolve());
+      } catch {
+        resolve();
+      }
+    });
+    setTimeout(() => process.exit(process.exitCode || 0), 50).unref?.();
   });
-  setTimeout(() => process.exit(process.exitCode || 0), 50).unref?.();
-});

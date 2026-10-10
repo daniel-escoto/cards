@@ -26,6 +26,14 @@ Open `http://localhost:3000`.
 
 **Host:** name, blinds, money mode. With a connection, chip Host creates an online room (friends join with the code; add bots in-table). Without a connection, chip Host starts a local offline table — add bots with **+ Add CPU player**, then ready up. Money mode always needs the server. **Join** is online rooms only.
 
+## Tests and lint
+
+```bash
+npm test          # all tests/*.js except smoke (includes money-join)
+npm run lint      # ESLint flat config
+npm run format    # Prettier
+```
+
 ## Smoke test
 
 Start the server, then run:
@@ -35,6 +43,10 @@ npm run smoke
 ```
 
 The smoke test creates a three-player room, plays a hand through showdown, and verifies chip totals.
+
+## PR screenshots
+
+Do not commit screenshot binaries into the repo. Attach before/after images in the pull request description instead (`pr-screenshots/` is gitignored).
 
 ## Deployment
 
@@ -72,14 +84,14 @@ Clients show the soft banner, auto-rejoin by `deviceId`, and reload to the new b
 
 ### Env vars
 
-| Variable | Purpose |
-| --- | --- |
-| `REDIS_URL` | Redis connection URL. When set, room state is stored in Redis instead of the volume file. |
-| `DEPLOY_HAND_WAIT_MS` | Max time to wait for in-progress hands on SIGTERM (default `25000`). Keep below the drain window. |
-| `DEPLOY_TAKEOVER_MS` | Max time a booting Redis replica waits for a handoff marker before taking ownership (default `20000`). Keep under 30s. |
-| `DEPLOY_HANDOFF_POLL_MS` | Poll interval for the durable `holdem:handoff` key (default `200`). |
-| `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` | Set to **`30`** on the Railway service so SIGTERM handling can finish before SIGKILL. |
-| `GAME_STATE_FILE` | File path used when `REDIS_URL` is unset (and as the source for one-time Redis migration). |
+| Variable                              | Purpose                                                                                                                |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `REDIS_URL`                           | Redis connection URL. When set, room state is stored in Redis instead of the volume file.                              |
+| `DEPLOY_HAND_WAIT_MS`                 | Max time to wait for in-progress hands on SIGTERM (default `25000`). Keep below the drain window.                      |
+| `DEPLOY_TAKEOVER_MS`                  | Max time a booting Redis replica waits for a handoff marker before taking ownership (default `20000`). Keep under 30s. |
+| `DEPLOY_HANDOFF_POLL_MS`              | Poll interval for the durable `holdem:handoff` key (default `200`).                                                    |
+| `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` | Set to **`30`** on the Railway service so SIGTERM handling can finish before SIGKILL.                                  |
+| `GAME_STATE_FILE`                     | File path used when `REDIS_URL` is unset (and as the source for one-time Redis migration).                             |
 
 ### Railway settings (Daniel)
 

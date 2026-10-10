@@ -103,7 +103,11 @@
         }
         engine.addComputerPlayers(room, room.players.length + 1);
         const added = room.players[room.players.length - 1];
-        if (added?.isBot) added.stack = Math.max(1, Math.floor(Number(room.startingStack) || engine.STARTING_STACK));
+        if (added?.isBot)
+          added.stack = Math.max(
+            1,
+            Math.floor(Number(room.startingStack) || engine.STARTING_STACK),
+          );
         room.tableSize = room.players.length;
         room.message = `${added.name} joined the practice table.`;
         publish();

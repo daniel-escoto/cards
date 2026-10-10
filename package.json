@@ -6,10 +6,15 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node tests/run-all.js",
     "test:betting": "node tests/betting.js",
     "test:blinds": "node tests/blinds.js",
     "test:bots": "node tests/bots.js",
     "test:money-ledger": "node tests/money-ledger.js",
+    "test:money-join": "node tests/money-join.js",
     "test:raise-presets": "node tests/raise-presets.js",
     "test:seated-players": "node tests/seated-players.js",
     "test:side-pots-cashin": "node tests/side-pots-cashin.js",
@@ -29,8 +34,6 @@
     "test:spectator": "node tests/spectator.js",
     "test:graceful-deploy": "node tests/graceful-deploy.js",
     "test:redis-deploy": "node tests/redis-deploy.js",
-    "test": "npm run test:betting && npm run test:blinds && npm run test:bots && npm run test:money-ledger && npm run test:raise-presets && npm run test:seated-players && npm run test:side-pots-cashin && npm run test:showdown-reveal && npm run test:all-in-presets && npm run test:check-bet-merge && npm run test:call-raise-merge && npm run test:engine-offline && npm run test:offline-handoff && npm run test:turn-timer && npm run test:turn-clock-warning && npm run test:ready-timer && npm run test:ready-clock && npm run test:spectator && npm run test:graceful-deploy && npm run test:redis-deploy && npm run test:frontend && npm run test:blind-chips",
-    "test:money-join": "node tests/money-join.js",
     "smoke": "node tests/smoke.js"
   },
   "keywords": [],
@@ -46,7 +49,11 @@
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0",
     "jsdom": "^29.1.1",
+    "prettier": "^3.9.10",
     "socket.io-client": "^4.8.3"
   }
 }
