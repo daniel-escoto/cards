@@ -7,10 +7,14 @@ require("../config");
 require("../runtime");
 
 function registerHttpRoutes() {
+  // This file lives in server/http/; public/ and shared/ are at the repo root.
+  const publicDir = path.join(__dirname, "..", "..", "public");
+  const sharedDir = path.join(__dirname, "..", "..", "shared");
+
   // Serve sw.js with a deploy-scoped cache name so new builds activate cleanly.
   api.app.get("/sw.js", (req, res) => {
     try {
-      const source = fs.readFileSync(api.path.join(__dirname, "..", "public", "sw.js"), "utf8");
+      const source = fs.readFileSync(path.join(publicDir, "sw.js"), "utf8");
       res.type("application/javascript").send(source.replaceAll("__BUILD_ID__", api.BUILD_ID));
     } catch (_error) {
       res.status(500).type("text/plain").send("Service worker unavailable");
@@ -29,8 +33,8 @@ function registerHttpRoutes() {
     res.status(200).type("text/plain").send("ok");
   });
 
-  api.app.use(express.static(path.join(__dirname, "..", "public")));
-  api.app.use("/shared", express.static(api.path.join(__dirname, "..", "shared")));
+  api.app.use(express.static(publicDir));
+  api.app.use("/shared", express.static(sharedDir));
 
   api.app.get("/qr.svg", async (req, res) => {
     const text = String(req.query.text || "").slice(0, 512);
