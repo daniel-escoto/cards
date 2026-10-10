@@ -38,11 +38,12 @@
 
   function loadKeybinds() {
     try {
-      const saved = JSON.parse(localStorage.getItem("holdem:keybinds") || "null");
-      if (!saved || typeof saved !== "object") return { ...DEFAULT_KEYBINDS };
+      const parsed: unknown = JSON.parse(localStorage.getItem("holdem:keybinds") || "null");
+      if (!parsed || typeof parsed !== "object") return { ...DEFAULT_KEYBINDS };
       const next = { ...DEFAULT_KEYBINDS };
       KEYBIND_DEFINITIONS.forEach(({ id }) => {
-        if (typeof saved[id] === "string" && saved[id]) next[id] = normalizedKey(saved[id]) || saved[id];
+        const value: unknown = Reflect.get(parsed, id);
+        if (typeof value === "string" && value) next[id] = normalizedKey(value) || value;
       });
       return next;
     } catch {

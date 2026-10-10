@@ -1,14 +1,26 @@
 /**
  * Browser-side offline practice session. Drives HoldemEngine without Socket.IO.
  */
+function isHoldemEngineAPI(value: unknown): value is HoldemEngineAPI {
+  if (typeof value !== "object" || value === null) return false;
+  return (
+    typeof Reflect.get(value, "createPracticeRoom") === "function" &&
+    typeof Reflect.get(value, "serializeRoom") === "function" &&
+    typeof Reflect.get(value, "applyPlayerAction") === "function"
+  );
+}
+
 (function (
   root: typeof globalThis & { PracticeSession?: PracticeSessionAPI; HoldemEngine?: HoldemEngineAPI },
   factory: (engine: HoldemEngineAPI) => PracticeSessionAPI,
 ) {
   if (typeof module === "object" && module.exports) {
     // Node tests load the CJS engine build (browser IIFE lives at engine.js).
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    module.exports = factory(require("../shared/engine.node.js"));
+    const loaded: unknown = require("../shared/engine.node.js");
+    if (!isHoldemEngineAPI(loaded)) {
+      throw new Error("PracticeSession requires HoldemEngine");
+    }
+    module.exports = factory(loaded);
   } else {
     if (!root.HoldemEngine) throw new Error("PracticeSession requires HoldemEngine");
     root.PracticeSession = factory(root.HoldemEngine);

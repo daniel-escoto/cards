@@ -789,7 +789,7 @@ export function createHoldemEngine(Hand: HandConstructor) {
   }
 
   function combineWinnerSummaries(summaries: WinnerSummary[]): WinnerSummary[] {
-    const combined = new Map();
+    const combined = new Map<string, WinnerSummary>();
     for (const summary of summaries) {
       const key = `${summary.playerId}:${summary.hand}`;
       const existing = combined.get(key);

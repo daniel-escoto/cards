@@ -350,11 +350,30 @@ function getDeviceId() {
   return deviceId;
 }
 
-function roomCredentials(roomId: string) {
+function isRoomCredential(value: unknown): value is RoomCredential {
+  if (typeof value !== "object" || value === null) return false;
+  if ("playerId" in value && value.playerId != null && typeof value.playerId !== "string") {
+    return false;
+  }
+  if (
+    "reconnectToken" in value &&
+    value.reconnectToken != null &&
+    typeof value.reconnectToken !== "string"
+  ) {
+    return false;
+  }
+  if ("spectator" in value && value.spectator != null && typeof value.spectator !== "boolean") {
+    return false;
+  }
+  return true;
+}
+
+function roomCredentials(roomId: string): RoomCredential | null {
   try {
-    return JSON.parse(
+    const parsed: unknown = JSON.parse(
       localStorage.getItem(`holdem:credentials:${String(roomId || "").toUpperCase()}`) || "null",
     );
+    return isRoomCredential(parsed) ? parsed : null;
   } catch {
     return null;
   }
@@ -1057,11 +1076,11 @@ function compactPlayerAction(entry: ActionLogEntry, player: ClientPlayer | null 
   const amount = (value: string) =>
     formatAmount(Number(value), Math.round(Number(value) * (state?.chipValueCents || 0)));
   return withoutName
-    .replace(/^Calls\s+(\d+)/i, (_, value) => `call ${amount(value)}`)
+    .replace(/^Calls\s+(\d+)/i, (_match: string, value: string) => `call ${amount(value)}`)
     .replace(/^Checks$/i, "check")
     .replace(/^Folds$/i, "fold")
-    .replace(/^Raises to\s+(\d+)/i, (_, value) => `raise ${amount(value)}`)
-    .replace(/^Wins\s+(\d+)/i, (_, value) => `+${amount(value)}`);
+    .replace(/^Raises to\s+(\d+)/i, (_match: string, value: string) => `raise ${amount(value)}`)
+    .replace(/^Wins\s+(\d+)/i, (_match: string, value: string) => `+${amount(value)}`);
 }
 
 function isBlindPost(entry: ActionLogEntry) {
@@ -1582,7 +1601,7 @@ function renderActionFeed(newEntryId = "") {
   const room = state;
   const entries = streetActionEntries(room.actionLog, room.phase);
   const activePlayer = currentTurnPlayer();
-  const latestByPlayer = new Map();
+  const latestByPlayer = new Map<string, ActionLogEntry>();
   entries.forEach((entry) => {
     // Blind posts aren't actions; the SB/BB chips mark those seats for the whole hand.
     if (isBlindPost(entry)) return;

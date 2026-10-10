@@ -12,6 +12,8 @@ declare global {
   type ClientPlayer = import("../shared/types").ClientPlayer;
   type ClientWinnerSummary = import("../shared/types").ClientWinnerSummary;
   type MoneyTerms = import("../shared/types").MoneyTerms;
+  type PublicCard = import("../shared/types").PublicCard;
+  type ActionLogEntry = import("../shared/types").ActionLogEntry;
   type OkAck = import("../shared/types").OkAck;
   type ErrAck = import("../shared/types").ErrAck;
   type RoomCreateAck = import("../shared/types").RoomCreateAck;

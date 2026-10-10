@@ -24,6 +24,5 @@ export = PokerSolver;
 
 declare global {
   // Browser script-tag global from /shared/pokersolver.js
-  // eslint-disable-next-line no-var
   var Hand: PokerSolver.HandConstructor;
 }

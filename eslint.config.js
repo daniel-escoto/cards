@@ -296,30 +296,29 @@ const browserModuleGlobals = {
   HoldemKeybinds: "readonly",
 };
 
-module.exports = [
+module.exports = tseslint.config(
   {
     ignores: [
       "node_modules/**",
       "dist/**",
       ".data/**",
       "shared/pokersolver.js",
+      // Built separately via esbuild; excluded from tsconfig project service.
+      "shared/engine-browser.ts",
       "pr-screenshots/**",
       "public/app.js",
-      "public/client-globals.d.ts",
-      "scripts/annotate-implicit-any.mjs",
-      "scripts/convert-js-to-ts.mjs",
+      "scripts/**",
       "**/*.js.map",
     ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ["**/*.{js,mjs,cjs,ts}"],
+    files: ["**/*.ts"],
     languageOptions: {
-      ecmaVersion: 2024,
-      sourceType: "commonjs",
-      globals: {
-        ...globalsPkg.node,
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: __dirname,
       },
     },
     rules: {
@@ -332,24 +331,64 @@ module.exports = [
           caughtErrorsIgnorePattern: "^_",
         },
       ],
-      "@typescript-eslint/no-explicit-any": "off",
+      // Daniel's rule: no any — type-aware unsafe family as errors.
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/no-unsafe-assignment": "error",
+      "@typescript-eslint/no-unsafe-member-access": "error",
+      "@typescript-eslint/no-unsafe-call": "error",
+      "@typescript-eslint/no-unsafe-return": "error",
+      "@typescript-eslint/no-unsafe-argument": "error",
       "@typescript-eslint/no-require-imports": "off",
       "@typescript-eslint/ban-ts-comment": [
         "error",
-        { "ts-ignore": true, "ts-expect-error": "allow-with-description" },
+        {
+          "ts-ignore": true,
+          "ts-expect-error": true,
+          "ts-nocheck": true,
+          "ts-check": false,
+        },
       ],
       "@typescript-eslint/no-empty-object-type": "off",
     },
   },
   {
-    files: ["public/**/*.{js,ts}"],
+    files: ["**/*.{js,mjs,cjs}"],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      ecmaVersion: 2024,
+      sourceType: "commonjs",
+      globals: {
+        ...globalsPkg.node,
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
+      "no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
+  {
+    files: ["public/**/*.ts"],
     languageOptions: {
       sourceType: "script",
       globals: browserModuleGlobals,
     },
   },
   {
-    files: ["public/app-boot.{js,ts}", "public/app-table.{js,ts}", "public/app-events.{js,ts}"],
+    files: ["public/app-boot.ts", "public/app-table.ts", "public/app-events.ts"],
     languageOptions: {
       sourceType: "script",
       globals: {
@@ -358,7 +397,6 @@ module.exports = [
       },
     },
     rules: {
-      // Classic multi-file scripts share top-level var/function bindings across tags.
       "no-var": "off",
       "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": "off",
@@ -367,26 +405,26 @@ module.exports = [
     },
   },
   {
-    // UMD / classic helpers may use var in factory wrappers; keep behavior identical.
     files: [
-      "public/practice.{js,ts}",
-      "public/raise-sizing.{js,ts}",
-      "public/deploy-handoff.{js,ts}",
-      "public/invite-url.{js,ts}",
-      "public/ready-clock.{js,ts}",
-      "public/turn-clock-warning.{js,ts}",
-      "public/card-art.{js,ts}",
-      "public/app-sounds.{js,ts}",
-      "public/app-format.{js,ts}",
-      "public/app-keybinds.{js,ts}",
-      "shared/engine.{js,ts}",
+      "public/practice.ts",
+      "public/raise-sizing.ts",
+      "public/deploy-handoff.ts",
+      "public/invite-url.ts",
+      "public/ready-clock.ts",
+      "public/turn-clock-warning.ts",
+      "public/card-art.ts",
+      "public/app-sounds.ts",
+      "public/app-format.ts",
+      "public/app-keybinds.ts",
+      "shared/create-holdem-engine.ts",
+      "shared/engine.ts",
     ],
     rules: {
       "no-var": "off",
     },
   },
   {
-    files: ["public/sw.{js,ts}"],
+    files: ["public/sw.ts"],
     languageOptions: {
       sourceType: "script",
       globals: {
@@ -395,18 +433,9 @@ module.exports = [
     },
   },
   {
-    files: ["shared/engine.{js,ts}"],
-    languageOptions: {
-      sourceType: "script",
-      globals: {
-        ...globalsPkg.node,
-        ...globalsPkg.browser,
-        module: "writable",
-        exports: "writable",
-        require: "readonly",
-        Hand: "readonly",
-        PokerSolver: "readonly",
-      },
+    files: ["public/client-globals.d.ts"],
+    rules: {
+      "@typescript-eslint/no-unused-vars": "off",
     },
   },
   {
@@ -418,4 +447,4 @@ module.exports = [
       },
     },
   },
-];
+);

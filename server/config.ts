@@ -11,7 +11,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function readPackageVersion(): string {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const pkg: unknown = require("../package.json");
     if (isRecord(pkg) && typeof pkg.version === "string" && pkg.version.trim()) {
       return pkg.version;

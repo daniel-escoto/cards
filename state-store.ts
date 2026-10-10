@@ -16,6 +16,8 @@ import type { HandoffMeta, PersistedState } from "./shared/types";
 import type {
   CreateStateStoreOptions,
   MemoryRedisBacking,
+  RedisClientLike,
+  RedisCreateClient,
   StateStore,
 } from "./state-store-types";
 
@@ -24,6 +26,45 @@ const REDIS_STATE_KEY = "holdem:game-state";
 const REDIS_HANDOFF_KEY = "holdem:handoff";
 const REDIS_HANDOFF_CHANNEL = "holdem:handoff-ch";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isPersistedState(value: unknown): value is PersistedState {
+  if (!isRecord(value)) return false;
+  if (value.version !== 1) return false;
+  if (typeof value.savedAt !== "string" || typeof value.buildId !== "string") return false;
+  if (!Array.isArray(value.rooms)) return false;
+  if (value.shutdownFlushedAt != null && typeof value.shutdownFlushedAt !== "string") return false;
+  return true;
+}
+
+function isHandoffMeta(value: unknown): value is HandoffMeta {
+  if (!isRecord(value)) return false;
+  return typeof value.at === "string";
+}
+
+function parsePersistedState(raw: string): PersistedState | null {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return isPersistedState(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function clonePersistedState(value: PersistedState): PersistedState {
+  const parsed: unknown = JSON.parse(JSON.stringify(value));
+  if (!isPersistedState(parsed)) throw new Error("Failed to clone PersistedState");
+  return parsed;
+}
+
+function cloneHandoffMeta(value: HandoffMeta): HandoffMeta {
+  const parsed: unknown = JSON.parse(JSON.stringify(value));
+  if (!isHandoffMeta(parsed)) throw new Error("Failed to clone HandoffMeta");
+  return parsed;
+}
+
 function createFileStateStore(filePath: string): StateStore {
   return {
     kind: "file",
@@ -31,9 +72,7 @@ function createFileStateStore(filePath: string): StateStore {
     async load() {
       if (!fs.existsSync(filePath)) return null;
       try {
-        const payload = JSON.parse(fs.readFileSync(filePath, "utf8")) as PersistedState;
-        if (!payload || typeof payload !== "object") return null;
-        return payload;
+        return parsePersistedState(fs.readFileSync(filePath, "utf8"));
       } catch (error) {
         console.error("Failed to read game state file:", error);
         return null;
@@ -74,17 +113,17 @@ function createMemoryStateStore(backing: MemoryRedisBacking = createMemoryRedisB
     backing,
     async load() {
       if (backing.value == null) return null;
-      return JSON.parse(JSON.stringify(backing.value)) as PersistedState;
+      return clonePersistedState(backing.value);
     },
     async save(payload) {
-      backing.value = JSON.parse(JSON.stringify(payload)) as PersistedState;
+      backing.value = clonePersistedState(payload);
     },
     async publishHandoff(meta = {}) {
       const message: HandoffMeta = {
         at: new Date().toISOString(),
         ...meta,
       };
-      backing.handoff = JSON.parse(JSON.stringify(message)) as HandoffMeta;
+      backing.handoff = cloneHandoffMeta(message);
       const raw = JSON.stringify(message);
       for (const handler of [...backing.handlers]) {
         try {
@@ -96,7 +135,7 @@ function createMemoryStateStore(backing: MemoryRedisBacking = createMemoryRedisB
     },
     async readHandoff() {
       if (backing.handoff == null) return null;
-      return JSON.parse(JSON.stringify(backing.handoff)) as HandoffMeta;
+      return cloneHandoffMeta(backing.handoff);
     },
     async onHandoff(handler) {
       const wrapped = (message: string) => handler(message);
@@ -112,23 +151,52 @@ function createMemoryStateStore(backing: MemoryRedisBacking = createMemoryRedisB
 function parseHandoffRaw(raw: string | null | undefined): HandoffMeta | null {
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as HandoffMeta;
-    return parsed && typeof parsed === "object" ? parsed : null;
+    const parsed: unknown = JSON.parse(raw);
+    return isHandoffMeta(parsed) ? parsed : null;
   } catch {
     return null;
   }
 }
 
+function isRedisCreateClient(value: unknown): value is RedisCreateClient {
+  return typeof value === "function";
+}
+
+function isRedisClientLike(value: unknown): value is RedisClientLike {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.connect === "function" &&
+    typeof value.get === "function" &&
+    typeof value.set === "function" &&
+    typeof value.publish === "function" &&
+    typeof value.subscribe === "function" &&
+    typeof value.unsubscribe === "function" &&
+    typeof value.quit === "function" &&
+    typeof value.isOpen === "boolean"
+  );
+}
+
+function defaultRedisCreateClient(): RedisCreateClient {
+  // Lazy require so file-only environments never load redis until needed.
+  const redis: unknown = require("redis");
+  if (!isRecord(redis) || typeof redis.createClient !== "function") {
+    throw new Error("redis package missing createClient");
+  }
+  const createClientFn = redis.createClient;
+  return (opts: { url: string }) => {
+    const client: unknown = createClientFn.call(redis, opts);
+    if (!isRedisClientLike(client)) {
+      throw new Error("redis.createClient returned an unexpected client shape");
+    }
+    return client;
+  };
+}
+
 function createRedisStateStore(
   redisUrl: string,
-  // Boundary: injectable redis factory for tests.
-   
-  { createClient }: { createClient?: (opts: { url: string }) => any } = {},
+  { createClient }: { createClient?: RedisCreateClient } = {},
 ): StateStore {
-  // Lazy require so file-only environments never load the redis package path in tests that mock.
-   
-  const redis = createClient ? null : require("redis");
-  const makeClient = createClient || redis.createClient;
+  const makeClient = createClient && isRedisCreateClient(createClient) ? createClient : defaultRedisCreateClient();
 
   const client = makeClient({ url: redisUrl });
   const subscriber = makeClient({ url: redisUrl });
@@ -153,7 +221,9 @@ function createRedisStateStore(
       const raw = await client.get(REDIS_STATE_KEY);
       if (!raw) return null;
       try {
-        return JSON.parse(raw) as PersistedState;
+        const parsed = parsePersistedState(raw);
+        if (!parsed) console.error("Failed to parse Redis game state: invalid shape");
+        return parsed;
       } catch (error) {
         console.error("Failed to parse Redis game state:", error);
         return null;
