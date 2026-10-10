@@ -281,6 +281,8 @@ function resetHandState(room) {
   room.raiseEligible = new Set();
   room.winners = [];
   room.actionLog = [];
+  room.riverAggressor = null;
+  room.allInCardsExposed = false;
   for (const player of room.players) {
     player.hand = [];
     player.folded = false;
@@ -425,7 +427,9 @@ function dealStreet(room) {
   const first = nextIndex(room, room.dealer, (p) => !p.folded && !p.allIn && p.stack > 0);
   room.raiseEligible = new Set(canActPlayers(room).map((player) => player.id));
   room.turn = first >= 0 ? room.players[first].id : null;
-  room.message = `${room.phase[0].toUpperCase()}${room.phase.slice(1)} betting.`;
+  room.message = room.allInCardsExposed
+    ? `${room.phase[0].toUpperCase()}${room.phase.slice(1)} — all-in runout.`
+    : `${room.phase[0].toUpperCase()}${room.phase.slice(1)} betting.`;
   logAction(room, `${room.phase[0].toUpperCase()}${room.phase.slice(1)} dealt.`);
   maybeAdvance(room);
 }
@@ -438,6 +442,30 @@ function bettingComplete(room) {
   // there is nobody who could call another bet, so run out the board.
   if (actors.length === 1 && actors[0].bet === room.currentBet) return true;
   return actors.every((player) => player.bet === room.currentBet && room.acted.has(player.id));
+}
+
+function shouldExposeAllInRunout(room) {
+  if (livePlayers(room).length < 2) return false;
+  if (!bettingComplete(room)) return false;
+  // Two or more players can still bet on later streets — keep hole cards private.
+  if (canActPlayers(room).length > 1) return false;
+  return ["preflop", "flop", "turn"].includes(room.phase);
+}
+
+function exposeAllInRunoutHands(room) {
+  if (room.allInCardsExposed) return false;
+  let exposed = false;
+  for (const player of livePlayers(room)) {
+    if (!player.hand.length) continue;
+    player.showCards = true;
+    exposed = true;
+  }
+  if (exposed) {
+    room.allInCardsExposed = true;
+    room.message = "All in — cards up. Running out the board.";
+    logAction(room, room.message);
+  }
+  return exposed;
 }
 
 function maybeAdvance(room) {
@@ -454,6 +482,11 @@ function maybeAdvance(room) {
       room.turn = next >= 0 ? room.players[next].id : null;
     }
     return;
+  }
+
+  // All remaining players all-in (or one matched vs all-ins): flip holes, then run out.
+  if (shouldExposeAllInRunout(room)) {
+    exposeAllInRunoutHands(room);
   }
 
   if (room.phase === "river") {
@@ -474,6 +507,7 @@ function collectPot(room) {
 }
 
 function revealComputerHands(room) {
+  // Kept for callers/tests; standard showdown no longer force-shows bot losers.
   for (const player of room.players) {
     if (player.isBot && player.hand.length) player.showCards = true;
   }
@@ -484,7 +518,8 @@ function awardUncontested(room, winner) {
   winner.stack += amount;
   room.phase = "complete";
   room.turn = null;
-  revealComputerHands(room);
+  // Fold-win: winner does not show. Optional Show hand remains via showPlayerCards.
+  winner.showCards = false;
   room.winners = [{ playerId: winner.id, name: winner.name, amount, hand: "Everyone else folded" }];
   room.message = `${winner.name} wins ${amount}.`;
   logAction(room, `${winner.name} wins ${amount}.`, {
@@ -492,6 +527,79 @@ function awardUncontested(room, winner) {
     action: `Wins ${amount}`,
   });
   maybeEndGame(room);
+}
+
+function showdownContenders(room) {
+  return room.players.filter((player) => !player.folded && player.hand.length >= 2);
+}
+
+function showdownOrder(room) {
+  const contenders = showdownContenders(room);
+  if (!contenders.length) return [];
+
+  const contenderIds = new Set(contenders.map((player) => player.id));
+  let startIndex = -1;
+  if (room.riverAggressor && contenderIds.has(room.riverAggressor)) {
+    startIndex = playerIndex(room, room.riverAggressor);
+  } else {
+    startIndex = nextIndex(room, room.dealer, (player) => contenderIds.has(player.id));
+  }
+  if (startIndex < 0) return contenders.slice();
+
+  const ordered = [];
+  for (let offset = 0; offset < room.players.length; offset += 1) {
+    const player = room.players[(startIndex + offset) % room.players.length];
+    if (contenderIds.has(player.id)) ordered.push(player);
+  }
+  return ordered;
+}
+
+function playerCanWinOrTieEligiblePot(player, pots, shownPlayers, community) {
+  for (const pot of pots) {
+    if (!pot.contenderIds.includes(player.id)) continue;
+    const shownEligible = shownPlayers.filter((item) => pot.contenderIds.includes(item.id));
+    if (!shownEligible.length) return true;
+    const entries = [
+      ...shownEligible.map((item) => ({
+        player: item,
+        hand: Hand.solve([...item.hand, ...community]),
+      })),
+      {
+        player,
+        hand: Hand.solve([...player.hand, ...community]),
+      },
+    ];
+    const winningHands = Hand.winners(entries.map((entry) => entry.hand));
+    if (entries.some((entry) => entry.player.id === player.id && winningHands.includes(entry.hand))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function applyShowdownReveals(room) {
+  // All-in runout already flipped holes publicly; keep them up through settlement.
+  if (room.allInCardsExposed) {
+    for (const player of showdownContenders(room)) player.showCards = true;
+    return showdownContenders(room);
+  }
+
+  const pots = buildSidePots(room);
+  const shown = [];
+  for (const player of showdownOrder(room)) {
+    if (playerCanWinOrTieEligiblePot(player, pots, shown, room.community)) {
+      player.showCards = true;
+      shown.push(player);
+    } else {
+      player.showCards = false;
+    }
+  }
+  // Anyone not in the showdown order keeps cards private.
+  for (const player of room.players) {
+    if (!shown.includes(player)) player.showCards = false;
+  }
+  for (const player of shown) player.showCards = true;
+  return shown;
 }
 
 function buildSidePots(room) {
@@ -546,6 +654,8 @@ function settleShowdown(room) {
   room.turn = null;
   const summaries = [];
 
+  applyShowdownReveals(room);
+
   for (const pot of buildSidePots(room)) {
     const solved = pot.contenders.map((player) => ({
       player,
@@ -580,7 +690,6 @@ function settleShowdown(room) {
 
   room.phase = "complete";
   room.winners = combineWinnerSummaries(summaries);
-  revealComputerHands(room);
   room.message = room.winners.map((winner) => `${winner.name} wins ${winner.amount} with ${winner.hand}`).join(" · ");
   for (const winner of room.winners) {
     logAction(room, `${winner.name} wins ${winner.amount} with ${winner.hand}.`, {
@@ -659,6 +768,7 @@ function applyPlayerAction(room, playerId, { type, raiseTo }) {
     } else {
       room.raiseEligible.delete(player.id);
     }
+    if (room.phase === "river") room.riverAggressor = player.id;
     room.message = `${player.name} raises to ${target}.`;
     logAction(room, room.message, { playerId: player.id, action: `Raises to ${target}` });
   } else {
@@ -677,11 +787,38 @@ function showPlayerCards(room, playerId) {
   if (player.showCards) return { ok: true };
   player.showCards = true;
   room.message = `${player.name} shows their hand.`;
+  // Never put hole-card codes in the shared action log — cards go out via showCards serialization.
   logAction(room, room.message, {
     playerId: player.id,
-    action: `Shows ${player.hand.join(" ")}`,
+    action: "Shows hand",
   });
   return { ok: true };
+}
+
+const HOLE_CARD_CODE_RE = /\b[2-9TJQKA][shdc]\b/gi;
+
+function sanitizeActionLogForClient(actionLog) {
+  return (actionLog || []).map((entry) => {
+    const next = { ...entry };
+    if (typeof next.action === "string" && /^Shows\b/i.test(next.action)) {
+      next.action = "Shows hand";
+    }
+    if (typeof next.text === "string") {
+      next.text = next.text.replace(HOLE_CARD_CODE_RE, "??");
+    }
+    if (typeof next.action === "string") {
+      next.action = next.action.replace(HOLE_CARD_CODE_RE, "??");
+    }
+    return next;
+  });
+}
+
+function visibleHoleCards(player, viewerId) {
+  if (!player) return [];
+  if (player.id === viewerId || player.showCards) {
+    return player.hand.map(publicCard);
+  }
+  return player.hand.map(() => null);
 }
 
 function cardRankValue(card) {
@@ -1055,7 +1192,8 @@ function isSoloHumanFolded(room) {
         ...winner,
         amountCents: chipsToCents(room, winner.amount),
       })),
-      actionLog: room.actionLog,
+      actionLog: sanitizeActionLogForClient(room.actionLog),
+      allInCardsExposed: Boolean(room.allInCardsExposed),
       players: room.players.map((player, index) => ({
         id: player.id,
         name: player.name,
@@ -1084,9 +1222,7 @@ function isSoloHumanFolded(room) {
         isYou: player.id === viewerId,
         canMakeHost: false,
         canKick: false,
-        cards: player.id === viewerId || player.showCards
-          ? player.hand.map(publicCard)
-          : player.hand.map(() => null),
+        cards: visibleHoleCards(player, viewerId),
       })),
     };
   }
@@ -1138,6 +1274,8 @@ function isSoloHumanFolded(room) {
       startingStack,
       showdownTimer: null,
       botTimer: null,
+      riverAggressor: null,
+      allInCardsExposed: false,
       players: [hero],
     };
 
@@ -1191,6 +1329,8 @@ function isSoloHumanFolded(room) {
     room.raiseEligible = new Set();
     room.winners = [];
     room.actionLog = [];
+    room.riverAggressor = null;
+    room.allInCardsExposed = false;
     room.message = "Table restarted. Ready up when you want the next hand.";
   }
 
@@ -1204,6 +1344,8 @@ function isSoloHumanFolded(room) {
     room.turn = null;
     room.message = "Game ended by host.";
     room.actionLog = [];
+    room.riverAggressor = null;
+    room.allInCardsExposed = false;
   }
 
   function cardCodeFromPublic(card) {
@@ -1395,6 +1537,8 @@ function isSoloHumanFolded(room) {
       ),
       showdownTimer: null,
       botTimer: null,
+      riverAggressor: snapshot.riverAggressor || null,
+      allInCardsExposed: Boolean(snapshot.allInCardsExposed),
       players,
       handedOffFromOnline: true,
     };
@@ -1459,12 +1603,20 @@ function isSoloHumanFolded(room) {
     collectPot,
     revealComputerHands,
     awardUncontested,
+    shouldExposeAllInRunout,
+    exposeAllInRunoutHands,
+    showdownContenders,
+    showdownOrder,
+    playerCanWinOrTieEligiblePot,
+    applyShowdownReveals,
     buildSidePots,
     combineWinnerSummaries,
     settleShowdown,
     beginShowdown,
     applyPlayerAction,
     showPlayerCards,
+    sanitizeActionLogForClient,
+    visibleHoleCards,
     cardRankValue,
     estimateComputerConfidence,
     chooseComputerRaiseTo,
