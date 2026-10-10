@@ -28,118 +28,132 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="holdem.nyc" />
     <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <script>
       const initialTheme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
       document.documentElement.dataset.theme = initialTheme;
       document.querySelector("#themeColor").content =
-        initialTheme === "light" ? "#eef1ec" : "#090d10";
+        initialTheme === "light" ? "#dfe8e2" : "#07110e";
     </script>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <main class="app">
       <section id="welcome" class="welcome">
-        <div class="brand">
-          <span class="mark" aria-hidden="true">♠</span>
-          <div>
-            <h1>holdem.nyc</h1>
-          </div>
+        <div class="welcome-atmosphere" aria-hidden="true">
+          <div class="welcome-glow welcome-glow-a"></div>
+          <div class="welcome-glow welcome-glow-b"></div>
+          <svg class="welcome-skyline" viewBox="0 0 1440 160" preserveAspectRatio="none" focusable="false">
+            <path d="M0 160 V98 H48 V72 H70 V98 H110 V54 H132 V36 H148 V54 H168 V98 H210 V84 H228 V98 H270 V40 H292 V22 H308 V40 H330 V98 H380 V68 H404 V98 H450 V78 H470 V98 H520 V50 H542 V28 H560 V50 H590 V98 H640 V86 H662 V98 H710 V60 H734 V98 H780 V44 H802 V24 H820 V44 H850 V98 H900 V74 H922 V98 H970 V58 H994 V98 H1040 V82 H1062 V98 H1110 V36 H1134 V18 H1152 V36 H1180 V98 H1230 V70 H1254 V98 H1300 V88 H1322 V98 H1360 V64 H1384 V98 H1440 V160 Z" />
+          </svg>
         </div>
 
-        <form id="joinForm" class="join-panel">
-          <div class="mode-switch" role="tablist" aria-label="Table action">
-            <button
-              id="hostModeBtn"
-              class="mode-option selected"
-              type="button"
-              role="tab"
-              aria-selected="true"
-            >
-              Host
-            </button>
-            <button
-              id="joinModeBtn"
-              class="mode-option"
-              type="button"
-              role="tab"
-              aria-selected="false"
-            >
-              Join
-            </button>
-          </div>
-          <label class="form-field name-field">
-            <span>Display name</span>
-            <input
-              id="nameInput"
-              autocomplete="nickname"
-              maxlength="18"
-              placeholder="Your name"
-              required
-            />
-          </label>
-          <label id="roomCodeLabel" class="form-field hidden">
-            <span>Room code</span>
-            <input
-              id="roomInput"
-              maxlength="6"
-              placeholder="ABC123"
-              autocapitalize="characters"
-              spellcheck="false"
-            />
-          </label>
-          <div id="blindFields" class="blind-fields">
-            <label class="form-field">
-              <span id="smallBlindLabel">Small blind</span>
+        <div class="welcome-stage">
+          <header class="brand">
+            <p class="brand-kicker"><span>♠</span> Private tables</p>
+            <h1 class="wordmark">
+              <span class="wordmark-holdem">holdem</span><span class="wordmark-dot">.</span><span class="wordmark-nyc">nyc</span>
+            </h1>
+            <p class="tagline">Host a room, share a code, deal the city in.</p>
+          </header>
+
+          <form id="joinForm" class="join-panel">
+            <div class="mode-switch" role="tablist" aria-label="Table action">
+              <button
+                id="hostModeBtn"
+                class="mode-option selected"
+                type="button"
+                role="tab"
+                aria-selected="true"
+              >
+                Host
+              </button>
+              <button
+                id="joinModeBtn"
+                class="mode-option"
+                type="button"
+                role="tab"
+                aria-selected="false"
+              >
+                Join
+              </button>
+            </div>
+            <label class="form-field name-field">
+              <span>Display name</span>
               <input
-                id="smallBlindInput"
-                type="number"
-                min="1"
-                max="100000"
-                step="1"
-                value="10"
-                inputmode="decimal"
+                id="nameInput"
+                autocomplete="nickname"
+                maxlength="18"
+                placeholder="Your name"
+                required
               />
             </label>
-            <label class="form-field">
-              <span id="bigBlindLabel">Big blind</span>
+            <label id="roomCodeLabel" class="form-field hidden">
+              <span>Room code</span>
               <input
-                id="bigBlindInput"
+                id="roomInput"
+                maxlength="6"
+                placeholder="ABC123"
+                autocapitalize="characters"
+                spellcheck="false"
+              />
+            </label>
+            <div id="blindFields" class="blind-fields">
+              <label class="form-field">
+                <span id="smallBlindLabel">Small blind</span>
+                <input
+                  id="smallBlindInput"
+                  type="number"
+                  min="1"
+                  max="100000"
+                  step="1"
+                  value="10"
+                  inputmode="decimal"
+                />
+              </label>
+              <label class="form-field">
+                <span id="bigBlindLabel">Big blind</span>
+                <input
+                  id="bigBlindInput"
+                  type="number"
+                  min="2"
+                  max="100000"
+                  step="1"
+                  value="20"
+                  inputmode="decimal"
+                />
+              </label>
+            </div>
+            <label id="moneyModeLabel" class="checkbox-label">
+              <input id="moneyModeInput" type="checkbox" />
+              <span class="switch-control" aria-hidden="true"></span>
+              <span class="checkbox-copy">
+                <strong>Money mode</strong>
+                <small>Track buy-ins in dollars, without CPU players</small>
+              </span>
+            </label>
+            <label id="buyInLabel" class="form-field hidden">
+              <span>Buy-in</span>
+              <input
+                id="buyInInput"
                 type="number"
-                min="2"
-                max="100000"
-                step="1"
+                min="1"
+                max="10000"
+                step="0.01"
                 value="20"
                 inputmode="decimal"
               />
             </label>
-          </div>
-          <label id="moneyModeLabel" class="checkbox-label">
-            <input id="moneyModeInput" type="checkbox" />
-            <span class="switch-control" aria-hidden="true"></span>
-            <span class="checkbox-copy">
-              <strong>Money mode</strong>
-              <small>Track buy-ins in dollars, without CPU players</small>
-            </span>
-          </label>
-          <label id="buyInLabel" class="form-field hidden">
-            <span>Buy-in</span>
-            <input
-              id="buyInInput"
-              type="number"
-              min="1"
-              max="10000"
-              step="0.01"
-              value="20"
-              inputmode="decimal"
-            />
-          </label>
-          <p id="joinPreview" class="hidden" role="status"></p>
-          <div class="actions-row">
-            <button id="tableActionBtn" type="submit">Host table</button>
-            <button id="watchBtn" class="secondary hidden" type="button">Watch</button>
-          </div>
-          <p id="joinError" class="error" role="alert"></p>
-        </form>
+            <p id="joinPreview" class="hidden" role="status"></p>
+            <div class="actions-row">
+              <button id="tableActionBtn" type="submit">Host table</button>
+              <button id="watchBtn" class="secondary hidden" type="button">Watch</button>
+            </div>
+            <p id="joinError" class="error" role="alert"></p>
+          </form>
+        </div>
       </section>
 
       <section id="tableView" class="table-view hidden">
