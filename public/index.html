@@ -30,12 +30,12 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <script>
       const initialTheme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
       document.documentElement.dataset.theme = initialTheme;
       document.querySelector("#themeColor").content =
-        initialTheme === "light" ? "#dfe8e2" : "#07110e";
+        initialTheme === "light" ? "#eef1ec" : "#090d10";
     </script>
     <link rel="stylesheet" href="/styles.css" />
   </head>
@@ -45,18 +45,14 @@
         <div class="welcome-atmosphere" aria-hidden="true">
           <div class="welcome-glow welcome-glow-a"></div>
           <div class="welcome-glow welcome-glow-b"></div>
-          <svg class="welcome-skyline" viewBox="0 0 1440 160" preserveAspectRatio="none" focusable="false">
-            <path d="M0 160 V98 H48 V72 H70 V98 H110 V54 H132 V36 H148 V54 H168 V98 H210 V84 H228 V98 H270 V40 H292 V22 H308 V40 H330 V98 H380 V68 H404 V98 H450 V78 H470 V98 H520 V50 H542 V28 H560 V50 H590 V98 H640 V86 H662 V98 H710 V60 H734 V98 H780 V44 H802 V24 H820 V44 H850 V98 H900 V74 H922 V98 H970 V58 H994 V98 H1040 V82 H1062 V98 H1110 V36 H1134 V18 H1152 V36 H1180 V98 H1230 V70 H1254 V98 H1300 V88 H1322 V98 H1360 V64 H1384 V98 H1440 V160 Z" />
-          </svg>
         </div>
 
         <div class="welcome-stage">
           <header class="brand">
-            <p class="brand-kicker"><span>♠</span> Private tables</p>
             <h1 class="wordmark">
               <span class="wordmark-holdem">holdem</span><span class="wordmark-dot">.</span><span class="wordmark-nyc">nyc</span>
             </h1>
-            <p class="tagline">Host a room, share a code, deal the city in.</p>
+            <p class="tagline">Host a table. Share a code.</p>
           </header>
 
           <form id="joinForm" class="join-panel">

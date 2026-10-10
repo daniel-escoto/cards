@@ -206,16 +206,14 @@ button:disabled {
 /* —— Landing / lobby (welcome) —— */
 body:has(#welcome:not(.hidden)) {
   background:
-    radial-gradient(ellipse 80% 55% at 50% -10%, rgba(42, 110, 88, 0.42), transparent 55%),
-    radial-gradient(ellipse 50% 40% at 85% 80%, rgba(28, 72, 64, 0.35), transparent 50%),
-    linear-gradient(165deg, #0b1613 0%, #07110e 48%, #0a1210 100%);
+    radial-gradient(ellipse 70% 50% at 50% -12%, rgba(96, 165, 250, 0.22), transparent 55%),
+    linear-gradient(145deg, #10171b 0%, var(--bg) 68%);
 }
 
 :root[data-theme="light"] body:has(#welcome:not(.hidden)) {
   background:
-    radial-gradient(ellipse 80% 55% at 50% -8%, rgba(72, 140, 112, 0.28), transparent 55%),
-    radial-gradient(ellipse 45% 35% at 90% 85%, rgba(120, 168, 140, 0.18), transparent 50%),
-    linear-gradient(165deg, #e6efe8 0%, #dfe8e2 45%, #e8eee9 100%);
+    radial-gradient(ellipse 70% 50% at 50% -10%, rgba(37, 99, 185, 0.12), transparent 55%),
+    linear-gradient(145deg, #f8faf6 0%, var(--bg) 68%);
 }
 
 body:has(#welcome:not(.hidden)) .app {
@@ -224,16 +222,15 @@ body:has(#welcome:not(.hidden)) .app {
 }
 
 .welcome {
-  --welcome-ink: #f2f6f3;
-  --welcome-muted: #b7c4bb;
-  --welcome-panel: rgba(12, 22, 19, 0.72);
-  --welcome-panel-border: rgba(214, 230, 220, 0.14);
-  --welcome-input: rgba(4, 10, 8, 0.55);
-  --welcome-cta: #d7b14a;
-  --welcome-cta-text: #1a1406;
-  --welcome-cta-hover: #e4c25f;
+  --welcome-ink: var(--text);
+  --welcome-muted: var(--muted);
+  --welcome-panel: rgba(22, 29, 33, 0.92);
+  --welcome-panel-border: var(--line);
+  --welcome-input: var(--input-bg);
+  --welcome-cta: var(--accent);
+  --welcome-cta-text: #ffffff;
+  --welcome-cta-hover: var(--accent-hover);
   --welcome-font: "Figtree", ui-sans-serif, system-ui, sans-serif;
-  --welcome-display: "Barlow Condensed", "Arial Narrow", sans-serif;
   position: relative;
   isolation: isolate;
   min-height: calc(100vh - 32px);
@@ -244,23 +241,13 @@ body:has(#welcome:not(.hidden)) .app {
 }
 
 :root[data-theme="light"] .welcome {
-  --welcome-ink: #12201a;
-  --welcome-muted: #4f6358;
-  --welcome-panel: rgba(255, 255, 255, 0.78);
-  --welcome-panel-border: rgba(24, 48, 38, 0.12);
-  --welcome-input: rgba(255, 255, 255, 0.92);
-  --welcome-cta: #1f6b4f;
-  --welcome-cta-text: #f7fff9;
-  --welcome-cta-hover: #278260;
+  --welcome-panel: rgba(255, 255, 255, 0.94);
+  --welcome-input: var(--input-bg);
 }
 
 .welcome-atmosphere {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 100vw;
-  margin-left: -50vw;
+  inset: 0;
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
@@ -269,55 +256,35 @@ body:has(#welcome:not(.hidden)) .app {
 .welcome-glow {
   position: absolute;
   border-radius: 50%;
-  filter: blur(40px);
-  opacity: 0.55;
+  filter: blur(48px);
+  opacity: 0.5;
   animation: welcome-glow-breathe 8s ease-in-out infinite;
 }
 
 .welcome-glow-a {
-  width: min(520px, 90vw);
-  height: min(520px, 90vw);
-  top: -18%;
+  width: min(480px, 85vw);
+  height: min(480px, 85vw);
+  top: -20%;
   left: 50%;
   transform: translateX(-50%);
-  background: radial-gradient(circle, rgba(56, 130, 98, 0.55), transparent 68%);
+  background: radial-gradient(circle, rgba(96, 165, 250, 0.4), transparent 68%);
 }
 
 .welcome-glow-b {
-  width: min(360px, 70vw);
-  height: min(280px, 50vw);
-  right: -8%;
-  bottom: 8%;
-  background: radial-gradient(circle, rgba(215, 177, 74, 0.16), transparent 70%);
+  width: min(300px, 60vw);
+  height: min(240px, 45vw);
+  right: -6%;
+  bottom: 12%;
+  background: radial-gradient(circle, rgba(96, 165, 250, 0.12), transparent 70%);
   animation-delay: -3s;
 }
 
 :root[data-theme="light"] .welcome-glow-a {
-  background: radial-gradient(circle, rgba(88, 150, 118, 0.35), transparent 68%);
+  background: radial-gradient(circle, rgba(37, 99, 185, 0.18), transparent 68%);
 }
 
 :root[data-theme="light"] .welcome-glow-b {
-  background: radial-gradient(circle, rgba(40, 110, 80, 0.12), transparent 70%);
-}
-
-.welcome-skyline {
-  --skyline-opacity: 0.55;
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  height: clamp(88px, 16vh, 168px);
-  fill: rgba(6, 14, 12, 0.72);
-  opacity: var(--skyline-opacity);
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
-  mask-image: linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
-  animation: welcome-skyline-rise 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-:root[data-theme="light"] .welcome-skyline {
-  --skyline-opacity: 0.78;
-  fill: rgba(28, 58, 46, 0.16);
+  background: radial-gradient(circle, rgba(37, 99, 185, 0.08), transparent 70%);
 }
 
 .welcome-stage {
@@ -332,44 +299,10 @@ body:has(#welcome:not(.hidden)) .app {
 .brand {
   width: 100%;
   display: grid;
-  gap: 14px;
+  gap: 10px;
   justify-items: center;
   text-align: center;
   animation: welcome-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.brand-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  padding: 5px 11px 5px 9px;
-  border: 1px solid rgba(215, 177, 74, 0.35);
-  border-radius: 4px;
-  color: #e6d39a;
-  background: rgba(8, 16, 13, 0.35);
-  font-family: var(--welcome-display);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  line-height: 1;
-}
-
-.brand-kicker span {
-  color: #d7b14a;
-  font-size: 12px;
-  letter-spacing: 0;
-}
-
-:root[data-theme="light"] .brand-kicker {
-  color: #2a4f3d;
-  border-color: rgba(31, 107, 79, 0.28);
-  background: rgba(255, 255, 255, 0.55);
-}
-
-:root[data-theme="light"] .brand-kicker span {
-  color: #1f6b4f;
 }
 
 .wordmark {
@@ -378,57 +311,31 @@ body:has(#welcome:not(.hidden)) .app {
   justify-content: center;
   margin: 0;
   color: var(--welcome-ink);
-  font-family: var(--welcome-display);
-  font-size: clamp(52px, 14vw, 84px);
-  font-weight: 700;
+  font-family: var(--welcome-font);
+  font-size: clamp(44px, 12vw, 68px);
+  font-weight: 800;
   line-height: 1;
-  letter-spacing: 0.01em;
+  letter-spacing: -0.045em;
   text-transform: lowercase;
 }
 
-.wordmark-holdem {
+.wordmark-holdem,
+.wordmark-nyc {
   line-height: 1;
 }
 
 .wordmark-dot {
-  color: #d7b14a;
+  color: var(--welcome-cta);
   line-height: 1;
-}
-
-.wordmark-nyc {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  padding: 0.1em 0.18em 0.06em;
-  margin: 0 0 0 0.1em;
-  border: 0;
-  border-radius: 3px;
-  background: #15241c;
-  color: #f4f8f5;
-  font-size: 0.72em;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  line-height: 1;
-  vertical-align: baseline;
-}
-
-:root[data-theme="light"] .wordmark-dot {
-  color: #1f6b4f;
-}
-
-:root[data-theme="light"] .wordmark-nyc {
-  background: #15241c;
-  color: #f4f8f5;
 }
 
 .tagline {
-  max-width: min(36ch, 100%);
+  max-width: min(28ch, 100%);
   margin: 0;
   color: var(--welcome-muted);
   font-size: clamp(15px, 3.6vw, 17px);
   font-weight: 500;
-  line-height: 1.45;
+  line-height: 1.4;
   letter-spacing: 0.01em;
   text-wrap: balance;
 }
@@ -482,7 +389,7 @@ label {
 :root[data-theme="light"] .join-panel {
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.8) inset,
-    0 22px 50px rgba(28, 58, 46, 0.12);
+    0 22px 50px rgba(29, 47, 40, 0.12);
 }
 
 :root[data-theme="light"] .score-panel {
@@ -501,7 +408,7 @@ label {
 }
 
 :root[data-theme="light"] .welcome .mode-switch {
-  background: rgba(18, 40, 30, 0.06);
+  background: rgba(24, 38, 33, 0.055);
 }
 
 .welcome .mode-option {
@@ -522,19 +429,13 @@ label {
 }
 
 :root[data-theme="light"] .welcome .mode-option:not(.selected):not(:disabled):hover {
-  background: rgba(18, 40, 30, 0.06);
+  background: rgba(24, 38, 33, 0.06);
 }
 
 .welcome .mode-option.selected {
-  color: var(--welcome-ink);
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 4px 12px rgba(0, 0, 0, 0.18);
-}
-
-:root[data-theme="light"] .welcome .mode-option.selected {
-  color: #12201a;
-  background: #ffffff;
-  box-shadow: 0 2px 8px rgba(28, 58, 46, 0.1);
+  color: #ffffff;
+  background: linear-gradient(180deg, var(--accent-hover), var(--accent));
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.24);
 }
 
 .welcome .form-field > span {
@@ -576,7 +477,7 @@ label {
 }
 
 :root[data-theme="light"] .welcome .checkbox-label {
-  background: rgba(18, 40, 30, 0.04);
+  background: rgba(24, 38, 33, 0.025);
 }
 
 .welcome .checkbox-label:hover {
@@ -584,7 +485,7 @@ label {
 }
 
 :root[data-theme="light"] .welcome .checkbox-label:hover {
-  background: rgba(18, 40, 30, 0.07);
+  background: rgba(24, 38, 33, 0.07);
 }
 
 .welcome .checkbox-label:has(input:checked) {
@@ -640,7 +541,7 @@ label {
 }
 
 :root[data-theme="light"] .welcome .actions-row > #watchBtn {
-  background: rgba(18, 40, 30, 0.05);
+  background: rgba(24, 38, 33, 0.05);
 }
 
 .welcome .error {
@@ -658,25 +559,14 @@ label {
   }
 }
 
-@keyframes welcome-skyline-rise {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: var(--skyline-opacity);
-    transform: translateY(0);
-  }
-}
-
 @keyframes welcome-glow-breathe {
   0%,
   100% {
-    opacity: 0.45;
+    opacity: 0.4;
     transform: translateX(-50%) scale(1);
   }
   50% {
-    opacity: 0.7;
+    opacity: 0.65;
     transform: translateX(-50%) scale(1.04);
   }
 }
@@ -688,11 +578,11 @@ label {
 @keyframes welcome-glow-breathe-b {
   0%,
   100% {
-    opacity: 0.35;
+    opacity: 0.3;
     transform: scale(1);
   }
   50% {
-    opacity: 0.55;
+    opacity: 0.5;
     transform: scale(1.06);
   }
 }
@@ -700,7 +590,6 @@ label {
 @media (prefers-reduced-motion: reduce) {
   .brand,
   .join-panel,
-  .welcome-skyline,
   .welcome-glow {
     animation: none !important;
   }
@@ -3159,7 +3048,7 @@ kbd {
   }
 
   .brand {
-    gap: 12px;
+    gap: 8px;
   }
 
   .brand .eyebrow {
@@ -3167,11 +3056,7 @@ kbd {
   }
 
   .wordmark {
-    font-size: clamp(48px, 13vw, 64px);
-  }
-
-  .tagline {
-    max-width: min(30ch, 100%);
+    font-size: clamp(40px, 11vw, 52px);
   }
 
   .join-panel {
