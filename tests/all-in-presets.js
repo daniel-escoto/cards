@@ -6,7 +6,15 @@ const { legalRaiseTo, potPresetRaiseTo } = require("../public/raise-sizing.js");
  * - include ½ pot / Pot only when a full raise is possible and value < all-in
  * - always keep All in (never unique-filter it away)
  */
-function betPresetLabels({ pot, currentBet, bigBlind, minRaiseTo, maxRaiseTo, canFullRaise }) {
+function betPresetLabels({
+  pot,
+  currentBet,
+  bigBlind,
+  minRaiseTo,
+  maxRaiseTo,
+  canFullRaise,
+  toCall = 0,
+}) {
   const bounds = { minRaiseTo, maxRaiseTo, step: bigBlind };
   const options = [];
   if (canFullRaise) {
@@ -15,7 +23,7 @@ function betPresetLabels({ pot, currentBet, bigBlind, minRaiseTo, maxRaiseTo, ca
       { label: "Pot", fraction: 1 },
     ]) {
       const value = legalRaiseTo(
-        potPresetRaiseTo({ pot, currentBet, bigBlind, fraction: preset.fraction }),
+        potPresetRaiseTo({ pot, currentBet, bigBlind, fraction: preset.fraction, toCall }),
         bounds,
       );
       if (value < maxRaiseTo) options.push(preset.label);
@@ -61,6 +69,7 @@ function betPresetLabels({ pot, currentBet, bigBlind, minRaiseTo, maxRaiseTo, ca
         currentBet: 40,
         bigBlind: 20,
         fraction: label === "½ pot" ? 0.5 : 1,
+        toCall: 40,
       }),
       { minRaiseTo: 80, maxRaiseTo, step: 20 },
     );

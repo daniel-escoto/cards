@@ -1680,6 +1680,7 @@ function renderBetPresets(hero, disabled, canFullRaise = true) {
           currentBet: state.currentBet,
           bigBlind: state.bigBlind,
           fraction: preset.fraction,
+          toCall: state.toCall || 0,
         }),
         bounds,
       );
