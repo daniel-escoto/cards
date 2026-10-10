@@ -1,5 +1,6 @@
 const js = require("@eslint/js");
 const globalsPkg = require("globals");
+const tseslint = require("typescript-eslint");
 
 const appClassicGlobals = {
   DECK_OPTIONS: "writable",
@@ -54,7 +55,11 @@ const appClassicGlobals = {
   clampRaise: "writable",
   clearRoomUrl: "writable",
   clientNow: "writable",
+  closeHostBtn: "writable",
+  closeHostMenuBtn: "writable",
   closeMenuBtn: "writable",
+  closeSettingsBtn: "writable",
+  closeSettingsMenuBtn: "writable",
   commitMenuDisplayName: "writable",
   commitReadyTimerCustom: "writable",
   commitShotClockCustom: "writable",
@@ -62,8 +67,10 @@ const appClassicGlobals = {
   compactPlayerAction: "writable",
   configureRaiseControls: "writable",
   confirmActionBtn: "writable",
+  copyIconResetTimer: "writable",
   copyShareBtn: "writable",
   copyText: "writable",
+  flashCopyIcon: "writable",
   currentTurnPlayer: "writable",
   deckChoices: "writable",
   deviceTheme: "writable",
@@ -135,8 +142,12 @@ const appClassicGlobals = {
   menuBigBlindInput: "writable",
   menuBigBlindLabel: "writable",
   menuBtn: "writable",
+  menuHostView: "writable",
+  menuMainView: "writable",
+  menuNameForm: "writable",
   menuPlayers: "writable",
   menuRoomCode: "writable",
+  menuSettingsView: "writable",
   menuRoomEyebrow: "writable",
   menuSmallBlindInput: "writable",
   menuSmallBlindLabel: "writable",
@@ -151,6 +162,9 @@ const appClassicGlobals = {
   nameInput: "writable",
   normalizedKey: "writable",
   noteServerBuildId: "writable",
+  openHostBtn: "writable",
+  openPlayerSheetId: "writable",
+  openSettingsBtn: "writable",
   params: "writable",
   pendingServerBuildId: "writable",
   playActionSound: "writable",
@@ -236,6 +250,9 @@ const appClassicGlobals = {
   shotClockCustomOpen: "writable",
   shotClockPanel: "writable",
   showGameMenu: "writable",
+  showMenuHostView: "writable",
+  showMenuMainView: "writable",
+  showMenuSettingsView: "writable",
   showScoreScreen: "writable",
   showSharePanel: "writable",
   showTable: "writable",
@@ -251,6 +268,8 @@ const appClassicGlobals = {
   streetActionEntries: "writable",
   syncBlindInputMode: "writable",
   syncCashInControls: "writable",
+  syncHostMenuSection: "writable",
+  syncMenuNameForm: "writable",
   syncLowTimeWarningEffects: "writable",
   syncReadyCountdown: "writable",
   syncReadyLowTimeWarningEffects: "writable",
@@ -279,19 +298,80 @@ const appClassicGlobals = {
   winnerList: "writable",
 };
 
-module.exports = [
+const browserModuleGlobals = {
+  ...globalsPkg.browser,
+  io: "readonly",
+  HoldemEngine: "readonly",
+  PracticeSession: "readonly",
+  DeployHandoff: "readonly",
+  RaiseSizing: "readonly",
+  CardArt: "readonly",
+  TurnClockWarning: "readonly",
+  ReadyClock: "readonly",
+  InviteUrl: "readonly",
+  TableSounds: "readonly",
+  HoldemFormat: "readonly",
+  HoldemKeybinds: "readonly",
+};
+
+module.exports = tseslint.config(
   {
     ignores: [
       "node_modules/**",
+      "dist/**",
       ".data/**",
-      "public/shared/**",
       "shared/pokersolver.js",
+      // Built separately via esbuild; excluded from tsconfig project service.
+      "shared/engine-browser.ts",
       "pr-screenshots/**",
       "public/app.js",
+      "scripts/**",
+      "**/*.js.map",
     ],
   },
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
   {
-    files: ["**/*.js"],
+    files: ["**/*.ts"],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: __dirname,
+      },
+    },
+    rules: {
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+      // Daniel's rule: no any — type-aware unsafe family as errors.
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/no-unsafe-assignment": "error",
+      "@typescript-eslint/no-unsafe-member-access": "error",
+      "@typescript-eslint/no-unsafe-call": "error",
+      "@typescript-eslint/no-unsafe-return": "error",
+      "@typescript-eslint/no-unsafe-argument": "error",
+      "@typescript-eslint/no-require-imports": "off",
+      "@typescript-eslint/ban-ts-comment": [
+        "error",
+        {
+          "ts-ignore": true,
+          "ts-expect-error": true,
+          "ts-nocheck": true,
+          "ts-check": false,
+        },
+      ],
+      "@typescript-eslint/no-empty-object-type": "off",
+    },
+  },
+  {
+    files: ["**/*.{js,mjs,cjs}"],
+    extends: [tseslint.configs.disableTypeChecked],
     languageOptions: {
       ecmaVersion: 2024,
       sourceType: "commonjs",
@@ -300,7 +380,14 @@ module.exports = [
       },
     },
     rules: {
-      ...js.configs.recommended.rules,
+      "@typescript-eslint/no-require-imports": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
       "no-unused-vars": [
         "error",
         {
@@ -312,65 +399,70 @@ module.exports = [
     },
   },
   {
-    files: ["public/**/*.js"],
+    files: ["public/**/*.ts"],
     languageOptions: {
       sourceType: "script",
-      globals: {
-        ...globalsPkg.browser,
-        io: "readonly",
-        HoldemEngine: "readonly",
-        PracticeSession: "readonly",
-        DeployHandoff: "readonly",
-        RaiseSizing: "readonly",
-        TurnClockWarning: "readonly",
-        ReadyClock: "readonly",
-        InviteUrl: "readonly",
-        TableSounds: "readonly",
-        HoldemFormat: "readonly",
-        HoldemKeybinds: "readonly",
-      },
+      globals: browserModuleGlobals,
     },
   },
   {
-    files: ["public/app-boot.js", "public/app-table.js", "public/app-events.js"],
+    files: ["public/app-boot.ts", "public/app-table.ts", "public/app-events.ts"],
     languageOptions: {
       sourceType: "script",
       globals: {
-        ...globalsPkg.browser,
-        io: "readonly",
-        HoldemEngine: "readonly",
-        PracticeSession: "readonly",
-        DeployHandoff: "readonly",
-        RaiseSizing: "readonly",
-        CardArt: "readonly",
-        TurnClockWarning: "readonly",
-        ReadyClock: "readonly",
-        InviteUrl: "readonly",
-        TableSounds: "readonly",
-        HoldemFormat: "readonly",
-        HoldemKeybinds: "readonly",
+        ...browserModuleGlobals,
         ...appClassicGlobals,
       },
     },
     rules: {
-      // Classic multi-file scripts share top-level var/function bindings across tags.
+      "no-var": "off",
       "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": "off",
       "no-redeclare": "off",
+      "@typescript-eslint/no-redeclare": "off",
     },
   },
   {
-    files: ["shared/engine.js"],
+    files: [
+      "public/practice.ts",
+      "public/raise-sizing.ts",
+      "public/deploy-handoff.ts",
+      "public/invite-url.ts",
+      "public/ready-clock.ts",
+      "public/turn-clock-warning.ts",
+      "public/card-art.ts",
+      "public/app-sounds.ts",
+      "public/app-format.ts",
+      "public/app-keybinds.ts",
+      "shared/create-holdem-engine.ts",
+      "shared/engine.ts",
+    ],
+    rules: {
+      "no-var": "off",
+    },
+  },
+  {
+    files: ["public/sw.ts"],
     languageOptions: {
       sourceType: "script",
       globals: {
-        ...globalsPkg.node,
-        ...globalsPkg.browser,
-        module: "writable",
-        exports: "writable",
-        require: "readonly",
-        Hand: "readonly",
-        PokerSolver: "readonly",
+        ...globalsPkg.serviceworker,
       },
     },
   },
-];
+  {
+    files: ["public/client-globals.d.ts"],
+    rules: {
+      "@typescript-eslint/no-unused-vars": "off",
+    },
+  },
+  {
+    files: ["tests/**/*.{js,ts}"],
+    languageOptions: {
+      sourceType: "commonjs",
+      globals: {
+        ...globalsPkg.node,
+      },
+    },
+  },
+);

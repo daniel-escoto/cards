@@ -2,14 +2,16 @@
   "name": "cards",
   "version": "1.0.0",
   "description": "holdem.nyc — private-room multiplayer Texas Hold'em.",
-  "main": "server.js",
+  "main": "dist/server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
+    "build": "node scripts/build.mjs",
+    "start": "node dist/server.js",
+    "dev": "npm run build && node --watch dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "node tests/run-all.js",
+    "test": "npm run build && node tests/run-all.js",
     "test:betting": "node tests/betting.js",
     "test:blinds": "node tests/blinds.js",
     "test:bots": "node tests/bots.js",
@@ -50,10 +52,18 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.5",
+    "@types/qrcode": "^1.5.6",
+    "@typescript-eslint/eslint-plugin": "^8.71.1",
+    "@typescript-eslint/parser": "^8.71.1",
+    "esbuild": "^0.28.2",
     "eslint": "^10.12.0",
     "globals": "^17.13.0",
     "jsdom": "^29.1.1",
     "prettier": "^3.9.10",
-    "socket.io-client": "^4.8.3"
+    "socket.io-client": "^4.8.3",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.1"
   }
 }

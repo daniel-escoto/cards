@@ -2,8 +2,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { JSDOM } = require("jsdom");
-const engine = require("../shared/engine");
-const { createPracticeSession } = require("../public/practice");
+const engine = require("../dist/shared/engine.node");
+const { createPracticeSession } = require("../dist/public/practice");
 
 // --- Server / engine name cleaning -------------------------------------------
 assert.equal(engine.cleanName("  Bobby  "), "Bobby");
@@ -33,7 +33,7 @@ assert.equal(engine.cleanName(null), "Player");
 // --- In-table Save button (DOM click / pointerdown, not Enter) ---------------
 function loadAppDom() {
   const html = fs
-    .readFileSync(path.join(__dirname, "../public/index.html"), "utf8")
+    .readFileSync(path.join(__dirname, "../dist/public/index.html"), "utf8")
     .replace(/<script src="[^"]+"><\/script>/g, "");
   const emits = [];
   const dom = new JSDOM(html, {
@@ -88,7 +88,7 @@ function loadAppDom() {
   ];
   for (const file of clientScripts) {
     const script = dom.window.document.createElement("script");
-    script.textContent = fs.readFileSync(path.join(__dirname, "../public", file), "utf8");
+    script.textContent = fs.readFileSync(path.join(__dirname, "../dist/public", file), "utf8");
     dom.window.document.body.appendChild(script);
   }
   return { window: dom.window, document: dom.window.document, emits };
@@ -199,7 +199,7 @@ function mountNameForm(document, name = "Alice") {
 // --- Online broadcast: peers see the renamed player ---------------------------
 (async () => {
   const { io } = require("socket.io-client");
-  const { server, rooms } = require("../server");
+  const { server, rooms } = require("../dist/server");
 
   await new Promise((resolve) => server.listen(0, resolve));
   const { port } = server.address();

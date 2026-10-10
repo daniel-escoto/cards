@@ -7,7 +7,7 @@ const {
   resetLowTimeSession,
   consumeLowTimeTick,
   consumeDeadlineTimeout,
-} = require("../public/turn-clock-warning");
+} = require("../dist/public/turn-clock-warning");
 
 const ENDS = 1_000_000;
 

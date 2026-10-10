@@ -1,10 +1,10 @@
 const assert = require("node:assert/strict");
-const engine = require("../shared/engine");
+const engine = require("../dist/shared/engine.node");
 const {
   canHandoffToOffline,
   createPracticeSession,
   createPracticeSessionFromSnapshot,
-} = require("../public/practice");
+} = require("../dist/public/practice");
 
 engine.setRandomInt((_max) => 0);
 

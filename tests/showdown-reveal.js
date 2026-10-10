@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
-const engine = require("../shared/engine");
-const { serializeRoom: serializeRoomServer } = require("../server");
+const engine = require("../dist/shared/engine.node");
+const { serializeRoom: serializeRoomServer } = require("../dist/server");
 
 engine.setRandomInt(() => 0);
 

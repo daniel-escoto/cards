@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
-const engine = require("../shared/engine");
-const { createPracticeSession } = require("../public/practice");
+const engine = require("../dist/shared/engine.node");
+const { createPracticeSession } = require("../dist/public/practice");
 
 engine.setRandomInt((_max) => 0);
 

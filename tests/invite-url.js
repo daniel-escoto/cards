@@ -3,7 +3,7 @@ const {
   CANONICAL_ORIGIN,
   isProductionInviteHost,
   canonicalInviteUrl,
-} = require("../public/invite-url");
+} = require("../dist/public/invite-url");
 
 assert.equal(CANONICAL_ORIGIN, "https://holdem.nyc");
 

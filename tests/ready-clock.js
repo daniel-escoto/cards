@@ -4,7 +4,7 @@ const {
   seatShowsReadyClock,
   readySecondsRemaining,
   readyPctRemaining,
-} = require("../public/ready-clock");
+} = require("../dist/public/ready-clock");
 
 assert.equal(readyPhaseActive("lobby"), true);
 assert.equal(readyPhaseActive("complete"), true);

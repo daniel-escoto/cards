@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const { legalRaiseTo, potPresetRaiseTo, clampRaiseTo } = require("../public/raise-sizing.js");
+const { legalRaiseTo, potPresetRaiseTo, clampRaiseTo } = require("../dist/public/raise-sizing.js");
 
 function serverAccepts(raiseTo, { currentBet, minRaise, playerBet, playerStack }) {
   const target = Math.floor(Number(raiseTo));

@@ -13,7 +13,7 @@ try {
   // ignore
 }
 
-const { createMemoryRedisBacking, createMemoryStateStore } = require("../state-store");
+const { createMemoryRedisBacking, createMemoryStateStore } = require("../dist/state-store");
 const {
   DEPLOY_HAND_WAIT_MS,
   DEPLOY_HANDOFF_POLL_MS,
@@ -43,7 +43,7 @@ const {
   tryStartReadyHand,
   usingRedis,
   waitForHandsToFinish,
-} = require("../server");
+} = require("../dist/server");
 
 assert.equal(STATE_FILE, STATE_PATH);
 assert.equal(DEPLOY_HAND_WAIT_MS, 25000);

@@ -45,7 +45,7 @@ function identity(p) {
       // ignore
     }
     process.env.GAME_STATE_FILE = statePath;
-    const { server, io, markStateRestored, markServerListening } = require("../server");
+    const { server, io, markStateRestored, markServerListening } = require("../dist/server");
     markStateRestored(true);
     await new Promise((resolve) => server.listen(0, resolve));
     markServerListening(true);

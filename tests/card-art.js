@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const CardArt = require("../public/card-art");
+const CardArt = require("../dist/public/card-art");
 
 const expectedLayouts = {
   2: [
