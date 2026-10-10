@@ -1,7 +1,7 @@
 /* Minimal app-shell cache for offline bot-only Host. Online multiplayer still needs network. */
 /* CACHE_VERSION is replaced by the server with the deploy build id when served. */
 const CACHE_VERSION = "__BUILD_ID__";
-const CACHE_NAME = `cards-shell-${CACHE_VERSION}`;
+const CACHE_NAME = `holdem-nyc-shell-${CACHE_VERSION}`;
 const APP_SHELL = [
   "/",
   "/index.html",

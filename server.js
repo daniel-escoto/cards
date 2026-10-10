@@ -2290,7 +2290,7 @@ if (require.main === module) {
   process.once("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
   server.listen(PORT, () => {
-    console.log(`Texas Hold'em server listening on http://localhost:${PORT} (build ${BUILD_ID})`);
+    console.log(`holdem.nyc listening on http://localhost:${PORT} (build ${BUILD_ID})`);
   });
 }
 
