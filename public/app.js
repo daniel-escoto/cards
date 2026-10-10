@@ -60,6 +60,14 @@ const menuSmallBlindLabel = document.querySelector("#menuSmallBlindLabel");
 const menuBigBlindLabel = document.querySelector("#menuBigBlindLabel");
 const menuSmallBlindInput = document.querySelector("#menuSmallBlindInput");
 const menuBigBlindInput = document.querySelector("#menuBigBlindInput");
+const shotClockPanel = document.querySelector("#shotClockPanel");
+const shotClockChoices = document.querySelector("#shotClockChoices");
+const SHOT_CLOCK_CHOICES = [
+  { seconds: 15, label: "15s" },
+  { seconds: 30, label: "30s" },
+  { seconds: 60, label: "60s" },
+  { seconds: 0, label: "Off" },
+];
 const cashInInput = document.querySelector("#cashInInput");
 const cashInBtn = document.querySelector("#cashInBtn");
 const cashOutBtn = document.querySelector("#cashOutBtn");
@@ -350,6 +358,7 @@ renderKeybinds();
 
 let state = null;
 let practiceSession = null;
+let turnCountdownTimer = null;
 let raiseState = { value: 0, min: 0, max: 0, step: 20 };
 let raiseControlsDisabled = false;
 /**
@@ -903,6 +912,7 @@ function showGameMenu() {
     menuSmallBlindInput.step = moneyMode ? "0.01" : "1";
     menuBigBlindInput.step = moneyMode ? "0.01" : "1";
   }
+  renderShotClockChoices();
   if (state?.moneyMode) cashInInput.value = (state.buyInCents / 100).toFixed(0);
   syncCashInControls();
   clearInterval(menuTimer);
@@ -1093,6 +1103,63 @@ function streetActionEntries(actionLog, phase) {
   return (actionLog || []).filter((entry) => entry.phase === phase);
 }
 
+function renderShotClockChoices() {
+  if (!shotClockPanel || !shotClockChoices) return;
+  const canEdit = Boolean(state?.canChangeShotClock) && !isOfflineSession();
+  shotClockPanel.classList.toggle("hidden", !canEdit);
+  if (!canEdit) return;
+  const selected = Math.floor(Number(state?.turnTimeLimitMs) / 1000);
+  const activeSeconds = SHOT_CLOCK_CHOICES.some((item) => item.seconds === selected) ? selected : 30;
+  shotClockChoices.innerHTML = SHOT_CLOCK_CHOICES.map((item) => `
+    <button
+      type="button"
+      class="appearance-choice${item.seconds === activeSeconds ? " selected" : ""}"
+      data-shot-clock="${item.seconds}"
+      aria-pressed="${item.seconds === activeSeconds ? "true" : "false"}"
+    >${item.label}</button>
+  `).join("");
+}
+
+function turnSecondsRemaining() {
+  if (!state?.turnEndsAt || !state?.turnTimeLimitMs || !isBettingPhase(state.phase) || !state.turn) return 0;
+  return Math.max(0, Math.ceil((state.turnEndsAt - Date.now()) / 1000));
+}
+
+function turnPctRemaining() {
+  const limit = Number(state?.turnTimeLimitMs) || 0;
+  if (!limit || !state?.turnEndsAt) return 0;
+  return Math.max(0, Math.min(1, (state.turnEndsAt - Date.now()) / limit));
+}
+
+function actingSeatShowsClock(player) {
+  return Boolean(
+    player
+    && !player.isBot
+    && state?.turnEndsAt
+    && state?.turnTimeLimitMs
+    && isBettingPhase(state.phase)
+    && player.id === state.turn,
+  );
+}
+
+function syncTurnCountdown() {
+  clearInterval(turnCountdownTimer);
+  turnCountdownTimer = null;
+  if (!state?.turnEndsAt || !state?.turnTimeLimitMs || !isBettingPhase(state.phase) || !state.turn) return;
+  const tick = () => {
+    const seconds = turnSecondsRemaining();
+    const pct = turnPctRemaining();
+    document.querySelectorAll("[data-turn-seat-clock]").forEach((row) => {
+      row.style.setProperty("--turn-pct", String(pct));
+      const label = row.querySelector("[data-turn-countdown]");
+      if (label) label.textContent = `${seconds}`;
+    });
+    if (seconds <= 0) clearInterval(turnCountdownTimer);
+  };
+  tick();
+  turnCountdownTimer = setInterval(tick, 200);
+}
+
 function renderActionFeed(newEntryId = "") {
   const entries = streetActionEntries(state.actionLog, state.phase);
   const activePlayer = currentTurnPlayer();
@@ -1111,12 +1178,25 @@ function renderActionFeed(newEntryId = "") {
     const action = showStreetAction
       ? compactPlayerAction(entry, player)
       : playerTableStatus(player, isActing);
+    const showClock = isActing && actingSeatShowsClock(player);
+    const seconds = showClock ? turnSecondsRemaining() : 0;
+    const pct = showClock ? turnPctRemaining() : 0;
+    const styleVars = [
+      player?.color ? `--player-color: ${escapeHtml(player.color)}` : "",
+      showClock ? `--turn-pct: ${pct}` : "",
+    ].filter(Boolean).join("; ");
+    const styleAttr = styleVars ? ` style="${styleVars}"` : "";
+    const clockMarkup = showClock
+      ? `<span class="turn-clock" data-turn-countdown aria-label="${seconds} seconds left">${seconds}</span>`
+      : "";
+    const barMarkup = showClock ? `<span class="turn-clock-bar" aria-hidden="true"><i></i></span>` : "";
     return `
-      <article class="table-player-row ${isActing ? "turn" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}" ${playerColorStyle(player)}>
-        <i class="player-dot" aria-hidden="true"></i>
+      <article class="table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${showClock ? ' data-turn-seat-clock="1"' : ""}${styleAttr}>
+        <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
-        <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}</span>
+        <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}${clockMarkup}</span>
         <strong class="player-stack">${playerStackLabel(player)}</strong>
+        ${barMarkup}
       </article>
     `;
   }).join("");
@@ -1234,9 +1314,11 @@ function render() {
   }
 
   renderControls(hero);
+  syncTurnCountdown();
   if (!gameMenuModal.classList.contains("hidden")) {
     renderMenuPlayers();
     addBotBtn.classList.toggle("hidden", !state?.canAddBot);
+    renderShotClockChoices();
     const menuHero = activeHero();
     sitOutBtn.classList.toggle("hidden", !menuHero || state?.phase === "gameover");
     if (menuHero) sitOutBtn.textContent = menuHero.sittingOut ? "I’m back" : "Sit out next hand";
@@ -1805,6 +1887,12 @@ gameMenuModal.addEventListener("click", (event) => {
   if (deckButton) {
     applyTableAppearance(document.documentElement.dataset.felt, deckButton.dataset.deck, true);
     showToast(`${deckButton.textContent.trim()} deck selected`);
+    return;
+  }
+  const shotClockButton = event.target.closest("button[data-shot-clock]");
+  if (shotClockButton) {
+    const seconds = Math.floor(Number(shotClockButton.dataset.shotClock));
+    emitWithAck("game:setShotClock", { seconds });
     return;
   }
   const hostButton = event.target.closest("[data-make-host]");
