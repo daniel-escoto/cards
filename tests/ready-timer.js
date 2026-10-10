@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const engine = require("../shared/engine");
+const engine = require("../dist/shared/engine");
 const {
   READY_TIMER_DEFAULT_MS,
   READY_TIMER_MAX_MS,
@@ -20,7 +20,7 @@ const {
   setRoomReadyTimer,
   setRoomShotClock,
   setShotClockTime,
-} = require("../server");
+} = require("../dist/server");
 
 engine.setRandomInt(() => 0);
 

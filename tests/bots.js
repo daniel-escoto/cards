@@ -8,7 +8,7 @@ const {
   estimatePreflopEquityAgainstRange,
   preflopBlindRaiseChance,
   preflopShoveRange,
-} = require("../shared/engine");
+} = require("../dist/shared/engine");
 
 function seededRandom(seed = 1) {
   let value = seed >>> 0;

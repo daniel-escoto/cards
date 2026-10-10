@@ -1,10 +1,10 @@
 const { io } = require("socket.io-client");
 
-const URL = process.env.SMOKE_URL || "http://localhost:3000";
+const SMOKE_URL = process.env.SMOKE_URL || "http://localhost:3000";
 const reconnectCredentials = new Map();
 
 function connectPlayer(name) {
-  const socket = io(URL, { transports: ["websocket"], forceNew: true });
+  const socket = io(SMOKE_URL, { transports: ["websocket"], forceNew: true });
   let state = null;
   let kicked = false;
   socket.on("room:update", (next) => {
@@ -106,7 +106,7 @@ async function readyUp(players) {
     deviceId: alice.deviceId,
   });
   const qrResponse = await fetch(
-    `${URL}/qr.svg?text=${encodeURIComponent(`${URL}/?room=${created.roomId}`)}`,
+    `${SMOKE_URL}/qr.svg?text=${encodeURIComponent(`${SMOKE_URL}/?room=${created.roomId}`)}`,
   );
   if (!qrResponse.ok || !(await qrResponse.text()).includes("<svg")) {
     throw new Error("Expected QR endpoint to return SVG");

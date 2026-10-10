@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { shouldReloadForNewBuild, isActiveHandPhase } = require("../public/deploy-handoff");
+const { shouldReloadForNewBuild, isActiveHandPhase } = require("../dist/public/deploy-handoff");
 
 const STATE_PATH = path.join(os.tmpdir(), `cards-graceful-deploy-${process.pid}.json`);
 process.env.GAME_STATE_FILE = STATE_PATH;
@@ -35,7 +35,7 @@ const {
   serializeRoom,
   server,
   setShotClockTime,
-} = require("../server");
+} = require("../dist/server");
 const { io: clientIo } = require("socket.io-client");
 
 assert.equal(STATE_FILE, STATE_PATH);

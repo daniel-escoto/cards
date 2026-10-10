@@ -1,5 +1,5 @@
 const assert = require("assert");
-const { BLIND_LEVELS, blindLevelForHand } = require("../shared/engine");
+const { BLIND_LEVELS, blindLevelForHand } = require("../dist/shared/engine");
 
 const expected = [
   [1, 10, 20],

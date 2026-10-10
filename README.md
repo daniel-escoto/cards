@@ -19,26 +19,44 @@ Private-room Texas Hold'em for the city. Host a table, share a code, play with f
 
 ```bash
 npm install
+npm run build
 npm start
 ```
+
+`npm run build` compiles TypeScript with `tsc` into `dist/` (server, shared engine, and browser classic scripts) and copies static assets (`index.html`, CSS, PWA files, vendored `pokersolver.js`). `npm start` runs `node dist/server.js`. For a one-shot rebuild then watch the compiled server: `npm run dev`.
 
 Open `http://localhost:3000`.
 
 **Host:** name, blinds, money mode. With a connection, chip Host creates an online room (friends join with the code; add bots in-table). Without a connection, chip Host starts a local offline table — add bots with **+ Add CPU player**, then ready up. Money mode always needs the server. **Join** is online rooms only.
 
+## TypeScript layout
+
+- `server/` + `server.ts` + `state-store.ts` — Node server (compiled to `dist/`)
+- `shared/` — pure engine + types (UMD engine for Node and browser); `pokersolver.js` stays vendored JS with `pokersolver.d.ts`
+- `public/*.ts` — classic browser scripts and UMD helpers (emitted to `dist/public/*.js`)
+- Shared domain and Socket.IO event types live in `shared/types.ts`
+
+Railway / Railpack runs `npm run build` when present, then `npm start`. Healthcheck stays `/healthz`.
+
 ## Tests and lint
 
 ```bash
-npm test          # all tests/*.js except smoke (includes money-join)
-npm run lint      # ESLint flat config
-npm run format    # Prettier
+npm run build       # required before individual test:* scripts
+npm test            # builds, then runs all tests/*.js except smoke
+npm run typecheck   # tsc --noEmit (strict)
+npm run lint        # ESLint flat config (JS + TS)
+npm run format      # Prettier
 ```
+
+Tests load the compiled modules under `dist/` (same as production).
 
 ## Smoke test
 
-Start the server, then run:
+Build and start the server, then run:
 
 ```bash
+npm run build && npm start
+# in another shell:
 npm run smoke
 ```
 

@@ -7,3 +7,4 @@ pr-screenshots
 *.png
 *.webp
 *.svg
+dist/

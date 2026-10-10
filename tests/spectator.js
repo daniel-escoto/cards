@@ -5,7 +5,7 @@ process.env.BACKGROUND_DISCONNECT_GRACE_MS = "50";
 
 const assert = require("node:assert/strict");
 const { io } = require("socket.io-client");
-const engine = require("../shared/engine");
+const engine = require("../dist/shared/engine");
 const {
   applyReadyTimeout,
   clearReadyTimer,
@@ -15,7 +15,7 @@ const {
   serializeRoom,
   serializeRoomForStorage,
   server,
-} = require("../server");
+} = require("../dist/server");
 
 engine.setRandomInt(() => 0);
 

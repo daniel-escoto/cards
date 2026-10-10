@@ -12,7 +12,7 @@ const {
   scheduleDormantRoomCleanup,
   serializeRoom,
   serializeRoomForStorage,
-} = require("../server");
+} = require("../dist/server");
 
 function makeMoneyPlayer(overrides = {}) {
   return {
@@ -256,7 +256,7 @@ clearRooms();
   // Anyone with the room code can reopen settle-up after the table empties.
   {
     const { io: clientIo } = require("socket.io-client");
-    const { server } = require("../server");
+    const { server } = require("../dist/server");
     await new Promise((resolve) => server.listen(0, resolve));
     const { port } = server.address();
 

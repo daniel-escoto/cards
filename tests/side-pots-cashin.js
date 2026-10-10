@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
-const { buildSidePots, cashInPlayer, playerCanCashIn } = require("../server");
-const { buildSidePots: buildSidePotsShared } = require("../shared/engine");
+const { buildSidePots, cashInPlayer, playerCanCashIn } = require("../dist/server");
+const { buildSidePots: buildSidePotsShared } = require("../dist/shared/engine");
 
 assert.equal(buildSidePots, buildSidePotsShared, "server should re-export shared buildSidePots");
 

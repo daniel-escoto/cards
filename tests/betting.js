@@ -1,5 +1,5 @@
 const assert = require("node:assert");
-const { bettingComplete } = require("../shared/engine");
+const { bettingComplete } = require("../dist/shared/engine");
 
 function player({ bet = 0, stack = 100, folded = false, allIn = false } = {}) {
   return { id: Math.random().toString(), bet, stack, folded, allIn };

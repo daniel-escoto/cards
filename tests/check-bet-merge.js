@@ -5,7 +5,7 @@ const {
   clampRaiseTo,
   nudgeRaiseTo,
   legalRaiseTo,
-} = require("../public/raise-sizing.js");
+} = require("../dist/public/raise-sizing.js");
 
 const postflop = {
   minRaiseTo: 20,

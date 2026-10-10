@@ -1,7 +1,7 @@
 const assert = require("node:assert/strict");
-const engine = require("../shared/engine");
-const { createPracticeSessionFromSnapshot } = require("../public/practice");
-const { restoreRoom, serializeRoom, serializeRoomForStorage } = require("../server");
+const engine = require("../dist/shared/engine");
+const { createPracticeSessionFromSnapshot } = require("../dist/public/practice");
+const { restoreRoom, serializeRoom, serializeRoomForStorage } = require("../dist/server");
 
 engine.setRandomInt(() => 0);
 

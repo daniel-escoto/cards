@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const { legalRaiseTo, potPresetRaiseTo } = require("../public/raise-sizing.js");
+const { legalRaiseTo, potPresetRaiseTo } = require("../dist/public/raise-sizing.js");
 
 /**
  * Mirrors public/app.js renderBetPresets selection rules:

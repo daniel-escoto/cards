@@ -1,5 +1,6 @@
 const js = require("@eslint/js");
 const globalsPkg = require("globals");
+const tseslint = require("typescript-eslint");
 
 const appClassicGlobals = {
   DECK_OPTIONS: "writable",
@@ -279,19 +280,41 @@ const appClassicGlobals = {
   winnerList: "writable",
 };
 
+const browserModuleGlobals = {
+  ...globalsPkg.browser,
+  io: "readonly",
+  HoldemEngine: "readonly",
+  PracticeSession: "readonly",
+  DeployHandoff: "readonly",
+  RaiseSizing: "readonly",
+  CardArt: "readonly",
+  TurnClockWarning: "readonly",
+  ReadyClock: "readonly",
+  InviteUrl: "readonly",
+  TableSounds: "readonly",
+  HoldemFormat: "readonly",
+  HoldemKeybinds: "readonly",
+};
+
 module.exports = [
   {
     ignores: [
       "node_modules/**",
+      "dist/**",
       ".data/**",
-      "public/shared/**",
       "shared/pokersolver.js",
       "pr-screenshots/**",
       "public/app.js",
+      "public/client-globals.d.ts",
+      "scripts/annotate-implicit-any.mjs",
+      "scripts/convert-js-to-ts.mjs",
+      "**/*.js.map",
     ],
   },
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
   {
-    files: ["**/*.js"],
+    files: ["**/*.{js,mjs,cjs,ts}"],
     languageOptions: {
       ecmaVersion: 2024,
       sourceType: "commonjs",
@@ -300,8 +323,8 @@ module.exports = [
       },
     },
     rules: {
-      ...js.configs.recommended.rules,
-      "no-unused-vars": [
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": [
         "error",
         {
           argsIgnorePattern: "^_",
@@ -309,57 +332,70 @@ module.exports = [
           caughtErrorsIgnorePattern: "^_",
         },
       ],
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-require-imports": "off",
+      "@typescript-eslint/ban-ts-comment": [
+        "error",
+        { "ts-ignore": true, "ts-expect-error": "allow-with-description" },
+      ],
+      "@typescript-eslint/no-empty-object-type": "off",
     },
   },
   {
-    files: ["public/**/*.js"],
+    files: ["public/**/*.{js,ts}"],
     languageOptions: {
       sourceType: "script",
-      globals: {
-        ...globalsPkg.browser,
-        io: "readonly",
-        HoldemEngine: "readonly",
-        PracticeSession: "readonly",
-        DeployHandoff: "readonly",
-        RaiseSizing: "readonly",
-        TurnClockWarning: "readonly",
-        ReadyClock: "readonly",
-        InviteUrl: "readonly",
-        TableSounds: "readonly",
-        HoldemFormat: "readonly",
-        HoldemKeybinds: "readonly",
-      },
+      globals: browserModuleGlobals,
     },
   },
   {
-    files: ["public/app-boot.js", "public/app-table.js", "public/app-events.js"],
+    files: ["public/app-boot.{js,ts}", "public/app-table.{js,ts}", "public/app-events.{js,ts}"],
     languageOptions: {
       sourceType: "script",
       globals: {
-        ...globalsPkg.browser,
-        io: "readonly",
-        HoldemEngine: "readonly",
-        PracticeSession: "readonly",
-        DeployHandoff: "readonly",
-        RaiseSizing: "readonly",
-        CardArt: "readonly",
-        TurnClockWarning: "readonly",
-        ReadyClock: "readonly",
-        InviteUrl: "readonly",
-        TableSounds: "readonly",
-        HoldemFormat: "readonly",
-        HoldemKeybinds: "readonly",
+        ...browserModuleGlobals,
         ...appClassicGlobals,
       },
     },
     rules: {
       // Classic multi-file scripts share top-level var/function bindings across tags.
+      "no-var": "off",
       "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": "off",
       "no-redeclare": "off",
+      "@typescript-eslint/no-redeclare": "off",
     },
   },
   {
-    files: ["shared/engine.js"],
+    // UMD / classic helpers may use var in factory wrappers; keep behavior identical.
+    files: [
+      "public/practice.{js,ts}",
+      "public/raise-sizing.{js,ts}",
+      "public/deploy-handoff.{js,ts}",
+      "public/invite-url.{js,ts}",
+      "public/ready-clock.{js,ts}",
+      "public/turn-clock-warning.{js,ts}",
+      "public/card-art.{js,ts}",
+      "public/app-sounds.{js,ts}",
+      "public/app-format.{js,ts}",
+      "public/app-keybinds.{js,ts}",
+      "shared/engine.{js,ts}",
+    ],
+    rules: {
+      "no-var": "off",
+    },
+  },
+  {
+    files: ["public/sw.{js,ts}"],
+    languageOptions: {
+      sourceType: "script",
+      globals: {
+        ...globalsPkg.serviceworker,
+      },
+    },
+  },
+  {
+    files: ["shared/engine.{js,ts}"],
     languageOptions: {
       sourceType: "script",
       globals: {
@@ -370,6 +406,15 @@ module.exports = [
         require: "readonly",
         Hand: "readonly",
         PokerSolver: "readonly",
+      },
+    },
+  },
+  {
+    files: ["tests/**/*.{js,ts}"],
+    languageOptions: {
+      sourceType: "commonjs",
+      globals: {
+        ...globalsPkg.node,
       },
     },
   },

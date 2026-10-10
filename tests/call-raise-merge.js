@@ -6,7 +6,7 @@ const {
   nudgeRaiseTo,
   legalRaiseTo,
   usesPassiveDetent,
-} = require("../public/raise-sizing.js");
+} = require("../dist/public/raise-sizing.js");
 
 // Facing a 40 bet; min raise-to is 80 (raise by 40).
 const facingBet = {

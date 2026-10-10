@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const engine = require("../shared/engine");
+const engine = require("../dist/shared/engine");
 const {
   SHOT_CLOCK_DEFAULT_MS,
   SHOT_CLOCK_MAX_MS,
@@ -17,7 +17,7 @@ const {
   serializeRoomForStorage,
   setRoomShotClock,
   setShotClockTime,
-} = require("../server");
+} = require("../dist/server");
 
 engine.setRandomInt(() => 0);
 
