@@ -268,7 +268,7 @@ function attemptAutoRejoin() {
         deviceId: credentials?.playerId || getDeviceId(),
         reconnectToken: credentials?.reconnectToken,
       },
-      (response?: { ok?: boolean; error?: string; roomId?: string; spectator?: boolean; playerId?: string; reconnectToken?: string }) => {
+      ((response?: RoomJoinAck | RoomWatchAck) => {
         if (!response?.ok) {
           lastAutoRejoinKey = "";
           joinError.textContent = response?.error || "Could not rejoin table.";
@@ -276,10 +276,10 @@ function attemptAutoRejoin() {
         }
         saveRoomCredentials(response.roomId || roomId, {
           ...response,
-          spectator: asSpectator || Boolean(response.spectator),
+          spectator: asSpectator || Boolean("spectator" in response && response.spectator),
         });
         setRoomUrl(response.roomId || roomId);
-      },
+      }) satisfies (response?: RoomJoinAck | RoomWatchAck) => void,
     );
   }
 }
@@ -290,11 +290,11 @@ function autoJoinInitialRoom() {
   joinOrCreate("join");
 }
 
-socket?.on("server:hello", ({ buildId } = {}) => {
+socket?.on("server:hello", ({ buildId }: { buildId?: string } = {}) => {
   noteServerBuildId(buildId, state?.phase);
 });
 
-socket?.on("server:deploy-waiting", ({ message } = {}) => {
+socket?.on("server:deploy-waiting", ({ message }: { message?: string } = {}) => {
   expectingServerRestart = true;
   setReconnectBanner(true, message || "Updating after this hand");
 });

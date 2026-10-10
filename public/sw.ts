@@ -21,7 +21,28 @@ type SwFetchEvent = SwExtendableEvent & {
   respondWith(response: Response | Promise<Response>): void;
 };
 
-const sw = self as unknown as SwScope;
+function isSwScope(value: unknown): value is SwScope {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as {
+    skipWaiting?: unknown;
+    clients?: unknown;
+    location?: unknown;
+    addEventListener?: unknown;
+  };
+  if (typeof candidate.skipWaiting !== "function") return false;
+  if (typeof candidate.addEventListener !== "function") return false;
+  if (typeof candidate.clients !== "object" || candidate.clients === null) return false;
+  if (typeof (candidate.clients as { claim?: unknown }).claim !== "function") return false;
+  if (typeof candidate.location !== "object" || candidate.location === null) return false;
+  if (typeof (candidate.location as { origin?: unknown }).origin !== "string") return false;
+  return true;
+}
+
+const swSelf: unknown = self;
+if (!isSwScope(swSelf)) {
+  throw new Error("Service worker global scope unavailable");
+}
+const sw = swSelf;
 
 const CACHE_VERSION = "__BUILD_ID__";
 /** Bump when the app-shell file set changes so clients drop stale precaches. */

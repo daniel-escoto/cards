@@ -12,19 +12,35 @@ declare global {
   type ClientPlayer = import("../shared/types").ClientPlayer;
   type ClientWinnerSummary = import("../shared/types").ClientWinnerSummary;
   type MoneyTerms = import("../shared/types").MoneyTerms;
+  type OkAck = import("../shared/types").OkAck;
+  type ErrAck = import("../shared/types").ErrAck;
+  type RoomCreateAck = import("../shared/types").RoomCreateAck;
+  type RoomJoinAck = import("../shared/types").RoomJoinAck;
+  type RoomWatchAck = import("../shared/types").RoomWatchAck;
+  type RoomTakeSeatAck = import("../shared/types").RoomTakeSeatAck;
+
+  /** Socket.IO timeout() ack: first arg is timeout/transport error, second is server ack. */
+  type SocketTimeoutAck<T> = (error: Error | null, response?: T) => void;
+
+  /**
+   * Bivariant listener slot so call sites can narrow event payloads.
+   * Strict function types would otherwise reject `(room: ClientRoom) => void`
+   * against `(...args: unknown[]) => void`.
+   */
+  type SocketHandler = { bivarianceHack(...args: unknown[]): void }["bivarianceHack"];
 
   // —— Socket.IO browser build (script tag) ——
   interface SocketLike {
     connected: boolean;
     id?: string;
-    on(event: string, handler: (...args: any[]) => void): SocketLike;
-    once(event: string, handler: (...args: any[]) => void): SocketLike;
-    off(event: string, handler?: (...args: any[]) => void): SocketLike;
-    emit(event: string, ...args: any[]): SocketLike;
+    on(event: string, handler: SocketHandler): SocketLike;
+    once(event: string, handler: SocketHandler): SocketLike;
+    off(event: string, handler?: SocketHandler): SocketLike;
+    emit(event: string, ...args: unknown[]): SocketLike;
     timeout(ms: number): SocketLike;
     disconnect(): SocketLike;
     connect(): SocketLike;
-    io?: { on(event: string, handler: (...args: any[]) => void): unknown };
+    io?: { on(event: string, handler: SocketHandler): unknown };
   }
 
   interface IoOptions {
@@ -656,7 +672,7 @@ declare global {
   function emitWithAck(
     eventName: string,
     payload?: Record<string, unknown>,
-  ): Promise<{ ok?: boolean; error?: string; [key: string]: unknown }>;
+  ): void;
   function startOfflineHost(): void;
   function joinOrCreate(mode: string): void;
   function watchRoom(): void;

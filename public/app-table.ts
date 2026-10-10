@@ -526,18 +526,22 @@ function emitWithAck(eventName: string, payload?: Record<string, unknown>) {
     joinError.textContent = "Connecting...";
     return;
   }
-  socket.timeout(4000).emit(eventName, payload, (error: Error | null, response?: { ok?: boolean; error?: string }) => {
-    if (error) {
-      joinError.textContent = "Reconnecting to the table...";
-      lastAutoRejoinKey = "";
-      attemptAutoRejoin();
-      return;
-    }
-    if (!response?.ok) {
-      joinError.textContent = response?.error || "Action failed.";
-      return;
-    }
-  });
+  socket.timeout(4000).emit(
+    eventName,
+    payload,
+    ((error: Error | null, response?: OkAck | ErrAck) => {
+      if (error) {
+        joinError.textContent = "Reconnecting to the table...";
+        lastAutoRejoinKey = "";
+        attemptAutoRejoin();
+        return;
+      }
+      if (!response?.ok) {
+        joinError.textContent = response?.error || "Action failed.";
+        return;
+      }
+    }) satisfies SocketTimeoutAck<OkAck | ErrAck>,
+  );
 }
 
 function startOfflineHost() {
@@ -618,37 +622,41 @@ function joinOrCreate(mode: string) {
   watchOfferPending = false;
   tableActionBtn.textContent = mode === "join" ? "Joining..." : "Hosting...";
   updateTableActionLabel();
-  socket.timeout(4000).emit(eventName, payload, (error: Error | null, response?: any) => {
-    joinPending = false;
-    updateTableActionLabel();
-    if (error) {
-      joinError.textContent = "Still connecting. Try again.";
-      return;
-    }
-    if (!response?.ok) {
-      if (response?.moneyTerms) {
-        acceptedMoneyTerms = response.moneyTerms;
-        const terms = acceptedMoneyTerms!;
-        joinPreview.textContent = `Money game · Buy-in ${formatMoney(terms.buyInCents)} · Blinds ${formatMoney(terms.smallBlindCents)}/${formatMoney(terms.bigBlindCents)}. You’ll play on the next deal. Payments happen separately after the game.`;
-        joinError.textContent = "";
-        updateTableActionLabel();
+  socket.timeout(4000).emit(
+    eventName,
+    payload,
+    ((error: Error | null, response?: RoomCreateAck | RoomJoinAck) => {
+      joinPending = false;
+      updateTableActionLabel();
+      if (error) {
+        joinError.textContent = "Still connecting. Try again.";
         return;
       }
-      if (response?.canWatch) {
-        watchOfferPending = true;
-        joinError.textContent = response.error || "Table is full — you can watch instead.";
-        updateTableActionLabel();
+      if (!response?.ok) {
+        if (response && "moneyTerms" in response) {
+          acceptedMoneyTerms = response.moneyTerms;
+          const terms = acceptedMoneyTerms;
+          joinPreview.textContent = `Money game · Buy-in ${formatMoney(terms.buyInCents)} · Blinds ${formatMoney(terms.smallBlindCents)}/${formatMoney(terms.bigBlindCents)}. You’ll play on the next deal. Payments happen separately after the game.`;
+          joinError.textContent = "";
+          updateTableActionLabel();
+          return;
+        }
+        if (response && "canWatch" in response && response.canWatch) {
+          watchOfferPending = true;
+          joinError.textContent = response.error || "Table is full — you can watch instead.";
+          updateTableActionLabel();
+          return;
+        }
+        joinError.textContent = response?.error || "Could not join table.";
         return;
       }
-      joinError.textContent = response?.error || "Could not join table.";
-      return;
-    }
-    acceptedMoneyTerms = null;
-    watchOfferPending = false;
-    lastAutoRejoinKey = `${socket!.id}:${response.roomId || roomId}`;
-    saveRoomCredentials(response.roomId || roomId, response);
-    setRoomUrl(response.roomId || roomId);
-  });
+      acceptedMoneyTerms = null;
+      watchOfferPending = false;
+      lastAutoRejoinKey = `${socket!.id}:${response.roomId || roomId}`;
+      saveRoomCredentials(response.roomId || roomId, response);
+      setRoomUrl(response.roomId || roomId);
+    }) satisfies SocketTimeoutAck<RoomCreateAck | RoomJoinAck>,
+  );
 }
 
 function watchRoom() {
@@ -687,7 +695,7 @@ function watchRoom() {
       deviceId: credentials?.playerId || getDeviceId(),
       reconnectToken: credentials?.reconnectToken,
     },
-    (error: Error | null, response?: any) => {
+    ((error: Error | null, response?: RoomWatchAck) => {
       joinPending = false;
       updateTableActionLabel();
       if (error) {
@@ -703,7 +711,7 @@ function watchRoom() {
       lastAutoRejoinKey = `${socket!.id}:${response.roomId || roomId}`;
       saveRoomCredentials(response.roomId || roomId, { ...response, spectator: true });
       setRoomUrl(response.roomId || roomId);
-    },
+    }) satisfies SocketTimeoutAck<RoomWatchAck>,
   );
 }
 
@@ -717,27 +725,31 @@ function takeSeatFromSpectator() {
     reconnectToken: credentials.reconnectToken,
     acceptedMoneyTerms,
   };
-  socket.timeout(4000).emit("room:takeSeat", payload, (error: Error | null, response?: any) => {
-    if (error) {
-      joinError.textContent = "Reconnecting to the table...";
-      lastAutoRejoinKey = "";
-      attemptAutoRejoin();
-      return;
-    }
-    if (!response?.ok) {
-      if (response?.moneyTerms) {
-        acceptedMoneyTerms = response.moneyTerms;
-        showToast(
-          `Money game · Buy-in ${formatMoney(response.moneyTerms.buyInCents)}. Confirm to take a seat.`,
-        );
-        if (state) renderControls(activeHero());
+  socket.timeout(4000).emit(
+    "room:takeSeat",
+    payload,
+    ((error: Error | null, response?: RoomTakeSeatAck) => {
+      if (error) {
+        joinError.textContent = "Reconnecting to the table...";
+        lastAutoRejoinKey = "";
+        attemptAutoRejoin();
         return;
       }
-      joinError.textContent = response?.error || "Could not take a seat.";
-      showToast(response?.error || "Could not take a seat.");
-      return;
-    }
-    acceptedMoneyTerms = null;
-    saveRoomCredentials(response.roomId || state!.id, { ...response, spectator: false });
-  });
+      if (!response?.ok) {
+        if (response && "moneyTerms" in response) {
+          acceptedMoneyTerms = response.moneyTerms;
+          showToast(
+            `Money game · Buy-in ${formatMoney(response.moneyTerms.buyInCents)}. Confirm to take a seat.`,
+          );
+          if (state) renderControls(activeHero());
+          return;
+        }
+        joinError.textContent = response?.error || "Could not take a seat.";
+        showToast(response?.error || "Could not take a seat.");
+        return;
+      }
+      acceptedMoneyTerms = null;
+      saveRoomCredentials(response.roomId || state!.id, { ...response, spectator: false });
+    }) satisfies SocketTimeoutAck<RoomTakeSeatAck>,
+  );
 }
