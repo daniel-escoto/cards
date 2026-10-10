@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const vm = require("node:vm");
 
 // Exercise the actual browser listener with DOM/socket boundaries stubbed.
-const source = fs.readFileSync(require.resolve("../public/app.js"), "utf8");
+const source = fs.readFileSync(require.resolve("../public/app-events.js"), "utf8");
 const listener = source.slice(source.indexOf('document.addEventListener("keydown",'));
 const messages = [];
 let handler;

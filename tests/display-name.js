@@ -74,9 +74,20 @@ function loadAppDom() {
       window.requestAnimationFrame = (cb) => setTimeout(cb, 0);
     },
   });
-  const script = dom.window.document.createElement("script");
-  script.textContent = fs.readFileSync(path.join(__dirname, "../public/app.js"), "utf8");
-  dom.window.document.body.appendChild(script);
+  // Load client modules in the same order as index.html (classic scripts share var/function globals).
+  const clientScripts = [
+    "app-sounds.js",
+    "app-format.js",
+    "app-keybinds.js",
+    "app-boot.js",
+    "app-table.js",
+    "app-events.js",
+  ];
+  for (const file of clientScripts) {
+    const script = dom.window.document.createElement("script");
+    script.textContent = fs.readFileSync(path.join(__dirname, "../public", file), "utf8");
+    dom.window.document.body.appendChild(script);
+  }
   return { window: dom.window, document: dom.window.document, emits };
 }
 
@@ -125,7 +136,7 @@ function mountNameForm(document, name = "Alice") {
 }
 
 {
-  const { window, document, emits } = loadAppDom();
+  const { document, emits } = loadAppDom();
   const { form, input } = mountNameForm(document, "Bob");
   input.focus();
   input.value = "Bobby";
@@ -135,7 +146,7 @@ function mountNameForm(document, name = "Alice") {
 }
 
 {
-  const { window, document, emits } = loadAppDom();
+  const { document, emits } = loadAppDom();
   const { input, button } = mountNameForm(document, "Carol");
   input.focus();
   input.value = "Carol Clicked";

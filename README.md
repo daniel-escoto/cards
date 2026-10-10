@@ -26,6 +26,14 @@ Open `http://localhost:3000`.
 
 **Host:** name, blinds, money mode. With a connection, chip Host creates an online room (friends join with the code; add bots in-table). Without a connection, chip Host starts a local offline table — add bots with **+ Add CPU player**, then ready up. Money mode always needs the server. **Join** is online rooms only.
 
+## Tests and lint
+
+```bash
+npm test          # all tests/*.js except smoke (includes money-join)
+npm run lint      # ESLint flat config
+npm run format    # Prettier
+```
+
 ## Smoke test
 
 Start the server, then run:
@@ -35,6 +43,10 @@ npm run smoke
 ```
 
 The smoke test creates a three-player room, plays a hand through showdown, and verifies chip totals.
+
+## PR screenshots
+
+Do not commit screenshot binaries into the repo. Attach before/after images in the pull request description instead (`pr-screenshots/` is gitignored).
 
 ## Deployment
 

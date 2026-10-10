@@ -6,7 +6,7 @@ const {
   createPracticeSessionFromSnapshot,
 } = require("../public/practice");
 
-engine.setRandomInt((max) => 0);
+engine.setRandomInt((_max) => 0);
 
 function publicSnapshot(room, viewerId) {
   return engine.serializeRoom(room, viewerId);

@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const engine = require("../shared/engine");
 const { createPracticeSession } = require("../public/practice");
 
-engine.setRandomInt((max) => 0);
+engine.setRandomInt((_max) => 0);
 
 {
   const deck = engine.makeDeck();

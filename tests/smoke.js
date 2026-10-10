@@ -444,7 +444,7 @@ async function readyUp(players) {
 
   const nineHost = connectPlayer("NineHost");
   await waitFor(() => nineHost.socket.connected, "nine-max host connection");
-  const nineRoom = await emit(nineHost.socket, "room:create", {
+  await emit(nineHost.socket, "room:create", {
     name: nineHost.name,
     deviceId: nineHost.deviceId,
     tableSize: 9,

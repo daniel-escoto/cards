@@ -543,12 +543,9 @@ function showdownOrder(room) {
   if (!contenders.length) return [];
 
   const contenderIds = new Set(contenders.map((player) => player.id));
-  let startIndex = -1;
-  if (room.riverAggressor && contenderIds.has(room.riverAggressor)) {
-    startIndex = playerIndex(room, room.riverAggressor);
-  } else {
-    startIndex = nextIndex(room, room.dealer, (player) => contenderIds.has(player.id));
-  }
+  const startIndex = room.riverAggressor && contenderIds.has(room.riverAggressor)
+    ? playerIndex(room, room.riverAggressor)
+    : nextIndex(room, room.dealer, (player) => contenderIds.has(player.id));
   if (startIndex < 0) return contenders.slice();
 
   const ordered = [];

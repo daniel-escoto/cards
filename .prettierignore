@@ -1,0 +1,9 @@
+node_modules
+.data
+package-lock.json
+shared/pokersolver.js
+public/shared
+pr-screenshots
+*.png
+*.webp
+*.svg

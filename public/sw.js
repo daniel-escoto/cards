@@ -1,18 +1,26 @@
 /* Minimal app-shell cache for offline bot-only Host. Online multiplayer still needs network. */
 /* CACHE_VERSION is replaced by the server with the deploy build id when served. */
 const CACHE_VERSION = "__BUILD_ID__";
-const CACHE_NAME = `holdem-nyc-shell-${CACHE_VERSION}`;
+/** Bump when the app-shell file set changes so clients drop stale precaches. */
+const SHELL_REVISION = "2";
+const CACHE_NAME = `holdem-nyc-shell-${CACHE_VERSION}-${SHELL_REVISION}`;
 const APP_SHELL = [
   "/",
   "/index.html",
   "/styles.css",
-  "/app.js",
+  "/app-sounds.js",
+  "/app-format.js",
+  "/app-keybinds.js",
+  "/app-boot.js",
+  "/app-table.js",
+  "/app-events.js",
   "/practice.js",
   "/deploy-handoff.js",
   "/raise-sizing.js",
   "/card-art.js",
   "/turn-clock-warning.js",
   "/ready-clock.js",
+  "/invite-url.js",
   "/manifest.webmanifest",
   "/shared/pokersolver.js",
   "/shared/engine.js",
