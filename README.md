@@ -36,7 +36,7 @@ Open `http://localhost:3000`.
 - `public/*.ts` — classic browser scripts and UMD helpers (emitted to `dist/public/*.js`)
 - Shared domain and Socket.IO event types live in `shared/types.ts`
 
-Railway / Railpack runs `npm run build` when present, then `npm start`. Healthcheck stays `/healthz`.
+Railway / Railpack runs `npm run build` when present, then `railway.json`’s `startCommand` (`node dist/server.js`, not `npm start`) so SIGTERM reaches the graceful-shutdown handler and the process can exit 0 after drain. Healthcheck stays `/healthz`.
 
 ## Tests and lint
 

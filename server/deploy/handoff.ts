@@ -200,6 +200,8 @@ async function gracefulShutdown(
   }
 
   return new Promise((resolve) => {
+    // Exit 0 after a normal drain (hands finished or hand-wait cap hit).
+    // Exit 1 only when sockets/http refuse to close — a real failure.
     const forceExit = setTimeout(() => {
       console.error("Forced exit after shutdown timeout");
       if (shouldExit) process.exit(1);
@@ -209,6 +211,8 @@ async function gracefulShutdown(
 
     const finish = () => {
       clearTimeout(forceExit);
+      // Railway treats non-zero exits as crashes. A drained deploy (including
+      // wait-cap timeout) must exit 0 so overlapping replicas aren't marked failed.
       if (shouldExit) process.exit(0);
       else resolve({ ok: true, payload, timedOutWaiting, handsDone });
     };
