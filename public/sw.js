@@ -1,5 +1,5 @@
 /* Minimal app-shell cache for offline bot-only Host. Online multiplayer still needs network. */
-const CACHE_NAME = "cards-shell-v8";
+const CACHE_NAME = "cards-shell-v9";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -8,6 +8,7 @@ const APP_SHELL = [
   "/practice.js",
   "/raise-sizing.js",
   "/card-art.js",
+  "/turn-clock-warning.js",
   "/manifest.webmanifest",
   "/shared/pokersolver.js",
   "/shared/engine.js",
