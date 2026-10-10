@@ -495,6 +495,24 @@ function kickPlayer(playerId: string | undefined) {
   emitWithAck("room:kick", { playerId });
 }
 
+var copyIconResetTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flashCopyIcon(root: HTMLElement | null = roomCodeBtn) {
+  const icon = root?.querySelector(".copy-icon");
+  if (!icon) return;
+  const copyGlyph = icon.querySelector(".copy-icon-copy");
+  const checkGlyph = icon.querySelector(".copy-icon-check");
+  if (!copyGlyph || !checkGlyph) return;
+  copyGlyph.classList.add("hidden");
+  checkGlyph.classList.remove("hidden");
+  if (copyIconResetTimer != null) clearTimeout(copyIconResetTimer);
+  copyIconResetTimer = setTimeout(() => {
+    checkGlyph.classList.add("hidden");
+    copyGlyph.classList.remove("hidden");
+    copyIconResetTimer = null;
+  }, 1200);
+}
+
 async function copyText(text: string, button: HTMLElement) {
   if (!text) return;
   await navigator.clipboard.writeText(text);

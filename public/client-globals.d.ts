@@ -395,6 +395,15 @@ declare global {
   var menuBtn: HTMLButtonElement;
   var gameMenuModal: HTMLElement;
   var closeMenuBtn: HTMLButtonElement;
+  var menuMainView: HTMLElement;
+  var menuSettingsView: HTMLElement;
+  var menuHostView: HTMLElement;
+  var openSettingsBtn: HTMLButtonElement;
+  var closeSettingsBtn: HTMLButtonElement;
+  var closeSettingsMenuBtn: HTMLButtonElement;
+  var openHostBtn: HTMLButtonElement;
+  var closeHostBtn: HTMLButtonElement;
+  var closeHostMenuBtn: HTMLButtonElement;
   var addBotBtn: HTMLButtonElement;
   var restartGameBtn: HTMLButtonElement;
   var endGameBtn: HTMLButtonElement;
@@ -404,7 +413,10 @@ declare global {
   var hostActionsPanel: HTMLElement;
   var menuRoomCode: HTMLElement;
   var menuRoomEyebrow: HTMLElement | null;
+  var menuNameForm: HTMLFormElement;
   var menuPlayers: HTMLElement;
+  var openPlayerSheetId: string;
+  var copyIconResetTimer: ReturnType<typeof setTimeout> | null;
   var feltChoices: HTMLElement;
   var deckChoices: HTMLElement;
   var soundEnabledInput: HTMLInputElement;
@@ -560,7 +572,12 @@ declare global {
   function maybeReloadForPendingBuild(phase?: string | null): void;
   function updateHeroCardVisibility(): void;
   function showTable(room: ClientRoom): void;
+  function showMenuMainView(): void;
+  function showMenuSettingsView(): void;
+  function showMenuHostView(): void;
   function hideGameMenu(): void;
+  function syncMenuNameForm(): void;
+  function syncHostMenuSection(): void;
   function playerIsOut(player: ClientPlayer): boolean;
   function seatedPlayers(list?: ClientPlayer[] | null): ClientPlayer[];
   function roundStatus(player: ClientPlayer): string;
@@ -682,5 +699,6 @@ declare global {
   function attemptAutoRejoin(): void;
   function autoJoinInitialRoom(): void;
   function reportVisibility(): void;
-  function copyText(text: string): Promise<void>;
+  function flashCopyIcon(root?: HTMLElement | null): void;
+  function copyText(text: string, button: HTMLElement): Promise<void>;
 }
