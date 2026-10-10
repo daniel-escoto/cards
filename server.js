@@ -189,6 +189,7 @@ function serializeRoomForStorage(room) {
     deadPot: room.deadPot || 0,
     acted: [...(room.acted || [])],
     raiseEligible: [...(room.raiseEligible || [])],
+    lastAggressorId: room.lastAggressorId || null,
     message: room.message,
     winners: room.winners,
     actionLog: room.actionLog,
@@ -357,6 +358,7 @@ function restoreRoom(raw) {
     deadPot: Math.max(0, Math.floor(Number(raw.deadPot) || 0)),
     acted: new Set(Array.isArray(raw.acted) ? raw.acted : []),
     raiseEligible: new Set(Array.isArray(raw.raiseEligible) ? raw.raiseEligible : []),
+    lastAggressorId: raw.lastAggressorId || null,
     message: raw.message || "Room restored after update.",
     winners: Array.isArray(raw.winners) ? raw.winners : [],
     actionLog: Array.isArray(raw.actionLog) ? raw.actionLog : [],
@@ -501,6 +503,7 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
     deadPot: 0,
     acted: new Set(),
     raiseEligible: new Set(),
+    lastAggressorId: null,
     message: "Invite friends with this room link.",
     winners: [],
     actionLog: [],
@@ -734,6 +737,7 @@ function restartGame(room) {
   room.deadPot = 0;
   room.acted = new Set();
   room.raiseEligible = new Set();
+  room.lastAggressorId = null;
   room.winners = [];
   room.settlements = [];
   room.actionLog = [];

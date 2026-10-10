@@ -279,6 +279,7 @@ function resetHandState(room) {
   room.deadPot = 0;
   room.acted = new Set();
   room.raiseEligible = new Set();
+  room.lastAggressorId = null;
   room.winners = [];
   room.actionLog = [];
   for (const player of room.players) {
@@ -404,6 +405,7 @@ function dealStreet(room) {
   room.currentBet = 0;
   room.minRaise = bigBlind;
   room.acted = new Set();
+  room.lastAggressorId = null;
 
   if (room.phase === "preflop") {
     room.deck.pop();
@@ -580,6 +582,10 @@ function settleShowdown(room) {
 
   room.phase = "complete";
   room.winners = combineWinnerSummaries(summaries);
+  if (room.lastAggressorId) {
+    const aggressor = room.players.find((p) => p.id === room.lastAggressorId && !p.folded);
+    if (aggressor) aggressor.showCards = true;
+  }
   revealComputerHands(room);
   room.message = room.winners.map((winner) => `${winner.name} wins ${winner.amount} with ${winner.hand}`).join(" · ");
   for (const winner of room.winners) {
@@ -654,6 +660,7 @@ function applyPlayerAction(room, playerId, { type, raiseTo }) {
     if (isFullRaise) room.minRaise = raiseSize;
     room.currentBet = Math.max(room.currentBet, target);
     room.acted = new Set([player.id]);
+    room.lastAggressorId = player.id;
     if (isFullRaise) {
       room.raiseEligible = new Set(canActPlayers(room).filter((item) => item.id !== player.id).map((item) => item.id));
     } else {
@@ -1122,6 +1129,7 @@ function isSoloHumanFolded(room) {
       deadPot: 0,
       acted: new Set(),
       raiseEligible: new Set(),
+      lastAggressorId: null,
       message: "Table ready. Ready up to deal.",
       winners: [],
       actionLog: [],
@@ -1189,6 +1197,7 @@ function isSoloHumanFolded(room) {
     room.deadPot = 0;
     room.acted = new Set();
     room.raiseEligible = new Set();
+    room.lastAggressorId = null;
     room.winners = [];
     room.actionLog = [];
     room.message = "Table restarted. Ready up when you want the next hand.";
@@ -1376,6 +1385,7 @@ function isSoloHumanFolded(room) {
       deadPot,
       acted: new Set(),
       raiseEligible: new Set(),
+      lastAggressorId: snapshot.lastAggressorId || null,
       message: snapshot.message || "Continuing offline.",
       winners: Array.isArray(snapshot.winners) ? snapshot.winners.map((winner) => ({ ...winner })) : [],
       actionLog: Array.isArray(snapshot.actionLog) ? snapshot.actionLog.map((entry) => ({ ...entry })) : [],
