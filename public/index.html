@@ -195,8 +195,15 @@
                 <div class="appearance-group">
                   <span>Turn timer</span>
                   <div id="shotClockChoices" class="appearance-choices shot-clock-choices" role="radiogroup" aria-label="Shot clock"></div>
+                  <form id="shotClockCustomForm" class="shot-clock-custom-form hidden" data-shot-clock-form>
+                    <label>
+                      Seconds
+                      <input id="shotClockCustomInput" type="number" min="10" max="600" step="1" inputmode="numeric" enterkeyhint="done" aria-label="Custom shot clock seconds" />
+                    </label>
+                    <button type="submit" class="secondary">Save</button>
+                  </form>
                 </div>
-                <p class="shortcut-help">Auto-check if free, otherwise auto-fold. Server-enforced for online games.</p>
+                <p class="shortcut-help">Auto-check if free, otherwise auto-fold. Server-enforced for online games. Custom: 10–600 seconds.</p>
               </details>
             </div>
           </section>

@@ -62,12 +62,21 @@ const menuSmallBlindInput = document.querySelector("#menuSmallBlindInput");
 const menuBigBlindInput = document.querySelector("#menuBigBlindInput");
 const shotClockPanel = document.querySelector("#shotClockPanel");
 const shotClockChoices = document.querySelector("#shotClockChoices");
+const shotClockCustomForm = document.querySelector("#shotClockCustomForm");
+const shotClockCustomInput = document.querySelector("#shotClockCustomInput");
 const SHOT_CLOCK_CHOICES = [
   { seconds: 15, label: "15s" },
   { seconds: 30, label: "30s" },
   { seconds: 60, label: "60s" },
+  { seconds: 90, label: "90s" },
+  { seconds: 120, label: "2m" },
+  { seconds: 300, label: "5m" },
   { seconds: 0, label: "Off" },
 ];
+const SHOT_CLOCK_CUSTOM = "custom";
+/** Client clock skew vs server (serverNow - Date.now). Countdown uses absolute turnEndsAt. */
+let serverTimeOffsetMs = 0;
+let shotClockCustomOpen = false;
 const cashInInput = document.querySelector("#cashInInput");
 const cashInBtn = document.querySelector("#cashInBtn");
 const cashOutBtn = document.querySelector("#cashOutBtn");
@@ -562,6 +571,7 @@ function applyRoomUpdate(room) {
 
   const newTurn = room.isYourTurn && (!state?.isYourTurn || state.id !== room.id
     || state.handNumber !== room.handNumber || state.phase !== room.phase);
+  syncServerTimeOffset(room);
   state = room;
   if (newTurn) tableSounds.turn();
   const self = state.players.find((player) => player.isYou && !player.isBot);
@@ -745,6 +755,29 @@ function isMenuNameEditing() {
   // the button), which let the 1s menu refresh / room:update replace the form
   // and swallow the click before submit.
   return Boolean(document.activeElement?.closest?.("[data-name-form]"));
+}
+
+function isMenuShotClockEditing() {
+  return Boolean(document.activeElement?.closest?.("[data-shot-clock-form]"));
+}
+
+function syncServerTimeOffset(nextState) {
+  const serverNow = Number(nextState?.serverNow);
+  if (Number.isFinite(serverNow)) serverTimeOffsetMs = serverNow - Date.now();
+}
+
+function clientNow() {
+  return Date.now() + serverTimeOffsetMs;
+}
+
+function formatTurnCountdown(seconds) {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+  if (total >= 60) {
+    const minutes = Math.floor(total / 60);
+    const secs = total % 60;
+    return `${minutes}:${String(secs).padStart(2, "0")}`;
+  }
+  return String(total);
 }
 
 function commitMenuDisplayName(nameForm) {
@@ -1107,28 +1140,74 @@ function renderShotClockChoices() {
   if (!shotClockPanel || !shotClockChoices) return;
   const canEdit = Boolean(state?.canChangeShotClock) && !isOfflineSession();
   shotClockPanel.classList.toggle("hidden", !canEdit);
-  if (!canEdit) return;
+  if (!canEdit) {
+    shotClockCustomOpen = false;
+    shotClockCustomForm?.classList.add("hidden");
+    return;
+  }
+  if (isMenuShotClockEditing()) return;
   const selected = Math.floor(Number(state?.turnTimeLimitMs) / 1000);
-  const activeSeconds = SHOT_CLOCK_CHOICES.some((item) => item.seconds === selected) ? selected : 30;
-  shotClockChoices.innerHTML = SHOT_CLOCK_CHOICES.map((item) => `
+  const isPreset = SHOT_CLOCK_CHOICES.some((item) => item.seconds === selected);
+  const customActive = shotClockCustomOpen || (!isPreset && selected > 0);
+  if (customActive) shotClockCustomOpen = true;
+  shotClockChoices.innerHTML = `${SHOT_CLOCK_CHOICES.map((item) => `
     <button
       type="button"
-      class="appearance-choice${item.seconds === activeSeconds ? " selected" : ""}"
+      class="appearance-choice${!customActive && item.seconds === selected ? " selected" : ""}"
       data-shot-clock="${item.seconds}"
-      aria-pressed="${item.seconds === activeSeconds ? "true" : "false"}"
+      aria-pressed="${!customActive && item.seconds === selected ? "true" : "false"}"
     >${item.label}</button>
-  `).join("");
+  `).join("")}
+    <button
+      type="button"
+      class="appearance-choice${customActive ? " selected" : ""}"
+      data-shot-clock="${SHOT_CLOCK_CUSTOM}"
+      aria-pressed="${customActive ? "true" : "false"}"
+    >Custom</button>`;
+  if (shotClockCustomForm && shotClockCustomInput) {
+    shotClockCustomForm.classList.toggle("hidden", !customActive);
+    if (customActive && document.activeElement !== shotClockCustomInput) {
+      const value = selected > 0 ? selected : 45;
+      shotClockCustomInput.value = String(Math.min(600, Math.max(10, value)));
+    }
+  }
+}
+
+function commitShotClockCustom(form) {
+  if (!form || !shotClockCustomInput) return false;
+  const raw = shotClockCustomInput.value.trim();
+  const seconds = Number(raw);
+  if (!raw || !Number.isFinite(seconds) || !Number.isInteger(seconds) || seconds < 10 || seconds > 600) {
+    showToast("Enter an integer from 10 to 600 seconds.");
+    return false;
+  }
+
+  // pointerdown (Save) and submit (Enter / click) share this path; dedupe one gesture.
+  const now = Date.now();
+  if (form.dataset.shotClockSaving === "1" && now - Number(form.dataset.shotClockSavedAt || 0) < 750) {
+    return true;
+  }
+  form.dataset.shotClockSaving = "1";
+  form.dataset.shotClockSavedAt = String(now);
+
+  shotClockCustomOpen = true;
+  emitWithAck("game:setShotClock", { seconds });
+  shotClockCustomInput.blur();
+  queueMicrotask(() => {
+    delete form.dataset.shotClockSaving;
+  });
+  return true;
 }
 
 function turnSecondsRemaining() {
   if (!state?.turnEndsAt || !state?.turnTimeLimitMs || !isBettingPhase(state.phase) || !state.turn) return 0;
-  return Math.max(0, Math.ceil((state.turnEndsAt - Date.now()) / 1000));
+  return Math.max(0, Math.ceil((state.turnEndsAt - clientNow()) / 1000));
 }
 
 function turnPctRemaining() {
   const limit = Number(state?.turnTimeLimitMs) || 0;
   if (!limit || !state?.turnEndsAt) return 0;
-  return Math.max(0, Math.min(1, (state.turnEndsAt - Date.now()) / limit));
+  return Math.max(0, Math.min(1, (state.turnEndsAt - clientNow()) / limit));
 }
 
 function actingSeatShowsClock(player) {
@@ -1148,11 +1227,15 @@ function syncTurnCountdown() {
   if (!state?.turnEndsAt || !state?.turnTimeLimitMs || !isBettingPhase(state.phase) || !state.turn) return;
   const tick = () => {
     const seconds = turnSecondsRemaining();
+    const labelText = formatTurnCountdown(seconds);
     const pct = turnPctRemaining();
     document.querySelectorAll("[data-turn-seat-clock]").forEach((row) => {
       row.style.setProperty("--turn-pct", String(pct));
       const label = row.querySelector("[data-turn-countdown]");
-      if (label) label.textContent = `${seconds}`;
+      if (label) {
+        label.textContent = labelText;
+        label.setAttribute("aria-label", `${labelText} left`);
+      }
     });
     if (seconds <= 0) clearInterval(turnCountdownTimer);
   };
@@ -1186,8 +1269,9 @@ function renderActionFeed(newEntryId = "") {
       showClock ? `--turn-pct: ${pct}` : "",
     ].filter(Boolean).join("; ");
     const styleAttr = styleVars ? ` style="${styleVars}"` : "";
+    const countdownLabel = formatTurnCountdown(seconds);
     const clockMarkup = showClock
-      ? `<span class="turn-clock" data-turn-countdown aria-label="${seconds} seconds left">${seconds}</span>`
+      ? `<span class="turn-clock" data-turn-countdown aria-label="${countdownLabel} left">${countdownLabel}</span>`
       : "";
     const barMarkup = showClock ? `<span class="turn-clock-bar" aria-hidden="true"><i></i></span>` : "";
     return `
@@ -1892,7 +1976,15 @@ gameMenuModal.addEventListener("click", (event) => {
   }
   const shotClockButton = event.target.closest("button[data-shot-clock]");
   if (shotClockButton) {
-    const seconds = Math.floor(Number(shotClockButton.dataset.shotClock));
+    const choice = shotClockButton.dataset.shotClock;
+    if (choice === SHOT_CLOCK_CUSTOM) {
+      shotClockCustomOpen = true;
+      renderShotClockChoices();
+      shotClockCustomInput?.focus();
+      return;
+    }
+    shotClockCustomOpen = false;
+    const seconds = Math.floor(Number(choice));
     emitWithAck("game:setShotClock", { seconds });
     return;
   }
@@ -1913,10 +2005,17 @@ gameMenuModal.addEventListener("click", (event) => {
 // click cannot destroy the button. preventDefault keeps the field focused through the tap.
 gameMenuModal.addEventListener("pointerdown", (event) => {
   if (event.button != null && event.button !== 0) return;
-  const saveBtn = event.target.closest("[data-name-form] button[type='submit']");
-  if (!saveBtn) return;
-  event.preventDefault();
-  commitMenuDisplayName(saveBtn.closest("[data-name-form]"));
+  const nameSaveBtn = event.target.closest("[data-name-form] button[type='submit']");
+  if (nameSaveBtn) {
+    event.preventDefault();
+    commitMenuDisplayName(nameSaveBtn.closest("[data-name-form]"));
+    return;
+  }
+  const shotClockSaveBtn = event.target.closest("[data-shot-clock-form] button[type='submit']");
+  if (shotClockSaveBtn) {
+    event.preventDefault();
+    commitShotClockCustom(shotClockSaveBtn.closest("[data-shot-clock-form]"));
+  }
 });
 
 gameMenuModal.addEventListener("submit", (event) => {
@@ -1936,6 +2035,10 @@ gameMenuModal.addEventListener("submit", (event) => {
   }
   if (event.target === moneyPanel) {
     emitWithAck("money:cashIn", { amountCents: moneyCentsFromInput(cashInInput, state?.buyInCents ? state.buyInCents / 100 : 20) });
+    return;
+  }
+  if (event.target === shotClockCustomForm || event.target?.closest?.("[data-shot-clock-form]")) {
+    commitShotClockCustom(event.target.closest("[data-shot-clock-form]") || shotClockCustomForm);
     return;
   }
   const nameForm = event.target.closest("[data-name-form]");
