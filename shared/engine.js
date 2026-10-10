@@ -29,6 +29,8 @@
   const DEFAULT_BIG_BLIND = BLIND_LEVELS[0].bigBlind;
   const DEFAULT_SMALL_BLIND = BLIND_LEVELS[0].smallBlind;
   const MAX_PLAYERS = 9;
+  const TABLE_SIZE_OPTIONS = [6, 9];
+  const DEFAULT_MAX_SEATS = 9;
   const BOT_PROFILES = [
   { tag: "cpu_7f3a", style: "Loose cannon", aggression: 1.28, looseness: 1.24, bluff: 0.13, skill: 0.58 },
   { tag: "cpu_b204", style: "Patient grinder", aggression: 0.72, looseness: 0.74, bluff: 0.025, skill: 0.82 },
@@ -130,6 +132,43 @@ function cleanTableSize(count) {
   const parsed = Math.floor(Number(count) || 0);
   if (!parsed) return 0;
   return Math.max(2, Math.min(MAX_PLAYERS, parsed));
+}
+
+/** Host lobby seat cap: only 6-max or 9-max. */
+function cleanMaxSeats(value, defaultValue = 0) {
+  const parsed = Math.floor(Number(value) || 0);
+  if (TABLE_SIZE_OPTIONS.includes(parsed)) return parsed;
+  const fallback = Math.floor(Number(defaultValue) || 0);
+  if (TABLE_SIZE_OPTIONS.includes(fallback)) return fallback;
+  return 0;
+}
+
+/**
+ * Effective seat cap for join / add-bot.
+ * Prefers host maxSeats (6|9), then legacy bot-table tableSize, then MAX_PLAYERS.
+ */
+function effectiveMaxSeats(room) {
+  const fromMax = cleanMaxSeats(room?.maxSeats, 0);
+  if (fromMax) return fromMax;
+  const fromTable = cleanTableSize(room?.tableSize);
+  if (fromTable) return fromTable;
+  return MAX_PLAYERS;
+}
+
+/**
+ * Pure multi-table seat planner (no live routing yet).
+ * Splits n players into ceil(n/max) tables as evenly as possible.
+ * Examples: planTables(10, 9) → [5, 5]; planTables(14, 9) → [7, 7].
+ */
+function planTables(n, max) {
+  const players = Math.max(0, Math.floor(Number(n) || 0));
+  const seatMax = Math.max(2, Math.floor(Number(max) || 0));
+  if (players === 0) return [];
+  if (players <= seatMax) return [players];
+  const tableCount = Math.ceil(players / seatMax);
+  const base = Math.floor(players / tableCount);
+  const remainder = players % tableCount;
+  return Array.from({ length: tableCount }, (_, index) => base + (index < remainder ? 1 : 0));
 }
 
 function cleanPlayerColor(color) {
@@ -1014,6 +1053,7 @@ function isSoloHumanFolded(room) {
       status: room.status,
       phase: room.phase,
       tableSize: room.tableSize || room.players.length,
+      maxSeats: effectiveMaxSeats(room),
       message: room.message,
       pot,
       potCents: chipsToCents(room, pot),
@@ -1049,7 +1089,7 @@ function isSoloHumanFolded(room) {
       canChangeBlinds: room.hostId === viewerId && canReadyForHand(room),
       canRestartGame: room.hostId === viewerId && !room.moneyMode && canAdministerGame(room),
       canEndGame: room.hostId === viewerId && canAdministerGame(room) && (room.moneyMode || room.phase !== "lobby"),
-      canAddBot: room.hostId === viewerId && !room.moneyMode && room.handNumber === 0 && room.players.length < MAX_PLAYERS,
+      canAddBot: room.hostId === viewerId && !room.moneyMode && room.handNumber === 0 && room.players.length < effectiveMaxSeats(room),
       community: room.community.map(publicCard),
       winners: room.winners.map((winner) => ({
         ...winner,
@@ -1092,15 +1132,17 @@ function isSoloHumanFolded(room) {
   }
 
   function createPracticeRoom(options = {}) {
-    const tableSize = cleanTableSize(options.tableSize) || 6;
+    const maxSeats = cleanMaxSeats(options.maxSeats, 0)
+      || cleanTableSize(options.tableSize)
+      || DEFAULT_MAX_SEATS;
     const startingStack = Math.max(1, Math.floor(Number(options.startingStack) || STARTING_STACK));
     const smallBlind = cleanBlind(options.smallBlind, DEFAULT_SMALL_BLIND);
     const bigBlind = cleanBlind(options.bigBlind, DEFAULT_BIG_BLIND);
     const name = cleanName(options.name);
     const playerId = String(options.playerId || "practice-hero");
     const botCount = options.botCount != null
-      ? Math.max(0, Math.min(MAX_PLAYERS - 1, Math.floor(Number(options.botCount))))
-      : Math.max(1, tableSize - 1);
+      ? Math.max(0, Math.min(maxSeats - 1, Math.floor(Number(options.botCount))))
+      : Math.max(1, maxSeats - 1);
 
     const hero = makePlayer({ id: playerId, name, isBot: false });
     hero.stack = startingStack;
@@ -1110,7 +1152,8 @@ function isSoloHumanFolded(room) {
     const room = {
       id: "PRACTICE",
       hostId: playerId,
-      tableSize,
+      maxSeats,
+      tableSize: maxSeats,
       status: "lobby",
       phase: "lobby",
       deck: [],
@@ -1142,7 +1185,7 @@ function isSoloHumanFolded(room) {
     };
 
     const targetSeats = botCount > 0
-      ? Math.min(MAX_PLAYERS, Math.max(2, 1 + botCount))
+      ? Math.min(maxSeats, Math.max(2, 1 + botCount))
       : 0;
     if (targetSeats > 0) {
       addComputerPlayers(room, targetSeats);
@@ -1150,9 +1193,10 @@ function isSoloHumanFolded(room) {
         if (player.isBot) player.stack = startingStack;
       }
       room.tableSize = room.players.length;
+      room.maxSeats = maxSeats;
     } else {
-      // Solo offline host; seats fill via in-table Add CPU (up to MAX_PLAYERS).
-      room.tableSize = MAX_PLAYERS;
+      // Solo offline host; seats fill via in-table Add CPU (up to maxSeats).
+      room.tableSize = maxSeats;
       room.message = "Table ready. Add CPU players, then ready up to deal.";
     }
     return room;
@@ -1361,9 +1405,13 @@ function isSoloHumanFolded(room) {
       return Boolean(seat?.dealer);
     }));
 
+    const maxSeats = cleanMaxSeats(snapshot.maxSeats, 0)
+      || cleanTableSize(snapshot.tableSize)
+      || Math.max(players.length, DEFAULT_MAX_SEATS);
     const room = {
       id: "PRACTICE",
       hostId: viewerId,
+      maxSeats: Math.max(players.length, maxSeats),
       tableSize: Math.max(players.length, Math.floor(Number(snapshot.tableSize) || players.length)),
       status: snapshot.status || (isHandInProgress({ phase }) ? "playing" : phase === "gameover" ? "complete" : "lobby"),
       phase,
@@ -1413,6 +1461,8 @@ function isSoloHumanFolded(room) {
     DEFAULT_BIG_BLIND,
     DEFAULT_SMALL_BLIND,
     MAX_PLAYERS,
+    TABLE_SIZE_OPTIONS,
+    DEFAULT_MAX_SEATS,
     BOT_PROFILES,
     PLAYER_COLORS,
     ranks,
@@ -1428,6 +1478,9 @@ function isSoloHumanFolded(room) {
     cleanBlind,
     cleanComputerPlayers,
     cleanTableSize,
+    cleanMaxSeats,
+    effectiveMaxSeats,
+    planTables,
     cleanPlayerColor,
     defaultPlayerColor,
     makePlayer,

@@ -20,7 +20,6 @@ const {
   BLIND_LEVELS,
   DEFAULT_BIG_BLIND,
   DEFAULT_SMALL_BLIND,
-  MAX_PLAYERS,
   BOT_PROFILES,
   PLAYER_COLORS,
   setRandomInt,
@@ -31,6 +30,9 @@ const {
   cleanName,
   cleanComputerPlayers,
   cleanTableSize,
+  cleanMaxSeats,
+  effectiveMaxSeats,
+  DEFAULT_MAX_SEATS,
   cleanPlayerColor,
   defaultPlayerColor,
   makePlayer,
@@ -178,6 +180,7 @@ function serializeRoomForStorage(room) {
     id: room.id,
     hostId: room.hostId,
     tableSize: room.tableSize || 0,
+    maxSeats: cleanMaxSeats(room.maxSeats, 0),
     status: room.status,
     phase: room.phase,
     deck: room.deck,
@@ -346,6 +349,7 @@ function restoreRoom(raw) {
     id: String(raw.id || makeId()).toUpperCase(),
     hostId: raw.hostId || null,
     tableSize: cleanTableSize(raw.tableSize),
+    maxSeats: cleanMaxSeats(raw.maxSeats, 0),
     status: raw.status || "lobby",
     phase: raw.phase || "lobby",
     deck: Array.isArray(raw.deck) ? raw.deck : [],
@@ -486,10 +490,12 @@ function makeRoom(hostId, hostName, socketId, tableSize = 0, options = {}) {
   const buyInCents = cleanMoneyCents(options.buyInCents, DEFAULT_BUY_IN_CENTS);
   const baseSmallBlind = cleanBlind(options.smallBlind, DEFAULT_SMALL_BLIND);
   const baseBigBlind = cleanBlind(options.bigBlind, DEFAULT_BIG_BLIND);
+  const maxSeats = moneyMode ? 0 : cleanMaxSeats(options.maxSeats, 0);
   const room = {
     id,
     hostId,
     tableSize: moneyMode ? 0 : cleanTableSize(tableSize),
+    maxSeats,
     status: "lobby",
     phase: "lobby",
     deck: [],
@@ -958,6 +964,7 @@ function serializeRoom(room, viewerId) {
     status: room.status,
     phase: room.phase,
     tableSize: room.tableSize || room.players.length,
+    maxSeats: effectiveMaxSeats(room),
     message: room.message,
     pot,
     potCents: chipsToCents(room, pot),
@@ -998,7 +1005,7 @@ function serializeRoom(room, viewerId) {
     canChangeBlinds: room.hostId === viewerId && canReadyForHand(room),
     canRestartGame: room.hostId === viewerId && !room.moneyMode && canAdministerGame(room),
     canEndGame: room.hostId === viewerId && canAdministerGame(room) && (room.moneyMode || room.phase !== "lobby"),
-    canAddBot: room.hostId === viewerId && !room.moneyMode && room.handNumber === 0 && room.players.length < MAX_PLAYERS,
+    canAddBot: room.hostId === viewerId && !room.moneyMode && room.handNumber === 0 && room.players.length < effectiveMaxSeats(room),
     community: room.community.map(publicCard),
     winners: room.winners.map((winner) => ({
       ...winner,
@@ -1227,15 +1234,20 @@ io.on("connection", (socket) => {
     }
     if (cleanBig <= cleanSmall) return ack?.({ ok: false, error: "Big blind must be greater than small blind." });
     const credentials = newReconnectCredentials();
-    const requestedSize = moneyMode ? 0 : cleanTableSize(tableSize) || cleanTableSize(computerPlayers);
-    const room = makeRoom(playerId, cleanName(name), socket.id, requestedSize, {
+    // Host tableSize is the seat cap (6|9). Bot fill is only via computerPlayers.
+    const maxSeats = moneyMode ? 0 : cleanMaxSeats(tableSize, DEFAULT_MAX_SEATS);
+    const fillTo = moneyMode ? 0 : cleanTableSize(computerPlayers);
+    const room = makeRoom(playerId, cleanName(name), socket.id, 0, {
       moneyMode,
+      maxSeats,
       buyInCents: cleanedBuyInCents,
       smallBlind: cleanSmall,
       bigBlind: cleanBig,
       reconnectTokenHash: credentials.tokenHash,
     });
-    if (!room.moneyMode) addComputerPlayers(room, requestedSize || computerPlayers);
+    if (!room.moneyMode && fillTo > 0) {
+      addComputerPlayers(room, Math.min(effectiveMaxSeats(room), fillTo));
+    }
     attachSocketToPlayer(socket, room, room.players[0]);
     ack?.({ ok: true, roomId: room.id, playerId, reconnectToken: credentials.token });
     emitRoom(room);
@@ -1284,8 +1296,8 @@ io.on("connection", (socket) => {
       emitRoom(room);
       return;
     }
-    const effectiveMax = room.tableSize || MAX_PLAYERS;
-    if (room.players.length >= effectiveMax) return ack?.({ ok: false, error: "Room is full." });
+    const effectiveMax = effectiveMaxSeats(room);
+    if (room.players.length >= effectiveMax) return ack?.({ ok: false, error: "The table is full." });
     if (room.phase === "gameover") return ack?.({ ok: false, error: "This session has ended." });
     if (!room.moneyMode && room.phase !== "lobby" && room.phase !== "complete") {
       return ack?.({ ok: false, error: "This hand is in progress. Join after it ends." });
@@ -1338,8 +1350,11 @@ io.on("connection", (socket) => {
     if (!room || room.hostId !== hostId) return ack?.({ ok: false, error: "Only the host can add CPU players." });
     if (room.moneyMode) return ack?.({ ok: false, error: "CPU players are unavailable in money mode." });
     if (room.handNumber > 0) return ack?.({ ok: false, error: "CPU players can only be added before the game begins." });
-    if (room.players.length >= MAX_PLAYERS) return ack?.({ ok: false, error: "The table is full." });
+    if (room.players.length >= effectiveMaxSeats(room)) return ack?.({ ok: false, error: "The table is full." });
+    const priorMaxSeats = room.maxSeats;
     addComputerPlayers(room, room.players.length + 1);
+    // Preserve host seat cap; addComputerPlayers may set tableSize to the new count.
+    if (priorMaxSeats) room.maxSeats = priorMaxSeats;
     ack?.({ ok: true });
     emitRoom(room);
   });

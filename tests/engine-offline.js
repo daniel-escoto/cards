@@ -93,8 +93,10 @@ engine.setRandomInt((max) => 0);
   });
   assert.equal(solo.players.length, 1);
   assert.equal(solo.players.filter((player) => player.isBot).length, 0);
+  assert.equal(solo.maxSeats, engine.MAX_PLAYERS);
   assert.equal(solo.tableSize, engine.MAX_PLAYERS);
   assert.equal(engine.serializeRoom(solo, "hero").canAddBot, true);
+  assert.equal(engine.serializeRoom(solo, "hero").maxSeats, engine.MAX_PLAYERS);
 
   const session = createPracticeSession({
     name: "Solo",

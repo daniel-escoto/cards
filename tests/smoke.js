@@ -425,37 +425,67 @@ async function readyUp(players) {
 
   const nineHost = connectPlayer("NineHost");
   await waitFor(() => nineHost.socket.connected, "nine-max host connection");
-  const nineRoom = await emit(nineHost.socket, "room:create", {
+  await emit(nineHost.socket, "room:create", {
     name: nineHost.name,
     deviceId: nineHost.deviceId,
     tableSize: 9,
+    computerPlayers: 9,
   });
   await waitFor(() => nineHost.state?.players.length === 9, "nine-max table filled with bots");
+  if (nineHost.state.maxSeats !== 9) {
+    throw new Error("Expected maxSeats 9 on nine-max host table");
+  }
   if (nineHost.state.canAddBot) {
     throw new Error("Expected Add CPU to be disabled on a full nine-max table");
   }
   await expectReject(nineHost.socket, "room:addBot", {}, "adding a tenth player");
-  const clampedHost = connectPlayer("ClampHost");
-  await waitFor(() => clampedHost.socket.connected, "clamp host connection");
-  await emit(clampedHost.socket, "room:create", {
-    name: clampedHost.name,
-    deviceId: clampedHost.deviceId,
-    tableSize: 10,
+
+  const sixHost = connectPlayer("SixHost");
+  await waitFor(() => sixHost.socket.connected, "six-max host connection");
+  const sixRoom = await emit(sixHost.socket, "room:create", {
+    name: sixHost.name,
+    deviceId: sixHost.deviceId,
+    tableSize: 6,
   });
-  await waitFor(() => clampedHost.state?.players.length === 9, "oversized tableSize clamps to nine");
+  await waitFor(() => sixHost.state?.players.length === 1 && sixHost.state?.maxSeats === 6, "six-max starts with host only");
+  const sixGuests = [];
+  for (let i = 0; i < 5; i += 1) {
+    const guest = connectPlayer(`SixGuest${i}`);
+    sixGuests.push(guest);
+    await waitFor(() => guest.socket.connected, `six-max guest ${i} connection`);
+    await emit(guest.socket, "room:join", {
+      roomId: sixRoom.roomId,
+      name: guest.name,
+      deviceId: guest.deviceId,
+    });
+  }
+  await waitFor(() => sixHost.state?.players.length === 6 && !sixHost.state.canAddBot, "six-max seats five humans");
+  await expectReject(sixHost.socket, "room:addBot", {}, "adding a seventh seat on six-max");
+  const sixOverflow = connectPlayer("SixOverflow");
+  await waitFor(() => sixOverflow.socket.connected, "six-max overflow connection");
+  await expectDirectReject(
+    sixOverflow.socket,
+    "room:join",
+    { roomId: sixRoom.roomId, name: sixOverflow.name, deviceId: sixOverflow.deviceId },
+    "joining a full six-max table",
+  );
+  sixOverflow.socket.disconnect();
+  for (const guest of sixGuests) guest.socket.disconnect();
+
   const fillHost = connectPlayer("FillHost");
   await waitFor(() => fillHost.socket.connected, "fill host connection");
   await emit(fillHost.socket, "room:create", {
     name: fillHost.name,
     deviceId: fillHost.deviceId,
+    tableSize: 9,
   });
-  await waitFor(() => fillHost.state?.players.length === 1, "empty table starts with host only");
+  await waitFor(() => fillHost.state?.players.length === 1 && fillHost.state?.maxSeats === 9, "empty nine-max starts with host only");
   for (let i = 0; i < 8; i += 1) {
     await emit(fillHost.socket, "room:addBot");
   }
   await waitFor(() => fillHost.state?.players.length === 9 && !fillHost.state.canAddBot, "host can seat eight CPUs for nine-max");
   nineHost.socket.disconnect();
-  clampedHost.socket.disconnect();
+  sixHost.socket.disconnect();
   fillHost.socket.disconnect();
 
   const cashHost = connectPlayer("CashHost");

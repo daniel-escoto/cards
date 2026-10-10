@@ -19,6 +19,9 @@ const hostModeBtn = document.querySelector("#hostModeBtn");
 const joinModeBtn = document.querySelector("#joinModeBtn");
 const moneyModeLabel = document.querySelector("#moneyModeLabel");
 const blindFields = document.querySelector("#blindFields");
+const tableSizeFields = document.querySelector("#tableSizeFields");
+const tableSize6Btn = document.querySelector("#tableSize6Btn");
+const tableSize9Btn = document.querySelector("#tableSize9Btn");
 const smallBlindInput = document.querySelector("#smallBlindInput");
 const bigBlindInput = document.querySelector("#bigBlindInput");
 const smallBlindLabel = document.querySelector("#smallBlindLabel");
@@ -378,6 +381,7 @@ let acceptedMoneyTerms = null;
 const joinPreview = document.querySelector("#joinPreview");
 let didAutoJoinInitialRoom = false;
 let tableMode = initialRoomId ? "join" : "host";
+let selectedTableSize = 9;
 let toastTimer = null;
 const FELT_OPTIONS = [
   { id: "emerald", label: "Emerald", color: "#116853" },
@@ -564,6 +568,14 @@ function applyRoomUpdate(room) {
   render();
 }
 
+function setSelectedTableSize(size) {
+  selectedTableSize = size === 6 ? 6 : 9;
+  tableSize6Btn?.classList.toggle("selected", selectedTableSize === 6);
+  tableSize9Btn?.classList.toggle("selected", selectedTableSize === 9);
+  tableSize6Btn?.setAttribute("aria-checked", String(selectedTableSize === 6));
+  tableSize9Btn?.setAttribute("aria-checked", String(selectedTableSize === 9));
+}
+
 function updateTableActionLabel() {
   const isJoining = tableMode === "join";
   const moneyMode = moneyModeInput.checked;
@@ -577,6 +589,7 @@ function updateTableActionLabel() {
   const onlineReady = Boolean(socket?.connected);
   tableActionBtn.disabled = joinPending || (offlineHost ? false : !onlineReady);
   blindFields?.classList.toggle("hidden", isJoining);
+  tableSizeFields?.classList.toggle("hidden", isJoining || moneyMode);
   moneyModeLabel?.classList.toggle("hidden", isJoining);
   buyInLabel.classList.toggle("hidden", isJoining || !moneyMode);
   roomCodeLabel.classList.toggle("hidden", !isJoining);
@@ -1140,6 +1153,10 @@ function render() {
   const hasNewAction = Boolean(latestEntryId && latestEntryId !== lastActionEntryId);
   const feedScroll = captureActionFeedScroll();
   players.innerHTML = renderActionFeed(hasNewAction ? latestEntryId : "");
+  const seatCount = seatedPlayers().length;
+  players.classList.toggle("seat-count-7", seatCount === 7);
+  players.classList.toggle("seat-count-8", seatCount === 8);
+  players.classList.toggle("seat-count-9", seatCount === 9);
   restoreActionFeedScroll(feedScroll);
   if (hasNewAction) replayAnimation(players, "feed-updated", 420);
   if (hasNewAction && !isFirstTableRender) playActionSound(entries.at(-1));
@@ -1546,7 +1563,8 @@ function startOfflineHost() {
   practiceSession = PracticeSession.createPracticeSession({
     name,
     playerId: getDeviceId() || "offline-hero",
-    tableSize: typeof HoldemEngine?.MAX_PLAYERS === "number" ? HoldemEngine.MAX_PLAYERS : 9,
+    maxSeats: selectedTableSize,
+    tableSize: selectedTableSize,
     botCount: 0,
     smallBlind: Math.max(1, Math.floor(Number(smallBlindInput?.value) || 10)),
     bigBlind: Math.max(2, Math.floor(Number(bigBlindInput?.value) || 20)),
@@ -1596,6 +1614,7 @@ function joinOrCreate(mode) {
       payload.smallBlindCents = Math.round(Number(smallBlindInput.value) * 100);
       payload.bigBlindCents = Math.round(Number(bigBlindInput.value) * 100);
     } else {
+      payload.tableSize = selectedTableSize;
       payload.smallBlind = Math.max(1, Math.floor(Number(smallBlindInput.value) || 10));
       payload.bigBlind = Math.max(2, Math.floor(Number(bigBlindInput.value) || 20));
     }
@@ -1679,6 +1698,8 @@ roomInput.addEventListener("input", () => {
 });
 hostModeBtn.addEventListener("click", () => setTableMode("host"));
 joinModeBtn.addEventListener("click", () => setTableMode("join", true));
+tableSize6Btn?.addEventListener("click", () => setSelectedTableSize(6));
+tableSize9Btn?.addEventListener("click", () => setSelectedTableSize(9));
 moneyModeInput.addEventListener("change", () => {
   syncBlindInputMode();
   updateTableActionLabel();
@@ -1687,6 +1708,7 @@ joinForm.addEventListener("submit", (event) => {
   event.preventDefault();
   joinOrCreate(tableMode === "join" ? "join" : "create");
 });
+setSelectedTableSize(9);
 syncBlindInputMode();
 updateTableActionLabel();
 

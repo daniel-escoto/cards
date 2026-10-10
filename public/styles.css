@@ -262,6 +262,22 @@ label {
   gap: 10px;
 }
 
+.table-size-fields {
+  display: grid;
+  gap: 7px;
+}
+
+.form-field-label {
+  padding-left: 2px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.table-size-switch {
+  grid-template-columns: 1fr 1fr;
+}
+
 .checkbox-label input {
   position: absolute;
   width: 1px;
@@ -1044,6 +1060,20 @@ select:focus {
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 10px;
   background: rgba(5, 20, 17, 0.68);
+}
+
+.players.seat-count-7 .table-player-row,
+.players.seat-count-8 .table-player-row,
+.players.seat-count-9 .table-player-row {
+  min-height: 42px;
+  padding: 6px 9px;
+  gap: 8px;
+}
+
+.players.seat-count-7,
+.players.seat-count-8,
+.players.seat-count-9 {
+  gap: 5px;
 }
 
 .table-player-row.you { background: rgba(8, 31, 27, 0.78); }
@@ -1955,18 +1985,38 @@ kbd { min-width: 20px; height: 20px; display: inline-grid; place-items: center; 
 
   .table-player-row {
     min-height: 39px;
-    grid-template-columns: 8px minmax(0, 1fr) minmax(62px, auto) 58px;
-    gap: 7px;
+    grid-template-columns: 8px minmax(0, 1fr) minmax(56px, auto) 52px;
+    gap: 6px;
     padding: 6px 8px;
     border-color: rgba(255,255,255,.16);
     border-radius: 8px;
     background: rgba(5,18,15,.68);
   }
 
+  .players.seat-count-7 .table-player-row,
+  .players.seat-count-8 .table-player-row,
+  .players.seat-count-9 .table-player-row {
+    min-height: 34px;
+    padding: 5px 7px;
+    gap: 5px;
+  }
+
+  .players.seat-count-7,
+  .players.seat-count-8,
+  .players.seat-count-9 {
+    gap: 4px;
+  }
+
   .table-player-row.you { background: rgba(8,31,27,.8); }
   .table-player-row .seat-name { font-size: 13px; }
+  .players.seat-count-7 .table-player-row .seat-name,
+  .players.seat-count-8 .table-player-row .seat-name,
+  .players.seat-count-9 .table-player-row .seat-name { font-size: 12px; }
   .player-action { font-size: 11px; }
   .player-stack { padding: 3px 5px; font-size: 11px; }
+  .players.seat-count-7 .player-stack,
+  .players.seat-count-8 .player-stack,
+  .players.seat-count-9 .player-stack { padding: 2px 4px; font-size: 10px; }
 
   .shown-hand-card {
     grid-template-columns: minmax(0, 1fr) auto;

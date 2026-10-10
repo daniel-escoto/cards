@@ -49,6 +49,13 @@
               <input id="bigBlindInput" type="number" min="2" max="100000" step="1" value="20" inputmode="decimal" />
             </label>
           </div>
+          <div id="tableSizeFields" class="table-size-fields">
+            <span class="form-field-label">Table size</span>
+            <div class="mode-switch table-size-switch" role="radiogroup" aria-label="Table size">
+              <button id="tableSize6Btn" class="mode-option" type="button" role="radio" aria-checked="false" data-table-size="6">6-max</button>
+              <button id="tableSize9Btn" class="mode-option selected" type="button" role="radio" aria-checked="true" data-table-size="9">9-max</button>
+            </div>
+          </div>
           <label id="moneyModeLabel" class="checkbox-label">
             <input id="moneyModeInput" type="checkbox" />
             <span class="switch-control" aria-hidden="true"></span>

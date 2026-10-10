@@ -5,10 +5,10 @@ A private-room multiplayer Texas hold'em game for friends. The server owns onlin
 ## Features
 
 - Host or join private tables with a room code/link
-- Host lobby: display name, blinds, and optional money mode
-- Add CPU players from the table / menu (online or local offline)
+- Host lobby: display name, blinds, table size (6-max or 9-max, default 9-max), and optional money mode
+- Add CPU players from the table / menu (online or local offline), up to the host seat cap
 - Money-game join preview with buy-in and blinds; join during a hand and play on the next deal
-- 2 to 9 players
+- 2 to 9 players (host chooses 6-max or 9-max; no live multi-table routing yet)
 - Shared pure engine for deck, betting, blinds, streets, side pots, showdown, and bots (`shared/`)
 - Poker hand evaluation via vendored `pokersolver` (Node + browser)
 - Minimal PWA shell cache so chip Host works offline after the first load when the server is unreachable
@@ -24,7 +24,7 @@ npm start
 
 Open `http://localhost:3000`.
 
-**Host:** name, blinds, money mode. With a connection, chip Host creates an online room (friends join with the code; add bots in-table). Without a connection, chip Host starts a local offline table — add bots with **+ Add CPU player**, then ready up. Money mode always needs the server. **Join** is online rooms only.
+**Host:** name, blinds, 6-max/9-max, money mode. With a connection, chip Host creates an online room (friends join with the code; add bots in-table up to the seat cap). Without a connection, chip Host starts a local offline table — add bots with **+ Add CPU player**, then ready up. Money mode always needs the server. **Join** is online rooms only.
 
 ## Smoke test
 
