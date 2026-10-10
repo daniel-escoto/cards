@@ -1,7 +1,7 @@
 {
   "name": "cards",
   "version": "1.0.0",
-  "description": "Multiplayer Texas Hold'em for private online rooms.",
+  "description": "holdem.nyc — private-room multiplayer Texas Hold'em.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

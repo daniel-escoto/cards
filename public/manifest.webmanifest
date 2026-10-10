@@ -1,7 +1,7 @@
 {
-  "name": "Texas Hold'em",
-  "short_name": "Hold'em",
-  "description": "Private-room multiplayer Hold'em with local bot tables offline.",
+  "name": "holdem.nyc",
+  "short_name": "holdem",
+  "description": "Private-room Texas Hold'em for the city. Host a table, share a code, play with friends.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#090d10",

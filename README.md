@@ -1,6 +1,6 @@
-# Table Stakes Hold'em
+# holdem.nyc
 
-A private-room multiplayer Texas hold'em game for friends. The server owns online game state and clients connect over Socket.IO. Chip Host without a server connection runs the same rules engine in the browser (add CPU players at the table; works offline after the first visit).
+Private-room Texas Hold'em for the city. Host a table, share a code, play with friends. The server owns online game state and clients connect over Socket.IO. Chip Host without a server connection runs the same rules engine in the browser (add CPU players at the table; works offline after the first visit).
 
 ## Features
 
@@ -38,18 +38,11 @@ The smoke test creates a three-player room, plays a hand through showdown, and v
 
 ## Deployment
 
-Railway's native GitHub integration deploys `main` to the `cards` project,
-`production` environment, `holdem` service. Keep **Wait for CI** enabled in the
-service's Source settings so deployments wait for the GitHub checks to pass.
+[holdem.nyc](https://holdem.nyc) is served from Railway's native GitHub integration: `main` deploys to the `cards` project, `production` environment, `holdem` service. Keep **Wait for CI** enabled in the service's Source settings so deployments wait for the GitHub checks to pass.
 
-The `.github/workflows/ci.yml` workflow runs the full test suite and a multiplayer
-smoke test on Node 24 for pushes and pull requests. It does not deploy directly
-and requires no Railway API token. The former CLI deployment workflow was removed
-because it duplicated native deployments and failed on an invalid token.
+The `.github/workflows/ci.yml` workflow runs the full test suite and a multiplayer smoke test on Node 24 for pushes and pull requests. It does not deploy directly and requires no Railway API token. The former CLI deployment workflow was removed because it duplicated native deployments and failed on an invalid token.
 
-Check deployment status in Railway; a green GitHub test run confirms tests passed,
-not that the deployment has finished. To redeploy, use the service's deployment
-controls in Railway.
+Check deployment status in Railway; a green GitHub test run confirms tests passed, not that the deployment has finished. To redeploy, use the service's deployment controls in Railway.
 
 ## Persistent games
 
