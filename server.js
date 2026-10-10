@@ -14,6 +14,15 @@ const io = new Server(server);
 const makeId = customAlphabet("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", 6);
 
 const PORT = process.env.PORT || 3000;
+const PACKAGE_VERSION = (() => {
+  try {
+    return require("./package.json").version || "1.0.0";
+  } catch {
+    return "1.0.0";
+  }
+})();
+/** Deploy/build identity for client version handoff (Railway commit SHA or package version). */
+const BUILD_ID = String(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.BUILD_ID || PACKAGE_VERSION).trim() || PACKAGE_VERSION;
 const DEFAULT_BUY_IN_CENTS = 2000;
 const {
   STARTING_STACK,
@@ -149,6 +158,20 @@ const SETTLED_MONEY_ROOM_TTL_MS = Math.max(
   Number(process.env.SETTLED_MONEY_ROOM_TTL_MS) || 48 * 60 * 60 * 1000,
 );
 
+// Serve sw.js with a deploy-scoped cache name so new builds activate cleanly.
+app.get("/sw.js", (req, res) => {
+  try {
+    const source = fs.readFileSync(path.join(__dirname, "public", "sw.js"), "utf8");
+    res.type("application/javascript").send(source.replaceAll("__BUILD_ID__", BUILD_ID));
+  } catch (error) {
+    res.status(500).type("text/plain").send("Service worker unavailable");
+  }
+});
+
+app.get("/api/build", (_req, res) => {
+  res.json({ buildId: BUILD_ID });
+});
+
 app.use(express.static("public"));
 app.use("/shared", express.static(path.join(__dirname, "shared")));
 
@@ -174,6 +197,7 @@ const rooms = new Map();
 const socketRoom = new Map();
 const socketPlayer = new Map();
 let saveTimer = null;
+let shuttingDown = false;
 
 
 
@@ -269,12 +293,15 @@ function saveRoomsNow() {
   const payload = {
     version: 1,
     savedAt: new Date().toISOString(),
+    buildId: BUILD_ID,
     rooms: [...rooms.values()].map(serializeRoomForStorage),
   };
   fs.writeFileSync(STATE_FILE, `${JSON.stringify(payload, null, 2)}\n`);
+  return payload;
 }
 
 function scheduleSave() {
+  if (shuttingDown) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     try {
@@ -283,6 +310,57 @@ function scheduleSave() {
       console.error("Failed to save game state:", error);
     }
   }, SAVE_DEBOUNCE_MS);
+}
+
+/**
+ * Clear live timeout handles without clearing absolute deadlines so a deploy
+ * cannot auto-fold / sit-out players while the process is exiting.
+ */
+function pauseRoomTimers(room) {
+  if (!room) return;
+  shotClockTime.clearTimeout(room.turnTimer);
+  room.turnTimer = null;
+  shotClockTime.clearTimeout(room.readyTimer);
+  room.readyTimer = null;
+  clearTimeout(room.botTimer);
+  room.botTimer = null;
+  clearTimeout(room.showdownTimer);
+  room.showdownTimer = null;
+  clearTimeout(room.dormantTimer);
+  room.dormantTimer = null;
+  for (const player of room.players || []) {
+    clearTimeout(player.disconnectTimer);
+    player.disconnectTimer = null;
+  }
+  for (const spectator of room.spectators || []) {
+    clearTimeout(spectator.disconnectTimer);
+    spectator.disconnectTimer = null;
+  }
+}
+
+function pauseAllRoomTimers() {
+  for (const room of rooms.values()) pauseRoomTimers(room);
+}
+
+/** Extend absolute deadlines by deploy downtime so remaining time is preserved. */
+function extendDeadlinesAfterRestore(room, downtimeMs) {
+  const pad = Math.max(0, Math.floor(Number(downtimeMs) || 0));
+  if (!room || !pad) return;
+  if (room.turnEndsAt) room.turnEndsAt += pad;
+  if (room.readyEndsAt) room.readyEndsAt += pad;
+  for (const player of room.players || []) {
+    if (player.disconnectExpiresAt) player.disconnectExpiresAt += pad;
+  }
+  for (const spectator of room.spectators || []) {
+    if (spectator.disconnectExpiresAt) spectator.disconnectExpiresAt += pad;
+  }
+}
+
+function downtimeMsFromSavedAt(savedAt, now = Date.now()) {
+  if (!savedAt) return 0;
+  const savedMs = Date.parse(savedAt);
+  if (!Number.isFinite(savedMs)) return 0;
+  return Math.max(0, now - savedMs);
 }
 
 function clearRoomDormancy(room) {
@@ -521,18 +599,23 @@ function loadRooms() {
   try {
     const payload = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
     const restoredRooms = Array.isArray(payload.rooms) ? payload.rooms : [];
+    const downtimeMs = downtimeMsFromSavedAt(payload.savedAt, shotClockTime.now());
     for (const rawRoom of restoredRooms) {
       const room = restoreRoom(rawRoom);
       if (room) {
+        extendDeadlinesAfterRestore(room, downtimeMs);
         rooms.set(room.id, room);
         scheduleDormantRoomCleanup(room);
-        if (room.phase === "showdown") beginShowdown(room);
-        // Re-arm from persisted absolute deadlines, or clear stale endsAt when not applicable.
+        if (room.phase === "showdown") scheduleShowdown(room);
+        // Re-arm from persisted absolute deadlines (already padded for downtime).
         scheduleHumanTurnTimer(room);
         scheduleReadyTimer(room);
+        scheduleComputerTurn(room);
       }
     }
-    if (rooms.size > 0) console.log(`Restored ${rooms.size} room(s) from ${STATE_FILE}`);
+    if (rooms.size > 0) {
+      console.log(`Restored ${rooms.size} room(s) from ${STATE_FILE}${downtimeMs ? ` (+${downtimeMs}ms timer pad)` : ""}`);
+    }
   } catch (error) {
     console.error("Failed to restore game state:", error);
   }
@@ -1350,6 +1433,7 @@ function serializeRoom(room, viewerId) {
     hostId: room.hostId,
     status: room.status,
     phase: room.phase,
+    buildId: BUILD_ID,
     tableSize: room.tableSize || room.players.length,
     message: room.message,
     pot,
@@ -1649,6 +1733,8 @@ function kickPlayerFromRoom(room, playerId) {
 }
 
 io.on("connection", (socket) => {
+  socket.emit("server:hello", { buildId: BUILD_ID });
+
   socket.on("room:create", ({
     name, deviceId, computerPlayers, tableSize, moneyMode, buyInCents,
     smallBlind, bigBlind, smallBlindCents, bigBlindCents,
@@ -2094,29 +2180,81 @@ io.on("connection", (socket) => {
   });
 });
 
+/**
+ * Graceful deploy shutdown: warn clients, pause clocks, flush rooms.json
+ * synchronously (bypassing the 150ms debounce), then close sockets/HTTP.
+ * Pass `{ exit: false }` from tests so the process stays alive.
+ */
+function gracefulShutdown(signal = "SIGTERM", options = {}) {
+  const shouldExit = options.exit !== false;
+  if (shuttingDown) return Promise.resolve({ ok: false, reason: "already-shutting-down" });
+  shuttingDown = true;
+  console.log(`Received ${signal}; flushing rooms and shutting down…`);
+
+  try {
+    io.emit("server:restarting", { buildId: BUILD_ID });
+  } catch (error) {
+    console.error("Failed to broadcast server:restarting:", error);
+  }
+
+  pauseAllRoomTimers();
+
+  let payload = null;
+  try {
+    payload = saveRoomsNow();
+  } catch (error) {
+    console.error("Failed to flush game state on shutdown:", error);
+  }
+
+  return new Promise((resolve) => {
+    const forceExit = setTimeout(() => {
+      console.error("Forced exit after shutdown timeout");
+      if (shouldExit) process.exit(1);
+      else resolve({ ok: false, payload, reason: "timeout" });
+    }, 8000);
+    forceExit.unref?.();
+
+    const finish = () => {
+      clearTimeout(forceExit);
+      if (shouldExit) process.exit(0);
+      else resolve({ ok: true, payload });
+    };
+
+    try {
+      io.close(() => {
+        server.close(finish);
+      });
+    } catch (error) {
+      console.error("Error during socket/http close:", error);
+      finish();
+    }
+  });
+}
+
+/** Test helper: allow another gracefulShutdown after an in-process shutdown. */
+function resetShutdownState() {
+  shuttingDown = false;
+}
+
 if (require.main === module) {
   loadRooms();
 
-  process.once("SIGINT", () => {
-    saveRoomsNow();
-    process.exit(0);
-  });
-
-  process.once("SIGTERM", () => {
-    saveRoomsNow();
-    process.exit(0);
-  });
+  process.once("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.once("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
   server.listen(PORT, () => {
-    console.log(`Texas Hold'em server listening on http://localhost:${PORT}`);
+    console.log(`Texas Hold'em server listening on http://localhost:${PORT} (build ${BUILD_ID})`);
   });
 }
 
 module.exports = {
   BLIND_LEVELS,
+  BUILD_ID,
   SETTLED_MONEY_ROOM_TTL_MS,
   DORMANT_ROOM_TTL_MS,
   READY_TIMER_MS,
+  SAVE_DEBOUNCE_MS,
+  STATE_FILE,
   SHOT_CLOCK_DEFAULT_MS,
   SHOT_CLOCK_MAX_MS,
   SHOT_CLOCK_MIN_MS,
@@ -2127,6 +2265,13 @@ module.exports = {
   cashInPlayer,
   clearReadyTimer,
   clearTurnTimer,
+  downtimeMsFromSavedAt,
+  extendDeadlinesAfterRestore,
+  gracefulShutdown,
+  loadRooms,
+  pauseAllRoomTimers,
+  pauseRoomTimers,
+  resetShutdownState,
   playerCanCashIn,
   assessPreflopAllInCall,
   bettingComplete,
@@ -2148,9 +2293,11 @@ module.exports = {
   resetShotClockTime,
   restoreRoom,
   rooms,
+  saveRoomsNow,
   scheduleDormantRoomCleanup,
   scheduleHumanTurnTimer,
   scheduleReadyTimer,
+  scheduleSave,
   serializeRoom,
   serializeRoomForStorage,
   server,

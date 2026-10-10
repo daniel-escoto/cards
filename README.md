@@ -56,3 +56,16 @@ controls in Railway.
 The server snapshots active rooms to JSON so games can be restored after a restart or deploy. By default it writes to `RAILWAY_VOLUME_MOUNT_PATH`, `DATA_DIR`, or local `.data/rooms.json`.
 
 For production deploys, attach a Railway volume or set `GAME_STATE_FILE` to a persistent path. Without a persistent filesystem, games will still be saved locally during the process lifetime but will not survive a fresh container.
+
+## Graceful deploys
+
+On `SIGTERM` / `SIGINT` the server broadcasts `server:restarting`, pauses shot-clock and ready timers (so nobody is auto-folded or sat out during the restart), flushes `rooms.json` synchronously (bypassing the 150ms debounce), and closes cleanly. On boot it restores rooms and extends any `turnEndsAt` / `readyEndsAt` by the downtime so remaining time is preserved. Clients show a non-blocking “Updating…, reconnecting” banner, auto-rejoin by `deviceId`, and reload to the new build only between hands (or immediately when not in a hand).
+
+### Railway settings (Daniel)
+
+Volume-backed services cannot overlap two deployments, so there is a short downtime window. Give the old process time to flush and warn clients before Railway sends `SIGKILL`:
+
+- Set **`RAILWAY_DEPLOYMENT_DRAINING_SECONDS=30`** on the `holdem` service (Settings → teardown / draining, or as a service variable). Default is `0`, which can kill the process before `SIGTERM` handling finishes.
+- `RAILWAY_DEPLOYMENT_OVERLAP_SECONDS` does not help here while a volume is attached (Railway will not run two volume-backed replicas at once).
+
+Do not change Railway config from this repo; set the draining variable in the Railway dashboard.

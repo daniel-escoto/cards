@@ -1,11 +1,14 @@
 /* Minimal app-shell cache for offline bot-only Host. Online multiplayer still needs network. */
-const CACHE_NAME = "cards-shell-v11";
+/* CACHE_VERSION is replaced by the server with the deploy build id when served. */
+const CACHE_VERSION = "__BUILD_ID__";
+const CACHE_NAME = `cards-shell-${CACHE_VERSION}`;
 const APP_SHELL = [
   "/",
   "/index.html",
   "/styles.css",
   "/app.js",
   "/practice.js",
+  "/deploy-handoff.js",
   "/raise-sizing.js",
   "/card-art.js",
   "/turn-clock-warning.js",
@@ -37,6 +40,8 @@ self.addEventListener("fetch", (event) => {
 
   // Never cache Socket.IO realtime endpoints.
   if (url.pathname.startsWith("/socket.io/")) return;
+  // Always network for the service worker script so deploys activate cleanly.
+  if (url.pathname === "/sw.js") return;
 
   event.respondWith((async () => {
     const cached = await caches.match(request);
