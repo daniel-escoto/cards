@@ -84,6 +84,7 @@ menuBtn.addEventListener("click", () => {
 roomCodeBtn.addEventListener("click", async () => {
   if (!state?.id || isOfflineSession()) return;
   await navigator.clipboard.writeText(canonicalInviteUrl(state.id));
+  flashCopyIcon(roomCodeBtn);
   showToast("Invite link copied");
 });
 
@@ -132,14 +133,25 @@ gameMenuModal.addEventListener("click", (event) => {
     emitWithAck("game:setReadyTimer", { seconds });
     return;
   }
+  const sheetToggle = (event.target as HTMLElement).closest(
+    "[data-player-sheet]",
+  ) as HTMLElement | null;
+  if (sheetToggle) {
+    const playerId = sheetToggle.dataset.playerSheet || "";
+    openPlayerSheetId = openPlayerSheetId === playerId ? "" : playerId;
+    renderMenuPlayers();
+    return;
+  }
   const hostButton = (event.target as HTMLElement).closest("[data-make-host]") as HTMLElement | null;
   if (hostButton) {
     makeHost(hostButton.dataset.makeHost);
+    openPlayerSheetId = "";
     return;
   }
   const kickButton = (event.target as HTMLElement).closest("[data-kick-player]") as HTMLElement | null;
   if (kickButton) {
     kickPlayer(kickButton.dataset.kickPlayer);
+    openPlayerSheetId = "";
     return;
   }
   if (event.target === gameMenuModal) hideGameMenu();
@@ -226,6 +238,12 @@ sitOutBtn.addEventListener("click", () => {
 
 shareGameBtn.addEventListener("click", showSharePanel);
 copyShareBtn.addEventListener("click", () => copyText(shareLink.value, copyShareBtn));
+openSettingsBtn.addEventListener("click", showMenuSettingsView);
+closeSettingsBtn.addEventListener("click", showMenuMainView);
+closeSettingsMenuBtn.addEventListener("click", hideGameMenu);
+openHostBtn.addEventListener("click", showMenuHostView);
+closeHostBtn.addEventListener("click", showMenuMainView);
+closeHostMenuBtn.addEventListener("click", hideGameMenu);
 
 backToMenuBtn.addEventListener("click", () => {
   hideGameMenu();

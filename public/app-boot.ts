@@ -36,6 +36,15 @@ var watchingCountEl = document.querySelector("#watchingCount") as HTMLElement;
 var menuBtn = document.querySelector("#menuBtn") as HTMLButtonElement;
 var gameMenuModal = document.querySelector("#gameMenuModal") as HTMLElement;
 var closeMenuBtn = document.querySelector("#closeMenuBtn") as HTMLButtonElement;
+var menuMainView = document.querySelector("#menuMainView") as HTMLElement;
+var menuSettingsView = document.querySelector("#menuSettingsView") as HTMLElement;
+var menuHostView = document.querySelector("#menuHostView") as HTMLElement;
+var openSettingsBtn = document.querySelector("#openSettingsBtn") as HTMLButtonElement;
+var closeSettingsBtn = document.querySelector("#closeSettingsBtn") as HTMLButtonElement;
+var closeSettingsMenuBtn = document.querySelector("#closeSettingsMenuBtn") as HTMLButtonElement;
+var openHostBtn = document.querySelector("#openHostBtn") as HTMLButtonElement;
+var closeHostBtn = document.querySelector("#closeHostBtn") as HTMLButtonElement;
+var closeHostMenuBtn = document.querySelector("#closeHostMenuBtn") as HTMLButtonElement;
 var addBotBtn = document.querySelector("#addBotBtn") as HTMLButtonElement;
 var restartGameBtn = document.querySelector("#restartGameBtn") as HTMLButtonElement;
 var endGameBtn = document.querySelector("#endGameBtn") as HTMLButtonElement;
@@ -44,8 +53,10 @@ var backToMenuBtn = document.querySelector("#backToMenuBtn") as HTMLButtonElemen
 var sitOutBtn = document.querySelector("#sitOutBtn") as HTMLButtonElement;
 var hostActionsPanel = document.querySelector("#hostActionsPanel") as HTMLElement;
 var menuRoomCode = document.querySelector("#menuRoomCode") as HTMLElement;
-var menuRoomEyebrow = document.querySelector("#menuRoomEyebrow") as HTMLElement;
+var menuRoomEyebrow = document.querySelector("#menuRoomEyebrow") as HTMLElement | null;
+var menuNameForm = document.querySelector("#menuNameForm") as HTMLFormElement;
 var menuPlayers = document.querySelector("#menuPlayers") as HTMLElement;
+var openPlayerSheetId = "";
 var feltChoices = document.querySelector("#feltChoices") as HTMLElement;
 var deckChoices = document.querySelector("#deckChoices") as HTMLElement;
 var soundEnabledInput = document.querySelector("#soundEnabledInput") as HTMLInputElement;
@@ -653,10 +664,36 @@ function showTable(room: ClientRoom) {
   else setRoomUrl(room.id);
 }
 
+function showMenuMainView() {
+  menuSettingsView.classList.add("hidden");
+  menuHostView.classList.add("hidden");
+  menuMainView.classList.remove("hidden");
+  gameMenuModal.querySelectorAll(".appearance-panel").forEach((panel) => {
+    (panel as HTMLDetailsElement).open = false;
+  });
+}
+
+function showMenuSettingsView() {
+  menuMainView.classList.add("hidden");
+  menuHostView.classList.add("hidden");
+  menuSettingsView.classList.remove("hidden");
+  syncMenuNameForm();
+  closeSettingsBtn.focus({ preventScroll: true });
+}
+
+function showMenuHostView() {
+  menuMainView.classList.add("hidden");
+  menuSettingsView.classList.add("hidden");
+  menuHostView.classList.remove("hidden");
+  closeHostBtn.focus({ preventScroll: true });
+}
+
 function hideGameMenu() {
   cancelKeybindRecording();
   gameMenuModal.classList.add("hidden");
   sharePanel.classList.add("hidden");
+  showMenuMainView();
+  openPlayerSheetId = "";
   if (menuTimer != null) clearInterval(menuTimer);
   menuTimer = null;
   if (!tableView.classList.contains("hidden")) menuBtn.focus({ preventScroll: true });
@@ -731,6 +768,33 @@ function formatTurnCountdown(seconds: number) {
   return String(total);
 }
 
+function syncMenuNameForm() {
+  if (!menuNameForm) return;
+  const hero = activeHero();
+  const canEdit = Boolean(hero && !hero.isBot && !isSpectatorView());
+  menuNameForm.classList.toggle("hidden", !canEdit);
+  if (!canEdit || isMenuNameEditing()) return;
+  const input = menuNameForm.querySelector("[data-player-name]") as HTMLInputElement | null;
+  if (input && hero) input.value = hero.name;
+}
+
+function syncHostMenuSection() {
+  if (!openHostBtn || !hostActionsPanel) return;
+  const canRestart = Boolean(state?.canRestartGame && state.phase !== "lobby");
+  const canEnd = Boolean(state?.canEndGame);
+  const canBlinds = Boolean(state?.canChangeBlinds) && !isSpectatorView();
+  const canShotClock =
+    Boolean(state?.canChangeShotClock) && !isOfflineSession() && !isSpectatorView();
+  const canReadyTimer =
+    Boolean(state?.canChangeReadyTimer) && !isOfflineSession() && !isSpectatorView();
+  restartGameBtn.classList.toggle("hidden", !canRestart);
+  endGameBtn.classList.toggle("hidden", !canEnd);
+  hostActionsPanel.classList.toggle("hidden", !canRestart && !canEnd);
+  const showHost = canBlinds || canShotClock || canReadyTimer || canRestart || canEnd;
+  openHostBtn.classList.toggle("hidden", !showHost);
+  if (!showHost) menuHostView.classList.add("hidden");
+}
+
 function commitMenuDisplayName(nameForm: HTMLElement | null) {
   if (!nameForm) return false;
   const input = nameForm.querySelector("[data-player-name]") as HTMLInputElement | null;
@@ -786,7 +850,6 @@ function commitMenuDisplayName(nameForm: HTMLElement | null) {
 
 function renderMenuPlayers() {
   if (!state) return;
-  if (isMenuNameEditing()) return;
   menuRoomCode.textContent = isOfflineSession() ? "Offline" : state.id;
   if (menuRoomEyebrow) menuRoomEyebrow.textContent = isOfflineSession() ? "Mode" : "Room";
   const hero = activeHero();
@@ -796,56 +859,44 @@ function renderMenuPlayers() {
       <div><span>Session</span><strong class="${hero.netCents >= 0 ? "positive" : "negative"}">${formatSignedMoney(hero.netCents)}</strong></div>
     `;
     cashOutBtn.textContent =
-      hero.stackCents > 0 ? `Leave with ${formatMoney(hero.stackCents)}` : "No stack to cash out";
+      hero.stackCents > 0 ? `Cash out ${formatMoney(hero.stackCents)}` : "No stack";
     cashOutBtn.disabled = hero.stackCents <= 0;
   }
-  const canRestart = Boolean(state.canRestartGame && state.phase !== "lobby");
-  const canEnd = Boolean(state.canEndGame);
-  restartGameBtn.classList.toggle("hidden", !canRestart);
-  endGameBtn.classList.toggle("hidden", !canEnd);
-  hostActionsPanel.classList.toggle("hidden", !canRestart && !canEnd);
+  syncHostMenuSection();
+  syncMenuNameForm();
   menuPlayers.innerHTML = seatedPlayers()
     .map((player) => {
       const status = roundStatus(player);
-      const actions =
-        player.canMakeHost || player.canKick
-          ? `<div class="menu-player-actions">
+      const hasActions = Boolean(player.canMakeHost || player.canKick);
+      const sheetOpen = hasActions && openPlayerSheetId === player.id;
+      const badges = [
+        player.dealer ? "D" : "",
+        player.isHost ? "Host" : "",
+        player.isBot ? "Bot" : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      const sheet = hasActions
+        ? `<div class="menu-player-sheet ${sheetOpen ? "" : "hidden"}">
           ${player.canMakeHost ? `<button type="button" class="secondary" data-make-host="${escapeHtml(player.id)}">Make host</button>` : ""}
           ${player.canKick ? `<button type="button" class="danger" data-kick-player="${escapeHtml(player.id)}">Kick</button>` : ""}
         </div>`
-          : "";
+        : "";
+      const rowTag = hasActions ? "button" : "div";
+      const rowAttrs = hasActions
+        ? `type="button" class="menu-player-row" data-player-sheet="${escapeHtml(player.id)}" aria-expanded="${sheetOpen ? "true" : "false"}"`
+        : `class="menu-player-row static"`;
       return `
-    <article class="menu-player ${player.isYou ? "you" : ""} ${player.folded ? "folded" : ""} ${player.isBot ? "bot" : ""}" ${playerColorStyle(player)}>
-      <div class="menu-player-main">
-        <div class="menu-player-identity">
-          <div class="menu-player-head">
-            <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
-            <span class="seat-badges">
-              ${player.dealer ? '<span class="pill">D</span>' : ""}
-              ${player.isHost ? '<span class="pill">Host</span>' : ""}
-              ${player.isBot ? '<span class="pill bot-pill">Bot</span>' : ""}
-            </span>
-          </div>
-          <div class="menu-player-stats">
-            <span>Stack <strong>${playerStackLabel(player)}</strong></span>
-            ${status ? `<em>${escapeHtml(status)}</em>` : ""}
-          </div>
-        </div>
-        ${actions}
-      </div>
-      ${
-        player.isYou && !player.isBot
-          ? `
-        <form class="menu-name-form" data-name-form>
-          <label>
-            Display name
-            <input data-player-name maxlength="18" value="${escapeHtml(player.name)}" autocomplete="name" />
-          </label>
-          <button type="submit" class="secondary">Save</button>
-        </form>
-      `
-          : ""
-      }
+    <article class="menu-player ${player.isYou ? "you" : ""} ${player.folded ? "folded" : ""} ${player.isBot ? "bot" : ""} ${sheetOpen ? "sheet-open" : ""}" ${playerColorStyle(player)}>
+      <${rowTag} ${rowAttrs}>
+        <span class="menu-player-line">
+          <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
+          ${badges ? `<span class="menu-player-badges">${escapeHtml(badges)}</span>` : ""}
+          ${status ? `<em class="menu-player-status">${escapeHtml(status)}</em>` : ""}
+        </span>
+        <strong class="menu-player-stack">${playerStackLabel(player)}</strong>
+      </${rowTag}>
+      ${sheet}
     </article>
   `;
     })
@@ -884,25 +935,28 @@ function syncCashInControls() {
 }
 
 function showGameMenu() {
+  openPlayerSheetId = "";
+  showMenuMainView();
   renderMenuPlayers();
-  gameMenuModal.querySelectorAll(".appearance-panel, .table-actions-panel").forEach((panel) => {
+  gameMenuModal.querySelectorAll(".appearance-panel").forEach((panel) => {
     (panel as HTMLDetailsElement).open = false;
   });
   addBotBtn.classList.toggle("hidden", !state?.canAddBot || isSpectatorView());
   const hero = activeHero();
   sitOutBtn.classList.toggle("hidden", !hero || isSpectatorView() || state?.phase === "gameover");
-  if (hero) sitOutBtn.textContent = hero.sittingOut ? "Sit back in" : "Sit out next hand";
+  if (hero) sitOutBtn.textContent = hero.sittingOut ? "Sit in" : "Sit out";
   moneyPanel.classList.toggle(
     "hidden",
     !state?.moneyMode || isSpectatorView() || isOfflineSession(),
   );
-  shareGameBtn.classList.toggle("hidden", isOfflineSession());
+  const offline = isOfflineSession();
+  shareGameBtn.classList.toggle("hidden", offline);
   sharePanel.classList.add("hidden");
   blindPanel.classList.toggle("hidden", !state?.canChangeBlinds || isSpectatorView());
   if (state?.canChangeBlinds) {
     const moneyMode = state.moneyMode;
-    menuSmallBlindLabel.textContent = moneyMode ? "Small blind ($)" : "Small blind";
-    menuBigBlindLabel.textContent = moneyMode ? "Big blind ($)" : "Big blind";
+    menuSmallBlindLabel.textContent = moneyMode ? "Small ($)" : "Small";
+    menuBigBlindLabel.textContent = moneyMode ? "Big ($)" : "Big";
     menuSmallBlindInput.value = moneyMode
       ? (state.smallBlindCents / 100).toFixed(2)
       : String(state.smallBlind);
@@ -916,6 +970,7 @@ function showGameMenu() {
   }
   renderShotClockChoices();
   renderReadyTimerChoices();
+  syncHostMenuSection();
   if (state?.moneyMode) cashInInput.value = (state.buyInCents / 100).toFixed(0);
   syncCashInControls();
   if (menuTimer != null) clearInterval(menuTimer);

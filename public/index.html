@@ -144,30 +144,59 @@
 
       <section id="tableView" class="table-view hidden">
         <header class="topbar">
-          <div class="room-summary">
+          <div class="topbar-leading">
+            <span class="topbar-wordmark" aria-hidden="true">holdem.nyc</span>
             <button
               id="roomCodeBtn"
               class="room-code-btn"
               type="button"
               aria-label="Copy room code"
             >
-              <span class="eyebrow">Room</span>
               <strong id="roomCode"></strong>
-              <span class="copy-icon" aria-hidden="true">⧉</span>
+              <span class="copy-icon" aria-hidden="true">
+                <svg
+                  class="copy-icon-glyph copy-icon-copy"
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.85"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
+                  <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+                </svg>
+                <svg
+                  class="copy-icon-glyph copy-icon-check hidden"
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.85"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M20 6 9 17l-5-5"></path>
+                </svg>
+              </span>
             </button>
             <span id="watchingCount" class="watching-count hidden" aria-live="polite"></span>
           </div>
-          <div class="topbar-actions">
-            <button
-              id="menuBtn"
-              class="ghost menu-btn"
-              type="button"
-              aria-haspopup="dialog"
-              aria-controls="gameMenuModal"
-            >
-              Menu
-            </button>
-          </div>
+          <button
+            id="menuBtn"
+            class="ghost menu-btn"
+            type="button"
+            aria-label="Open menu"
+            aria-haspopup="dialog"
+            aria-controls="gameMenuModal"
+          >
+            <span class="menu-btn-icon" aria-hidden="true"></span>
+          </button>
         </header>
 
         <section class="felt">
@@ -242,75 +271,88 @@
         aria-modal="true"
         aria-labelledby="gameMenuTitle"
       >
-        <div class="modal-panel">
-          <div class="modal-head">
-            <div>
-              <p class="eyebrow">
-                <span id="menuRoomEyebrow">Room</span> <span id="menuRoomCode"></span>
-              </p>
-              <h2 id="gameMenuTitle">Table menu</h2>
-            </div>
-            <button id="closeMenuBtn" class="ghost icon-btn" type="button" aria-label="Close menu">
-              ×
-            </button>
-          </div>
-
-          <section class="menu-section menu-section-players" aria-labelledby="menuPlayersHeading">
-            <h3 id="menuPlayersHeading" class="menu-section-title">Players</h3>
-            <div class="menu-section-body">
-              <div id="menuPlayers" class="menu-players"></div>
-              <button id="addBotBtn" class="secondary add-bot-btn hidden" type="button">
-                + Add bot player
+        <div class="modal-panel menu-panel">
+          <div id="menuMainView" class="menu-view">
+            <div class="modal-head">
+              <div>
+                <p class="eyebrow">
+                  <span id="menuRoomEyebrow">Room</span> <span id="menuRoomCode"></span>
+                </p>
+                <h2 id="gameMenuTitle" class="menu-title">Table</h2>
+              </div>
+              <button
+                id="closeMenuBtn"
+                class="ghost icon-btn"
+                type="button"
+                aria-label="Close menu"
+              >
+                ×
               </button>
             </div>
-          </section>
 
-          <section class="menu-section menu-section-settings" aria-labelledby="menuTableHeading">
-            <h3 id="menuTableHeading" class="menu-section-title">Settings</h3>
-            <div class="menu-section-body">
-              <label class="checkbox-label sound-toggle">
-                <input id="soundEnabledInput" type="checkbox" checked />
-                <span class="switch-control" aria-hidden="true"></span>
-                <span class="checkbox-copy">
-                  <strong>Table sounds</strong>
-                  <small>Turn ding, timer ticks, card, chip, and button sounds</small>
-                </span>
-              </label>
-              <details class="appearance-panel">
-                <summary>Table appearance</summary>
-                <div class="appearance-group">
-                  <span>Felt color</span>
-                  <div
-                    id="feltChoices"
-                    class="appearance-choices color-choices"
-                    aria-label="Felt color"
-                  ></div>
+            <div class="menu-stack">
+              <button id="shareGameBtn" type="button" class="secondary menu-row-btn">Invite</button>
+              <div id="sharePanel" class="share-panel hidden">
+                <img id="shareQr" alt="Room invite QR code" />
+                <div class="share-link-row">
+                  <input id="shareLink" readonly aria-label="Room invite link" />
+                  <button id="copyShareBtn" type="button" class="secondary">Copy</button>
                 </div>
-                <div class="appearance-group">
-                  <span>Deck</span>
-                  <div
-                    id="deckChoices"
-                    class="appearance-choices deck-choices"
-                    aria-label="Deck style"
-                  ></div>
-                </div>
-              </details>
-              <details class="appearance-panel shortcuts-panel">
-                <summary>Keyboard shortcuts</summary>
-                <p class="shortcut-help">
-                  Choose an action, then press a key. Left/Right also adjust bet like Down/Up.
-                </p>
-                <div id="keybindList" class="keybind-list"></div>
-                <button id="resetKeybindsBtn" class="secondary reset-keybinds" type="button">
-                  Reset to defaults
+              </div>
+              <div id="menuPlayers" class="menu-players"></div>
+              <button
+                id="addBotBtn"
+                class="secondary add-bot-btn menu-row-btn hidden"
+                type="button"
+              >
+                + Add bot
+              </button>
+              <button id="openSettingsBtn" type="button" class="secondary menu-row-btn">
+                Settings
+              </button>
+              <button id="sitOutBtn" type="button" class="secondary menu-row-btn">Sit out</button>
+              <button id="openHostBtn" type="button" class="secondary menu-row-btn hidden">
+                Host
+              </button>
+              <button
+                id="backToMenuBtn"
+                type="button"
+                class="secondary leave-game-btn menu-row-btn"
+              >
+                Leave
+              </button>
+            </div>
+          </div>
+
+          <div id="menuHostView" class="menu-view menu-host-view hidden">
+            <div class="modal-head">
+              <div class="settings-head">
+                <button
+                  id="closeHostBtn"
+                  class="ghost settings-back-btn"
+                  type="button"
+                  aria-label="Back to menu"
+                >
+                  ←
                 </button>
-              </details>
-              <details id="blindPanel" class="appearance-panel blind-settings-panel hidden">
-                <summary>Blind settings</summary>
+                <h2 id="hostTitle" class="menu-title">Host</h2>
+              </div>
+              <button
+                id="closeHostMenuBtn"
+                class="ghost icon-btn"
+                type="button"
+                aria-label="Close menu"
+              >
+                ×
+              </button>
+            </div>
+            <div class="menu-stack host-settings-body">
+              <div id="blindPanel" class="host-block blind-settings-panel hidden">
+                <p class="menu-subsection-title">Blinds</p>
                 <form id="blindForm" class="blind-settings-form">
                   <div class="blind-fields">
                     <label>
-                      <span id="menuSmallBlindLabel">Small blind</span>
+                      <span id="menuSmallBlindLabel">Small</span>
                       <input
                         id="menuSmallBlindInput"
                         type="number"
@@ -320,7 +362,7 @@
                       />
                     </label>
                     <label>
-                      <span id="menuBigBlindLabel">Big blind</span>
+                      <span id="menuBigBlindLabel">Big</span>
                       <input
                         id="menuBigBlindInput"
                         type="number"
@@ -332,11 +374,10 @@
                   </div>
                   <button type="submit">Update blinds</button>
                 </form>
-              </details>
-              <details id="shotClockPanel" class="appearance-panel shot-clock-panel hidden">
-                <summary>Shot clock</summary>
+              </div>
+              <div id="shotClockPanel" class="host-block shot-clock-panel hidden">
+                <p class="menu-subsection-title">Shot clock</p>
                 <div class="appearance-group">
-                  <span>Turn timer</span>
                   <div
                     id="shotClockChoices"
                     class="appearance-choices shot-clock-choices"
@@ -365,14 +406,12 @@
                   </form>
                 </div>
                 <p class="shortcut-help">
-                  Auto-check if free, otherwise auto-fold. Server-enforced for online games. Custom:
-                  10–600 seconds.
+                  Auto-check if free, otherwise auto-fold. Custom: 10–600s.
                 </p>
-              </details>
-              <details id="readyTimerPanel" class="appearance-panel shot-clock-panel hidden">
-                <summary>Ready-up timer</summary>
+              </div>
+              <div id="readyTimerPanel" class="host-block shot-clock-panel hidden">
+                <p class="menu-subsection-title">Ready timer</p>
                 <div class="appearance-group">
-                  <span>Between hands</span>
                   <div
                     id="readyTimerChoices"
                     class="appearance-choices shot-clock-choices"
@@ -400,29 +439,65 @@
                     <button type="submit" class="secondary">Save</button>
                   </form>
                 </div>
-                <p class="shortcut-help">
-                  Sit out players who don’t ready in time. Independent of the shot clock. Custom:
-                  5–300 seconds.
-                </p>
-              </details>
-            </div>
-          </section>
-
-          <section class="menu-section menu-section-session" aria-labelledby="menuSessionHeading">
-            <h3 id="menuSessionHeading" class="menu-section-title">Session</h3>
-            <div class="menu-section-body">
-              <div id="sharePanel" class="share-panel hidden">
-                <img id="shareQr" alt="Room invite QR code" />
-                <div class="share-link-row">
-                  <input id="shareLink" readonly aria-label="Room invite link" />
-                  <button id="copyShareBtn" type="button" class="secondary">Copy</button>
+                <p class="shortcut-help">Sit out if not ready in time. Custom: 5–300s.</p>
+              </div>
+              <div id="hostActionsPanel" class="host-block host-actions-panel hidden">
+                <p class="menu-subsection-title">Game</p>
+                <div class="host-actions-row">
+                  <button id="restartGameBtn" type="button" class="secondary">Restart</button>
+                  <button id="endGameBtn" type="button" class="danger">End game</button>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div id="menuSettingsView" class="menu-view menu-settings-view hidden">
+            <div class="modal-head">
+              <div class="settings-head">
+                <button
+                  id="closeSettingsBtn"
+                  class="ghost settings-back-btn"
+                  type="button"
+                  aria-label="Back to menu"
+                >
+                  ←
+                </button>
+                <h2 id="settingsTitle" class="menu-title">Settings</h2>
+              </div>
+              <button
+                id="closeSettingsMenuBtn"
+                class="ghost icon-btn"
+                type="button"
+                aria-label="Close menu"
+              >
+                ×
+              </button>
+            </div>
+            <div class="menu-stack">
+              <form
+                id="menuNameForm"
+                class="menu-name-form menu-name-form-standalone"
+                data-name-form
+              >
+                <label>
+                  Name
+                  <input data-player-name maxlength="18" value="" autocomplete="name" />
+                </label>
+                <button type="submit" class="secondary">Save</button>
+              </form>
+              <label class="checkbox-label sound-toggle menu-row">
+                <input id="soundEnabledInput" type="checkbox" checked />
+                <span class="switch-control" aria-hidden="true"></span>
+                <span class="checkbox-copy">
+                  <strong>Sound</strong>
+                  <small>Turn, timer, cards, chips</small>
+                </span>
+              </label>
               <form id="moneyPanel" class="money-panel hidden">
                 <div id="moneyDetails" class="money-details"></div>
                 <div class="cash-in-row">
                   <label>
-                    Add buy-in
+                    Buy-in
                     <input
                       id="cashInInput"
                       type="number"
@@ -435,28 +510,43 @@
                   </label>
                   <button id="cashInBtn" type="submit">Add</button>
                 </div>
-                <button id="cashOutBtn" type="button" class="secondary">Leave with stack</button>
+                <button id="cashOutBtn" type="button" class="secondary">Cash out</button>
                 <small class="money-note"
                   >Buy-ins during a hand are for the next deal. Payments happen separately after the
                   game.</small
                 >
               </form>
-              <div class="modal-actions session-actions">
-                <button id="shareGameBtn" type="button" class="secondary">Share</button>
-                <button id="backToMenuBtn" type="button" class="secondary leave-game-btn">
-                  Leave game
-                </button>
-              </div>
-              <button id="sitOutBtn" type="button" class="secondary">Sit out next hand</button>
-              <details id="hostActionsPanel" class="table-actions-panel host-actions-panel hidden">
-                <summary>Host actions</summary>
-                <div>
-                  <button id="restartGameBtn" type="button">Restart game</button>
-                  <button id="endGameBtn" type="button" class="danger">End game</button>
+              <details class="appearance-panel menu-disclosure">
+                <summary>Appearance</summary>
+                <div class="appearance-group">
+                  <span>Felt</span>
+                  <div
+                    id="feltChoices"
+                    class="appearance-choices color-choices"
+                    aria-label="Felt color"
+                  ></div>
+                </div>
+                <div class="appearance-group">
+                  <span>Deck</span>
+                  <div
+                    id="deckChoices"
+                    class="appearance-choices deck-choices"
+                    aria-label="Deck style"
+                  ></div>
                 </div>
               </details>
+              <details class="appearance-panel shortcuts-panel menu-disclosure">
+                <summary>Shortcuts</summary>
+                <p class="shortcut-help">
+                  Choose an action, then press a key. Left/Right also adjust bet like Down/Up.
+                </p>
+                <div id="keybindList" class="keybind-list"></div>
+                <button id="resetKeybindsBtn" class="secondary reset-keybinds" type="button">
+                  Reset defaults
+                </button>
+              </details>
             </div>
-          </section>
+          </div>
         </div>
       </div>
       <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
