@@ -86,10 +86,16 @@ const {
 } = engine;
 
 setRandomInt((maxExclusive) => crypto.randomInt(maxExclusive));
-const DISCONNECT_GRACE_MS = Math.max(0, Number(process.env.DISCONNECT_GRACE_MS) || 30000);
+function envNonNegativeMs(name, fallback) {
+  if (process.env[name] == null || process.env[name] === "") return fallback;
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) ? Math.max(0, value) : fallback;
+}
+// Allow 0 via env (tests); `Number("0") || fallback` would incorrectly keep the default.
+const DISCONNECT_GRACE_MS = envNonNegativeMs("DISCONNECT_GRACE_MS", 30000);
 const BACKGROUND_DISCONNECT_GRACE_MS = Math.max(
   DISCONNECT_GRACE_MS,
-  Number(process.env.BACKGROUND_DISCONNECT_GRACE_MS) || 5 * 60 * 1000,
+  envNonNegativeMs("BACKGROUND_DISCONNECT_GRACE_MS", 5 * 60 * 1000),
 );
 const BACKGROUND_PRESENCE_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DATA_DIR || path.join(__dirname, ".data");

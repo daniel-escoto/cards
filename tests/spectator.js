@@ -1,3 +1,8 @@
+// Short disconnect grace so leave/disconnect cleanup is deterministic and cannot hang CI.
+// Must be set before requiring server.js (it reads these at module load).
+process.env.DISCONNECT_GRACE_MS = "50";
+process.env.BACKGROUND_DISCONNECT_GRACE_MS = "50";
+
 const assert = require("node:assert/strict");
 const { io } = require("socket.io-client");
 const engine = require("../shared/engine");
@@ -27,6 +32,46 @@ async function wait(check, label = "condition") {
 
 function holeCodes(cards) {
   return (cards || []).filter(Boolean).map((card) => card.code || `${card.rank}${card.suit}`);
+}
+
+function clearRoomTimers(room) {
+  if (!room) return;
+  clearTimeout(room.botTimer);
+  clearTimeout(room.showdownTimer);
+  clearTimeout(room.dormantTimer);
+  clearTurnTimer(room);
+  clearReadyTimer(room);
+  for (const player of room.players || []) {
+    clearTimeout(player.disconnectTimer);
+    player.disconnectTimer = null;
+  }
+  for (const spectator of room.spectators || []) {
+    clearTimeout(spectator.disconnectTimer);
+    spectator.disconnectTimer = null;
+  }
+  clearSpectators(room);
+}
+
+async function shutdown() {
+  for (const socket of sockets.splice(0)) {
+    try {
+      socket.removeAllListeners();
+      socket.disconnect();
+    } catch {
+      // ignore
+    }
+  }
+  for (const room of [...rooms.values()]) {
+    clearRoomTimers(room);
+    rooms.delete(room.id);
+  }
+  if (server.listening) {
+    await new Promise((resolve) => {
+      server.close(() => resolve());
+      // Force-close lingering keep-alives so CI cannot stall on open sockets.
+      if (typeof server.closeAllConnections === "function") server.closeAllConnections();
+    });
+  }
 }
 
 // Unit: spectator viewer never receives hole cards before a legitimate reveal.
@@ -199,15 +244,12 @@ function holeCodes(cards) {
   assert.equal(readyRoom.players.find((player) => player.id === "bob").sittingOut, true);
   assert.ok(readyRoom.spectators[0]);
   assert.equal(readyRoom.spectators[0].sittingOut, undefined);
-  clearReadyTimer(readyRoom);
-  clearTurnTimer(readyRoom);
-  clearSpectators(readyRoom);
+  clearRoomTimers(readyRoom);
   rooms.delete(readyRoomId);
 }
 
 (async () => {
   if (server.listening) {
-    // Another suite already owns the shared server; skip live socket coverage here.
     console.log("Spectator mode unit checks passed (socket suite skipped: server already listening)");
     return;
   }
@@ -314,8 +356,16 @@ function holeCodes(cards) {
     const actor = [handHost, handGuest].find((player) => player.deviceId === actorId);
     await ok(actor, "game:action", { type: "fold" });
     await wait(() => handWatcher.state?.phase === "complete", "hand complete");
+
+    // Explicit leave + short DISCONNECT_GRACE_MS: wait until the seat is actually gone.
     await ok(handGuest, "room:leave");
-    await wait(() => handWatcher.state?.canTakeSeat === true && handWatcher.state.players.length === 1, "seat free");
+    await wait(
+      () => handWatcher.state?.players.length === 1 && handWatcher.state?.canTakeSeat === true,
+      "seat free",
+    );
+    assert.equal(handWatcher.state.players.length, 1);
+    assert.equal(handWatcher.state.canTakeSeat, true);
+
     await ok(handWatcher, "room:takeSeat", {
       ...identity(handWatcher),
       reconnectToken: handWatchAck.reconnectToken,
@@ -349,12 +399,14 @@ function holeCodes(cards) {
 
     console.log("Spectator mode tests passed");
   } finally {
-    for (const socket of sockets) socket.disconnect();
-    await new Promise((resolve) => server.close(resolve));
+    await shutdown();
   }
-})().catch((error) => {
+})().catch(async (error) => {
   console.error(error);
   process.exitCode = 1;
-  for (const socket of sockets) socket.disconnect();
-  if (server.listening) server.close();
+  try {
+    await shutdown();
+  } catch (shutdownError) {
+    console.error(shutdownError);
+  }
 });
