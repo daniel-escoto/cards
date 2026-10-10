@@ -1150,8 +1150,15 @@ function setRoomUrl(roomId) {
 
 function inviteUrl() {
   if (!state) return "";
-  const url = new URL(window.location.href);
-  url.searchParams.set("room", state.id);
+  return canonicalInviteUrl(state.id);
+}
+
+function canonicalInviteUrl(roomId) {
+  if (typeof InviteUrl !== "undefined" && InviteUrl.canonicalInviteUrl) {
+    return InviteUrl.canonicalInviteUrl(roomId);
+  }
+  const url = new URL(window.location.origin + window.location.pathname);
+  url.searchParams.set("room", roomId);
   return url.toString();
 }
 
@@ -2466,9 +2473,7 @@ menuBtn.addEventListener("click", () => {
 
 roomCodeBtn.addEventListener("click", async () => {
   if (!state?.id || isOfflineSession()) return;
-  const inviteUrl = new URL(window.location.origin + window.location.pathname);
-  inviteUrl.searchParams.set("room", state.id);
-  await navigator.clipboard.writeText(inviteUrl.toString());
+  await navigator.clipboard.writeText(canonicalInviteUrl(state.id));
   showToast("Invite link copied");
 });
 
