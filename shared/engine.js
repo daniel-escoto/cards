@@ -1184,6 +1184,10 @@ function isSoloHumanFolded(room) {
       canReady: Boolean(viewer && !viewer.isBot && viewer.stack > 0 && !viewer.sittingOut && canReadyForHand(room) && playersWithChips(room).filter((player) => !player.sittingOut).length >= 2),
       isReady: Boolean(viewer?.ready),
       canChangeBlinds: room.hostId === viewerId && canReadyForHand(room),
+      // Offline practice never runs a shot clock so humans cannot get stuck alone.
+      canChangeShotClock: false,
+      turnTimeLimitMs: 0,
+      turnEndsAt: null,
       canRestartGame: room.hostId === viewerId && !room.moneyMode && canAdministerGame(room),
       canEndGame: room.hostId === viewerId && canAdministerGame(room) && (room.moneyMode || room.phase !== "lobby"),
       canAddBot: room.hostId === viewerId && !room.moneyMode && room.handNumber === 0 && room.players.length < MAX_PLAYERS,

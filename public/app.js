@@ -60,6 +60,14 @@ const menuSmallBlindLabel = document.querySelector("#menuSmallBlindLabel");
 const menuBigBlindLabel = document.querySelector("#menuBigBlindLabel");
 const menuSmallBlindInput = document.querySelector("#menuSmallBlindInput");
 const menuBigBlindInput = document.querySelector("#menuBigBlindInput");
+const shotClockPanel = document.querySelector("#shotClockPanel");
+const shotClockChoices = document.querySelector("#shotClockChoices");
+const SHOT_CLOCK_CHOICES = [
+  { seconds: 15, label: "15s" },
+  { seconds: 30, label: "30s" },
+  { seconds: 60, label: "60s" },
+  { seconds: 0, label: "Off" },
+];
 const cashInInput = document.querySelector("#cashInInput");
 const cashInBtn = document.querySelector("#cashInBtn");
 const cashOutBtn = document.querySelector("#cashOutBtn");
@@ -350,6 +358,7 @@ renderKeybinds();
 
 let state = null;
 let practiceSession = null;
+let turnCountdownTimer = null;
 let raiseState = { value: 0, min: 0, max: 0, step: 20 };
 let raiseControlsDisabled = false;
 /**
@@ -730,9 +739,67 @@ function roundStatus(player) {
   return "Out";
 }
 
+function isMenuNameEditing() {
+  // Treat the whole name form as an edit session. Checking only the text input
+  // misses the Save button (and mobile taps that blur the input without focusing
+  // the button), which let the 1s menu refresh / room:update replace the form
+  // and swallow the click before submit.
+  return Boolean(document.activeElement?.closest?.("[data-name-form]"));
+}
+
+function commitMenuDisplayName(nameForm) {
+  if (!nameForm) return false;
+  const input = nameForm.querySelector("[data-player-name]");
+  if (!input) return false;
+  const name = input.value.trim();
+  if (!name) {
+    showToast("Enter a display name.");
+    return false;
+  }
+
+  // pointerdown (Save) and submit (Enter / click) share this path; dedupe one gesture.
+  const now = Date.now();
+  if (nameForm.dataset.nameSaving === "1" && now - Number(nameForm.dataset.nameSavedAt || 0) < 750) {
+    return true;
+  }
+  nameForm.dataset.nameSaving = "1";
+  nameForm.dataset.nameSavedAt = String(now);
+
+  nameInput.value = name;
+  localStorage.setItem("holdem:name", name);
+
+  const finish = (ok, errorMessage) => {
+    delete nameForm.dataset.nameSaving;
+    if (!ok) showToast(errorMessage || "Could not update name.");
+  };
+
+  if (practiceSession) {
+    const response = practiceSession.handle("player:setName", { name });
+    input.blur();
+    finish(Boolean(response?.ok), response?.error);
+    return Boolean(response?.ok);
+  }
+  if (!socket) {
+    input.blur();
+    finish(false, "Connecting...");
+    return false;
+  }
+  socket.timeout(4000).emit("player:setName", { name }, (error, response) => {
+    if (error) {
+      finish(false, "Could not update name. Reconnecting...");
+      lastAutoRejoinKey = "";
+      attemptAutoRejoin();
+      return;
+    }
+    finish(Boolean(response?.ok), response?.error);
+  });
+  input.blur();
+  return true;
+}
+
 function renderMenuPlayers() {
   if (!state) return;
-  if (document.activeElement?.matches("[data-player-name]")) return;
+  if (isMenuNameEditing()) return;
   menuRoomCode.textContent = isOfflineSession() ? "Offline" : state.id;
   if (menuRoomEyebrow) menuRoomEyebrow.textContent = isOfflineSession() ? "Mode" : "Room";
   const hero = activeHero();
@@ -845,6 +912,7 @@ function showGameMenu() {
     menuSmallBlindInput.step = moneyMode ? "0.01" : "1";
     menuBigBlindInput.step = moneyMode ? "0.01" : "1";
   }
+  renderShotClockChoices();
   if (state?.moneyMode) cashInInput.value = (state.buyInCents / 100).toFixed(0);
   syncCashInControls();
   clearInterval(menuTimer);
@@ -1035,6 +1103,63 @@ function streetActionEntries(actionLog, phase) {
   return (actionLog || []).filter((entry) => entry.phase === phase);
 }
 
+function renderShotClockChoices() {
+  if (!shotClockPanel || !shotClockChoices) return;
+  const canEdit = Boolean(state?.canChangeShotClock) && !isOfflineSession();
+  shotClockPanel.classList.toggle("hidden", !canEdit);
+  if (!canEdit) return;
+  const selected = Math.floor(Number(state?.turnTimeLimitMs) / 1000);
+  const activeSeconds = SHOT_CLOCK_CHOICES.some((item) => item.seconds === selected) ? selected : 30;
+  shotClockChoices.innerHTML = SHOT_CLOCK_CHOICES.map((item) => `
+    <button
+      type="button"
+      class="appearance-choice${item.seconds === activeSeconds ? " selected" : ""}"
+      data-shot-clock="${item.seconds}"
+      aria-pressed="${item.seconds === activeSeconds ? "true" : "false"}"
+    >${item.label}</button>
+  `).join("");
+}
+
+function turnSecondsRemaining() {
+  if (!state?.turnEndsAt || !state?.turnTimeLimitMs || !isBettingPhase(state.phase) || !state.turn) return 0;
+  return Math.max(0, Math.ceil((state.turnEndsAt - Date.now()) / 1000));
+}
+
+function turnPctRemaining() {
+  const limit = Number(state?.turnTimeLimitMs) || 0;
+  if (!limit || !state?.turnEndsAt) return 0;
+  return Math.max(0, Math.min(1, (state.turnEndsAt - Date.now()) / limit));
+}
+
+function actingSeatShowsClock(player) {
+  return Boolean(
+    player
+    && !player.isBot
+    && state?.turnEndsAt
+    && state?.turnTimeLimitMs
+    && isBettingPhase(state.phase)
+    && player.id === state.turn,
+  );
+}
+
+function syncTurnCountdown() {
+  clearInterval(turnCountdownTimer);
+  turnCountdownTimer = null;
+  if (!state?.turnEndsAt || !state?.turnTimeLimitMs || !isBettingPhase(state.phase) || !state.turn) return;
+  const tick = () => {
+    const seconds = turnSecondsRemaining();
+    const pct = turnPctRemaining();
+    document.querySelectorAll("[data-turn-seat-clock]").forEach((row) => {
+      row.style.setProperty("--turn-pct", String(pct));
+      const label = row.querySelector("[data-turn-countdown]");
+      if (label) label.textContent = `${seconds}`;
+    });
+    if (seconds <= 0) clearInterval(turnCountdownTimer);
+  };
+  tick();
+  turnCountdownTimer = setInterval(tick, 200);
+}
+
 function renderActionFeed(newEntryId = "") {
   const entries = streetActionEntries(state.actionLog, state.phase);
   const activePlayer = currentTurnPlayer();
@@ -1053,12 +1178,25 @@ function renderActionFeed(newEntryId = "") {
     const action = showStreetAction
       ? compactPlayerAction(entry, player)
       : playerTableStatus(player, isActing);
+    const showClock = isActing && actingSeatShowsClock(player);
+    const seconds = showClock ? turnSecondsRemaining() : 0;
+    const pct = showClock ? turnPctRemaining() : 0;
+    const styleVars = [
+      player?.color ? `--player-color: ${escapeHtml(player.color)}` : "",
+      showClock ? `--turn-pct: ${pct}` : "",
+    ].filter(Boolean).join("; ");
+    const styleAttr = styleVars ? ` style="${styleVars}"` : "";
+    const clockMarkup = showClock
+      ? `<span class="turn-clock" data-turn-countdown aria-label="${seconds} seconds left">${seconds}</span>`
+      : "";
+    const barMarkup = showClock ? `<span class="turn-clock-bar" aria-hidden="true"><i></i></span>` : "";
     return `
-      <article class="table-player-row ${isActing ? "turn" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}" ${playerColorStyle(player)}>
-        <i class="player-dot" aria-hidden="true"></i>
+      <article class="table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${showClock ? ' data-turn-seat-clock="1"' : ""}${styleAttr}>
+        <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
-        <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}</span>
+        <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}${clockMarkup}</span>
         <strong class="player-stack">${playerStackLabel(player)}</strong>
+        ${barMarkup}
       </article>
     `;
   }).join("");
@@ -1177,9 +1315,11 @@ function render() {
   }
 
   renderControls(hero);
+  syncTurnCountdown();
   if (!gameMenuModal.classList.contains("hidden")) {
     renderMenuPlayers();
     addBotBtn.classList.toggle("hidden", !state?.canAddBot);
+    renderShotClockChoices();
     const menuHero = activeHero();
     sitOutBtn.classList.toggle("hidden", !menuHero || state?.phase === "gameover");
     if (menuHero) sitOutBtn.textContent = menuHero.sittingOut ? "I’m back" : "Sit out next hand";
@@ -1750,6 +1890,12 @@ gameMenuModal.addEventListener("click", (event) => {
     showToast(`${deckButton.textContent.trim()} deck selected`);
     return;
   }
+  const shotClockButton = event.target.closest("button[data-shot-clock]");
+  if (shotClockButton) {
+    const seconds = Math.floor(Number(shotClockButton.dataset.shotClock));
+    emitWithAck("game:setShotClock", { seconds });
+    return;
+  }
   const hostButton = event.target.closest("[data-make-host]");
   if (hostButton) {
     makeHost(hostButton.dataset.makeHost);
@@ -1763,9 +1909,19 @@ gameMenuModal.addEventListener("click", (event) => {
   if (event.target === gameMenuModal) hideGameMenu();
 });
 
+// Save on pointerdown (not only click/submit) so a menu re-render between blur and
+// click cannot destroy the button. preventDefault keeps the field focused through the tap.
+gameMenuModal.addEventListener("pointerdown", (event) => {
+  if (event.button != null && event.button !== 0) return;
+  const saveBtn = event.target.closest("[data-name-form] button[type='submit']");
+  if (!saveBtn) return;
+  event.preventDefault();
+  commitMenuDisplayName(saveBtn.closest("[data-name-form]"));
+});
+
 gameMenuModal.addEventListener("submit", (event) => {
+  event.preventDefault();
   if (event.target === blindForm) {
-    event.preventDefault();
     const payload = state?.moneyMode
       ? {
         smallBlindCents: Math.round(Number(menuSmallBlindInput.value) * 100),
@@ -1779,20 +1935,12 @@ gameMenuModal.addEventListener("submit", (event) => {
     return;
   }
   if (event.target === moneyPanel) {
-    event.preventDefault();
     emitWithAck("money:cashIn", { amountCents: moneyCentsFromInput(cashInInput, state?.buyInCents ? state.buyInCents / 100 : 20) });
     return;
   }
   const nameForm = event.target.closest("[data-name-form]");
   if (!nameForm) return;
-  event.preventDefault();
-  const input = nameForm.querySelector("[data-player-name]");
-  const name = input.value.trim();
-  if (!name) return;
-  nameInput.value = name;
-  localStorage.setItem("holdem:name", name);
-  input.blur();
-  emitWithAck("player:setName", { name });
+  commitMenuDisplayName(nameForm);
 });
 
 cashOutBtn.addEventListener("click", () => {

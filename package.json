@@ -17,10 +17,11 @@
     "test:all-in-presets": "node tests/all-in-presets.js",
     "test:check-bet-merge": "node tests/check-bet-merge.js",
     "test:call-raise-merge": "node tests/call-raise-merge.js",
-    "test:frontend": "node tests/card-art.js && node tests/keyboard.js",
+    "test:frontend": "node tests/card-art.js && node tests/keyboard.js && node tests/display-name.js",
     "test:engine-offline": "node tests/engine-offline.js",
     "test:offline-handoff": "node tests/offline-handoff.js",
-    "test": "npm run test:betting && npm run test:blinds && npm run test:bots && npm run test:money-ledger && npm run test:raise-presets && npm run test:seated-players && npm run test:side-pots-cashin && npm run test:showdown-reveal && npm run test:all-in-presets && npm run test:check-bet-merge && npm run test:call-raise-merge && npm run test:engine-offline && npm run test:offline-handoff && npm run test:frontend",
+    "test:turn-timer": "node tests/turn-timer.js",
+    "test": "npm run test:betting && npm run test:blinds && npm run test:bots && npm run test:money-ledger && npm run test:raise-presets && npm run test:seated-players && npm run test:side-pots-cashin && npm run test:showdown-reveal && npm run test:all-in-presets && npm run test:check-bet-merge && npm run test:call-raise-merge && npm run test:engine-offline && npm run test:offline-handoff && npm run test:turn-timer && npm run test:frontend",
     "test:money-join": "node tests/money-join.js",
     "smoke": "node tests/smoke.js"
   },
@@ -36,6 +37,7 @@
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
+    "jsdom": "^29.1.1",
     "socket.io-client": "^4.8.3"
   }
 }
