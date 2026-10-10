@@ -28,6 +28,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="holdem.nyc" />
     <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <script>
       const initialTheme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
       document.documentElement.dataset.theme = initialTheme;
@@ -39,107 +42,114 @@
   <body>
     <main class="app">
       <section id="welcome" class="welcome">
-        <div class="brand">
-          <span class="mark" aria-hidden="true">♠</span>
-          <div>
-            <h1>holdem.nyc</h1>
-          </div>
+        <div class="welcome-atmosphere" aria-hidden="true">
+          <div class="welcome-glow welcome-glow-a"></div>
+          <div class="welcome-glow welcome-glow-b"></div>
         </div>
 
-        <form id="joinForm" class="join-panel">
-          <div class="mode-switch" role="tablist" aria-label="Table action">
-            <button
-              id="hostModeBtn"
-              class="mode-option selected"
-              type="button"
-              role="tab"
-              aria-selected="true"
-            >
-              Host
-            </button>
-            <button
-              id="joinModeBtn"
-              class="mode-option"
-              type="button"
-              role="tab"
-              aria-selected="false"
-            >
-              Join
-            </button>
-          </div>
-          <label class="form-field name-field">
-            <span>Display name</span>
-            <input
-              id="nameInput"
-              autocomplete="nickname"
-              maxlength="18"
-              placeholder="Your name"
-              required
-            />
-          </label>
-          <label id="roomCodeLabel" class="form-field hidden">
-            <span>Room code</span>
-            <input
-              id="roomInput"
-              maxlength="6"
-              placeholder="ABC123"
-              autocapitalize="characters"
-              spellcheck="false"
-            />
-          </label>
-          <div id="blindFields" class="blind-fields">
-            <label class="form-field">
-              <span id="smallBlindLabel">Small blind</span>
+        <div class="welcome-stage">
+          <header class="brand">
+            <h1 class="wordmark">
+              <span class="wordmark-holdem">holdem</span><span class="wordmark-dot">.</span><span class="wordmark-nyc">nyc</span>
+            </h1>
+            <p class="tagline">Host a table. Share a code.</p>
+          </header>
+
+          <form id="joinForm" class="join-panel">
+            <div class="mode-switch" role="tablist" aria-label="Table action">
+              <button
+                id="hostModeBtn"
+                class="mode-option selected"
+                type="button"
+                role="tab"
+                aria-selected="true"
+              >
+                Host
+              </button>
+              <button
+                id="joinModeBtn"
+                class="mode-option"
+                type="button"
+                role="tab"
+                aria-selected="false"
+              >
+                Join
+              </button>
+            </div>
+            <label class="form-field name-field">
+              <span>Display name</span>
               <input
-                id="smallBlindInput"
-                type="number"
-                min="1"
-                max="100000"
-                step="1"
-                value="10"
-                inputmode="decimal"
+                id="nameInput"
+                autocomplete="nickname"
+                maxlength="18"
+                placeholder="Your name"
+                required
               />
             </label>
-            <label class="form-field">
-              <span id="bigBlindLabel">Big blind</span>
+            <label id="roomCodeLabel" class="form-field hidden">
+              <span>Room code</span>
               <input
-                id="bigBlindInput"
+                id="roomInput"
+                maxlength="6"
+                placeholder="ABC123"
+                autocapitalize="characters"
+                spellcheck="false"
+              />
+            </label>
+            <div id="blindFields" class="blind-fields">
+              <label class="form-field">
+                <span id="smallBlindLabel">Small blind</span>
+                <input
+                  id="smallBlindInput"
+                  type="number"
+                  min="1"
+                  max="100000"
+                  step="1"
+                  value="10"
+                  inputmode="decimal"
+                />
+              </label>
+              <label class="form-field">
+                <span id="bigBlindLabel">Big blind</span>
+                <input
+                  id="bigBlindInput"
+                  type="number"
+                  min="2"
+                  max="100000"
+                  step="1"
+                  value="20"
+                  inputmode="decimal"
+                />
+              </label>
+            </div>
+            <label id="moneyModeLabel" class="checkbox-label">
+              <input id="moneyModeInput" type="checkbox" />
+              <span class="switch-control" aria-hidden="true"></span>
+              <span class="checkbox-copy">
+                <strong>Money mode</strong>
+                <small>Track buy-ins in dollars, without CPU players</small>
+              </span>
+            </label>
+            <label id="buyInLabel" class="form-field hidden">
+              <span>Buy-in</span>
+              <input
+                id="buyInInput"
                 type="number"
-                min="2"
-                max="100000"
-                step="1"
+                min="1"
+                max="10000"
+                step="0.01"
                 value="20"
                 inputmode="decimal"
               />
             </label>
-          </div>
-          <label id="moneyModeLabel" class="checkbox-label">
-            <input id="moneyModeInput" type="checkbox" />
-            <span class="switch-control" aria-hidden="true"></span>
-            <span class="checkbox-copy">
-              <strong>Money mode</strong>
-              <small>Track buy-ins in dollars, without CPU players</small>
-            </span>
-          </label>
-          <label id="buyInLabel" class="form-field hidden">
-            <span>Buy-in</span>
-            <input
-              id="buyInInput"
-              type="number"
-              min="1"
-              max="10000"
-              step="0.01"
-              value="20"
-              inputmode="decimal"
-            />
-          </label>
-          <p id="joinPreview" class="hidden" role="status"></p>
-          <div class="actions-row">
-            <button id="tableActionBtn" type="submit">Host table</button>
-            <button id="watchBtn" class="secondary hidden" type="button">Watch</button>
-          </div>
-          <p id="joinError" class="error" role="alert"></p>
-        </form>
+            <p id="joinPreview" class="hidden" role="status"></p>
+            <div class="actions-row">
+              <button id="tableActionBtn" type="submit">Host table</button>
+              <button id="watchBtn" class="secondary hidden" type="button">Watch</button>
+            </div>
+            <p id="joinError" class="error" role="alert"></p>
+          </form>
+        </div>
       </section>
 
       <section id="tableView" class="table-view hidden">
