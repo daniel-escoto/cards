@@ -34,6 +34,7 @@
     "test:shot-clock-tick": "node tests/shot-clock-tick.js",
     "test:ready-timer": "node tests/ready-timer.js",
     "test:ready-clock": "node tests/ready-clock.js",
+    "test:bot-game-timers": "node tests/bot-game-timers.js",
     "test:spectator": "node tests/spectator.js",
     "test:graceful-deploy": "node tests/graceful-deploy.js",
     "test:redis-deploy": "node tests/redis-deploy.js",

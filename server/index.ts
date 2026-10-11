@@ -92,6 +92,8 @@ export = {
   server: api.server,
   setRoomReadyTimer: api.setRoomReadyTimer,
   setRoomShotClock: api.setRoomShotClock,
+  isBotGame: api.isBotGame,
+  syncTimerDefaults: api.syncTimerDefaults,
   setShotClockTime: api.setShotClockTime,
   setStateStore: api.setStateStore,
   setupHandoffSubscription: api.setupHandoffSubscription,

@@ -195,6 +195,8 @@ export interface ServerApi extends ServerEngineApi {
   scheduleHumanTurnTimer: (room: Room) => void;
   setRoomShotClock: (room: Room, seconds: number) => { ok: boolean; error?: string };
   setRoomReadyTimer: (room: Room, seconds: number) => { ok: boolean; error?: string };
+  isBotGame: (room: Room) => boolean;
+  syncTimerDefaults: (room: Room) => void;
   scheduleComputerTurn: (room: Room) => void;
 
   // ── rooms ────────────────────────────────────────────────────────────────

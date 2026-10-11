@@ -186,6 +186,7 @@ function setRoomShotClock(room: Room, seconds: number): { ok: boolean; error?: s
   }
   const ms = raw * 1000;
   room.turnTimeLimitMs = ms;
+  room.shotClockSetByHost = true;
   if (!ms) {
     clearTurnTimer(room);
   } else if (room.turnTimerPlayerId) {
@@ -216,6 +217,7 @@ function setRoomReadyTimer(room: Room, seconds: number): { ok: boolean; error?: 
   }
   const ms = raw * 1000;
   room.readyTimeLimitMs = ms;
+  room.readyTimerSetByHost = true;
   // Changing the limit (or turning Off) clears any in-flight deadline; api.emitRoom re-arms when On.
   clearReadyTimer(room);
   if (ms) scheduleReadyTimer(room);
@@ -223,6 +225,38 @@ function setRoomReadyTimer(room: Room, seconds: number): { ok: boolean; error?: 
     ? `Ready-up timer set to ${api.formatShotClockSeconds(raw)}.`
     : "Ready-up timer turned off.";
   return { ok: true };
+}
+
+/** A "bot game": exactly one human seat plus at least one CPU player. */
+function isBotGame(room: Room): boolean {
+  if (!room || room.moneyMode) return false;
+  const bots = room.players.filter((player) => player.isBot).length;
+  const humans = room.players.length - bots;
+  return bots > 0 && humans === 1;
+}
+
+/**
+ * Timers default Off in bot games and to the normal defaults otherwise. Only touches
+ * rooms created with auto defaults, only timers the host never set, and never mid-hand
+ * (composition changes are picked up on the next between-hands emit).
+ */
+function syncTimerDefaults(room: Room): void {
+  if (!room?.autoTimerDefaults || api.isHandInProgress(room)) return;
+  const botGame = isBotGame(room);
+  if (!room.shotClockSetByHost) {
+    const shotMs = botGame ? 0 : api.SHOT_CLOCK_DEFAULT_MS;
+    if (room.turnTimeLimitMs !== shotMs) {
+      room.turnTimeLimitMs = shotMs;
+      if (!shotMs) clearTurnTimer(room);
+    }
+  }
+  if (!room.readyTimerSetByHost) {
+    const readyMs = botGame ? 0 : api.READY_TIMER_DEFAULT_MS;
+    if (room.readyTimeLimitMs !== readyMs) {
+      room.readyTimeLimitMs = readyMs;
+      clearReadyTimer(room);
+    }
+  }
 }
 
 function scheduleComputerTurn(room: Room): void {
@@ -261,6 +295,8 @@ Object.assign(api, {
   scheduleHumanTurnTimer,
   setRoomShotClock,
   setRoomReadyTimer,
+  isBotGame,
+  syncTimerDefaults,
   scheduleComputerTurn,
 });
 
@@ -276,5 +312,7 @@ export = {
   scheduleHumanTurnTimer,
   setRoomShotClock,
   setRoomReadyTimer,
+  isBotGame,
+  syncTimerDefaults,
   scheduleComputerTurn,
 };
