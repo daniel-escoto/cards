@@ -152,6 +152,8 @@ function bustHero(room) {
         let b = Math.floor(Math.random() * 51);
         if (b >= a) b += 1;
         bot.hand = [deck[a], deck[b]];
+        // Six dealt in (a 6-max hand); other seats' cards don't affect this decision.
+        for (const other of room.players) if (other !== bot) other.hand = ["2c", "3d"];
         bot.bet = 0;
         const action = engine.chooseComputerAction(room, bot);
         if (action.type !== "fold") played += 1;
