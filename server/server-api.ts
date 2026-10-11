@@ -79,6 +79,12 @@ export type ServerEngineApi = Pick<
   | "assessPreflopAllInCall"
   | "chooseComputerAction"
   | "isSoloHumanFolded"
+  | "computerProfile"
+  | "assignComputerProfile"
+  | "computerThinkDelayMs"
+  | "botStyleView"
+  | "humansBustedOut"
+  | "rebuyBustedPlayer"
   | "bettingComplete"
   | "STARTING_STACK"
   | "BLIND_LEVELS"
@@ -127,7 +133,7 @@ export interface ServerApi extends ServerEngineApi {
   DEPLOY_HANDOFF_POLL_MS: number;
   SAVE_DEBOUNCE_MS: number;
   SHOWDOWN_DELAY_MS: number;
-  CPU_ACTION_DELAY_MS: number;
+  CPU_ACTION_DELAY_MS: number | null;
   SHOT_CLOCK_OPTIONS_MS: readonly number[];
   SHOT_CLOCK_DEFAULT_MS: number;
   SHOT_CLOCK_MIN_MS: number;
@@ -198,6 +204,7 @@ export interface ServerApi extends ServerEngineApi {
   isBotGame: (room: Room) => boolean;
   syncTimerDefaults: (room: Room) => void;
   scheduleComputerTurn: (room: Room) => void;
+  clearComputerTurn: (room: Room) => void;
 
   // ── rooms ────────────────────────────────────────────────────────────────
   claimRoomForLiveActivity: (roomId: string) => Promise<Room | null>;

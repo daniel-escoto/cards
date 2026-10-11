@@ -49,6 +49,8 @@ export function createHoldemEngine(Hand: HandConstructor) {
     {
       tag: "cpu_7f3a",
       style: "Loose cannon",
+      short: "Loose",
+      tempo: 0.9,
       aggression: 1.28,
       looseness: 1.24,
       bluff: 0.13,
@@ -57,6 +59,8 @@ export function createHoldemEngine(Hand: HandConstructor) {
     {
       tag: "cpu_b204",
       style: "Patient grinder",
+      short: "Grinder",
+      tempo: 1.15,
       aggression: 0.72,
       looseness: 0.74,
       bluff: 0.025,
@@ -65,6 +69,8 @@ export function createHoldemEngine(Hand: HandConstructor) {
     {
       tag: "cpu_19d8",
       style: "Balanced regular",
+      short: "Balanced",
+      tempo: 1,
       aggression: 1.02,
       looseness: 1.0,
       bluff: 0.065,
@@ -73,6 +79,8 @@ export function createHoldemEngine(Hand: HandConstructor) {
     {
       tag: "cpu_e621",
       style: "Pressure player",
+      short: "Pressure",
+      tempo: 0.95,
       aggression: 1.48,
       looseness: 1.08,
       bluff: 0.1,
@@ -81,6 +89,8 @@ export function createHoldemEngine(Hand: HandConstructor) {
     {
       tag: "cpu_04ac",
       style: "Casual caller",
+      short: "Casual",
+      tempo: 1.05,
       aggression: 0.64,
       looseness: 1.3,
       bluff: 0.02,
@@ -89,6 +99,8 @@ export function createHoldemEngine(Hand: HandConstructor) {
     {
       tag: "cpu_c97e",
       style: "Sharp and tricky",
+      short: "Tricky",
+      tempo: 1.1,
       aggression: 1.12,
       looseness: 0.94,
       bluff: 0.09,
@@ -97,6 +109,8 @@ export function createHoldemEngine(Hand: HandConstructor) {
     {
       tag: "cpu_52b1",
       style: "Tight and quick",
+      short: "Quick",
+      tempo: 0.6,
       aggression: 0.84,
       looseness: 0.68,
       bluff: 0.035,
@@ -265,9 +279,85 @@ export function createHoldemEngine(Hand: HandConstructor) {
     };
   }
 
-  function computerProfile(player: Pick<Player, "id"> | null | undefined): BotProfile {
+  function legacyComputerProfile(player: Pick<Player, "id"> | null | undefined): BotProfile {
     const number = Number(/:(\d+)$/.exec(player?.id || "")?.[1]) || 1;
     return BOT_PROFILES[(number - 1) % BOT_PROFILES.length];
+  }
+
+  /**
+   * A CPU's personality. Seats carry a persisted `botProfile` tag (assigned at add
+   * time); seats without one (rooms saved by older builds) fall back to the legacy
+   * seat-number mapping so a restored room keeps its bots' behavior.
+   */
+  function computerProfile(
+    player: (Pick<Player, "id"> & { botProfile?: string | null }) | null | undefined,
+  ): BotProfile {
+    const tag = player?.botProfile;
+    if (tag) {
+      const tagged = BOT_PROFILES.find((profile) => profile.tag === tag);
+      if (tagged) return tagged;
+    }
+    return legacyComputerProfile(player);
+  }
+
+  /**
+   * Pick a personality for a newly seated CPU: random start, then the next style
+   * not already at the table (so small tables get variety). Persisted on the seat.
+   */
+  function assignComputerProfile(room: Pick<Room, "players">, player: Player): BotProfile {
+    const used = new Set(
+      room.players
+        .filter((item) => item !== player && item.isBot)
+        .map((item) => computerProfile(item).tag),
+    );
+    const start = randomInt(BOT_PROFILES.length);
+    let chosen = BOT_PROFILES[start];
+    for (let offset = 0; offset < BOT_PROFILES.length; offset += 1) {
+      const candidate = BOT_PROFILES[(start + offset) % BOT_PROFILES.length];
+      if (!used.has(candidate.tag)) {
+        chosen = candidate;
+        break;
+      }
+    }
+    player.botProfile = chosen.tag;
+    return chosen;
+  }
+
+  /** Think-time ranges (ms) before a CPU acts, before the personality tempo multiplier. */
+  const CPU_THINK_MS = {
+    check: [500, 900],
+    fold: [600, 1300],
+    act: [1000, 2500],
+    tank: [3000, 4000],
+    runout: [150, 300],
+  } as const;
+  const CPU_TANK_CHANCE = 0.3;
+
+  /**
+   * How long a CPU "thinks" before acting. Checks are quick, calls/raises take longer,
+   * big decisions occasionally tank. Once the only human has folded, bots play the
+   * rest out fast. `random` is injectable for tests.
+   */
+  function computerThinkDelayMs(
+    room: Room,
+    player: Player,
+    action: { type: ActionType; raiseTo?: number },
+    random: () => number = Math.random,
+  ): number {
+    const pick = ([min, max]: readonly [number, number]) => min + random() * (max - min);
+    if (isSoloHumanFolded(room)) return Math.round(pick(CPU_THINK_MS.runout));
+    const profile = computerProfile(player);
+    if (action.type === "check") return Math.round(pick(CPU_THINK_MS.check) * profile.tempo);
+    if (action.type === "fold") return Math.round(pick(CPU_THINK_MS.fold) * profile.tempo);
+    const { bigBlind } = currentBlinds(room);
+    const callAmount = Math.max(0, room.currentBet - player.bet);
+    const committing =
+      callAmount >= player.stack * 0.4 ||
+      (action.type === "raise" && Number(action.raiseTo) >= player.bet + player.stack);
+    const bigPot = collectPot(room) + callAmount >= bigBlind * 20;
+    const range =
+      (committing || bigPot) && random() < CPU_TANK_CHANCE ? CPU_THINK_MS.tank : CPU_THINK_MS.act;
+    return Math.round(pick(range) * profile.tempo);
   }
 
   function computerName(player: Pick<Player, "id"> | null | undefined): string {
@@ -326,13 +416,13 @@ export function createHoldemEngine(Hand: HandConstructor) {
     const needed = Math.max(0, Math.min(MAX_PLAYERS, target) - room.players.length);
     for (let index = 0; index < needed; index += 1) {
       const botNumber = nextBotNumber(room);
-      room.players.push(
-        makePlayer({
-          id: `bot:${room.id}:${botNumber}`,
-          name: computerName({ id: `bot:${room.id}:${botNumber}` }),
-          isBot: true,
-        }),
-      );
+      const bot = makePlayer({
+        id: `bot:${room.id}:${botNumber}`,
+        name: computerName({ id: `bot:${room.id}:${botNumber}` }),
+        isBot: true,
+      });
+      assignComputerProfile(room, bot);
+      room.players.push(bot);
     }
     if (needed > 0) room.message = `Computer table ready with ${room.players.length} players.`;
   }
@@ -472,6 +562,37 @@ export function createHoldemEngine(Hand: HandConstructor) {
     room.turn = null;
     room.message = remaining.length === 1 ? `${remaining[0].name} wins the game.` : "Game over.";
     return true;
+  }
+
+  /**
+   * Chip game between hands where every human seat is out of chips but 2+ CPUs still
+   * have chips. Without a rebuy nobody can ready up, so the table would sit frozen.
+   * (One CPU left is already a normal game over via maybeEndGame.)
+   */
+  function humansBustedOut(room: Room): boolean {
+    if (room.moneyMode || !canReadyForHand(room)) return false;
+    const humans = room.players.filter((player) => !player.isBot);
+    if (!humans.length || humans.some((player) => player.stack > 0)) return false;
+    return room.players.filter((player) => player.isBot && player.stack > 0).length >= 2;
+  }
+
+  /**
+   * Busted human tops back up to the room's starting stack and is marked ready, so the
+   * next hand deals as soon as the caller runs the ready check.
+   */
+  function rebuyBustedPlayer(room: Room, playerId: string): { ok: boolean; error?: string } {
+    const player = room.players.find((item) => item.id === playerId);
+    if (!player || player.isBot) return { ok: false, error: "Player not found." };
+    if (player.stack > 0 || !humansBustedOut(room)) {
+      return { ok: false, error: "Rebuy is only available after you bust." };
+    }
+    const stack = Math.max(1, Math.floor(Number(room.startingStack) || STARTING_STACK));
+    player.stack = stack;
+    player.sittingOut = false;
+    player.ready = true;
+    player.preflopShoveStreak = 0;
+    room.message = `${player.name} rebought for ${stack} chips.`;
+    return { ok: true };
   }
 
   function startHand(room: Room): void {
@@ -1061,29 +1182,47 @@ export function createHoldemEngine(Hand: HandConstructor) {
     return Math.min(maxBet, preferred);
   }
 
+  /**
+   * Chance to limp / complete / defend when facing at most one big blind preflop.
+   * Driven by preflopHandScore against a per-style threshold: tight styles play
+   * roughly the top 20% of hands, loose styles roughly the top 45%. No floor, so
+   * trash folds.
+   */
   function preflopBlindCallChance(room: Room, player: Player, callAmount: number): number | null {
     const { bigBlind } = currentBlinds(room);
     if (room.phase !== "preflop" || room.community.length > 0 || callAmount > bigBlind) return null;
+    // Completing the small blind is cheaper, so defend a little wider.
+    const discount = callAmount < bigBlind ? 0.04 : 0;
+    const threshold = preflopPlayThreshold(player) - discount;
+    return Math.max(0, Math.min(0.97, 0.5 + (preflopHandScore(player.hand) - threshold) / 0.08));
+  }
 
-    const holeValues = player.hand.map(cardRankValue).sort((a, b) => b - a);
-    const highCard = holeValues[0] || 0;
-    const lowCard = holeValues[1] || 0;
-    const gap = highCard - lowCard;
-    const suited = player.hand.length === 2 && player.hand[0][1] === player.hand[1][1];
-    const paired = highCard === lowCard;
-    const hasBroadway = highCard >= 11;
-    const connected = gap <= 1;
-    const nearConnected = gap === 2;
+  /** preflopHandScore a style needs to play a hand (looser styles need less). */
+  function preflopPlayThreshold(player: Player): number {
+    return 0.57 - (computerProfile(player).looseness - 0.68) * 0.13;
+  }
 
-    let callChance = callAmount < bigBlind ? 0.86 : 0.68;
-    if (paired) callChance += highCard >= 10 ? 0.22 : 0.16;
-    if (hasBroadway) callChance += 0.08;
-    if (suited) callChance += 0.08;
-    if (connected) callChance += 0.1;
-    else if (nearConnected) callChance += 0.05;
-    if (highCard <= 9 && gap >= 5 && !suited) callChance -= 0.16;
+  /**
+   * Multiplier on the pot-odds call chance when facing a preflop raise: flatting a
+   * raise needs a hand a notch better than limping does, so weak hands stop
+   * calling opens just because the price looks good. 1 outside that spot.
+   */
+  function preflopFacingRaiseGate(room: Room, player: Player, callAmount: number): number {
+    const { bigBlind } = currentBlinds(room);
+    if (room.phase !== "preflop" || room.community.length > 0 || callAmount <= bigBlind) return 1;
+    const threshold = preflopPlayThreshold(player) + PREFLOP_FLAT_RAISE_EXTRA;
+    return Math.max(0, Math.min(1, 0.5 + (preflopHandScore(player.hand) - threshold) / 0.08));
+  }
 
-    return Math.max(0.36, Math.min(0.96, callChance));
+  /**
+   * Aggressive styles turn part of their limping range into open-raises when the pot
+   * is still unopened (only blinds/limps in).
+   */
+  const PREFLOP_FLAT_RAISE_EXTRA = 0.08;
+
+  function preflopOpenInsteadOfLimpChance(player: Player): number {
+    const profile = computerProfile(player);
+    return Math.max(0, Math.min(0.75, (profile.aggression - 1) * 1.2));
   }
 
   function preflopBlindRaiseChance(player: Player, confidence: number): number {
@@ -1338,8 +1477,21 @@ export function createHoldemEngine(Hand: HandConstructor) {
           raiseTo: chooseComputerRaiseTo(room, player, minRaiseTo, confidence),
         };
       }
-      if (Math.random() < Math.min(0.98, blindCallChance * profile.looseness))
+      if (Math.random() < blindCallChance) {
+        const unopened = room.currentBet <= bigBlind;
+        if (
+          unopened &&
+          canRaise &&
+          minRaiseTo <= maxBet &&
+          Math.random() < preflopOpenInsteadOfLimpChance(player)
+        ) {
+          return {
+            type: "raise",
+            raiseTo: chooseComputerRaiseTo(room, player, minRaiseTo, confidence),
+          };
+        }
         return { type: "call" };
+      }
       return { type: "fold" };
     }
 
@@ -1369,13 +1521,26 @@ export function createHoldemEngine(Hand: HandConstructor) {
         raiseTo: chooseComputerRaiseTo(room, player, minRaiseTo, perceivedEquity),
       };
     }
-    if (Math.random() < callChance) return { type: "call" };
+    if (Math.random() < callChance * preflopFacingRaiseGate(room, player, callAmount)) {
+      return { type: "call" };
+    }
     return { type: "fold" };
   }
 
   function isSoloHumanFolded(room: Room): boolean {
     const humans = room.players.filter((player) => !player.isBot);
     return humans.length === 1 && humans[0].folded;
+  }
+
+  /** Client-facing personality for CPU seats (null for humans). */
+  function botStyleView(player: Player): {
+    botProfile: string | null;
+    botStyle: string | null;
+    botStyleShort: string | null;
+  } {
+    if (!player.isBot) return { botProfile: null, botStyle: null, botStyleShort: null };
+    const profile = computerProfile(player);
+    return { botProfile: profile.tag, botStyle: profile.style, botStyleShort: profile.short };
   }
 
   function serializeRoom(room: Room, viewerId: string) {
@@ -1452,6 +1617,8 @@ export function createHoldemEngine(Hand: HandConstructor) {
         !room.moneyMode &&
         room.handNumber === 0 &&
         room.players.length < MAX_PLAYERS,
+      bustedOut: humansBustedOut(room),
+      canRebuy: Boolean(viewer && !viewer.isBot && viewer.stack <= 0 && humansBustedOut(room)),
       community: room.community.map(publicCard),
       winners: room.winners.map((winner) => ({
         ...winner,
@@ -1480,6 +1647,7 @@ export function createHoldemEngine(Hand: HandConstructor) {
         allIn: player.allIn,
         connected: player.connected,
         isBot: player.isBot,
+        ...botStyleView(player),
         showCards: Boolean(player.showCards),
         ready: Boolean(player.ready || player.isBot),
         disconnectExpiresAt: player.disconnectExpiresAt || null,
@@ -1740,6 +1908,7 @@ export function createHoldemEngine(Hand: HandConstructor) {
       player.connected = true;
       player.buyInsCents = Math.max(0, Math.floor(Number(seat.buyInsCents) || 0));
       player.cashOutCents = Math.max(0, Math.floor(Number(seat.cashOutCents) || 0));
+      if (seat.isBot && typeof seat.botProfile === "string") player.botProfile = seat.botProfile;
       player.hand = [];
       for (const card of seat.cards || []) {
         const code = cardCodeFromPublic(card);
@@ -1868,6 +2037,10 @@ export function createHoldemEngine(Hand: HandConstructor) {
     defaultPlayerColor,
     makePlayer,
     computerProfile,
+    assignComputerProfile,
+    computerThinkDelayMs,
+    CPU_THINK_MS,
+    botStyleView,
     computerName,
     addComputerPlayers,
     nextBotNumber,
@@ -1886,6 +2059,8 @@ export function createHoldemEngine(Hand: HandConstructor) {
     maybeStartReadyHand,
     playersWithChips,
     maybeEndGame,
+    humansBustedOut,
+    rebuyBustedPlayer,
     startHand,
     startNextHand,
     dealStreet,
@@ -1914,6 +2089,7 @@ export function createHoldemEngine(Hand: HandConstructor) {
     chooseComputerRaiseTo,
     preflopBlindCallChance,
     preflopBlindRaiseChance,
+    preflopOpenInsteadOfLimpChance,
     preflopHandScore,
     preflopShoveRange,
     estimatePreflopEquityAgainstRange,

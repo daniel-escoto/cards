@@ -72,7 +72,16 @@ declare global {
       playerId: string,
       action: Record<string, unknown>,
     ): { ok: boolean; error?: string };
-    chooseComputerAction(room: PracticeRoom, player: PracticeSeat): Record<string, unknown>;
+    chooseComputerAction(
+      room: PracticeRoom,
+      player: PracticeSeat,
+    ): { type: string; raiseTo?: number };
+    computerThinkDelayMs(
+      room: PracticeRoom,
+      player: PracticeSeat,
+      action: { type: string; raiseTo?: number },
+    ): number;
+    rebuyBustedPlayer(room: PracticeRoom, playerId: string): { ok: boolean; error?: string };
     canReadyForHand(room: PracticeRoom): boolean;
     maybeStartReadyHand(room: PracticeRoom): void;
     showPlayerCards(room: PracticeRoom, playerId: string): { ok: boolean; error?: string };
@@ -105,6 +114,9 @@ declare global {
     minRaise?: number;
     showdownTimer?: ReturnType<typeof setTimeout> | null;
     botTimer?: ReturnType<typeof setTimeout> | null;
+    botTimerKey?: string | null;
+    actionLog: unknown[];
+    currentBet: number;
     [key: string]: unknown;
   }
 
@@ -633,6 +645,8 @@ declare global {
   ): void;
   function syncLowTimeWarningEffects(now?: number): void;
   function syncTurnCountdown(): void;
+  function botStyleTagMarkup(player: ClientPlayer): string;
+  function renderBustPanel(room: ClientRoom): void;
   function blindChipMarkup(player: ClientPlayer): string;
   function readyTimerActive(): boolean;
   function readySecondsRemaining(): number;

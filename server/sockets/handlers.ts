@@ -614,6 +614,21 @@ function registerSocketHandlers(): void {
       api.emitRoom(room);
     });
 
+    // Every human busted while 2+ CPUs still have chips: top back up and keep playing.
+    socket.on("game:rebuy", (
+      _: Parameters<ClientToServerEvents["game:rebuy"]>[0],
+      ack?: Parameters<ClientToServerEvents["game:rebuy"]>[1],
+    ) => {
+      const room = roomFromSocket(socket);
+      const playerId = playerIdFromSocket(socket);
+      if (!room) return ack?.({ ok: false, error: "Room not found." });
+      const result = api.rebuyBustedPlayer(room, playerId || "");
+      if (!result.ok) return ack?.({ ok: false, error: result.error || "Rebuy unavailable." });
+      api.tryStartReadyHand(room);
+      ack?.({ ok: true });
+      api.emitRoom(room);
+    });
+
     socket.on("money:cashIn", (
       { amountCents }: Parameters<ClientToServerEvents["money:cashIn"]>[0],
       ack?: Parameters<ClientToServerEvents["money:cashIn"]>[1],

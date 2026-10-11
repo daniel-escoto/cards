@@ -111,6 +111,7 @@ function serializePlayerForStorage(player: Player): StoredPlayer {
     buyInsCents: Math.max(0, Math.floor(Number(player.buyInsCents) || 0)),
     cashOutCents: Math.max(0, Math.floor(Number(player.cashOutCents) || 0)),
     preflopShoveStreak: Math.max(0, Math.floor(Number(player.preflopShoveStreak) || 0)),
+    botProfile: player.isBot ? player.botProfile || null : null,
   } as StoredPlayer;
 }
 
@@ -226,7 +227,7 @@ function pauseRoomTimers(room: Room) {
   room.turnTimer = null;
   api.shotClockTime.clearTimeout(room.readyTimer);
   room.readyTimer = null;
-  clearTimer(room.botTimer);
+  api.clearComputerTurn(room);
   room.botTimer = null;
   clearTimer(room.showdownTimer);
   room.showdownTimer = null;
@@ -305,7 +306,7 @@ function scheduleDormantRoomCleanup(room: Room) {
   room.dormantTimer = setTimeout(() => {
     const current = api.rooms.get(room.id);
     if (!current || current.players.some((player) => !player.isBot)) return;
-    clearTimer(current.botTimer);
+    api.clearComputerTurn(current);
     clearTimer(current.showdownTimer);
     api.clearTurnTimer(current);
     api.clearReadyTimer(current);
@@ -319,7 +320,7 @@ function scheduleDormantRoomCleanup(room: Room) {
 
 function preserveSettledMoneyRoom(room: Room) {
   if (!room?.moneyMode) return;
-  clearTimer(room.botTimer);
+  api.clearComputerTurn(room);
   clearTimer(room.showdownTimer);
   api.clearTurnTimer(room);
   api.clearReadyTimer(room);
@@ -374,6 +375,8 @@ function restorePlayer(raw: StoredPlayer | Record<string, unknown>): Player {
     buyInsCents: Math.max(0, Math.floor(Number(data.buyInsCents) || 0)),
     cashOutCents: Math.max(0, Math.floor(Number(data.cashOutCents) || 0)),
     preflopShoveStreak: Math.max(0, Math.floor(Number(data.preflopShoveStreak) || 0)),
+    // Legacy rooms have no tag → computerProfile falls back to the seat-number style.
+    botProfile: data.isBot && typeof data.botProfile === "string" ? data.botProfile : null,
     disconnectTimer: null,
   };
 }
@@ -385,6 +388,7 @@ function markRestoredHumanAsBot(room: Room, player: Player) {
   player.id = `bot:${room.id}:${botNumber}`;
   player.name = api.computerName(player);
   player.isBot = true;
+  api.assignComputerProfile(room, player);
   player.connected = true;
   player.replacedPlayerId = oldId;
   player.replacedPlayerName = oldName;
@@ -535,7 +539,7 @@ function activateRoom(room: Room, { scheduleSaveAfter = true }: { scheduleSaveAf
 function clearRoomRuntime(room: Room) {
   if (!room) return;
   pauseRoomTimers(room);
-  clearTimer(room.botTimer);
+  api.clearComputerTurn(room);
   clearTimer(room.showdownTimer);
   api.clearTurnTimer(room);
   api.clearReadyTimer(room);
@@ -884,6 +888,7 @@ function convertBotToHuman(socket: { id: string; join: (roomId: string) => void 
   bot.name = api.cleanName(name);
   bot.color = bot.replacedPlayerColor || api.defaultPlayerColor(room);
   bot.isBot = false;
+  bot.botProfile = null;
   bot.replacedPlayerId = null;
   bot.replacedPlayerName = null;
   bot.replacedPlayerColor = null;
@@ -915,6 +920,7 @@ function convertHumanToBot(room: Room, player: Player) {
   player.socketIds = new Set();
   player.connected = true;
   player.isBot = true;
+  api.assignComputerProfile(room, player);
   clearTimer(player.disconnectTimer);
   player.disconnectTimer = null;
   player.disconnectExpiresAt = null;
@@ -956,7 +962,7 @@ function endGame(room: Room) {
 }
 
 function restartGame(room: Room) {
-  clearTimer(room.botTimer);
+  api.clearComputerTurn(room);
   clearTimer(room.showdownTimer);
   api.clearTurnTimer(room);
   api.clearReadyTimer(room);
@@ -1115,6 +1121,10 @@ function serializeRoom(room: Room, viewerId: string) {
       !room.moneyMode &&
       room.handNumber === 0 &&
       room.players.length < api.MAX_PLAYERS,
+    bustedOut: api.humansBustedOut(room),
+    canRebuy: Boolean(
+      viewer && !viewer.isBot && viewer.stack <= 0 && api.humansBustedOut(room),
+    ),
     community: room.community.map(api.publicCard),
     winners: room.winners.map((winner) => ({
       ...winner,
@@ -1145,6 +1155,7 @@ function serializeRoom(room: Room, viewerId: string) {
       allIn: player.allIn,
       connected: player.connected,
       isBot: player.isBot,
+      ...api.botStyleView(player),
       showCards: Boolean(player.showCards),
       ready: Boolean(player.ready || player.isBot),
       disconnectExpiresAt: player.disconnectExpiresAt || null,
