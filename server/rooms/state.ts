@@ -148,6 +148,9 @@ function serializeRoomForStorage(room: Room): StoredRoom {
     turnTimerPlayerId: room.turnTimerPlayerId || null,
     readyTimeLimitMs: api.normalizeReadyTimerMs(room.readyTimeLimitMs, api.READY_TIMER_DEFAULT_MS),
     readyEndsAt: room.readyEndsAt || null,
+    autoTimerDefaults: Boolean(room.autoTimerDefaults),
+    shotClockSetByHost: Boolean(room.shotClockSetByHost),
+    readyTimerSetByHost: Boolean(room.readyTimerSetByHost),
     settlements: Array.isArray(room.settlements) ? room.settlements : [],
     moneyLedger: Array.isArray(room.moneyLedger) ? room.moneyLedger : [],
     dormantSince: room.dormantSince || null,
@@ -426,6 +429,9 @@ function restoreRoom(raw: StoredRoom | Record<string, unknown>): Room | null {
     baseBigBlind: Math.max(2, Math.floor(Number(data.baseBigBlind) || api.DEFAULT_BIG_BLIND)),
     turnTimeLimitMs: api.normalizeShotClockMs(data.turnTimeLimitMs, api.SHOT_CLOCK_DEFAULT_MS),
     readyTimeLimitMs: api.normalizeReadyTimerMs(data.readyTimeLimitMs, api.READY_TIMER_DEFAULT_MS),
+    autoTimerDefaults: Boolean(data.autoTimerDefaults),
+    shotClockSetByHost: Boolean(data.shotClockSetByHost),
+    readyTimerSetByHost: Boolean(data.readyTimerSetByHost),
     settlements: Array.isArray(data.settlements) ? data.settlements : [],
     moneyLedger: Array.isArray(data.moneyLedger)
       ? data.moneyLedger.map((entry) => ({
@@ -682,6 +688,9 @@ function makeRoom(hostId: string, hostName: string, socketId: string, tableSize 
     baseBigBlind,
     turnTimeLimitMs: api.SHOT_CLOCK_DEFAULT_MS,
     readyTimeLimitMs: api.READY_TIMER_DEFAULT_MS,
+    autoTimerDefaults: true,
+    shotClockSetByHost: false,
+    readyTimerSetByHost: false,
     settlements: [],
     moneyLedger: [],
     dormantSince: null,
@@ -1165,6 +1174,8 @@ function scheduleShowdown(room: Room) {
 }
 
 function emitRoom(room: Room) {
+  // Bot game (one human + CPU players) → timers Off unless the host set them.
+  api.syncTimerDefaults(room);
   // Arm absolute clocks before serialize so clients receive turnEndsAt / readyEndsAt.
   api.scheduleHumanTurnTimer(room);
   api.scheduleReadyTimer(room);

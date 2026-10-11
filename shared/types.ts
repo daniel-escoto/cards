@@ -242,6 +242,15 @@ export interface Room {
   readyTimeLimitMs?: number;
   readyEndsAt?: number | null;
   readyTimer?: TimerHandle;
+  /**
+   * Server rooms created by makeRoom: timers the host hasn't set follow the room's
+   * composition (bot game → Off, otherwise the normal defaults). Absent on restored
+   * legacy rooms so a deploy never flips a live room's timers.
+   */
+  autoTimerDefaults?: boolean;
+  /** Host explicitly chose a shot clock / ready timer; auto defaults leave it alone. */
+  shotClockSetByHost?: boolean;
+  readyTimerSetByHost?: boolean;
   settlements?: Settlement[];
   moneyLedger?: LedgerEntry[];
   dormantSince?: number | null;
@@ -293,6 +302,9 @@ export interface StoredRoom {
   turnTimerPlayerId: string | null;
   readyTimeLimitMs: number;
   readyEndsAt: number | null;
+  autoTimerDefaults?: boolean;
+  shotClockSetByHost?: boolean;
+  readyTimerSetByHost?: boolean;
   settlements: Settlement[];
   moneyLedger: LedgerEntry[];
   dormantSince: number | null;
