@@ -275,6 +275,10 @@ export interface Room {
   startingStack?: number;
   /** Set when an online ClientRoom snapshot is hydrated offline. */
   handedOffFromOnline?: boolean;
+  /** Host setting for "Show rest of board"; absent (legacy) = on. */
+  rabbitHuntEnabled?: boolean;
+  /** Revealed "would have been" board cards for the finished hand (≤5); cleared on deal. */
+  rabbitCards?: CardCode[] | null;
 }
 
 export interface StoredRoom {
@@ -316,6 +320,9 @@ export interface StoredRoom {
   settlements: Settlement[];
   moneyLedger: LedgerEntry[];
   dormantSince: number | null;
+  /** Optional: absent on rooms saved by older builds (→ on / nothing revealed). */
+  rabbitHuntEnabled?: boolean;
+  rabbitCards?: CardCode[];
   players: StoredPlayer[];
 }
 
@@ -376,6 +383,13 @@ export interface ClientRoom {
   bustedOut: boolean;
   /** Viewer is a busted human who can top back up and keep playing. */
   canRebuy: boolean;
+  /** Room setting: "Show rest of board" after a fold-win (default on). */
+  rabbitHuntEnabled: boolean;
+  canChangeRabbitHunt: boolean;
+  /** Viewer is seated and the hand just ended on a fold before the river. */
+  canRabbitHunt: boolean;
+  /** Revealed "would have been" cards, filling the board after `community`. */
+  rabbitCards: PublicCard[];
   community: PublicCard[];
   winners: ClientWinnerSummary[];
   actionLog: ActionLogEntry[];
@@ -539,6 +553,14 @@ export interface ClientToServerEvents {
   "game:rebuy": (payload?: unknown, ack?: (response: OkAck | ErrAck) => void) => void;
 
   "game:showCards": (payload?: unknown, ack?: (response: OkAck | ErrAck) => void) => void;
+
+  /** Reveal the rest of the board after a fold-win (display only). */
+  "game:rabbitHunt": (payload?: unknown, ack?: (response: OkAck | ErrAck) => void) => void;
+
+  "game:setRabbitHunt": (
+    payload?: { enabled?: boolean },
+    ack?: (response: OkAck | ErrAck) => void,
+  ) => void;
 
   "game:action": (
     payload: { type?: ActionType; raiseTo?: number },

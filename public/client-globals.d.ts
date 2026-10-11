@@ -85,6 +85,9 @@ declare global {
     canReadyForHand(room: PracticeRoom): boolean;
     maybeStartReadyHand(room: PracticeRoom): void;
     showPlayerCards(room: PracticeRoom, playerId: string): { ok: boolean; error?: string };
+    visibleRabbitCards(room: PracticeRoom): string[];
+    revealRabbitHunt(room: PracticeRoom, playerId: string): { ok: boolean; error?: string };
+    setRabbitHunt(room: PracticeRoom, enabled: boolean): void;
     addComputerPlayers(room: PracticeRoom, targetCount: number): void;
     resetReadiness(room: PracticeRoom): void;
     cleanName(name: unknown): string;
@@ -452,6 +455,8 @@ declare global {
   var shotClockCustomForm: HTMLFormElement;
   var shotClockCustomInput: HTMLInputElement;
   var readyTimerPanel: HTMLElement;
+  var rabbitHuntPanel: HTMLElement;
+  var rabbitHuntChoices: HTMLElement;
   var readyTimerChoices: HTMLElement;
   var readyTimerCustomForm: HTMLFormElement;
   var readyTimerCustomInput: HTMLInputElement;
@@ -633,6 +638,9 @@ declare global {
   function renderShotClockChoices(): void;
   function commitShotClockCustom(form: HTMLElement | null): void;
   function renderReadyTimerChoices(): void;
+  function renderRabbitHuntChoices(): void;
+  function rabbitFaceDownTemplate(withHint: boolean): string;
+  function revealRabbitBoard(): void;
   function commitReadyTimerCustom(form: HTMLElement | null): void;
   function turnSecondsRemaining(): number;
   function turnPctRemaining(): number;

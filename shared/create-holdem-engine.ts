@@ -509,6 +509,7 @@ export function createHoldemEngine(Hand: HandConstructor) {
     room.actionLog = [];
     room.riverAggressor = null;
     room.allInCardsExposed = false;
+    room.rabbitCards = null;
     for (const player of room.players) {
       player.hand = [];
       player.folded = false;
@@ -1079,6 +1080,81 @@ export function createHoldemEngine(Hand: HandConstructor) {
       action: "Shows hand",
     });
     return { ok: true };
+  }
+
+  /** Rabbit hunt ("Show rest of board") is on unless the host turned it off. */
+  function rabbitHuntEnabled(room: Pick<Room, "rabbitHuntEnabled">): boolean {
+    return room.rabbitHuntEnabled !== false;
+  }
+
+  /**
+   * The community cards the deal would have produced had the hand continued, taken
+   * from the hand's real deck with burns exactly like dealStreet (pop = top of deck:
+   * burn + 3 for the flop, burn + 1 for the turn, burn + 1 for the river). Read-only:
+   * the deck itself is not touched. Null when the board is complete or the deck is gone.
+   */
+  function rabbitHuntRunout(room: Pick<Room, "deck" | "community">): CardCode[] | null {
+    if (!Array.isArray(room.deck) || room.community.length >= 5) return null;
+    const deck = room.deck.slice();
+    const cards: CardCode[] = [];
+    let boardSize = room.community.length;
+    while (boardSize < 5) {
+      deck.pop(); // burn
+      const count = boardSize === 0 ? 3 : 1;
+      for (let index = 0; index < count; index += 1) {
+        const card = deck.pop();
+        if (!card) return null;
+        cards.push(card);
+      }
+      boardSize += count;
+    }
+    return cards;
+  }
+
+  /** Hand ended early because everyone else folded (one player left with cards). */
+  function handEndedOnFold(room: Room): boolean {
+    if (room.phase !== "complete" || room.community.length >= 5) return false;
+    const dealt = room.players.filter((player) => player.hand.length === 2);
+    return dealt.length >= 2 && dealt.filter((player) => !player.folded).length === 1;
+  }
+
+  function canRabbitHunt(room: Room): boolean {
+    return (
+      rabbitHuntEnabled(room) &&
+      handEndedOnFold(room) &&
+      !room.rabbitCards?.length &&
+      rabbitHuntRunout(room) !== null
+    );
+  }
+
+  /** Revealed "would have been" cards for clients (only while that hand is on screen). */
+  function visibleRabbitCards(room: Room): CardCode[] {
+    if (!rabbitHuntEnabled(room) || room.phase !== "complete" || !room.rabbitCards?.length)
+      return [];
+    return room.rabbitCards.slice(0, 5 - room.community.length);
+  }
+
+  /**
+   * Any seated player reveals the rest of the board after a fold-win. Display only:
+   * chips, pot, winners and the action log are untouched. Idempotent.
+   */
+  function revealRabbitHunt(
+    room: Room,
+    playerId: string,
+  ): { ok: true } | { ok: false; error: string } {
+    const player = room?.players.find((item) => item.id === playerId);
+    if (!room || !player) return { ok: false, error: "Only seated players can show the board." };
+    if (visibleRabbitCards(room).length) return { ok: true };
+    if (!rabbitHuntEnabled(room)) return { ok: false, error: "Show rest of board is off." };
+    if (!canRabbitHunt(room)) return { ok: false, error: "Nothing left to show." };
+    room.rabbitCards = rabbitHuntRunout(room);
+    room.message = `${player.name} showed the rest of the board.`;
+    return { ok: true };
+  }
+
+  /** Host setting; turning it off also hides an already revealed runout. */
+  function setRabbitHunt(room: Room, enabled: boolean): void {
+    room.rabbitHuntEnabled = Boolean(enabled);
   }
 
   const HOLE_CARD_CODE_RE = /\b[2-9TJQKA][shdc]\b/gi;
@@ -1657,6 +1733,10 @@ export function createHoldemEngine(Hand: HandConstructor) {
         room.players.length < MAX_PLAYERS,
       bustedOut: humansBustedOut(room),
       canRebuy: Boolean(viewer && !viewer.isBot && viewer.stack <= 0 && humansBustedOut(room)),
+      rabbitHuntEnabled: rabbitHuntEnabled(room),
+      canChangeRabbitHunt: room.hostId === viewerId,
+      canRabbitHunt: Boolean(viewer) && canRabbitHunt(room),
+      rabbitCards: visibleRabbitCards(room).map(publicCard),
       community: room.community.map(publicCard),
       winners: room.winners.map((winner) => ({
         ...winner,
@@ -2003,7 +2083,8 @@ export function createHoldemEngine(Hand: HandConstructor) {
         snapshot.status ||
         (isHandInProgress({ phase }) ? "playing" : phase === "gameover" ? "complete" : "lobby"),
       phase,
-      deck: remaining,
+      // A finished hand's real deck stayed on the server: no rabbit hunt from a reshuffle.
+      deck: phase === "complete" ? [] : remaining,
       community,
       dealer: dealerIndex >= 0 ? dealerIndex : 0,
       smallBlindPlayerId: snapshot.players.find((seat) => seat.isSmallBlind)?.id || null,
@@ -2120,6 +2201,12 @@ export function createHoldemEngine(Hand: HandConstructor) {
     beginShowdown,
     applyPlayerAction,
     showPlayerCards,
+    rabbitHuntEnabled,
+    rabbitHuntRunout,
+    canRabbitHunt,
+    visibleRabbitCards,
+    revealRabbitHunt,
+    setRabbitHunt,
     sanitizeActionLogForClient,
     visibleHoleCards,
     cardRankValue,

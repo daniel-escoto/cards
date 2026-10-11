@@ -22,6 +22,7 @@
       defaultAliases: ["ArrowLeft"],
     },
     { id: "showHand", label: "Show hand", defaultKey: "h" },
+    { id: "showBoard", label: "Show rest of board", defaultKey: "b" },
     { id: "menu", label: "Table menu", defaultKey: "m" },
   ];
   const DEFAULT_KEYBINDS = Object.fromEntries(

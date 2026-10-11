@@ -14,6 +14,10 @@ soundEnabledInput.addEventListener("change", () => {
     showToast("Table sounds off");
   }
 });
+// Face-down board slots after a fold-win: tap any of them to see the rest of the board.
+community.addEventListener("click", (event) => {
+  if ((event.target as HTMLElement).closest("[data-rabbit-reveal]")) revealRabbitBoard();
+});
 keybindList.addEventListener("click", (event) => {
   const button = (event.target as HTMLElement).closest("[data-keybind-action]") as HTMLElement | null;
   if (button) beginKeybindRecording(button.dataset.keybindAction || "");
@@ -117,6 +121,13 @@ gameMenuModal.addEventListener("click", (event) => {
     shotClockCustomOpen = false;
     const seconds = Math.floor(Number(choice));
     emitWithAck("game:setShotClock", { seconds });
+    return;
+  }
+  const rabbitHuntButton = (event.target as HTMLElement).closest(
+    "button[data-rabbit-hunt]",
+  ) as HTMLElement | null;
+  if (rabbitHuntButton) {
+    emitWithAck("game:setRabbitHunt", { enabled: rabbitHuntButton.dataset.rabbitHunt === "on" });
     return;
   }
   const readyTimerButton = (event.target as HTMLElement).closest("button[data-ready-timer]") as HTMLElement | null;
@@ -404,6 +415,12 @@ if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
 }
 
 document.addEventListener("keydown", (event) => {
+  const rabbitTarget = (event.target as HTMLElement | null)?.closest?.("[data-rabbit-reveal]");
+  if (rabbitTarget && (event.key === "Enter" || event.key === " ")) {
+    event.preventDefault();
+    revealRabbitBoard();
+    return;
+  }
   if (recordingKeybindAction) {
     event.preventDefault();
     event.stopPropagation();
@@ -459,6 +476,10 @@ document.addEventListener("keydown", (event) => {
     if (!event.repeat) emitWithAck("game:showCards", {});
     return;
   }
+  if (matchesKeybind(event, "showBoard") && state.canRabbitHunt) {
+    if (!event.repeat) revealRabbitBoard();
+    return;
+  }
   if (!state.isYourTurn) return;
   if (
     (matchesKeybind(event, "raiseUp") || matchesKeybind(event, "raiseDown")) &&
@@ -488,3 +509,11 @@ document.addEventListener("keydown", (event) => {
     else raiseActionBtn.click();
   }
 });
+
+/** Tap/click/Enter on a face-down board slot (or the shortcut): reveal the rest once. */
+function revealRabbitBoard() {
+  const cards = community.querySelectorAll<HTMLElement>("[data-rabbit-reveal]");
+  if (!cards.length || cards[0].getAttribute("aria-disabled") === "true") return;
+  cards.forEach((card) => card.setAttribute("aria-disabled", "true"));
+  emitWithAck("game:rabbitHunt", {});
+}

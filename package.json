@@ -37,6 +37,7 @@
     "test:bot-game-timers": "node tests/bot-game-timers.js",
     "test:cpu-personality-bust": "node tests/cpu-personality-bust.js",
     "test:heads-up-preflop": "node tests/heads-up-preflop.js",
+    "test:rabbit-hunt": "node tests/rabbit-hunt.js && node tests/rabbit-hunt-client.js",
     "test:spectator": "node tests/spectator.js",
     "test:graceful-deploy": "node tests/graceful-deploy.js",
     "test:redis-deploy": "node tests/redis-deploy.js",

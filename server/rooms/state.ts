@@ -155,6 +155,8 @@ function serializeRoomForStorage(room: Room): StoredRoom {
     settlements: Array.isArray(room.settlements) ? room.settlements : [],
     moneyLedger: Array.isArray(room.moneyLedger) ? room.moneyLedger : [],
     dormantSince: room.dormantSince || null,
+    ...(room.rabbitHuntEnabled === false ? { rabbitHuntEnabled: false } : {}),
+    ...(room.rabbitCards?.length ? { rabbitCards: room.rabbitCards.slice(0, 5) } : {}),
     players: room.players.map(serializePlayerForStorage),
   } as StoredRoom;
 }
@@ -458,6 +460,11 @@ function restoreRoom(raw: StoredRoom | Record<string, unknown>): Room | null {
     readyEndsAt: Number(data.readyEndsAt) || null,
     dormantSince: Number(data.dormantSince) || null,
     dormantTimer: null,
+    // Legacy rooms have neither field: setting on, nothing revealed.
+    ...(data.rabbitHuntEnabled === false ? { rabbitHuntEnabled: false } : {}),
+    rabbitCards: Array.isArray(data.rabbitCards)
+      ? data.rabbitCards.filter((card) => typeof card === "string").slice(0, 5)
+      : null,
   };
 
   for (const player of room.players) {
@@ -1125,6 +1132,10 @@ function serializeRoom(room: Room, viewerId: string) {
     canRebuy: Boolean(
       viewer && !viewer.isBot && viewer.stack <= 0 && api.humansBustedOut(room),
     ),
+    rabbitHuntEnabled: api.rabbitHuntEnabled(room),
+    canChangeRabbitHunt: Boolean(viewer) && room.hostId === viewerId,
+    canRabbitHunt: Boolean(viewer) && api.canRabbitHunt(room),
+    rabbitCards: api.visibleRabbitCards(room).map(api.publicCard),
     community: room.community.map(api.publicCard),
     winners: room.winners.map((winner) => ({
       ...winner,
