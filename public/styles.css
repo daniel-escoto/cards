@@ -1564,6 +1564,32 @@ button.menu-player-row:not(:disabled):hover {
   color: transparent;
 }
 
+/* Rabbit hunt: "would have been" board cards after a fold-win (display only). */
+.card.rabbit-card {
+  --card-paper: #9d9a93;
+  box-shadow:
+    0 0 0 1.5px rgba(255, 255, 255, 0.5) inset,
+    0 4px 10px rgba(0, 0, 0, 0.18);
+}
+
+.card.rabbit-card > * {
+  filter: grayscale(0.9);
+  opacity: 0.6;
+}
+
+.card.rabbit-first::after {
+  content: "would have been";
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .card-corner {
   display: grid;
   justify-items: center;

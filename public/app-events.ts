@@ -119,6 +119,13 @@ gameMenuModal.addEventListener("click", (event) => {
     emitWithAck("game:setShotClock", { seconds });
     return;
   }
+  const rabbitHuntButton = (event.target as HTMLElement).closest(
+    "button[data-rabbit-hunt]",
+  ) as HTMLElement | null;
+  if (rabbitHuntButton) {
+    emitWithAck("game:setRabbitHunt", { enabled: rabbitHuntButton.dataset.rabbitHunt === "on" });
+    return;
+  }
   const readyTimerButton = (event.target as HTMLElement).closest("button[data-ready-timer]") as HTMLElement | null;
   if (readyTimerButton) {
     const choice = readyTimerButton.dataset.readyTimer;

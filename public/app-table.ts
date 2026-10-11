@@ -22,7 +22,10 @@ function render() {
     watchingCountEl.classList.toggle("hidden", count <= 0);
   }
 
-  const communitySignature = room.community
+  // "Would have been" cards (rabbit hunt) fill the empty slots after a fold-win.
+  const rabbitCards = room.rabbitCards || [];
+  const boardCards = [...room.community, ...rabbitCards];
+  const communitySignature = boardCards
     .map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`)
     .join("|");
   const expectedCommunityCards = room.phase === "lobby" ? 0 : 5;
@@ -32,7 +35,7 @@ function render() {
   ) {
     const previousCommunity = lastCommunitySignature ? lastCommunitySignature.split("|") : [];
     const isInitialBoard = community.children.length === 0 && room.phase !== "lobby";
-    const newCommunityCardCount = room.community.filter((card, index) => {
+    const newCommunityCardCount = boardCards.filter((card, index) => {
       const cardCode = card?.code || `${card?.rank || ""}${card?.suit || ""}`;
       return Boolean(card && previousCommunity[index] !== cardCode);
     }).length;
@@ -40,11 +43,16 @@ function render() {
       room.phase === "lobby"
         ? ""
         : Array.from({ length: 5 }, (_, index) => {
-            const card = room.community[index] || null;
+            const card = boardCards[index] || null;
             const cardCode = card?.code || `${card?.rank || ""}${card?.suit || ""}`;
             const isNewCard =
               isInitialBoard || Boolean(card && previousCommunity[index] !== cardCode);
-            return cardTemplate(card, isNewCard ? "card-entering" : "");
+            const rabbitIndex = index - room.community.length;
+            const rabbitClass =
+              card && rabbitIndex >= 0
+                ? ` rabbit-card${rabbitIndex === 0 ? " rabbit-first" : ""}`
+                : "";
+            return cardTemplate(card, `${isNewCard ? "card-entering" : ""}${rabbitClass}`.trim());
           }).join("");
     lastCommunitySignature = communitySignature;
     if (!isFirstTableRender && newCommunityCardCount) tableSounds.deal(newCommunityCardCount);
@@ -107,6 +115,7 @@ function render() {
     addBotBtn.classList.toggle("hidden", !room?.canAddBot || isSpectatorView());
     renderShotClockChoices();
     renderReadyTimerChoices();
+    renderRabbitHuntChoices();
     const menuHero = activeHero();
     sitOutBtn.classList.toggle(
       "hidden",
@@ -219,6 +228,9 @@ function renderControls(hero: ClientPlayer | null | undefined) {
   }
   if (room.canShowHand) {
     addButton("Show hand", "game:showCards", "secondary", keybindLabel(keybinds.showHand));
+  }
+  if (room.canRabbitHunt) {
+    addButton("Show rest of board", "game:rabbitHunt", "secondary rabbit-hunt-btn");
   }
 
   if (!room.isYourTurn || !hero) {

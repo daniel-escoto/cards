@@ -668,6 +668,35 @@ function registerSocketHandlers(): void {
       api.emitRoom(room);
     });
 
+    // "Show rest of board" after a fold-win: any seated player, once per hand; display only.
+    socket.on("game:rabbitHunt", (
+      _: Parameters<ClientToServerEvents["game:rabbitHunt"]>[0],
+      ack?: Parameters<ClientToServerEvents["game:rabbitHunt"]>[1],
+    ) => {
+      const room = roomFromSocket(socket);
+      const playerId = playerIdFromSocket(socket);
+      if (!room) return ack?.({ ok: false, error: "Room not found." });
+      const alreadyShown = api.visibleRabbitCards(room).length > 0;
+      const result = api.revealRabbitHunt(room, playerId || "");
+      if (!result.ok) return ack?.({ ok: false, error: result.error });
+      ack?.({ ok: true });
+      if (!alreadyShown) api.emitRoom(room);
+    });
+
+    socket.on("game:setRabbitHunt", (
+      { enabled }: Parameters<ClientToServerEvents["game:setRabbitHunt"]>[0] = {},
+      ack?: Parameters<ClientToServerEvents["game:setRabbitHunt"]>[1],
+    ) => {
+      const room = roomFromSocket(socket);
+      const playerId = playerIdFromSocket(socket);
+      if (!room || room.hostId !== playerId) {
+        return ack?.({ ok: false, error: "Only the host can change this setting." });
+      }
+      api.setRabbitHunt(room, enabled !== false);
+      ack?.({ ok: true });
+      api.emitRoom(room);
+    });
+
     socket.on("player:setColor", (
       { color }: Parameters<ClientToServerEvents["player:setColor"]>[0],
       ack?: Parameters<ClientToServerEvents["player:setColor"]>[1],

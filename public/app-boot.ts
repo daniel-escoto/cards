@@ -80,6 +80,8 @@ var shotClockCustomForm = document.querySelector("#shotClockCustomForm") as HTML
 var shotClockCustomInput = document.querySelector("#shotClockCustomInput") as HTMLInputElement;
 var readyTimerPanel = document.querySelector("#readyTimerPanel") as HTMLElement;
 var readyTimerChoices = document.querySelector("#readyTimerChoices") as HTMLElement;
+var rabbitHuntPanel = document.querySelector("#rabbitHuntPanel") as HTMLElement;
+var rabbitHuntChoices = document.querySelector("#rabbitHuntChoices") as HTMLElement;
 var readyTimerCustomForm = document.querySelector("#readyTimerCustomForm") as HTMLFormElement;
 var readyTimerCustomInput = document.querySelector("#readyTimerCustomInput") as HTMLInputElement;
 var SHOT_CLOCK_CHOICES = [
@@ -787,10 +789,12 @@ function syncHostMenuSection() {
     Boolean(state?.canChangeShotClock) && !isOfflineSession() && !isSpectatorView();
   const canReadyTimer =
     Boolean(state?.canChangeReadyTimer) && !isOfflineSession() && !isSpectatorView();
+  const canRabbitHunt = Boolean(state?.canChangeRabbitHunt) && !isSpectatorView();
   restartGameBtn.classList.toggle("hidden", !canRestart);
   endGameBtn.classList.toggle("hidden", !canEnd);
   hostActionsPanel.classList.toggle("hidden", !canRestart && !canEnd);
-  const showHost = canBlinds || canShotClock || canReadyTimer || canRestart || canEnd;
+  const showHost =
+    canBlinds || canShotClock || canReadyTimer || canRabbitHunt || canRestart || canEnd;
   openHostBtn.classList.toggle("hidden", !showHost);
   if (!showHost) menuHostView.classList.add("hidden");
 }
@@ -970,6 +974,7 @@ function showGameMenu() {
   }
   renderShotClockChoices();
   renderReadyTimerChoices();
+  renderRabbitHuntChoices();
   syncHostMenuSection();
   if (state?.moneyMode) cashInInput.value = (state.buyInCents / 100).toFixed(0);
   syncCashInControls();
@@ -1279,6 +1284,29 @@ function commitShotClockCustom(form: HTMLElement | null) {
     delete form.dataset.shotClockSaving;
   });
   return true;
+}
+
+/** Host setting: "Show rest of board" after a fold-win (default on). */
+function renderRabbitHuntChoices() {
+  if (!rabbitHuntPanel || !rabbitHuntChoices) return;
+  const canEdit = Boolean(state?.canChangeRabbitHunt) && !isSpectatorView();
+  rabbitHuntPanel.classList.toggle("hidden", !canEdit);
+  if (!canEdit) return;
+  const enabled = state?.rabbitHuntEnabled !== false;
+  rabbitHuntChoices.innerHTML = [
+    { value: "on", label: "On", selected: enabled },
+    { value: "off", label: "Off", selected: !enabled },
+  ]
+    .map(
+      (item) => `
+    <button
+      type="button"
+      class="appearance-choice${item.selected ? " selected" : ""}"
+      data-rabbit-hunt="${item.value}"
+      aria-pressed="${item.selected ? "true" : "false"}"
+    >${item.label}</button>`,
+    )
+    .join("");
 }
 
 function renderReadyTimerChoices() {

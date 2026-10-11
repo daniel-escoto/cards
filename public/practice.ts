@@ -187,6 +187,20 @@ function isHoldemEngineAPI(value: unknown): value is HoldemEngineAPI {
         return { ok: true };
       }
 
+      if (eventName === "game:rabbitHunt") {
+        const alreadyShown = engine.visibleRabbitCards(room).length > 0;
+        const result = engine.revealRabbitHunt(room, viewerId);
+        if (result.ok && !alreadyShown) publish();
+        return result;
+      }
+
+      if (eventName === "game:setRabbitHunt") {
+        if (room.hostId !== viewerId) return { ok: false, error: "Only the host can change this." };
+        engine.setRabbitHunt(room, payload.enabled !== false);
+        publish();
+        return { ok: true };
+      }
+
       if (eventName === "game:rebuy") {
         const result = engine.rebuyBustedPlayer(room, viewerId);
         if (!result.ok) return result;

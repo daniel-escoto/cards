@@ -106,6 +106,11 @@ const {
   botStyleView,
   humansBustedOut,
   rebuyBustedPlayer,
+  rabbitHuntEnabled,
+  canRabbitHunt,
+  visibleRabbitCards,
+  revealRabbitHunt,
+  setRabbitHunt,
 } = engine;
 
 setRandomInt((maxExclusive: number) => crypto.randomInt(maxExclusive));
@@ -297,6 +302,11 @@ Object.assign(api, {
   botStyleView,
   humansBustedOut,
   rebuyBustedPlayer,
+  rabbitHuntEnabled,
+  canRabbitHunt,
+  visibleRabbitCards,
+  revealRabbitHunt,
+  setRabbitHunt,
   crypto,
   path,
 });
