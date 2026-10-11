@@ -2738,10 +2738,18 @@ kbd {
     animation: low-time-clock-pulse 1s ease-in-out infinite;
   }
 }
-.game-buttons > .turn-clock {
-  align-self: center;
-  margin-left: 2px;
-  color: var(--text);
+.turn-info .turn-clock,
+.game-buttons button .turn-clock {
+  margin-left: 0;
+  min-width: 0;
+  color: inherit;
+  font-size: inherit;
+}
+.turn-info .turn-clock.low-time {
+  color: #d63c3c;
+}
+.game-buttons button .turn-clock.low-time {
+  color: #ffd2d2;
 }
 
 .hero-hand {

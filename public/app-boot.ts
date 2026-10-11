@@ -1443,7 +1443,7 @@ function syncLowTimeWarningEffects(now = clientNow()) {
 
   // Sound + vibrate only on the acting player's own device (never spectators).
   if (tickSecond != null && canHearShotClockCues()) {
-    tableSounds.shotClockTick();
+    tableSounds.shotClockTick(tickSecond);
     if (tickSecond === 5 && lowTimeVibratedForEndsAt !== endsAt) {
       lowTimeVibratedForEndsAt = endsAt;
       try {
@@ -1594,9 +1594,9 @@ function syncReadyLowTimeWarningEffects(now = clientNow()) {
       ? TurnClockWarning.consumeLowTimeTick(readyLowTimeSession, { turnEndsAt: endsAt, now })
       : null;
 
-  // Quiet tick only for the local player who still needs to ready (never spectators).
+  // Tick only for the local player who still needs to ready (never spectators).
   if (tickSecond != null && canHearReadyClockCues()) {
-    tableSounds.shotClockTick();
+    tableSounds.shotClockTick(tickSecond);
   }
 }
 

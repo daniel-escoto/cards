@@ -204,18 +204,20 @@ function renderControls(hero: ClientPlayer | null | undefined) {
   if (room.canAddBot) {
     addButton("+ Add CPU player", "room:addBot", "secondary lobby-add-bot");
   }
+  const readyCountdownOnButton = Boolean(room.canReady && !room.isReady && readyTimerActive());
   if (room.canReady) {
     const readyShortcut = room.isReady
       ? keybindLabel(keybinds.ready)
       : [keybinds.ready, keybinds.call].filter(Boolean).map(keybindLabel).join(" / ");
-    addButton(
+    const readyButton = addButton(
       room.isReady ? "Not ready" : "Ready up",
       "game:ready",
       room.isReady ? "secondary" : "",
       readyShortcut,
     );
-    if (!room.isReady && readyTimerActive()) {
-      appendReadyCountdown(gameButtons, { separator: false });
+    // Countdown lives on the Ready up button ("Ready up · 12"); the status line drops it.
+    if (readyCountdownOnButton) {
+      appendReadyCountdown(readyButton.querySelector<HTMLElement>(":scope > span") ?? readyButton);
     }
   }
   if (room.canShowHand) {
@@ -232,10 +234,11 @@ function renderControls(hero: ClientPlayer | null | undefined) {
         humans.length < 2 &&
         room.players.filter((player) => player.stack > 0 && !player.sittingOut).length < 2
           ? "Waiting for at least two active players."
-          : `${readyCount} of ${humans.length} players ready.`;
+          : `${readyCount} of ${humans.length} players ready`;
       turnInfo.replaceChildren();
       turnInfo.append(readyStatus);
-      appendReadyCountdown(turnInfo);
+      // Shown once: on the Ready up button when the hero still needs to ready, else here.
+      if (!readyCountdownOnButton) appendReadyCountdown(turnInfo);
       return;
     }
     const currentIndex = findLastIndex(room.players, (player) => player.id === room.turn);
@@ -468,6 +471,7 @@ function addButton(label: string, eventName: string, className = "", shortcut = 
   setButtonLabel(button, label, shortcut);
   button.addEventListener("click", () => emitWithAck(eventName, payload));
   gameButtons.appendChild(button);
+  return button;
 }
 
 function addActionButton(label: string, payload: Record<string, unknown>, className = "", disabled = false) {

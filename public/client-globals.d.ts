@@ -257,7 +257,8 @@ declare global {
     deal(count?: number): void;
     turn(): void;
     win(): void;
-    shotClockTick(): void;
+    shotClockTick(secondsLeft?: number): void;
+    tickVoice(start: number, frequency: number, peak: number): void;
     timerTimeout(): void;
   }
 

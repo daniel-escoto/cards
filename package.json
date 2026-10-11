@@ -31,6 +31,7 @@
     "test:turn-timer": "node tests/turn-timer.js",
     "test:blind-chips": "node tests/blind-chips.js",
     "test:turn-clock-warning": "node tests/turn-clock-warning.js",
+    "test:shot-clock-tick": "node tests/shot-clock-tick.js",
     "test:ready-timer": "node tests/ready-timer.js",
     "test:ready-clock": "node tests/ready-clock.js",
     "test:spectator": "node tests/spectator.js",

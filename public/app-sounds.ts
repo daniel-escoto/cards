@@ -180,16 +180,50 @@
       });
     }
 
-    /** Quiet one-shot click for the acting player's last 5s shot-clock warning. */
-    shotClockTick() {
+    /**
+     * Woodblock-style "tick" for the last 5s of the shot clock (acting player only) and
+     * the ready-up clock (un-readied local player only). Bright square click + triangle
+     * body, ~2ms attack / ~60ms decay. Urgency ramps as `secondsLeft` falls 5 → 1:
+     * pitch 1200 → 1800 Hz, peak 0.26 → 0.34, and a double-tick at 2s and 1s.
+     */
+    shotClockTick(secondsLeft = 5) {
       try {
         if (!this.enabled) return;
         const context = this.unlock();
         if (!context || context.state !== "running") return;
-        this.tap(context.currentTime, 1480, 0.028, 0);
+        const seconds = Number.isFinite(secondsLeft) ? secondsLeft : 5;
+        const urgency = Math.max(0, Math.min(1, (5 - seconds) / 4));
+        const frequency = 1200 + 600 * urgency;
+        const peak = 0.26 + 0.08 * urgency;
+        const start = context.currentTime;
+        this.tickVoice(start, frequency, peak);
+        if (seconds <= 2) this.tickVoice(start + 0.11, frequency * 1.12, peak);
       } catch (_) {
         // Autoplay / AudioContext failures must never throw into the UI loop.
       }
+    }
+
+    tickVoice(start: number, frequency: number, peak: number) {
+      const context = this.context!;
+      const envelope = this.output(0);
+      const click = context.createOscillator();
+      const body = context.createOscillator();
+      const bodyGain = context.createGain();
+      click.type = "square";
+      click.frequency.setValueAtTime(frequency, start);
+      body.type = "triangle";
+      body.frequency.setValueAtTime(frequency / 2, start);
+      body.frequency.exponentialRampToValueAtTime(frequency / 3, start + 0.05);
+      bodyGain.gain.value = 0.6;
+      envelope.gain.setValueAtTime(0.0001, start);
+      envelope.gain.linearRampToValueAtTime(peak, start + 0.002);
+      envelope.gain.exponentialRampToValueAtTime(0.0001, start + 0.065);
+      click.connect(envelope);
+      body.connect(bodyGain).connect(envelope);
+      click.start(start);
+      body.start(start);
+      click.stop(start + 0.07);
+      body.stop(start + 0.07);
     }
 
     /** Short descending blip when shot-clock or ready-up timer hits 0. Distinct from the soft tick. */
