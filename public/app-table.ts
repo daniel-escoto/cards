@@ -149,7 +149,7 @@ function renderControls(hero: ClientPlayer | null | undefined) {
   betControls.querySelector(".raise-row")?.classList.remove("merge-check-bet");
   betPresets.innerHTML = "";
   turnInfo.textContent = "";
-  turnInfo.classList.remove("your-turn");
+  turnInfo.classList.remove("your-turn", "bust-message");
 
   if (isSpectatorView()) {
     turnInfo.classList.remove("showdown-message");
@@ -183,6 +183,10 @@ function renderControls(hero: ClientPlayer | null | undefined) {
     return;
   }
 
+  if (room.canRebuy) {
+    renderBustPanel(room);
+    return;
+  }
   if (hero?.sittingOut && (!isBettingPhase(room.phase) || !hero.cards.length)) {
     turnInfo.textContent = "You’re sitting out. Your seat and stack are saved.";
     addButton("Sit back in", "game:sitOut", "", "", { sittingOut: false });
@@ -249,6 +253,27 @@ function renderControls(hero: ClientPlayer | null | undefined) {
       : `Pot ${formatAmount(room.pot, room.potCents)}. Your turn: check or bet.`;
   turnInfo.classList.add("your-turn");
   renderHeroActionControls(hero, false);
+}
+
+/** Every human is out of chips while CPUs play on: offer Rebuy / Restart instead of a dead table. */
+function renderBustPanel(room: ClientRoom) {
+  const leader = room.players
+    .filter((player) => player.stack > 0)
+    .sort((a, b) => b.stack - a.stack)[0];
+  turnInfo.replaceChildren();
+  const title = document.createElement("strong");
+  title.className = "bust-title";
+  title.textContent = "You busted.";
+  turnInfo.append(title);
+  if (leader) {
+    turnInfo.append(
+      ` ${leader.name} leads with ${formatAmount(leader.stack, leader.stackCents)}. Rebuy to keep playing.`,
+    );
+  }
+  turnInfo.classList.add("bust-message");
+  const startingStack = typeof HoldemEngine?.STARTING_STACK === "number" ? HoldemEngine.STARTING_STACK : 1000;
+  addButton(`Rebuy ${formatAmount(startingStack, startingStack)}`, "game:rebuy");
+  if (room.canRestartGame) addButton("Restart", "game:restart", "secondary");
 }
 
 function renderHeroActionControls(hero: ClientPlayer, disabled: boolean) {

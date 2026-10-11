@@ -461,7 +461,9 @@ async function readyUp(players) {
     "active-hand bot takeover",
   );
 
-  for (let i = 0; i < 240 && solo.state.phase !== "complete"; i += 1) {
+  // CPUs take a human-like 0.5-4s per decision unless the server sets CPU_ACTION_DELAY_MS.
+  const botHandDeadline = Date.now() + 120_000;
+  while (Date.now() < botHandDeadline && solo.state.phase !== "complete") {
     if (solo.state?.isYourTurn) {
       await emit(solo.socket, "game:action", { type: solo.state.toCall > 0 ? "call" : "check" });
     }

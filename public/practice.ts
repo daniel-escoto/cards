@@ -30,7 +30,6 @@ function isHoldemEngineAPI(value: unknown): value is HoldemEngineAPI {
 
   if (!engine) throw new Error("PracticeSession requires HoldemEngine");
 
-  const CPU_ACTION_DELAY_MS = 250;
   const SHOWDOWN_DELAY_MS = 1600;
 
   /**
@@ -52,6 +51,11 @@ function isHoldemEngineAPI(value: unknown): value is HoldemEngineAPI {
     const room = options.room || engine.createPracticeRoom(options);
     const viewerId = options.viewerId || room.hostId;
     let onUpdate = typeof options.onUpdate === "function" ? options.onUpdate : null;
+    // Tests can force a fixed CPU delay; otherwise think time comes from the engine.
+    const cpuDelayOverrideMs =
+      typeof options.cpuDelayMs === "number" && Number.isFinite(options.cpuDelayMs)
+        ? Math.max(0, options.cpuDelayMs)
+        : null;
     let disposed = false;
 
     function snapshot() {
@@ -75,18 +79,44 @@ function isHoldemEngineAPI(value: unknown): value is HoldemEngineAPI {
       }, delay);
     }
 
-    function scheduleBot() {
+    function decisionKey(seatId: string) {
+      return `${room.handNumber}:${room.phase}:${seatId}:${room.actionLog.length}:${room.currentBet}`;
+    }
+
+    function clearBot() {
       if (room.botTimer != null) clearTimeout(room.botTimer);
-      if (disposed) return;
+      room.botTimer = null;
+      room.botTimerKey = null;
+    }
+
+    function scheduleBot() {
+      if (disposed) {
+        clearBot();
+        return;
+      }
       const player = room.players.find((item: PracticeSeat) => item.id === room.turn);
-      if (!player?.isBot || !engine.isHandInProgress(room)) return;
+      if (!player?.isBot || !engine.isHandInProgress(room)) {
+        clearBot();
+        return;
+      }
+      const key = decisionKey(player.id);
+      // publish() runs on every local update: keep the CPU's pending "think" timer.
+      if (room.botTimer != null && room.botTimerKey === key) return;
+      clearBot();
+      const action = engine.chooseComputerAction(room, player);
+      const delay = cpuDelayOverrideMs ?? engine.computerThinkDelayMs(room, player, action);
+      room.botTimerKey = key;
       room.botTimer = setTimeout(() => {
+        room.botTimer = null;
+        room.botTimerKey = null;
         if (disposed) return;
         const current = room.players.find((item: PracticeSeat) => item.id === room.turn);
         if (!current?.isBot || !engine.isHandInProgress(room)) return;
-        engine.applyPlayerAction(room, current.id, engine.chooseComputerAction(room, current));
+        const decided =
+          decisionKey(current.id) === key ? action : engine.chooseComputerAction(room, current);
+        engine.applyPlayerAction(room, current.id, decided);
         publish();
-      }, CPU_ACTION_DELAY_MS);
+      }, delay);
     }
 
     function handle(eventName: string, payload: Record<string, unknown> = {}) {
@@ -153,6 +183,14 @@ function isHoldemEngineAPI(value: unknown): value is HoldemEngineAPI {
         room.minRaise = big;
         room.message = `Blinds set to ${small}/${big}.`;
         engine.resetReadiness(room);
+        publish();
+        return { ok: true };
+      }
+
+      if (eventName === "game:rebuy") {
+        const result = engine.rebuyBustedPlayer(room, viewerId);
+        if (!result.ok) return result;
+        engine.maybeStartReadyHand(room);
         publish();
         return { ok: true };
       }

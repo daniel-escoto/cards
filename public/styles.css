@@ -2075,6 +2075,48 @@ button.menu-player-row:not(:disabled):hover {
   --chip-color: #c2410c;
 }
 
+/* CPU personality pill next to the seat name. */
+.bot-style-tag {
+  --style-color: #94a3b8;
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--style-color) 55%, transparent);
+  background: color-mix(in srgb, var(--style-color) 18%, transparent);
+  color: color-mix(in srgb, var(--style-color) 70%, #fff);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.bot-style-tag[data-bot-style="cpu_7f3a"] {
+  --style-color: #f97316;
+}
+.bot-style-tag[data-bot-style="cpu_b204"] {
+  --style-color: #38bdf8;
+}
+.bot-style-tag[data-bot-style="cpu_19d8"] {
+  --style-color: #a3a3a3;
+}
+.bot-style-tag[data-bot-style="cpu_e621"] {
+  --style-color: #f43f5e;
+}
+.bot-style-tag[data-bot-style="cpu_04ac"] {
+  --style-color: #84cc16;
+}
+.bot-style-tag[data-bot-style="cpu_c97e"] {
+  --style-color: #a78bfa;
+}
+.bot-style-tag[data-bot-style="cpu_52b1"] {
+  --style-color: #2dd4bf;
+}
+
+.turn-info.bust-message .bust-title {
+  color: #e05252;
+  font-weight: 900;
+}
+
 .pill {
   flex: 0 0 auto;
   border-radius: 999px;
@@ -3411,6 +3453,10 @@ kbd {
     width: 16px;
     height: 16px;
     font-size: 6.5px;
+  }
+  .bot-style-tag {
+    padding: 0 5px;
+    font-size: 9px;
   }
   .player-action {
     font-size: 11px;

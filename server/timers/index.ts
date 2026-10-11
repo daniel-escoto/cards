@@ -259,12 +259,36 @@ function syncTimerDefaults(room: Room): void {
   }
 }
 
-function scheduleComputerTurn(room: Room): void {
+/** Identifies one CPU decision point; a pending think timer stays valid while it matches. */
+function cpuDecisionKey(room: Room, playerId: string): string {
+  return `${room.handNumber}:${room.phase}:${playerId}:${room.actionLog.length}:${room.currentBet}`;
+}
+
+function clearComputerTurn(room: Room): void {
   clearTimeout(room.botTimer!);
-  if (!api.hasConnectedHuman(room)) return;
+  room.botTimer = null;
+  room.botTimerKey = null;
+}
+
+function scheduleComputerTurn(room: Room): void {
   const player = room.players.find((item) => item.id === room.turn);
-  if (!player?.isBot || !api.isHandInProgress(room)) return;
+  const actionable =
+    api.hasConnectedHuman(room) && Boolean(player?.isBot) && api.isHandInProgress(room);
+  if (!actionable || !player) {
+    clearComputerTurn(room);
+    return;
+  }
+  const key = cpuDecisionKey(room, player.id);
+  // emitRoom runs on every update (presence, chat-free UI pings, spectators…): keep
+  // the CPU's current "thinking" timer instead of restarting it each time.
+  if (room.botTimer && room.botTimerKey === key) return;
+  clearComputerTurn(room);
+  const action = api.chooseComputerAction(room, player);
+  const delay = api.CPU_ACTION_DELAY_MS ?? api.computerThinkDelayMs(room, player, action);
+  room.botTimerKey = key;
   room.botTimer = setTimeout(() => {
+    room.botTimer = null;
+    room.botTimerKey = null;
     const currentRoom = api.rooms.get(room.id);
     const currentPlayer = currentRoom?.players.find((item) => item.id === currentRoom.turn);
     if (
@@ -274,13 +298,14 @@ function scheduleComputerTurn(room: Room): void {
       !api.isHandInProgress(currentRoom)
     )
       return;
-    api.applyPlayerAction(
-      currentRoom,
-      currentPlayer.id,
-      api.chooseComputerAction(currentRoom, currentPlayer),
-    );
+    // The table moved on while "thinking" (shouldn't normally happen): decide afresh.
+    const decided =
+      currentRoom === room && cpuDecisionKey(currentRoom, currentPlayer.id) === key
+        ? action
+        : api.chooseComputerAction(currentRoom, currentPlayer);
+    api.applyPlayerAction(currentRoom, currentPlayer.id, decided);
     api.emitRoom(currentRoom);
-  }, api.CPU_ACTION_DELAY_MS);
+  }, delay);
 }
 
 Object.assign(api, {
@@ -295,6 +320,7 @@ Object.assign(api, {
   scheduleHumanTurnTimer,
   setRoomShotClock,
   setRoomReadyTimer,
+  clearComputerTurn,
   isBotGame,
   syncTimerDefaults,
   scheduleComputerTurn,
@@ -312,6 +338,7 @@ export = {
   scheduleHumanTurnTimer,
   setRoomShotClock,
   setRoomReadyTimer,
+  clearComputerTurn,
   isBotGame,
   syncTimerDefaults,
   scheduleComputerTurn,

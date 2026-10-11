@@ -36,6 +36,8 @@ const appClassicGlobals = {
   bigBlindInput: "writable",
   bigBlindLabel: "writable",
   blindChipMarkup: "writable",
+  botStyleTagMarkup: "writable",
+  renderBustPanel: "writable",
   blindFields: "writable",
   blindForm: "writable",
   blindPanel: "writable",

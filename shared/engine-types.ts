@@ -31,6 +31,10 @@ export type RandomIntFn = (maxExclusive: number) => number;
 export interface BotProfile {
   tag: string;
   style: string;
+  /** Short seat-tag label shown to players (e.g. "Loose"). */
+  short: string;
+  /** Think-time multiplier: < 1 acts faster, > 1 slower. */
+  tempo: number;
   aggression: number;
   looseness: number;
   bluff: number;
@@ -108,6 +112,7 @@ export interface PracticeSnapshotPlayer {
   isBigBlind?: boolean;
   buyInsCents?: number;
   cashOutCents?: number;
+  botProfile?: string | null;
   cards?: Array<PublicCard | CardCode | null | undefined>;
 }
 

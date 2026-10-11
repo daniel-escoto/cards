@@ -100,6 +100,12 @@ const {
   chooseComputerAction,
   isSoloHumanFolded,
   bettingComplete,
+  computerProfile,
+  assignComputerProfile,
+  computerThinkDelayMs,
+  botStyleView,
+  humansBustedOut,
+  rebuyBustedPlayer,
 } = engine;
 
 setRandomInt((maxExclusive: number) => crypto.randomInt(maxExclusive));
@@ -134,7 +140,14 @@ const DEPLOY_TAKEOVER_MS = envNonNegativeMs("DEPLOY_TAKEOVER_MS", 20000);
 const DEPLOY_HANDOFF_POLL_MS = envNonNegativeMs("DEPLOY_HANDOFF_POLL_MS", 200);
 const SAVE_DEBOUNCE_MS = 150;
 const SHOWDOWN_DELAY_MS = 1600;
-const CPU_ACTION_DELAY_MS = 250;
+/**
+ * CPU think time comes from engine.computerThinkDelayMs (personality + decision).
+ * Set CPU_ACTION_DELAY_MS to force a fixed delay instead (tests / CI smoke).
+ */
+const CPU_ACTION_DELAY_MS: number | null =
+  process.env.CPU_ACTION_DELAY_MS != null && process.env.CPU_ACTION_DELAY_MS !== ""
+    ? envNonNegativeMs("CPU_ACTION_DELAY_MS", 250)
+    : null;
 /** Host shot-clock presets (ms). 0 = Off. Default 30s. Custom values allowed in [MIN, MAX]. */
 const SHOT_CLOCK_OPTIONS_MS = Object.freeze([0, 15000, 30000, 60000, 90000, 120000, 300000]);
 const SHOT_CLOCK_DEFAULT_MS = 30000;
@@ -278,6 +291,12 @@ Object.assign(api, {
   chooseComputerAction,
   isSoloHumanFolded,
   bettingComplete,
+  computerProfile,
+  assignComputerProfile,
+  computerThinkDelayMs,
+  botStyleView,
+  humansBustedOut,
+  rebuyBustedPlayer,
   crypto,
   path,
 });

@@ -120,7 +120,7 @@ export interface Player {
   disconnectExpiresAt?: number | null;
   disconnectTimer?: TimerHandle;
   backgroundedUntil?: number | null;
-  /** Bot profile fields from the shared engine. */
+  /** CPU personality tag (BOT_PROFILES[].tag), assigned when the CPU is seated. */
   botProfile?: string | null;
   botStyle?: string | null;
   aggression?: number;
@@ -154,6 +154,8 @@ export interface StoredPlayer {
   buyInsCents: number;
   cashOutCents: number;
   preflopShoveStreak: number;
+  /** Absent in rooms saved by older builds → legacy seat-number personality. */
+  botProfile?: string | null;
 }
 
 export interface ClientPlayer {
@@ -175,6 +177,10 @@ export interface ClientPlayer {
   allIn: boolean;
   connected: boolean;
   isBot: boolean;
+  /** CPU personality (tag, display name, short seat label); null for humans. */
+  botProfile: string | null;
+  botStyle: string | null;
+  botStyleShort: string | null;
   showCards: boolean;
   ready: boolean;
   disconnectExpiresAt: number | null;
@@ -256,6 +262,8 @@ export interface Room {
   dormantSince?: number | null;
   dormantTimer?: TimerHandle;
   botTimer?: TimerHandle;
+  /** Decision the pending botTimer belongs to (memory only; see cpuDecisionKey). */
+  botTimerKey?: string | null;
   showdownTimer?: TimerHandle;
   spectators?: Spectator[];
   players: Player[];
@@ -364,6 +372,10 @@ export interface ClientRoom {
   canRestartGame: boolean;
   canEndGame: boolean;
   canAddBot: boolean;
+  /** Every human is out of chips while 2+ CPUs still have chips (chip games). */
+  bustedOut: boolean;
+  /** Viewer is a busted human who can top back up and keep playing. */
+  canRebuy: boolean;
   community: PublicCard[];
   winners: ClientWinnerSummary[];
   actionLog: ActionLogEntry[];
@@ -523,6 +535,8 @@ export interface ClientToServerEvents {
   "game:end": (payload?: unknown, ack?: (response: OkAck | ErrAck) => void) => void;
 
   "game:restart": (payload?: unknown, ack?: (response: OkAck | ErrAck) => void) => void;
+
+  "game:rebuy": (payload?: unknown, ack?: (response: OkAck | ErrAck) => void) => void;
 
   "game:showCards": (payload?: unknown, ack?: (response: OkAck | ErrAck) => void) => void;
 

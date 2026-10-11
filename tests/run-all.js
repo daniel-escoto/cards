@@ -24,7 +24,8 @@ for (const file of files) {
   console.log(`\n=== ${file} ===`);
   const result = spawnSync(process.execPath, [fullPath], {
     stdio: "inherit",
-    env: process.env,
+    // Real CPU think time is 0.5-4s; keep the suite fast unless a test overrides it.
+    env: { CPU_ACTION_DELAY_MS: "20", ...process.env },
   });
   if (result.status !== 0) {
     failed += 1;
