@@ -165,10 +165,8 @@ function renderControls(hero: ClientPlayer | null | undefined) {
         humans.length < 2 &&
         room.players.filter((player) => player.stack > 0 && !player.sittingOut).length < 2
           ? "Watching · waiting for at least two active players."
-          : `Watching · ${readyCount} of ${humans.length} players ready.`;
-      turnInfo.replaceChildren();
-      turnInfo.append(readyStatus);
-      appendReadyCountdown(turnInfo);
+          : `Watching · ${readyCount} of ${humans.length} players ready`;
+      turnInfo.textContent = readyStatus;
     } else {
       const currentIndex = findLastIndex(room.players, (player) => player.id === room.turn);
       const current = currentIndex >= 0 ? room.players[currentIndex] : null;
@@ -204,21 +202,16 @@ function renderControls(hero: ClientPlayer | null | undefined) {
   if (room.canAddBot) {
     addButton("+ Add CPU player", "room:addBot", "secondary lobby-add-bot");
   }
-  const readyCountdownOnButton = Boolean(room.canReady && !room.isReady && readyTimerActive());
   if (room.canReady) {
     const readyShortcut = room.isReady
       ? keybindLabel(keybinds.ready)
       : [keybinds.ready, keybinds.call].filter(Boolean).map(keybindLabel).join(" / ");
-    const readyButton = addButton(
+    addButton(
       room.isReady ? "Not ready" : "Ready up",
       "game:ready",
       room.isReady ? "secondary" : "",
       readyShortcut,
     );
-    // Countdown lives on the Ready up button ("Ready up · 12"); the status line drops it.
-    if (readyCountdownOnButton) {
-      appendReadyCountdown(readyButton.querySelector<HTMLElement>(":scope > span") ?? readyButton);
-    }
   }
   if (room.canShowHand) {
     addButton("Show hand", "game:showCards", "secondary", keybindLabel(keybinds.showHand));
@@ -235,10 +228,8 @@ function renderControls(hero: ClientPlayer | null | undefined) {
         room.players.filter((player) => player.stack > 0 && !player.sittingOut).length < 2
           ? "Waiting for at least two active players."
           : `${readyCount} of ${humans.length} players ready`;
-      turnInfo.replaceChildren();
-      turnInfo.append(readyStatus);
-      // Shown once: on the Ready up button when the hero still needs to ready, else here.
-      if (!readyCountdownOnButton) appendReadyCountdown(turnInfo);
+      // No ready-up number here or on the button: the seat progress bar is the countdown.
+      turnInfo.textContent = readyStatus;
       return;
     }
     const currentIndex = findLastIndex(room.players, (player) => player.id === room.turn);

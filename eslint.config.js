@@ -22,7 +22,6 @@ const appClassicGlobals = {
   addBotBtn: "writable",
   addButton: "writable",
   addConfirmPassiveButton: "writable",
-  appendReadyCountdown: "writable",
   applyRoomUpdate: "writable",
   applyTableAppearance: "writable",
   applyTheme: "writable",

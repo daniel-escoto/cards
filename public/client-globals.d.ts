@@ -641,10 +641,6 @@ declare global {
   function readyLowTimeWarningActive(): boolean;
   function canHearReadyClockCues(): boolean;
   function syncReadyLowTimeWarningEffects(now?: number): void;
-  function appendReadyCountdown(
-    target: HTMLElement,
-    options?: { separator?: boolean },
-  ): void;
   function syncReadyCountdown(): void;
   function renderActionFeed(newEntryId?: string): string;
   function isEndedGameReturn(
