@@ -1600,21 +1600,6 @@ function syncReadyLowTimeWarningEffects(now = clientNow()) {
   }
 }
 
-function appendReadyCountdown(target: HTMLElement, { separator = true }: { separator?: boolean } = {}) {
-  if (!target || !readyTimerActive()) return null;
-  if (separator) target.append(" · ");
-  const countdown = document.createElement("span");
-  const seconds = readySecondsRemaining();
-  const labelText = formatTurnCountdown(seconds);
-  const lowTime = readyLowTimeWarningActive();
-  countdown.className = `turn-clock${lowTime ? " low-time" : ""}`;
-  countdown.dataset.readyCountdown = "1";
-  countdown.textContent = labelText;
-  countdown.setAttribute("aria-label", `${labelText} left to ready up`);
-  target.append(countdown);
-  return countdown;
-}
-
 function syncReadyCountdown() {
   if (!state) return;
   if (readyCountdownTimer != null) clearInterval(readyCountdownTimer);
@@ -1702,7 +1687,8 @@ function renderActionFeed(newEntryId = "") {
       const clockAria = showReadyClock
         ? `${countdownLabel} left to ready up`
         : `${countdownLabel} left`;
-      const clockMarkup = showClock
+      // Ready-up shows only the shrinking bar (no number); the shot clock keeps its number.
+      const clockMarkup = showTurnClock
         ? `<span class="turn-clock${lowTime ? " low-time" : ""}" ${countdownAttr} aria-label="${clockAria}">${countdownLabel}</span>`
         : "";
       const barMarkup = showClock
