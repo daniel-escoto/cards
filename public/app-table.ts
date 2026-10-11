@@ -1,3 +1,14 @@
+/**
+ * Undealt board slot after a fold-win: a face-down card the viewer can tap to reveal
+ * the rest of the board. Pure placeholder; carries no card data.
+ */
+function rabbitFaceDownTemplate(withHint: boolean) {
+  const shortcut = keybindLabel(keybinds.showBoard);
+  const label = `Show the rest of the board${shortcut ? ` (${shortcut})` : ""}`;
+  // role="button" (not <button>) so deck themes keep styling the card back on hover.
+  return `<div role="button" tabindex="0" class="card back rabbit-facedown${withHint ? " rabbit-hint" : ""}" data-rabbit-reveal aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"><span></span><span></span></div>`;
+}
+
 function render() {
   if (!state) return;
   const room = state;
@@ -25,9 +36,10 @@ function render() {
   // "Would have been" cards (rabbit hunt) fill the empty slots after a fold-win.
   const rabbitCards = room.rabbitCards || [];
   const boardCards = [...room.community, ...rabbitCards];
-  const communitySignature = boardCards
+  const canRevealBoard = Boolean(room.canRabbitHunt) && !isSpectatorView();
+  const communitySignature = `${boardCards
     .map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`)
-    .join("|");
+    .join("|")}${canRevealBoard ? "|tap" : ""}`;
   const expectedCommunityCards = room.phase === "lobby" ? 0 : 5;
   if (
     communitySignature !== lastCommunitySignature ||
@@ -52,6 +64,9 @@ function render() {
               card && rabbitIndex >= 0
                 ? ` rabbit-card${rabbitIndex === 0 ? " rabbit-first" : ""}`
                 : "";
+            if (!card && canRevealBoard) {
+              return rabbitFaceDownTemplate(index === room.community.length);
+            }
             return cardTemplate(card, `${isNewCard ? "card-entering" : ""}${rabbitClass}`.trim());
           }).join("");
     lastCommunitySignature = communitySignature;
@@ -228,9 +243,6 @@ function renderControls(hero: ClientPlayer | null | undefined) {
   }
   if (room.canShowHand) {
     addButton("Show hand", "game:showCards", "secondary", keybindLabel(keybinds.showHand));
-  }
-  if (room.canRabbitHunt) {
-    addButton("Show rest of board", "game:rabbitHunt", "secondary rabbit-hunt-btn");
   }
 
   if (!room.isYourTurn || !hero) {

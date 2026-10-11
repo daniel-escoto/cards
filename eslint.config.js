@@ -202,6 +202,8 @@ const appClassicGlobals = {
   rabbitHuntChoices: "writable",
   rabbitHuntPanel: "writable",
   renderRabbitHuntChoices: "writable",
+  rabbitFaceDownTemplate: "writable",
+  revealRabbitBoard: "writable",
   reconnectBanner: "writable",
   reconnectBannerVisible: "writable",
   recordingKeybindAction: "writable",

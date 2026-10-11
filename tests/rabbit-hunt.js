@@ -1,4 +1,4 @@
-// "Show rest of board" (rabbit hunt, #33): correct cards with burns, display only,
+// Rabbit hunt (#33, tap the face-down board after a fold-win): correct cards with burns, display only,
 // no hole-card / deck leaks, host setting, cleared on the next hand, storage-safe.
 const assert = require("node:assert/strict");
 const engine = require("../dist/shared/engine.node");
@@ -124,7 +124,7 @@ for (const [phase, seats] of [
   const room = table(3);
   foldOut(room);
   engine.setRabbitHunt(room, false);
-  assert.equal(engine.canRabbitHunt(room), false, "setting off hides the button");
+  assert.equal(engine.canRabbitHunt(room), false, "setting off: no tappable face-down slots");
   assert.equal(engine.revealRabbitHunt(room, "hero").ok, false);
   assert.equal(engine.serializeRoom(room, "hero").canRabbitHunt, false);
   assert.equal(engine.serializeRoom(room, "hero").rabbitHuntEnabled, false);

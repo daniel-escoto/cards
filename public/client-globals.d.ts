@@ -639,6 +639,8 @@ declare global {
   function commitShotClockCustom(form: HTMLElement | null): void;
   function renderReadyTimerChoices(): void;
   function renderRabbitHuntChoices(): void;
+  function rabbitFaceDownTemplate(withHint: boolean): string;
+  function revealRabbitBoard(): void;
   function commitReadyTimerCustom(form: HTMLElement | null): void;
   function turnSecondsRemaining(): number;
   function turnPctRemaining(): number;

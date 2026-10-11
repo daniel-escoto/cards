@@ -1577,6 +1577,53 @@ button.menu-player-row:not(:disabled):hover {
   opacity: 0.6;
 }
 
+/* Tappable face-down slots after a fold-win (rabbit hunt not yet revealed). */
+.card.rabbit-facedown {
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 140ms ease,
+    box-shadow 160ms ease;
+}
+
+.card.rabbit-facedown:hover,
+.card.rabbit-facedown:focus-visible {
+  transform: translateY(-3px);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.4),
+    0 0 16px rgba(255, 255, 255, 0.18),
+    0 10px 22px rgba(0, 0, 0, 0.3);
+  outline: none;
+}
+
+.card.rabbit-facedown:active {
+  transform: translateY(-1px) scale(0.97);
+}
+
+.card.rabbit-facedown[aria-disabled="true"] {
+  cursor: progress;
+}
+
+.card.rabbit-hint::after {
+  content: "tap to see";
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .card.rabbit-hint::after {
+    content: "click to see";
+  }
+}
+
 .card.rabbit-first::after {
   content: "would have been";
   position: absolute;
