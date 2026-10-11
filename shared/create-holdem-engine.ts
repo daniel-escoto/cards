@@ -1193,8 +1193,33 @@ export function createHoldemEngine(Hand: HandConstructor) {
     if (room.phase !== "preflop" || room.community.length > 0 || callAmount > bigBlind) return null;
     // Completing the small blind is cheaper, so defend a little wider.
     const discount = callAmount < bigBlind ? 0.04 : 0;
-    const threshold = preflopPlayThreshold(player) - discount;
+    const threshold =
+      preflopPlayThreshold(player) -
+      discount -
+      preflopTableWiden(room) -
+      preflopBigBlindDiscount(room, player);
     return Math.max(0, Math.min(0.97, 0.5 + (preflopHandScore(player.hand) - threshold) / 0.08));
+  }
+
+  /** Players dealt into this hand (folded players keep their cards until the reset). */
+  function playersDealtIn(room: Room): number {
+    return room.players.filter((item) => item.hand.length === 2).length;
+  }
+
+  /**
+   * Short-handed tables play wider: lowers the preflop bar by 0.035 per missing seat
+   * below six dealt in (6-max unchanged, 3-handed −0.105, heads-up −0.14).
+   */
+  function preflopTableWiden(room: Room): number {
+    return Math.max(0, Math.min(0.14, (6 - playersDealtIn(room)) * 0.035));
+  }
+
+  /**
+   * Short-handed (≤3 dealt in) big blind already has a blind in and closes the action,
+   * so it defends wider. 0 for everyone else.
+   */
+  function preflopBigBlindDiscount(room: Room, player: Player): number {
+    return room.bigBlindPlayerId === player.id && playersDealtIn(room) <= 3 ? 0.04 : 0;
   }
 
   /** preflopHandScore a style needs to play a hand (looser styles need less). */
@@ -1210,7 +1235,13 @@ export function createHoldemEngine(Hand: HandConstructor) {
   function preflopFacingRaiseGate(room: Room, player: Player, callAmount: number): number {
     const { bigBlind } = currentBlinds(room);
     if (room.phase !== "preflop" || room.community.length > 0 || callAmount <= bigBlind) return 1;
-    const threshold = preflopPlayThreshold(player) + PREFLOP_FLAT_RAISE_EXTRA;
+    const bb = preflopBigBlindDiscount(room, player);
+    // Short-handed BB gets a discounted price: scale the extra bar with the raise size
+    // (2x → +0, 2.5x → +0.04, 3x and up → the full +0.08).
+    const extra = bb
+      ? Math.max(0, Math.min(PREFLOP_FLAT_RAISE_EXTRA, (room.currentBet / bigBlind - 2) * 0.08))
+      : PREFLOP_FLAT_RAISE_EXTRA;
+    const threshold = preflopPlayThreshold(player) + extra - preflopTableWiden(room) - bb;
     return Math.max(0, Math.min(1, 0.5 + (preflopHandScore(player.hand) - threshold) / 0.08));
   }
 
@@ -1521,7 +1552,14 @@ export function createHoldemEngine(Hand: HandConstructor) {
         raiseTo: chooseComputerRaiseTo(room, player, minRaiseTo, perceivedEquity),
       };
     }
-    if (Math.random() < callChance * preflopFacingRaiseGate(room, player, callAmount)) {
+    const raiseGate = preflopFacingRaiseGate(room, player, callAmount);
+    // Short-handed BB closing vs a small open (≤3x): the price is fixed and good, so the
+    // hand-score gate alone decides (pot-odds noise was folding far too much heads-up).
+    const smallOpenVsBigBlind =
+      preflopBigBlindDiscount(room, player) > 0 &&
+      room.phase === "preflop" &&
+      room.currentBet <= bigBlind * 3;
+    if (Math.random() < (smallOpenVsBigBlind ? raiseGate : callChance * raiseGate)) {
       return { type: "call" };
     }
     return { type: "fold" };
