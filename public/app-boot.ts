@@ -1354,10 +1354,11 @@ function dealerChipMarkup(player: ClientPlayer) {
 function seatRingStyle(seatOffset: number, seatCount: number): string {
   const count = Math.max(1, seatCount);
   const angle = ((90 + (seatOffset / count) * 360) * Math.PI) / 180;
-  const rx = count <= 3 ? 0.62 : count <= 6 ? 0.78 : 0.9;
-  const ry = count <= 3 ? 0.58 : count <= 6 ? 0.7 : 0.8;
+  const rx = count <= 3 ? 0.7 : count <= 6 ? 0.82 : 0.92;
+  const ry = count <= 3 ? 0.52 : count <= 6 ? 0.62 : 0.7;
   const x = Math.cos(angle) * rx;
-  const y = Math.sin(angle) * ry;
+  // Lift the ring so the bottom seat clears the hero-card dock.
+  const y = Math.sin(angle) * ry - 0.12;
   const width =
     count >= 8 ? "min(112px, 28vw)" : count >= 6 ? "min(128px, 30vw)" : "min(148px, 32vw)";
   return `--seat-x: ${x.toFixed(4)}; --seat-y: ${y.toFixed(4)}; --seat-count: ${count}; --seat-width: ${width}`;
