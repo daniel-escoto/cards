@@ -1071,16 +1071,17 @@ function actionTokenClass(entry: ActionLogEntry, player: ClientPlayer | null | u
 function playerTableStatus(player: ClientPlayer, isActiveTurn = player.isTurn) {
   if (!state) return "";
   if (player.sittingOut)
-    return player.cards.length && isBettingPhase(state.phase) ? "Sits out next" : "Sitting out";
+    return player.cards.length && isBettingPhase(state.phase) ? "Next out" : "Sitting out";
 
   if (playerIsOut(player)) return "Out";
   if (["lobby", "complete"].includes(state?.phase))
     return player.ready || player.isBot ? "Ready" : "Not ready";
   if (player.waitingForNextHand) return "Next hand";
-  if (player.folded) return "Folded";
+  if (player.folded) return "Fold";
   if (player.allIn) return "All in";
   if (isActiveTurn) return "Acting";
-  return player.connected ? "In hand" : "Away";
+  // Default "in hand" status is silent — last-action pills carry the story.
+  return player.connected ? "" : "Away";
 }
 
 function playerForAction(entry: ActionLogEntry) {
@@ -1101,11 +1102,9 @@ function renderShownHandCard(player: ClientPlayer) {
     <article class="action-feed-card shown-hand-card ${player.isYou ? "you" : ""}" ${playerColorStyle(player)}>
       <div class="action-card-head">
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
+        <strong class="player-stack">${playerStackLabel(player)}</strong>
       </div>
       <div class="shown-hand">${player.cards.map((card) => cardTemplate(card)).join("")}</div>
-      <div class="action-card-stats">
-        <span>${state.moneyMode ? "Bankroll" : "Stack"} <strong>${playerStackLabel(player)}</strong></span>
-      </div>
     </article>
   `;
 }
@@ -1326,7 +1325,7 @@ function syncTurnCountdown() {
   turnCountdownTimer = setInterval(tick, 200);
 }
 
-/** Small personality pill on CPU seats ("Loose", "Grinder"…); full style in the tooltip. */
+/** Subtle personality label on CPU seats ("Loose", "Grinder"…); full style in the tooltip. */
 function botStyleTagMarkup(player: ClientPlayer) {
   if (!player.isBot || !player.botStyleShort) return "";
   const tag = escapeHtml(player.botProfile || "");
