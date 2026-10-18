@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Capture oval table layout screens into /opt/cursor/artifacts/layout-v2/
+ * Capture oval table layout screens into /opt/cursor/artifacts/layout/
  * Desktop 1280x800 + mobile 390x844 for:
  * in-hand-action (3p / 9p), flop-turn, showdown, ready-up, bust-rebuy, spectator
  */
@@ -91,291 +91,233 @@ async function waitForInHand(page) {
   }
 }
 
-async function forceRoom(page, kind) {
-  await page.evaluate((mode) => {
+async function forceRoom(page, mutate) {
+  await page.evaluate((fnSource) => {
+    const mutateFn = new Function(`return (${fnSource})`)();
     const base = window.state && typeof window.state === "object" ? window.state : {};
-    let next = base;
-    if (mode === "action") {
-      const players = (base.players || []).map((player, index) => {
-        if (player.isYou) {
-          return {
-            ...player,
-            cards: [
-              { rank: "A", suit: "♠", code: "As" },
-              { rank: "K", suit: "♠", code: "Ks" },
-            ],
-            folded: false,
-            allIn: false,
-            bet: 20,
-            stack: 980,
-            ready: false,
-            showCards: false,
-            dealer: true,
-            isSmallBlind: false,
-            isBigBlind: true,
-            isTurn: true,
-          };
-        }
+    window.state = mutateFn(base);
+    if (typeof render === "function") render();
+  }, mutate.toString());
+  await page.waitForTimeout(180);
+}
+
+function midHandMutator(street) {
+  return (base) => {
+    const community =
+      street === "flop"
+        ? [
+            { rank: "A", suit: "♠", code: "As" },
+            { rank: "K", suit: "♥", code: "Kh" },
+            { rank: "9", suit: "♦", code: "9d" },
+          ]
+        : [
+            { rank: "A", suit: "♠", code: "As" },
+            { rank: "K", suit: "♥", code: "Kh" },
+            { rank: "9", suit: "♦", code: "9d" },
+            { rank: "2", suit: "♣", code: "2c" },
+          ];
+    const players = (base.players || []).map((player, index) => {
+      if (player.isYou) {
         return {
           ...player,
-          cards: [],
+          cards: [
+            { rank: "Q", suit: "♠", code: "Qs" },
+            { rank: "J", suit: "♠", code: "Js" },
+          ],
           folded: false,
           allIn: false,
-          bet: index === 1 ? 60 : 20,
-          stack: 940 - index,
+          bet: index === 0 ? 40 : 0,
+          stack: 960,
           ready: false,
           showCards: false,
-          isSmallBlind: index === 1,
-          isBigBlind: false,
-          dealer: false,
-          isTurn: false,
         };
-      });
-      const hero = players.find((p) => p.isYou);
-      const aggressor = players.find((p) => p.isBot) || players[1];
-      next = {
-        ...base,
-        phase: "preflop",
-        pot: 100,
-        potCents: 0,
-        community: [],
-        rabbitCards: [],
-        winners: [],
-        actionLog: [
-          {
-            id: "pre1",
-            phase: "preflop",
-            playerId: aggressor?.id,
-            action: `${aggressor?.name || "Bot"} Raises to 60`,
-            text: `${aggressor?.name || "Bot"} Raises to 60`,
-          },
-        ],
-        turn: hero?.id || null,
-        isYourTurn: true,
-        toCall: 40,
-        currentBet: 60,
-        minRaiseTo: 100,
-        bigBlind: 20,
-        canReady: false,
-        canAddBot: false,
-        canRebuy: false,
-        canRabbitHunt: false,
-        players,
+      }
+      return {
+        ...player,
+        cards: [],
+        folded: index === 2,
+        allIn: false,
+        bet: index === 1 ? 40 : 0,
+        stack: 900 + index * 20,
+        ready: false,
+        showCards: false,
+        isSmallBlind: index === 1,
+        isBigBlind: index === 2,
+        dealer: index === 0,
       };
-    } else if (mode === "flop" || mode === "turn") {
-      const community =
-        mode === "flop"
-          ? [
-              { rank: "A", suit: "♠", code: "As" },
-              { rank: "K", suit: "♥", code: "Kh" },
-              { rank: "9", suit: "♦", code: "9d" },
-            ]
-          : [
-              { rank: "A", suit: "♠", code: "As" },
-              { rank: "K", suit: "♥", code: "Kh" },
-              { rank: "9", suit: "♦", code: "9d" },
-              { rank: "2", suit: "♣", code: "2c" },
-            ];
-      const players = (base.players || []).map((player, index) => {
-        if (player.isYou) {
-          return {
-            ...player,
-            cards: [
-              { rank: "Q", suit: "♠", code: "Qs" },
-              { rank: "J", suit: "♠", code: "Js" },
-            ],
-            folded: false,
-            allIn: false,
-            bet: 40,
-            stack: 960,
-            ready: false,
-            showCards: false,
-            dealer: true,
-          };
-        }
+    });
+    const hero = players.find((p) => p.isYou);
+    return {
+      ...base,
+      phase: street,
+      pot: 180,
+      potCents: 0,
+      community,
+      rabbitCards: [],
+      winners: [],
+      actionLog: [
+        {
+          id: "a1",
+          phase: street,
+          playerId: players[1]?.id,
+          action: `${players[1]?.name || "Bot"} Checks`,
+          text: `${players[1]?.name || "Bot"} Checks`,
+        },
+        {
+          id: "a2",
+          phase: street,
+          playerId: hero?.id,
+          action: `${hero?.name || "You"} Bets 40`,
+          text: `${hero?.name || "You"} Bets 40`,
+        },
+      ],
+      turn: players.find((p) => p.isBot && !p.folded)?.id || null,
+      isYourTurn: false,
+      toCall: 0,
+      currentBet: 40,
+      minRaiseTo: 80,
+      canReady: false,
+      canRebuy: false,
+      canRabbitHunt: false,
+      players,
+    };
+  };
+}
+
+async function forceBustUi(page) {
+  await forceRoom(page, (base) => {
+    const players = (base.players || []).map((player, index) => {
+      if (player.isYou) {
+        return { ...player, stack: 0, stackCents: 0, ready: false, cards: [], folded: false };
+      }
+      if (player.isBot) {
         return {
           ...player,
+          stack: index === 1 ? 2400 : 1600,
+          stackCents: 0,
+          ready: true,
           cards: [],
-          folded: index === 2,
-          allIn: false,
-          bet: index === 1 ? 40 : 0,
-          stack: 900 + index * 20,
-          ready: false,
-          showCards: false,
-          isSmallBlind: index === 1,
-          isBigBlind: index === 2,
-          dealer: false,
         };
-      });
-      const hero = players.find((p) => p.isYou);
-      next = {
-        ...base,
-        phase: mode,
-        pot: 180,
-        potCents: 0,
-        community,
-        rabbitCards: [],
-        winners: [],
-        actionLog: [
-          {
-            id: "a1",
-            phase: mode,
-            playerId: players[1]?.id,
-            action: `${players[1]?.name || "Bot"} Checks`,
-            text: `${players[1]?.name || "Bot"} Checks`,
-          },
-          {
-            id: "a2",
-            phase: mode,
-            playerId: hero?.id,
-            action: `${hero?.name || "You"} Bets 40`,
-            text: `${hero?.name || "You"} Bets 40`,
-          },
-        ],
-        turn: players.find((p) => p.isBot && !p.folded)?.id || null,
-        isYourTurn: false,
-        toCall: 0,
-        currentBet: 40,
-        minRaiseTo: 80,
-        canReady: false,
-        canAddBot: false,
-        canRebuy: false,
-        canRabbitHunt: false,
-        players,
-      };
-    } else if (mode === "showdown") {
-      const players = (base.players || []).map((player, index) => {
-        if (player.isYou) {
-          return {
-            ...player,
-            cards: [
-              { rank: "A", suit: "♥", code: "Ah" },
-              { rank: "A", suit: "♦", code: "Ad" },
-            ],
-            showCards: true,
-            folded: false,
-            stack: 1240,
-            bet: 0,
-          };
-        }
-        if (player.isBot && index === 1) {
-          return {
-            ...player,
-            cards: [
-              { rank: "K", suit: "♠", code: "Ks" },
-              { rank: "K", suit: "♣", code: "Kc" },
-            ],
-            showCards: true,
-            folded: false,
-            stack: 760,
-            bet: 0,
-          };
-        }
+      }
+      return player;
+    });
+    return {
+      ...base,
+      pot: 0,
+      potCents: 0,
+      phase: "complete",
+      community: [],
+      winners: [],
+      actionLog: [],
+      canRestartGame: true,
+      canRebuy: true,
+      bustedOut: true,
+      isYourTurn: false,
+      canReady: false,
+      canAddBot: false,
+      players,
+    };
+  });
+}
+
+async function forceShowdown(page) {
+  await forceRoom(page, (base) => {
+    const players = (base.players || []).map((player, index) => {
+      if (player.isYou) {
         return {
           ...player,
-          cards: [],
-          showCards: false,
-          folded: true,
-          stack: Math.max(200, player.stack || 400),
+          cards: [
+            { rank: "A", suit: "♥", code: "Ah" },
+            { rank: "A", suit: "♦", code: "Ad" },
+          ],
+          showCards: true,
+          folded: false,
+          stack: 1240,
           bet: 0,
         };
-      });
-      const hero = players.find((p) => p.isYou);
-      next = {
-        ...base,
-        phase: "showdown",
-        pot: 480,
-        community: [
-          { rank: "2", suit: "♥", code: "2h" },
-          { rank: "7", suit: "♦", code: "7d" },
-          { rank: "9", suit: "♣", code: "9c" },
-          { rank: "J", suit: "♠", code: "Js" },
-          { rank: "3", suit: "♥", code: "3h" },
-        ],
-        winners: [
-          {
-            playerId: hero?.id,
-            name: hero?.name || "You",
-            amount: 480,
-            amountCents: 0,
-            hand: "One Pair, Aces",
-          },
-        ],
-        actionLog: [],
-        turn: null,
-        isYourTurn: false,
-        canReady: false,
-        canShowHand: false,
-        canRebuy: false,
-        players,
-      };
-    } else if (mode === "ready") {
-      const players = (base.players || []).map((player) => ({
+      }
+      if (player.isBot && index === 1) {
+        return {
+          ...player,
+          cards: [
+            { rank: "K", suit: "♠", code: "Ks" },
+            { rank: "K", suit: "♣", code: "Kc" },
+          ],
+          showCards: true,
+          folded: false,
+          stack: 760,
+          bet: 0,
+        };
+      }
+      return {
         ...player,
-        ready: Boolean(player.isBot),
         cards: [],
-        folded: false,
-        allIn: false,
-        bet: 0,
         showCards: false,
-      }));
-      next = {
-        ...base,
-        phase: "complete",
-        pot: 0,
-        potCents: 0,
-        community: [],
-        winners: [],
-        actionLog: [],
-        turn: null,
-        isYourTurn: false,
-        canReady: true,
-        isReady: false,
-        canAddBot: true,
-        canRebuy: false,
-        players,
+        folded: true,
+        stack: Math.max(200, player.stack || 400),
+        bet: 0,
       };
-    } else if (mode === "bust") {
-      const players = (base.players || []).map((player, index) => {
-        if (player.isYou) {
-          return { ...player, stack: 0, stackCents: 0, ready: false, cards: [], folded: false };
-        }
-        if (player.isBot) {
-          return {
-            ...player,
-            stack: index === 1 ? 2400 : 1600,
-            stackCents: 0,
-            ready: true,
-            cards: [],
-          };
-        }
-        return player;
-      });
-      next = {
-        ...base,
-        pot: 0,
-        potCents: 0,
-        phase: "complete",
-        community: [],
-        winners: [],
-        actionLog: [],
-        canRestartGame: true,
-        canRebuy: true,
-        bustedOut: true,
-        isYourTurn: false,
-        canReady: false,
-        canAddBot: false,
-        players,
-      };
-    }
-    window.state = next;
-    // Force board / hole-card rebuilds when we inject fixture state.
-    if (typeof lastCommunitySignature !== "undefined") lastCommunitySignature = null;
-    if (typeof lastHeroSignature !== "undefined") lastHeroSignature = "";
-    if (typeof lastWinnerSignature !== "undefined") lastWinnerSignature = "";
-    if (typeof render === "function") render();
-  }, kind);
-  await page.waitForTimeout(180);
+    });
+    const hero = players.find((p) => p.isYou);
+    return {
+      ...base,
+      phase: "showdown",
+      pot: 480,
+      community: [
+        { rank: "2", suit: "♥", code: "2h" },
+        { rank: "7", suit: "♦", code: "7d" },
+        { rank: "9", suit: "♣", code: "9c" },
+        { rank: "J", suit: "♠", code: "Js" },
+        { rank: "3", suit: "♥", code: "3h" },
+      ],
+      winners: [
+        {
+          playerId: hero?.id,
+          name: hero?.name || "You",
+          amount: 480,
+          amountCents: 0,
+          hand: "One Pair, Aces",
+        },
+      ],
+      actionLog: [],
+      turn: null,
+      isYourTurn: false,
+      canReady: false,
+      canShowHand: false,
+      canRebuy: false,
+      players,
+    };
+  });
+}
+
+async function forceReadyUp(page) {
+  await forceRoom(page, (base) => {
+    const players = (base.players || []).map((player) => ({
+      ...player,
+      ready: Boolean(player.isBot),
+      cards: [],
+      folded: false,
+      allIn: false,
+      bet: 0,
+      showCards: false,
+    }));
+    return {
+      ...base,
+      phase: "complete",
+      pot: 0,
+      potCents: 0,
+      community: [],
+      winners: [],
+      actionLog: [],
+      turn: null,
+      isYourTurn: false,
+      canReady: true,
+      isReady: false,
+      canAddBot: true,
+      canRebuy: false,
+      players,
+    };
+  });
 }
 
 async function captureSpectator(page, context, viewport) {
@@ -418,28 +360,30 @@ async function runViewport(browser, viewport) {
 
   // 3-player in-hand
   await hostAndSeat(page, "Alex", 2);
-  await forceRoom(page, "action");
+  await readyUp(page);
+  await waitForInHand(page);
   await shot(page, viewport.name, "in-hand-action-3p");
 
   // Mid-hand flop/turn (force community for a reliable artifact)
-  await forceRoom(page, "flop");
+  await forceRoom(page, midHandMutator("flop"));
   await shot(page, viewport.name, "flop-turn");
 
   // Showdown
-  await forceRoom(page, "showdown");
+  await forceShowdown(page);
   await shot(page, viewport.name, "showdown");
 
   // Ready-up
-  await forceRoom(page, "ready");
+  await forceReadyUp(page);
   await shot(page, viewport.name, "ready-up");
 
   // Bust / rebuy
-  await forceRoom(page, "bust");
+  await forceBustUi(page);
   await shot(page, viewport.name, "bust-rebuy");
 
   // 9-player in-hand
   await hostAndSeat(page, "Alex", 8);
-  await forceRoom(page, "action");
+  await readyUp(page);
+  await waitForInHand(page);
   await shot(page, viewport.name, "in-hand-action-9p");
 
   await captureSpectator(page, context, viewport);
