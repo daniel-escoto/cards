@@ -1837,7 +1837,8 @@ button.menu-player-row:not(:disabled):hover {
   position: relative;
   min-height: 42px;
   display: grid;
-  grid-template-columns: 14px minmax(0, 1fr) minmax(64px, auto) auto;
+  /* Name column keeps enough room for ~12–18 character display names. */
+  grid-template-columns: 14px minmax(12ch, 1.35fr) minmax(4.5rem, 0.9fr) auto;
   align-items: center;
   gap: 8px;
   padding: 7px 10px;
@@ -2148,11 +2149,21 @@ button.menu-player-row:not(:disabled):hover {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 .seat-name-text {
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.seat-you-mark {
+  flex: 0 0 auto;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
 }
 .blind-chip {
   --chip-color: var(--accent);
@@ -3184,7 +3195,7 @@ kbd {
   .felt {
     grid-column: auto;
     display: grid;
-    grid-template-columns: minmax(330px, 0.85fr) minmax(410px, 1.15fr);
+    grid-template-columns: minmax(360px, 0.9fr) minmax(400px, 1.1fr);
     grid-template-rows: minmax(0, 1fr) auto;
     align-content: stretch;
     gap: 14px 18px;
@@ -3499,13 +3510,13 @@ kbd {
   .felt {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto;
-    gap: 10px;
+    gap: 12px;
     align-content: stretch;
     min-height: 0;
     height: 100%;
     align-self: stretch;
-    padding: 14px 9px 9px;
-    border-width: 3px;
+    padding: 12px 10px 10px;
+    border-width: 2px;
     border-radius: 18px;
   }
 
@@ -3531,14 +3542,14 @@ kbd {
   .players {
     --feed-phase: 1.85rem;
     --feed-stack: 4.4rem;
-    --feed-action: minmax(4.8rem, 1fr);
+    --feed-action: minmax(3.6rem, 0.85fr);
     position: static;
     min-height: 0;
     height: 100%;
     display: flex;
     flex-direction: column;
     align-self: stretch;
-    gap: 5px;
+    gap: 6px;
     overflow-y: auto;
     max-height: 100%;
     overscroll-behavior: contain;
@@ -3549,10 +3560,10 @@ kbd {
   }
 
   .table-player-row {
-    min-height: 38px;
-    grid-template-columns: 12px minmax(0, 1fr) minmax(56px, auto) auto;
-    gap: 6px;
-    padding: 6px 8px;
+    min-height: 40px;
+    grid-template-columns: 12px minmax(10ch, 1.4fr) minmax(3.4rem, 0.8fr) auto;
+    gap: 7px;
+    padding: 7px 9px;
     border-radius: 11px;
   }
 
@@ -3572,19 +3583,27 @@ kbd {
   .table-player-row .seat-name {
     font-size: 13px;
   }
+  .seat-you-mark {
+    font-size: 10px;
+  }
   .blind-chip {
     width: 16px;
     height: 16px;
     font-size: 6.5px;
   }
   .bot-style-tag {
+    max-width: 4.2em;
+    overflow: hidden;
+    text-overflow: ellipsis;
     font-size: 10px;
   }
   .player-action {
     font-size: 11px;
   }
   .player-stack {
+    min-width: max-content;
     font-size: 12px;
+    white-space: nowrap;
   }
 
   .shown-hand-card {
@@ -3652,18 +3671,18 @@ kbd {
 
   .control-panel {
     grid-row: 3;
-    gap: 7px;
-    padding: 9px 9px max(9px, env(safe-area-inset-bottom));
+    gap: 8px;
+    padding: 10px 10px max(10px, env(safe-area-inset-bottom));
     border: 0;
     background: color-mix(in srgb, var(--panel) 96%, transparent);
   }
 
   .hero-hand {
-    gap: 5px;
+    gap: 6px;
   }
 
   .hero-hand .card {
-    width: 34px;
+    width: 36px;
     padding: 5px;
   }
 
@@ -3678,18 +3697,18 @@ kbd {
   }
 
   .game-buttons {
-    gap: 7px;
+    gap: 8px;
   }
 
   .bet-controls {
-    --raise-row-height: 40px;
+    --raise-row-height: 44px;
     grid-template-columns: 1fr;
     gap: 6px;
   }
 
   .raise-stepper {
     min-width: 0;
-    grid-template-columns: 42px minmax(0, 1fr) 42px;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
   }
 
   .raise-row {
@@ -3707,6 +3726,7 @@ kbd {
   }
 
   .raise-stepper button {
+    min-height: 44px;
     height: var(--raise-row-height);
   }
 
@@ -3716,7 +3736,7 @@ kbd {
 
   .game-buttons button {
     flex: 1 1 30%;
-    min-height: 38px;
+    min-height: 44px;
     padding: 0 10px;
   }
 }

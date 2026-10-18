@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /**
- * Capture redesigned table screens into /opt/cursor/artifacts/after2/
- * Covers: in-hand-action, ready-up, bust-rebuy, spectator (desktop + mobile).
+ * Capture de-slopped table screens into /opt/cursor/artifacts/final/
+ * Desktop + mobile: in-hand-action, ready-up, bust-rebuy; mobile spectator.
  */
 import { chromium } from "playwright";
 import fs from "node:fs";
 import path from "node:path";
 
 const baseUrl = process.argv[2] || "http://localhost:3000";
-const outDir = "/opt/cursor/artifacts/after2";
+const outDir = process.argv[3] || "/opt/cursor/artifacts/final";
 fs.mkdirSync(outDir, { recursive: true });
 
 const VIEWPORTS = [
@@ -134,7 +134,8 @@ async function runViewport(browser, viewport) {
   await page.goto(baseUrl, { waitUntil: "networkidle" });
   await page.evaluate(() => localStorage.clear());
   await page.reload({ waitUntil: "networkidle" });
-  await page.fill("#nameInput", "Alex");
+  // 12-char name exercises seat-list truncation.
+  await page.fill("#nameInput", "Alexandrine1");
   await page.click("#tableActionBtn");
   await page.waitForSelector("#tableView:not(.hidden)", { timeout: 15000 });
   await addBots(page, 2);
@@ -159,9 +160,10 @@ async function runViewport(browser, viewport) {
       { timeout: 25000 },
     )
     .catch(() => {});
-  // Prefer a frame where the action bar is open.
+  // Prefer a frame where the action bar is open; otherwise force a stable in-hand fixture.
+  let open = false;
   for (let i = 0; i < 50; i += 1) {
-    const open = await page.evaluate(() =>
+    open = await page.evaluate(() =>
       Boolean(
         document.querySelector("#betControls:not(.hidden)") ||
           Array.from(document.querySelectorAll("#gameButtons button")).some((b) =>
@@ -170,6 +172,69 @@ async function runViewport(browser, viewport) {
       ),
     );
     if (open) break;
+    await page.waitForTimeout(200);
+  }
+  if (!open) {
+    await page.evaluate(() => {
+      const base = window.state && typeof window.state === "object" ? window.state : {};
+      const players = (base.players || []).map((player, index) => {
+        if (player.isYou) {
+          return {
+            ...player,
+            cards: [
+              { rank: "A", suit: "♠", code: "As" },
+              { rank: "K", suit: "♠", code: "Ks" },
+            ],
+            folded: false,
+            allIn: false,
+            bet: 20,
+            stack: 980,
+            ready: false,
+            dealer: true,
+            isSmallBlind: false,
+            isBigBlind: false,
+            isTurn: true,
+          };
+        }
+        const bots = (base.players || []).filter((p) => !p.isYou);
+        const botIndex = bots.findIndex((p) => p.id === player.id);
+        return {
+          ...player,
+          cards: [],
+          folded: false,
+          allIn: false,
+          bet: botIndex === 0 ? 10 : botIndex === 1 ? 60 : 0,
+          stack: 940 - Math.max(0, botIndex),
+          ready: false,
+          dealer: false,
+          isSmallBlind: botIndex === 0,
+          isBigBlind: botIndex === 1,
+          isTurn: false,
+        };
+      });
+      const hero = players.find((p) => p.isYou);
+      window.state = {
+        ...base,
+        phase: "preflop",
+        pot: 90,
+        community: [],
+        winners: [],
+        actionLog: [],
+        turn: hero?.id || null,
+        isYourTurn: true,
+        toCall: 40,
+        currentBet: 60,
+        minRaiseTo: 100,
+        bigBlind: 20,
+        canReady: false,
+        canAddBot: false,
+        canRebuy: false,
+        players,
+      };
+      if (typeof lastCommunitySignature !== "undefined") lastCommunitySignature = null;
+      if (typeof lastHeroSignature !== "undefined") lastHeroSignature = "";
+      if (typeof render === "function") render();
+    });
     await page.waitForTimeout(200);
   }
   await shot(page, viewport.name, "in-hand-action");
@@ -239,7 +304,7 @@ async function runViewport(browser, viewport) {
   await forceBustUi(page);
   await shot(page, viewport.name, "bust-rebuy");
 
-  await captureSpectator(page, context, viewport);
+  if (viewport.name === "mobile") await captureSpectator(page, context, viewport);
   await context.close();
 }
 
