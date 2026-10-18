@@ -1912,7 +1912,7 @@ button.menu-player-row:not(:disabled):hover {
   position: absolute;
   left: calc(50% + (var(--seat-x, 0) * 46%));
   top: calc(50% + (var(--seat-y, 0) * 40%));
-  width: var(--seat-width, min(148px, 30vw));
+  width: var(--seat-width, min(164px, 20vw));
   min-height: 0;
   display: grid;
   gap: 3px;
@@ -1927,27 +1927,36 @@ button.menu-player-row:not(:disabled):hover {
   pointer-events: auto;
 }
 
-.seat-head {
+.seat-main {
   display: grid;
-  grid-template-columns: 12px minmax(0, 1fr) auto;
+  grid-template-columns: 12px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 5px;
   min-width: 0;
 }
 
-.seat-body {
+.seat-sub {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 6px;
   min-width: 0;
+  min-height: 1em;
   padding-left: 17px;
+}
+
+.seat-sub:empty {
+  display: none;
 }
 
 .seat-chips {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+}
+
+.seat-main .player-stack {
+  justify-self: end;
 }
 
 .table-player-row.you {
@@ -1983,7 +1992,9 @@ button.menu-player-row:not(:disabled):hover {
   color: rgba(255, 255, 255, 0.68);
 }
 .table-player-row .seat-name,
-:root[data-theme="light"] .table-player-row .seat-name {
+.table-player-row .seat-name-text,
+:root[data-theme="light"] .table-player-row .seat-name,
+:root[data-theme="light"] .table-player-row .seat-name-text {
   color: #fff;
   font-weight: 700;
   font-size: 12px;
@@ -2070,6 +2081,7 @@ button.menu-player-row:not(:disabled):hover {
 }
 .player-stack {
   flex: 0 0 auto;
+  min-width: max-content;
   padding: 0;
   border-radius: 0;
   color: rgba(255, 255, 255, 0.92);
@@ -2078,6 +2090,8 @@ button.menu-player-row:not(:disabled):hover {
   font-weight: 750;
   font-variant-numeric: tabular-nums;
   text-align: right;
+  white-space: nowrap;
+  overflow: visible;
 }
 .dealer-chip {
   flex: 0 0 auto;
@@ -2265,12 +2279,22 @@ button.menu-player-row:not(:disabled):hover {
 .seat-name-with-chips {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  min-width: 0;
 }
 .seat-name-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.seat-you-mark {
+  flex: 0 0 auto;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
 }
 .blind-chip {
   --chip-color: var(--accent);
@@ -3320,11 +3344,11 @@ kbd {
 
   .table-seat,
   .table-player-row {
-    width: min(158px, 18vw);
     padding: 8px 10px 9px;
   }
 
-  .table-player-row .seat-name {
+  .table-player-row .seat-name,
+  .table-player-row .seat-name-text {
     font-size: 13px;
   }
 
@@ -3334,6 +3358,10 @@ kbd {
 
   .player-stack {
     font-size: 13px;
+  }
+
+  .seat-sub .bot-style-tag {
+    font-size: 11px;
   }
 
   .community .card {
@@ -3536,12 +3564,13 @@ kbd {
     min-height: 0;
     grid-template-rows: auto minmax(0, 1fr);
     align-content: start;
-    gap: 6px;
+    gap: 8px;
     overflow: hidden;
   }
 
   .table-stage {
-    gap: 6px;
+    gap: 12px;
+    grid-template-rows: minmax(0, 1fr) auto;
   }
 
   .topbar h2 {
@@ -3598,17 +3627,19 @@ kbd {
     min-height: 0;
     height: 100%;
     border-width: 2px;
-    border-radius: 42% / 30%;
+    /* Portrait oval — use vertical space on phone screens. */
+    border-radius: 46% / 40%;
   }
 
   .table-rail {
-    inset: 9% 6%;
+    inset: 8% 10%;
+    border-radius: 46% / 42%;
   }
 
   .table-center {
-    top: 44%;
-    gap: 6px;
-    width: min(96%, 360px);
+    top: 42%;
+    gap: 8px;
+    width: min(90%, 320px);
   }
 
   .table-meta div {
@@ -3621,70 +3652,129 @@ kbd {
   }
 
   .action-trail {
-    max-height: 2.6em;
+    max-height: 2.4em;
     font-size: 10px;
     gap: 2px 8px;
   }
 
   .seats {
-    inset: 2% 0 4%;
+    inset: 3% 1% 8%;
   }
 
   .table-seat,
   .table-player-row {
-    left: calc(50% + (var(--seat-x, 0) * 44%));
-    top: calc(50% + (var(--seat-y, 0) * 38%));
-    padding: 5px 7px 6px;
-    border-radius: 12px;
+    left: calc(50% + (var(--seat-x, 0) * 42%));
+    top: calc(50% + (var(--seat-y, 0) * 42%));
+    gap: 2px;
+    padding: 4px 6px 5px;
+    border-radius: 11px;
   }
 
-  .seat-head {
-    grid-template-columns: 10px minmax(0, 1fr) auto;
+  .seat-main {
+    /* Name + stack lead; chips float so they don't steal name width. */
+    grid-template-columns: 8px minmax(0, 1fr) auto;
+    gap: 3px;
+    padding-right: 2px;
+  }
+
+  .seat-main .seat-chips {
+    position: absolute;
+    top: 2px;
+    right: 3px;
+    transform: scale(0.92);
+    transform-origin: top right;
+  }
+
+  .seat-main .seat-name-text {
+    padding-right: 16px;
+  }
+
+  .seat-sub {
+    padding-left: 11px;
     gap: 4px;
   }
 
-  .seat-body {
-    padding-left: 14px;
-  }
-
   .seat-timer {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
   }
   .player-dot {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
   }
   .turn-clock {
-    font-size: 10px;
+    font-size: 9px;
+    min-width: 1.8em;
+    margin-left: 3px;
   }
   .turn-clock-bar {
-    left: 5px;
-    right: 5px;
+    left: 4px;
+    right: 4px;
     bottom: 2px;
+    height: 2px;
   }
 
-  .table-player-row .seat-name {
+  .table-player-row .seat-name,
+  .table-player-row .seat-name-text {
     font-size: 11px;
+    font-weight: 700;
+  }
+  .seat-you-mark {
+    display: none;
   }
   .blind-chip,
   .dealer-chip {
-    width: 14px;
-    height: 14px;
+    width: 13px;
+    height: 13px;
     font-size: 6px;
   }
-  .bot-style-tag {
-    font-size: 9px;
+  /* Mobile: name + stack lead; bot tag / last action stay quiet and tiny. */
+  .seat-sub .bot-style-tag {
+    max-width: 3.2em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 8px;
+    font-weight: 600;
+    opacity: 0.7;
   }
   .player-action {
-    font-size: 10px;
+    max-width: 4.8em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: rgba(255, 255, 255, 0.58);
+    font-size: 9px;
+    font-weight: 600;
   }
   .player-stack {
     font-size: 11px;
+    font-weight: 750;
+  }
+
+  /* 7–9 seats: drop bot tags, keep action as a whisper. */
+  .table-seat[data-seat-count="7"] .bot-style-tag,
+  .table-seat[data-seat-count="8"] .bot-style-tag,
+  .table-seat[data-seat-count="9"] .bot-style-tag {
+    display: none;
+  }
+
+  .table-seat[data-seat-count="8"],
+  .table-seat[data-seat-count="9"] {
+    gap: 1px;
+    padding: 3px 5px 4px;
+  }
+
+  .table-seat[data-seat-count="8"] .seat-name-text,
+  .table-seat[data-seat-count="9"] .seat-name-text {
+    font-size: 10px;
+  }
+
+  .table-seat[data-seat-count="8"] .player-stack,
+  .table-seat[data-seat-count="9"] .player-stack {
+    font-size: 10px;
   }
 
   .shown-hands {
-    max-height: 88px;
+    max-height: 72px;
     gap: 6px;
   }
 
@@ -3700,24 +3790,24 @@ kbd {
   }
 
   .card {
-    width: clamp(36px, 9.5vw, 46px);
+    width: clamp(34px, 9vw, 44px);
     padding: 5px;
   }
 
   .community .card {
-    width: clamp(42px, 10.5vw, 52px);
+    width: clamp(40px, 10vw, 50px);
   }
 
   .hero-dock {
-    gap: 6px;
-    padding-bottom: max(2px, env(safe-area-inset-bottom));
+    gap: 8px;
+    padding: 2px 2px max(4px, env(safe-area-inset-bottom));
   }
 
   .action-bar {
     width: 100%;
     gap: 6px;
-    padding: 8px 8px max(8px, env(safe-area-inset-bottom));
-    border-radius: 14px;
+    padding: 8px 10px max(10px, env(safe-area-inset-bottom));
+    border-radius: 16px;
   }
 
   .action-bar-row {
@@ -3725,27 +3815,35 @@ kbd {
   }
 
   .action-bar .game-buttons {
-    gap: 6px;
+    gap: 8px;
   }
 
   .action-bar .game-buttons > button {
     min-height: 44px;
-    font-size: 13px;
-    padding: 0 8px;
+    font-size: 14px;
+    padding: 0 10px;
+  }
+
+  .action-bar .bet-controls {
+    --raise-row-height: 44px;
+  }
+
+  .action-bar .raise-stepper button {
+    min-height: 44px;
   }
 
   .hero-hand {
-    gap: 6px;
+    gap: 8px;
   }
 
   .hero-hand .card {
-    width: clamp(64px, 18vw, 78px);
+    width: clamp(58px, 15vw, 70px);
     padding: 6px;
     border-radius: 10px;
   }
 
   .shown-hand .card {
-    width: 30px;
+    width: 28px;
     padding: 4px;
   }
 
@@ -3755,14 +3853,14 @@ kbd {
   }
 
   .bet-controls {
-    --raise-row-height: 40px;
+    --raise-row-height: 44px;
     grid-template-columns: 1fr;
     gap: 6px;
   }
 
   .raise-stepper {
     min-width: 0;
-    grid-template-columns: 42px minmax(0, 1fr) 42px;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
   }
 
   .raise-row {
@@ -3775,11 +3873,13 @@ kbd {
   }
 
   .raise-action {
+    min-height: 44px;
     padding: 0 10px;
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .raise-stepper button {
+    min-height: 44px;
     height: var(--raise-row-height);
   }
 
@@ -3791,5 +3891,46 @@ kbd {
     flex: 1 1 30%;
     min-height: 44px;
     padding: 0 10px;
+  }
+}
+
+/* Narrow / shorter phones (e.g. 360×780): keep the portrait oval, shrink chrome. */
+@media (max-width: 779px) and (max-height: 820px), (max-width: 370px) {
+  .table-stage {
+    gap: 10px;
+  }
+
+  .felt {
+    border-radius: 48% / 42%;
+  }
+
+  .table-center {
+    top: 41%;
+    gap: 6px;
+  }
+
+  .seats {
+    inset: 2% 0 7%;
+  }
+
+  .table-seat,
+  .table-player-row {
+    padding: 3px 5px 4px;
+  }
+
+  .community .card {
+    width: clamp(36px, 9.5vw, 46px);
+  }
+
+  .hero-hand .card {
+    width: clamp(52px, 14vw, 64px);
+  }
+
+  .action-bar {
+    padding: 7px 8px max(8px, env(safe-area-inset-bottom));
+  }
+
+  .action-trail {
+    display: none;
   }
 }

@@ -9,12 +9,13 @@ import fs from "node:fs";
 import path from "node:path";
 
 const baseUrl = process.argv[2] || "http://localhost:3000";
-const outDir = "/opt/cursor/artifacts/layout";
+const outDir = process.argv[3] || "/opt/cursor/artifacts/layout2";
 fs.mkdirSync(outDir, { recursive: true });
 
 const VIEWPORTS = [
   { name: "desktop", width: 1280, height: 800 },
   { name: "mobile", width: 390, height: 844 },
+  { name: "mobile-narrow", width: 360, height: 780 },
 ];
 
 async function shot(page, viewport, slug) {
@@ -61,6 +62,7 @@ async function forceRoom(page, kind) {
     let next = base;
     if (mode === "action") {
       const players = (base.players || []).map((player, index) => {
+        // 3+ players: button → SB → BB clockwise. Hero is button; never BB.
         if (player.isYou) {
           return {
             ...player,
@@ -70,33 +72,37 @@ async function forceRoom(page, kind) {
             ],
             folded: false,
             allIn: false,
-            bet: 20,
+            bet: 0,
             stack: 980,
             ready: false,
             showCards: false,
             dealer: true,
             isSmallBlind: false,
-            isBigBlind: true,
+            isBigBlind: false,
             isTurn: true,
           };
         }
+        const bots = (base.players || []).filter((p) => !p.isYou);
+        const botIndex = bots.findIndex((p) => p.id === player.id);
+        const isSb = botIndex === 0;
+        const isBb = botIndex === 1;
         return {
           ...player,
           cards: [],
           folded: false,
           allIn: false,
-          bet: index === 1 ? 60 : 20,
-          stack: 940 - index,
+          bet: isSb ? 10 : isBb ? 60 : 20,
+          stack: 940 - Math.max(0, botIndex),
           ready: false,
           showCards: false,
-          isSmallBlind: index === 1,
-          isBigBlind: false,
+          isSmallBlind: isSb,
+          isBigBlind: isBb,
           dealer: false,
           isTurn: false,
         };
       });
       const hero = players.find((p) => p.isYou);
-      const aggressor = players.find((p) => p.isBot) || players[1];
+      const aggressor = players.find((p) => p.isBigBlind) || players.find((p) => p.isBot);
       next = {
         ...base,
         phase: "preflop",
@@ -116,7 +122,7 @@ async function forceRoom(page, kind) {
         ],
         turn: hero?.id || null,
         isYourTurn: true,
-        toCall: 40,
+        toCall: 60,
         currentBet: 60,
         minRaiseTo: 100,
         bigBlind: 20,
@@ -379,34 +385,51 @@ async function runViewport(browser, viewport) {
     deviceScaleFactor: 1,
   });
   const page = await context.newPage();
+  const isDesktop = viewport.name === "desktop";
+  const isNarrow = viewport.name === "mobile-narrow";
+  // layout2 request: mobile full set + desktop 9p; narrow is a breathing check.
+  const want = {
+    "3p": !isDesktop,
+    flop: !isDesktop && !isNarrow,
+    showdown: !isDesktop && !isNarrow,
+    ready: !isDesktop && !isNarrow,
+    bust: !isDesktop && !isNarrow,
+    "9p": true,
+    spectator: !isDesktop && !isNarrow,
+  };
 
-  // 3-player in-hand
-  await hostAndSeat(page, "Alex", 2);
-  await forceRoom(page, "action");
-  await shot(page, viewport.name, "in-hand-action-3p");
+  if (want["3p"] || want.flop || want.showdown || want.ready || want.bust) {
+    await hostAndSeat(page, "Alex", 2);
+    if (want["3p"]) {
+      await forceRoom(page, "action");
+      await shot(page, viewport.name, "in-hand-action-3p");
+    }
+    if (want.flop) {
+      await forceRoom(page, "flop");
+      await shot(page, viewport.name, "flop-turn");
+    }
+    if (want.showdown) {
+      await forceRoom(page, "showdown");
+      await shot(page, viewport.name, "showdown");
+    }
+    if (want.ready) {
+      await forceRoom(page, "ready");
+      await shot(page, viewport.name, "ready-up");
+    }
+    if (want.bust) {
+      await forceRoom(page, "bust");
+      await shot(page, viewport.name, "bust-rebuy");
+    }
+  }
 
-  // Mid-hand flop/turn (force community for a reliable artifact)
-  await forceRoom(page, "flop");
-  await shot(page, viewport.name, "flop-turn");
+  if (want["9p"]) {
+    // 12-character display name to verify desktop seat width.
+    await hostAndSeat(page, "Alexandrine1", 8);
+    await forceRoom(page, "action");
+    await shot(page, viewport.name, "in-hand-action-9p");
+  }
 
-  // Showdown
-  await forceRoom(page, "showdown");
-  await shot(page, viewport.name, "showdown");
-
-  // Ready-up
-  await forceRoom(page, "ready");
-  await shot(page, viewport.name, "ready-up");
-
-  // Bust / rebuy
-  await forceRoom(page, "bust");
-  await shot(page, viewport.name, "bust-rebuy");
-
-  // 9-player in-hand
-  await hostAndSeat(page, "Alex", 8);
-  await forceRoom(page, "action");
-  await shot(page, viewport.name, "in-hand-action-9p");
-
-  await captureSpectator(page, context, viewport);
+  if (want.spectator) await captureSpectator(page, context, viewport);
   await context.close();
 }
 

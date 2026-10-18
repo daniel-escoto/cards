@@ -1353,14 +1353,49 @@ function dealerChipMarkup(player: ClientPlayer) {
 /** Place seats on an oval; offset 0 is the hero (or first seat) at the bottom. */
 function seatRingStyle(seatOffset: number, seatCount: number): string {
   const count = Math.max(1, seatCount);
+  const mobile =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(max-width: 779px)").matches;
   const angle = ((90 + (seatOffset / count) * 360) * Math.PI) / 180;
-  const rx = count <= 3 ? 0.7 : count <= 6 ? 0.82 : 0.92;
-  const ry = count <= 3 ? 0.52 : count <= 6 ? 0.62 : 0.7;
+  // Mobile uses a taller (portrait) ring; desktop stays wide.
+  const rx = mobile
+    ? count <= 3
+      ? 0.56
+      : count <= 6
+        ? 0.68
+        : 0.76
+    : count <= 3
+      ? 0.7
+      : count <= 6
+        ? 0.82
+        : 0.9;
+  const ry = mobile
+    ? count <= 3
+      ? 0.74
+      : count <= 6
+        ? 0.8
+        : 0.84
+    : count <= 3
+      ? 0.52
+      : count <= 6
+        ? 0.62
+        : 0.7;
   const x = Math.cos(angle) * rx;
   // Lift the ring so the bottom seat clears the hero-card dock.
-  const y = Math.sin(angle) * ry - 0.12;
-  const width =
-    count >= 8 ? "min(112px, 28vw)" : count >= 6 ? "min(128px, 30vw)" : "min(148px, 32vw)";
+  const y = Math.sin(angle) * ry - (mobile ? 0.08 : 0.12);
+  // Desktop widths sized so ~12-character names stay legible at 9-max.
+  const width = mobile
+    ? count >= 8
+      ? "min(84px, 22vw)"
+      : count >= 6
+        ? "min(102px, 27vw)"
+        : "min(128px, 34vw)"
+    : count >= 8
+      ? "min(168px, 18vw)"
+      : count >= 6
+        ? "min(158px, 18vw)"
+        : "min(168px, 20vw)";
   return `--seat-x: ${x.toFixed(4)}; --seat-y: ${y.toFixed(4)}; --seat-count: ${count}; --seat-width: ${width}`;
 }
 
@@ -1571,16 +1606,19 @@ function renderActionFeed(newEntryId = "") {
         : showReadyClock
           ? ' data-ready-seat-clock="1"'
           : "";
+      const displayName = escapeHtml(player.name);
+      const youMark = player.isYou ? '<span class="seat-you-mark">you</span>' : "";
       return `
-      <article class="table-seat table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${lowTime ? "low-time" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${seatClockAttr}${styleAttr}>
-        <div class="seat-head">
+      <article class="table-seat table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${lowTime ? "low-time" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}" data-seat-count="${seats.length}"${seatClockAttr}${styleAttr}>
+        <div class="seat-main">
           <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
-          <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>${botStyleTagMarkup(player)}</span>
+          <span class="seat-name-text">${displayName}</span>${youMark}
           <span class="seat-chips">${dealerChipMarkup(player)}${blindChipMarkup(player)}</span>
-        </div>
-        <div class="seat-body">
-          <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}${clockMarkup}</span>
           <strong class="player-stack">${playerStackLabel(player)}</strong>
+        </div>
+        <div class="seat-sub">
+          ${botStyleTagMarkup(player)}
+          <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}${clockMarkup}</span>
         </div>
         ${barMarkup}
       </article>
