@@ -462,8 +462,6 @@ declare global {
   var potValue: HTMLElement;
   var community: HTMLElement;
   var players: HTMLElement;
-  var actionTrail: HTMLElement;
-  var shownHands: HTMLElement;
   var heroHand: HTMLElement;
   var winnerList: HTMLElement;
   var turnInfo: HTMLElement;
@@ -632,8 +630,6 @@ declare global {
   function botStyleTagMarkup(player: ClientPlayer): string;
   function renderBustPanel(room: ClientRoom): void;
   function blindChipMarkup(player: ClientPlayer): string;
-  function dealerChipMarkup(player: ClientPlayer): string;
-  function seatRingStyle(seatOffset: number, seatCount: number): string;
   function readyTimerActive(): boolean;
   function readySecondsRemaining(): number;
   function readyPctRemaining(): number;
@@ -643,9 +639,6 @@ declare global {
   function syncReadyLowTimeWarningEffects(now?: number): void;
   function syncReadyCountdown(): void;
   function renderActionFeed(newEntryId?: string): string;
-  function renderActionTrail(newEntryId?: string): string;
-  function renderShownHands(): string;
-  function syncBetPresetsVisibility(): void;
   function isEndedGameReturn(
     previous: ClientRoom | null | undefined,
     next: ClientRoom | null | undefined,

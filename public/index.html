@@ -209,68 +209,58 @@
           </button>
         </header>
 
-        <div class="table-stage">
-          <section class="felt">
-            <div class="table-rail" aria-hidden="true"></div>
-            <div id="players" class="seats" aria-label="Seats"></div>
-            <div class="table-center">
+        <section class="felt">
+          <div id="community" class="community"></div>
+          <section class="control-panel">
+            <div class="hand-row">
+              <button
+                id="heroHand"
+                class="hero-hand"
+                type="button"
+                aria-label="Hide your cards"
+                aria-pressed="false"
+              ></button>
               <div class="table-meta">
                 <div class="pot-chip">
                   <span>Pot</span>
                   <strong id="potValue">0</strong>
                 </div>
               </div>
-              <div id="community" class="community"></div>
-              <div id="winnerList" class="winner-list"></div>
-              <div id="actionTrail" class="action-trail" aria-label="Action trail"></div>
-              <div id="shownHands" class="shown-hands"></div>
+            </div>
+            <div id="winnerList" class="winner-list"></div>
+            <div id="turnInfo" class="turn-info"></div>
+            <div id="gameButtons" class="game-buttons"></div>
+            <div id="betControls" class="bet-controls hidden">
+              <div id="betPresets" class="bet-presets" aria-label="Quick bet amounts"></div>
+              <div class="raise-row">
+                <div class="raise-stepper" aria-label="Raise amount">
+                  <button
+                    id="raiseMinus"
+                    type="button"
+                    class="secondary"
+                    aria-label="Decrease raise"
+                  >
+                    -
+                  </button>
+                  <div class="raise-display">
+                    <span id="raiseLabel">Raise to</span>
+                    <strong id="raiseAmount">40</strong>
+                  </div>
+                  <button
+                    id="raisePlus"
+                    type="button"
+                    class="secondary"
+                    aria-label="Increase raise"
+                  >
+                    +
+                  </button>
+                </div>
+                <button id="raiseActionBtn" type="button" class="raise-action">Raise</button>
+              </div>
             </div>
           </section>
-
-          <section class="hero-dock">
-            <button
-              id="heroHand"
-              class="hero-hand"
-              type="button"
-              aria-label="Hide your cards"
-              aria-pressed="false"
-            ></button>
-            <section class="action-bar">
-              <div id="turnInfo" class="turn-info"></div>
-              <div class="action-bar-row">
-                <div id="gameButtons" class="game-buttons"></div>
-                <div id="betControls" class="bet-controls hidden">
-                  <div id="betPresets" class="bet-presets hidden" aria-label="Quick bet amounts"></div>
-                  <div class="raise-row">
-                    <div class="raise-stepper" aria-label="Raise amount">
-                      <button
-                        id="raiseMinus"
-                        type="button"
-                        class="secondary"
-                        aria-label="Decrease raise"
-                      >
-                        -
-                      </button>
-                      <div class="raise-display">
-                        <span id="raiseLabel">Raise to</span>
-                        <strong id="raiseAmount">40</strong>
-                      </div>
-                      <button
-                        id="raisePlus"
-                        type="button"
-                        class="secondary"
-                        aria-label="Increase raise"
-                      >
-                        +
-                      </button>
-                    </div>
-                    <button id="raiseActionBtn" type="button" class="raise-action">Raise</button>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </section>
-        </div>
+          <div id="players" class="players"></div>
+        </section>
       </section>
 
       <section id="scoreView" class="score-view hidden">
