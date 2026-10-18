@@ -2868,7 +2868,9 @@ kbd {
 
 .turn-info {
   margin: 0;
-  min-height: 0;
+  /* Reserve the tallest single line any turn state uses (your-turn is 15px × 1.35) so the
+     prompt swapping between "Call 20" and "X to act" never shifts the panel or seat list. */
+  min-height: calc(15px * 1.35);
   color: var(--muted);
   font-size: 14px;
   font-weight: 550;
@@ -3270,6 +3272,7 @@ kbd {
 
   .turn-info {
     font-size: 16px;
+    min-height: calc(16px * 1.35);
   }
 
   .players {
