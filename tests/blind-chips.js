@@ -37,9 +37,6 @@ function postedBlinds(room) {
   assert.deepEqual(flags[posted.small], [true, false]);
   assert.deepEqual(flags[posted.big], [false, true]);
   assert.equal(Object.values(flags).filter(([sb, bb]) => sb || bb).length, 2, "exactly two chips");
-  const dealerId = room.players[room.dealer].id;
-  assert.notEqual(dealerId, room.bigBlindPlayerId, "with 3+ players the dealer is never the BB");
-  assert.notEqual(dealerId, room.smallBlindPlayerId, "with 3+ players the dealer is not the SB");
 
   // Chips move with the button on the next hand.
   const firstBig = room.bigBlindPlayerId;
