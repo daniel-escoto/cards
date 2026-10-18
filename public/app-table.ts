@@ -81,9 +81,15 @@ function render() {
   const latestEntryId = entries.at(-1)?.id || "";
   const hasNewAction = Boolean(latestEntryId && latestEntryId !== lastActionEntryId);
   const feedScroll = captureActionFeedScroll();
-  players.innerHTML = renderActionFeed(hasNewAction ? latestEntryId : "");
+  const highlightId = hasNewAction ? latestEntryId : "";
+  players.innerHTML = renderActionFeed(highlightId);
+  if (actionTrail) actionTrail.innerHTML = renderActionTrail(highlightId);
+  if (shownHands) shownHands.innerHTML = renderShownHands();
   restoreActionFeedScroll(feedScroll);
-  if (hasNewAction) replayAnimation(players, "feed-updated", 420);
+  if (hasNewAction) {
+    replayAnimation(players, "feed-updated", 420);
+    if (actionTrail) replayAnimation(actionTrail, "feed-updated", 420);
+  }
   if (hasNewAction && !isFirstTableRender) playActionSound(entries.at(-1));
   lastActionEntryId = latestEntryId;
 
@@ -142,18 +148,21 @@ function render() {
 }
 
 function captureActionFeedScroll() {
-  const maxScrollTop = Math.max(0, players.scrollHeight - players.clientHeight);
+  const trail = actionTrail;
+  if (!trail) return { followBottom: true, top: 0 };
+  const maxScrollTop = Math.max(0, trail.scrollHeight - trail.clientHeight);
   return {
-    followBottom: maxScrollTop - players.scrollTop < 28,
-    top: players.scrollTop,
+    followBottom: maxScrollTop - trail.scrollTop < 28,
+    top: trail.scrollTop,
   };
 }
 
 function restoreActionFeedScroll(snapshot: ActionFeedScrollSnapshot | null) {
-  if (!snapshot) return;
-  if (!snapshot || players.scrollHeight <= players.clientHeight) return;
-  const maxScrollTop = Math.max(0, players.scrollHeight - players.clientHeight);
-  players.scrollTop = snapshot.followBottom ? maxScrollTop : Math.min(snapshot.top ?? 0, maxScrollTop);
+  const trail = actionTrail;
+  if (!snapshot || !trail) return;
+  if (trail.scrollHeight <= trail.clientHeight) return;
+  const maxScrollTop = Math.max(0, trail.scrollHeight - trail.clientHeight);
+  trail.scrollTop = snapshot.followBottom ? maxScrollTop : Math.min(snapshot.top ?? 0, maxScrollTop);
 }
 
 function scrollActionFeed() {
@@ -349,6 +358,7 @@ function configureRaiseControls(hero: ClientPlayer, disabled = false) {
     value: initialValue,
   });
   renderBetPresets(hero, disabled, canFullRaise);
+  syncBetPresetsVisibility();
 }
 
 function raiseBounds() {
@@ -440,6 +450,15 @@ function setRaiseState(next: Partial<RaiseState> | RaiseState) {
     (mergePassiveConfirm ? atPassiveDetent() : raiseState.value <= raiseState.min);
   raisePlus.disabled = raiseControlsDisabled || raiseState.value >= raiseState.max;
   updateConfirmPassiveButton();
+  syncBetPresetsVisibility();
+}
+
+/** Pot / All-in presets stay hidden until the hero is actively sizing a bet. */
+function syncBetPresetsVisibility() {
+  if (!betPresets) return;
+  const sizingOpen = !betControls.classList.contains("hidden");
+  const activelySizing = sizingOpen && (!mergePassiveConfirm || !atPassiveDetent());
+  betPresets.classList.toggle("hidden", !activelySizing);
 }
 
 function clampRaise(value: unknown) {

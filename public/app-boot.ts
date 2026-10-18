@@ -97,6 +97,8 @@ var moneyNote = document.querySelector(".money-note") as HTMLElement;
 var potValue = document.querySelector("#potValue") as HTMLElement;
 var community = document.querySelector("#community") as HTMLElement;
 var players = document.querySelector("#players") as HTMLElement;
+var actionTrail = document.querySelector("#actionTrail") as HTMLElement;
+var shownHands = document.querySelector("#shownHands") as HTMLElement;
 var heroHand = document.querySelector("#heroHand") as HTMLElement;
 var winnerList = document.querySelector("#winnerList") as HTMLElement;
 var turnInfo = document.querySelector("#turnInfo") as HTMLElement;
@@ -353,7 +355,9 @@ function lockMobileGameOverscroll(event: TouchEvent) {
     return;
 
   const touchY = event.touches[0]?.clientY;
-  const scrollRegion = (event.target as HTMLElement | null)?.closest?.(".players, .modal-panel");
+  const scrollRegion = (event.target as HTMLElement | null)?.closest?.(
+    ".action-trail, .shown-hands, .modal-panel",
+  );
   const movingDown = previousGameTouchY !== null && touchY > previousGameTouchY;
   const movingUp = previousGameTouchY !== null && touchY < previousGameTouchY;
   previousGameTouchY = touchY;
@@ -1341,6 +1345,24 @@ function blindChipMarkup(player: ClientPlayer) {
   return "";
 }
 
+function dealerChipMarkup(player: ClientPlayer) {
+  if (!player.dealer) return "";
+  return '<span class="dealer-chip" title="Dealer" aria-label="Dealer">D</span>';
+}
+
+/** Place seats on an oval; offset 0 is the hero (or first seat) at the bottom. */
+function seatRingStyle(seatOffset: number, seatCount: number): string {
+  const count = Math.max(1, seatCount);
+  const angle = ((90 + (seatOffset / count) * 360) * Math.PI) / 180;
+  const rx = count <= 3 ? 0.62 : count <= 6 ? 0.78 : 0.9;
+  const ry = count <= 3 ? 0.58 : count <= 6 ? 0.7 : 0.8;
+  const x = Math.cos(angle) * rx;
+  const y = Math.sin(angle) * ry;
+  const width =
+    count >= 8 ? "min(112px, 28vw)" : count >= 6 ? "min(128px, 30vw)" : "min(148px, 32vw)";
+  return `--seat-x: ${x.toFixed(4)}; --seat-y: ${y.toFixed(4)}; --seat-count: ${count}; --seat-width: ${width}`;
+}
+
 function readyTimerActive() {
   if (typeof ReadyClock !== "undefined" && ReadyClock.readyPhaseActive) {
     return Boolean(state?.readyEndsAt && ReadyClock.readyPhaseActive(state.phase));
@@ -1490,8 +1512,13 @@ function renderActionFeed(newEntryId = "") {
     const player = playerForAction(entry);
     if (player) latestByPlayer.set(player.id, entry);
   });
-  const tableMarkup = seatedPlayers()
-    .map((player) => {
+  const seats = seatedPlayers();
+  const anchorIndex = Math.max(
+    0,
+    seats.findIndex((player) => player.isYou),
+  );
+  const tableMarkup = seats
+    .map((player, index) => {
       const entry = latestByPlayer.get(player.id);
       const isActing = player.id === activePlayer?.id;
       const betweenHands = ["lobby", "complete"].includes(room.phase);
@@ -1510,9 +1537,11 @@ function renderActionFeed(newEntryId = "") {
           ? readySecondsRemaining()
           : 0;
       const pct = showTurnClock ? turnPctRemaining() : showReadyClock ? readyPctRemaining() : 0;
+      const seatOffset = (index - anchorIndex + seats.length) % seats.length;
       const styleVars = [
         player?.color ? `--player-color: ${escapeHtml(player.color)}` : "",
         showClock ? `--turn-pct: ${pct}` : "",
+        seatRingStyle(seatOffset, seats.length),
       ]
         .filter(Boolean)
         .join("; ");
@@ -1542,25 +1571,54 @@ function renderActionFeed(newEntryId = "") {
           ? ' data-ready-seat-clock="1"'
           : "";
       return `
-      <article class="table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${lowTime ? "low-time" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${seatClockAttr}${styleAttr}>
-        <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
-        <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>${botStyleTagMarkup(player)}${blindChipMarkup(player)}</span>
-        <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}${clockMarkup}</span>
-        <strong class="player-stack">${playerStackLabel(player)}</strong>
+      <article class="table-seat table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${lowTime ? "low-time" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${seatClockAttr}${styleAttr}>
+        <div class="seat-head">
+          <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
+          <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>${botStyleTagMarkup(player)}</span>
+          <span class="seat-chips">${dealerChipMarkup(player)}${blindChipMarkup(player)}</span>
+        </div>
+        <div class="seat-body">
+          <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}${clockMarkup}</span>
+          <strong class="player-stack">${playerStackLabel(player)}</strong>
+        </div>
         ${barMarkup}
       </article>
     `;
     })
     .join("");
+  return tableMarkup;
+}
+
+function renderActionTrail(newEntryId = "") {
+  if (!state) return "";
+  const entries = (state.actionLog || [])
+    .filter((entry) => entry.phase !== "lobby" && !isBlindPost(entry))
+    .slice(-8);
+  if (!entries.length) return "";
+  return entries
+    .map((entry) => {
+      const player = playerForAction(entry);
+      const move = player
+        ? compactPlayerAction(entry, player)
+        : String(entry.action || entry.text || "")
+            .replace(/\.$/, "")
+            .toLowerCase();
+      const name = player?.name || "Table";
+      return `<span class="trail-entry${entry.id === newEntryId ? " new-action" : ""}${player?.isYou ? " you" : ""}"${player ? ` ${playerColorStyle(player)}` : ""}><em>${escapeHtml(name)}</em> ${escapeHtml(move)}</span>`;
+    })
+    .join("");
+}
+
+function renderShownHands() {
+  if (!state) return "";
   // Revealed hands: showdown winners/mucks, voluntary shows, and all-in runout face-ups.
-  const shownHands = room.players
+  return state.players
     .filter(
       (player) =>
         player.showCards && player.cards?.some((card) => card && (card.code || card.rank)),
     )
     .map(renderShownHandCard)
     .join("");
-  return `${tableMarkup}${shownHands}`;
 }
 
 function isEndedGameReturn(previous: ClientRoom | null | undefined, next: ClientRoom | null | undefined) {
