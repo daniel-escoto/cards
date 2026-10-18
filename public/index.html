@@ -221,7 +221,7 @@
                 aria-pressed="false"
               ></button>
               <div class="table-meta">
-                <div>
+                <div class="pot-chip">
                   <span>Pot</span>
                   <strong id="potValue">0</strong>
                 </div>
@@ -394,30 +394,8 @@
                     role="radiogroup"
                     aria-label="Shot clock"
                   ></div>
-                  <form
-                    id="shotClockCustomForm"
-                    class="shot-clock-custom-form hidden"
-                    data-shot-clock-form
-                  >
-                    <label>
-                      Seconds
-                      <input
-                        id="shotClockCustomInput"
-                        type="number"
-                        min="10"
-                        max="600"
-                        step="1"
-                        inputmode="numeric"
-                        enterkeyhint="done"
-                        aria-label="Custom shot clock seconds"
-                      />
-                    </label>
-                    <button type="submit" class="secondary">Save</button>
-                  </form>
                 </div>
-                <p class="shortcut-help">
-                  Auto-check if free, otherwise auto-fold. Custom: 10–600s.
-                </p>
+                <p class="shortcut-help">Auto-check or fold when time runs out.</p>
               </div>
               <div id="readyTimerPanel" class="host-block shot-clock-panel hidden">
                 <p class="menu-subsection-title">Ready timer</p>
@@ -428,28 +406,8 @@
                     role="radiogroup"
                     aria-label="Ready-up timer"
                   ></div>
-                  <form
-                    id="readyTimerCustomForm"
-                    class="shot-clock-custom-form hidden"
-                    data-ready-timer-form
-                  >
-                    <label>
-                      Seconds
-                      <input
-                        id="readyTimerCustomInput"
-                        type="number"
-                        min="5"
-                        max="300"
-                        step="1"
-                        inputmode="numeric"
-                        enterkeyhint="done"
-                        aria-label="Custom ready-up timer seconds"
-                      />
-                    </label>
-                    <button type="submit" class="secondary">Save</button>
-                  </form>
                 </div>
-                <p class="shortcut-help">Sit out if not ready in time. Custom: 5–300s.</p>
+                <p class="shortcut-help">Sit out if not ready in time.</p>
               </div>
               <div id="rabbitHuntPanel" class="host-block shot-clock-panel hidden">
                 <p class="menu-subsection-title">Show rest of board</p>
@@ -461,10 +419,7 @@
                     aria-label="Show rest of board"
                   ></div>
                 </div>
-                <p class="shortcut-help">
-                  After everyone folds, any player can reveal the cards that would have come.
-                  Display only.
-                </p>
+                <p class="shortcut-help">After a fold-win, reveal the cards that would have come.</p>
               </div>
               <div id="hostActionsPanel" class="host-block host-actions-panel hidden">
                 <p class="menu-subsection-title">Game</p>
@@ -515,7 +470,6 @@
                 <span class="switch-control" aria-hidden="true"></span>
                 <span class="checkbox-copy">
                   <strong>Sound</strong>
-                  <small>Turn, timer, cards, chips</small>
                 </span>
               </label>
               <form id="moneyPanel" class="money-panel hidden">
@@ -537,39 +491,9 @@
                 </div>
                 <button id="cashOutBtn" type="button" class="secondary">Cash out</button>
                 <small class="money-note"
-                  >Buy-ins during a hand are for the next deal. Payments happen separately after the
-                  game.</small
+                  >Buy-ins during a hand apply to the next deal. Settle up after the game.</small
                 >
               </form>
-              <details class="appearance-panel menu-disclosure">
-                <summary>Appearance</summary>
-                <div class="appearance-group">
-                  <span>Felt</span>
-                  <div
-                    id="feltChoices"
-                    class="appearance-choices color-choices"
-                    aria-label="Felt color"
-                  ></div>
-                </div>
-                <div class="appearance-group">
-                  <span>Deck</span>
-                  <div
-                    id="deckChoices"
-                    class="appearance-choices deck-choices"
-                    aria-label="Deck style"
-                  ></div>
-                </div>
-              </details>
-              <details class="appearance-panel shortcuts-panel menu-disclosure">
-                <summary>Shortcuts</summary>
-                <p class="shortcut-help">
-                  Choose an action, then press a key. Left/Right also adjust bet like Down/Up.
-                </p>
-                <div id="keybindList" class="keybind-list"></div>
-                <button id="resetKeybindsBtn" class="secondary reset-keybinds" type="button">
-                  Reset defaults
-                </button>
-              </details>
             </div>
           </div>
         </div>

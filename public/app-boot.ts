@@ -57,11 +57,7 @@ var menuRoomEyebrow = document.querySelector("#menuRoomEyebrow") as HTMLElement 
 var menuNameForm = document.querySelector("#menuNameForm") as HTMLFormElement;
 var menuPlayers = document.querySelector("#menuPlayers") as HTMLElement;
 var openPlayerSheetId = "";
-var feltChoices = document.querySelector("#feltChoices") as HTMLElement;
-var deckChoices = document.querySelector("#deckChoices") as HTMLElement;
 var soundEnabledInput = document.querySelector("#soundEnabledInput") as HTMLInputElement;
-var keybindList = document.querySelector("#keybindList") as HTMLElement;
-var resetKeybindsBtn = document.querySelector("#resetKeybindsBtn") as HTMLButtonElement;
 var sharePanel = document.querySelector("#sharePanel") as HTMLElement;
 var shareQr = document.querySelector("#shareQr") as HTMLImageElement;
 var shareLink = document.querySelector("#shareLink") as HTMLInputElement;
@@ -76,36 +72,24 @@ var menuSmallBlindInput = document.querySelector("#menuSmallBlindInput") as HTML
 var menuBigBlindInput = document.querySelector("#menuBigBlindInput") as HTMLInputElement;
 var shotClockPanel = document.querySelector("#shotClockPanel") as HTMLElement;
 var shotClockChoices = document.querySelector("#shotClockChoices") as HTMLElement;
-var shotClockCustomForm = document.querySelector("#shotClockCustomForm") as HTMLFormElement;
-var shotClockCustomInput = document.querySelector("#shotClockCustomInput") as HTMLInputElement;
 var readyTimerPanel = document.querySelector("#readyTimerPanel") as HTMLElement;
 var readyTimerChoices = document.querySelector("#readyTimerChoices") as HTMLElement;
 var rabbitHuntPanel = document.querySelector("#rabbitHuntPanel") as HTMLElement;
 var rabbitHuntChoices = document.querySelector("#rabbitHuntChoices") as HTMLElement;
-var readyTimerCustomForm = document.querySelector("#readyTimerCustomForm") as HTMLFormElement;
-var readyTimerCustomInput = document.querySelector("#readyTimerCustomInput") as HTMLInputElement;
+/** Host UI presets. Non-preset values from live rooms still show as a selectable chip. */
 var SHOT_CLOCK_CHOICES = [
-  { seconds: 15, label: "15s" },
   { seconds: 30, label: "30s" },
   { seconds: 60, label: "60s" },
-  { seconds: 90, label: "90s" },
   { seconds: 120, label: "2m" },
-  { seconds: 300, label: "5m" },
   { seconds: 0, label: "Off" },
 ];
-var SHOT_CLOCK_CUSTOM = "custom";
 var READY_TIMER_CHOICES = [
-  { seconds: 10, label: "10s" },
   { seconds: 20, label: "20s" },
-  { seconds: 30, label: "30s" },
   { seconds: 60, label: "60s" },
   { seconds: 0, label: "Off" },
 ];
-var READY_TIMER_CUSTOM = "custom";
 /** Client clock skew vs server (serverNow - Date.now). Countdown uses absolute turnEndsAt. */
 var serverTimeOffsetMs = 0;
-var shotClockCustomOpen = false;
-var readyTimerCustomOpen = false;
 var cashInInput = document.querySelector("#cashInInput") as HTMLInputElement;
 var cashInBtn = document.querySelector("#cashInBtn") as HTMLButtonElement;
 var cashOutBtn = document.querySelector("#cashOutBtn") as HTMLButtonElement;
@@ -151,19 +135,8 @@ var {
   playerColorStyle,
 } = HoldemFormat;
 
-var KEYBIND_DEFINITIONS = HoldemKeybinds.KEYBIND_DEFINITIONS;
-var DEFAULT_KEYBINDS = HoldemKeybinds.DEFAULT_KEYBINDS;
-var DEFAULT_KEYBIND_ALIASES = HoldemKeybinds.DEFAULT_KEYBIND_ALIASES;
+/** Prefer saved binds when present; settings UI no longer edits them. */
 var keybinds = HoldemKeybinds.loadKeybinds();
-var recordingKeybindAction = "";
-
-function normalizedKey(key: string | undefined) {
-  return HoldemKeybinds.normalizedKey(key);
-}
-
-function loadKeybinds() {
-  return HoldemKeybinds.loadKeybinds();
-}
 
 function keybindLabel(key: string | undefined) {
   return HoldemKeybinds.keybindLabel(key);
@@ -181,51 +154,30 @@ function keybindDisplay(action: string) {
   return HoldemKeybinds.keybindDisplay(keybinds, action);
 }
 
-function saveKeybinds() {
-  HoldemKeybinds.saveKeybinds(keybinds);
-}
-
-function renderKeybinds() {
-  keybindList.innerHTML = KEYBIND_DEFINITIONS.map(
-    ({ id, label }) => `
-    <div class="keybind-row">
-      <span>${label}</span>
-      <button type="button" class="keybind-button ${recordingKeybindAction === id ? "recording" : ""}" data-keybind-action="${id}" aria-label="Set key for ${label}">
-        ${recordingKeybindAction === id ? "Press a key…" : escapeHtml(keybindDisplay(id))}
-      </button>
-    </div>
-  `,
-  ).join("");
-}
-
-function beginKeybindRecording(action: string) {
-  if (!DEFAULT_KEYBINDS[action]) return;
-  recordingKeybindAction = action;
-  renderKeybinds();
-  (keybindList.querySelector(`[data-keybind-action="${action}"]`) as HTMLElement | null)?.focus();
-}
-
-function cancelKeybindRecording() {
-  if (!recordingKeybindAction) return;
-  recordingKeybindAction = "";
-  renderKeybinds();
-}
-
-function assignKeybind(action: string, key: string) {
-  const result = HoldemKeybinds.assignKeybindState(keybinds, action, key);
-  keybinds = result.keybinds;
-  recordingKeybindAction = "";
-  saveKeybinds();
-  renderKeybinds();
-  renderControls(activeHero());
-  showToast(result.conflictAction ? "Shortcuts swapped" : "Shortcut updated");
-}
-
 function matchesKeybind(event: KeyboardEvent, action: string) {
   return HoldemKeybinds.matchesKeybind(event, keybinds, action);
 }
 
-renderKeybinds();
+function formatTimerChoiceLabel(seconds: number) {
+  if (!seconds) return "Off";
+  if (seconds >= 60 && seconds % 60 === 0) return `${seconds / 60}m`;
+  return `${seconds}s`;
+}
+
+/** Presets plus the room's current value when it is outside the trimmed UI list. */
+function timerChoicesForValue(presets: TimerChoice[], selectedSeconds: number) {
+  const choices = presets.map((item) => ({ ...item }));
+  if (selectedSeconds > 0 && !choices.some((item) => item.seconds === selectedSeconds)) {
+    const extra = {
+      seconds: selectedSeconds,
+      label: formatTimerChoiceLabel(selectedSeconds),
+    };
+    const offIndex = choices.findIndex((item) => item.seconds === 0);
+    if (offIndex >= 0) choices.splice(offIndex, 0, extra);
+    else choices.push(extra);
+  }
+  return choices;
+}
 
 var state: ClientRoom | null = null;
 var practiceSession: PracticeSessionHandle | null = null;
@@ -326,31 +278,9 @@ function applyTableAppearance(felt: string | null, deck: string | null, persist 
     localStorage.setItem("holdem:felt", nextFelt);
     localStorage.setItem("holdem:deck", nextDeck);
   }
-  renderAppearanceChoices();
 }
 
-function renderAppearanceChoices() {
-  if (!feltChoices || !deckChoices) return;
-  feltChoices.innerHTML = FELT_OPTIONS.map(
-    (option) => `
-    <button type="button" class="appearance-choice felt-choice ${document.documentElement.dataset.felt === option.id ? "selected" : ""}" data-felt="${option.id}" aria-label="${option.label} felt" aria-pressed="${document.documentElement.dataset.felt === option.id}">
-      <i style="--choice-color:${option.color}" aria-hidden="true"></i><span>${option.label}</span>
-    </button>
-  `,
-  ).join("");
-  deckChoices.innerHTML = DECK_OPTIONS.map(
-    (option) => `
-    <button type="button" class="appearance-choice deck-choice ${document.documentElement.dataset.deck === option.id ? "selected" : ""}" data-deck="${option.id}" aria-label="${option.label}: ${option.description}" aria-pressed="${document.documentElement.dataset.deck === option.id}">
-      <span class="deck-preview" aria-hidden="true">
-        <i class="deck-preview-back"></i>
-        <i class="deck-preview-front ${["♥", "♦"].includes(option.suit) ? "red" : ""}"><b>${option.rank}</b><em>${option.suit}</em></i>
-      </span>
-      <span class="deck-choice-copy"><strong>${option.label}</strong><small>${option.description}</small></span>
-    </button>
-  `,
-  ).join("");
-}
-
+// Honor previously saved felt/deck; there is no settings UI to change them anymore.
 applyTableAppearance(localStorage.getItem("holdem:felt"), localStorage.getItem("holdem:deck"));
 
 function getDeviceId() {
@@ -670,9 +600,6 @@ function showMenuMainView() {
   menuSettingsView.classList.add("hidden");
   menuHostView.classList.add("hidden");
   menuMainView.classList.remove("hidden");
-  gameMenuModal.querySelectorAll(".appearance-panel").forEach((panel) => {
-    (panel as HTMLDetailsElement).open = false;
-  });
 }
 
 function showMenuSettingsView() {
@@ -691,7 +618,6 @@ function showMenuHostView() {
 }
 
 function hideGameMenu() {
-  cancelKeybindRecording();
   gameMenuModal.classList.add("hidden");
   sharePanel.classList.add("hidden");
   showMenuMainView();
@@ -741,14 +667,6 @@ function isMenuNameEditing() {
   // the button), which let the 1s menu refresh / room:update replace the form
   // and swallow the click before submit.
   return Boolean(document.activeElement?.closest?.("[data-name-form]"));
-}
-
-function isMenuShotClockEditing() {
-  return Boolean(document.activeElement?.closest?.("[data-shot-clock-form]"));
-}
-
-function isMenuReadyTimerEditing() {
-  return Boolean(document.activeElement?.closest?.("[data-ready-timer-form]"));
 }
 
 function syncServerTimeOffset(nextState: ClientRoom | null | undefined) {
@@ -932,9 +850,9 @@ function syncCashInControls() {
   if (moneyNote) {
     moneyNote.textContent = allowed
       ? ["preflop", "flop", "turn", "river", "showdown"].includes(state?.phase || "")
-        ? "Buy-in now and you’ll play on the next hand. Payments happen separately after the game."
-        : "Payments happen separately after the game."
-      : "You’re in this hand — buy-in will be available after you fold or the hand ends.";
+        ? "Buy-in now for the next deal. Settle up after the game."
+        : "Settle up after the game."
+      : "Finish this hand before adding chips.";
   }
 }
 
@@ -942,9 +860,6 @@ function showGameMenu() {
   openPlayerSheetId = "";
   showMenuMainView();
   renderMenuPlayers();
-  gameMenuModal.querySelectorAll(".appearance-panel").forEach((panel) => {
-    (panel as HTMLDetailsElement).open = false;
-  });
   addBotBtn.classList.toggle("hidden", !state?.canAddBot || isSpectatorView());
   const hero = activeHero();
   sitOutBtn.classList.toggle("hidden", !hero || isSpectatorView() || state?.phase === "gameover");
@@ -1156,16 +1071,17 @@ function actionTokenClass(entry: ActionLogEntry, player: ClientPlayer | null | u
 function playerTableStatus(player: ClientPlayer, isActiveTurn = player.isTurn) {
   if (!state) return "";
   if (player.sittingOut)
-    return player.cards.length && isBettingPhase(state.phase) ? "Sits out next" : "Sitting out";
+    return player.cards.length && isBettingPhase(state.phase) ? "Next out" : "Sitting out";
 
   if (playerIsOut(player)) return "Out";
   if (["lobby", "complete"].includes(state?.phase))
     return player.ready || player.isBot ? "Ready" : "Not ready";
   if (player.waitingForNextHand) return "Next hand";
-  if (player.folded) return "Folded";
+  if (player.folded) return "Fold";
   if (player.allIn) return "All in";
   if (isActiveTurn) return "Acting";
-  return player.connected ? "In hand" : "Away";
+  // Default "in hand" status is silent — last-action pills carry the story.
+  return player.connected ? "" : "Away";
 }
 
 function playerForAction(entry: ActionLogEntry) {
@@ -1186,11 +1102,9 @@ function renderShownHandCard(player: ClientPlayer) {
     <article class="action-feed-card shown-hand-card ${player.isYou ? "you" : ""}" ${playerColorStyle(player)}>
       <div class="action-card-head">
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
+        <strong class="player-stack">${playerStackLabel(player)}</strong>
       </div>
       <div class="shown-hand">${player.cards.map((card) => cardTemplate(card)).join("")}</div>
-      <div class="action-card-stats">
-        <span>${state.moneyMode ? "Bankroll" : "Stack"} <strong>${playerStackLabel(player)}</strong></span>
-      </div>
     </article>
   `;
 }
@@ -1216,74 +1130,20 @@ function renderShotClockChoices() {
   if (!shotClockPanel || !shotClockChoices) return;
   const canEdit = Boolean(state?.canChangeShotClock) && !isOfflineSession();
   shotClockPanel.classList.toggle("hidden", !canEdit);
-  if (!canEdit) {
-    shotClockCustomOpen = false;
-    shotClockCustomForm?.classList.add("hidden");
-    return;
-  }
-  if (isMenuShotClockEditing()) return;
+  if (!canEdit) return;
   const selected = Math.floor(Number(state?.turnTimeLimitMs) / 1000);
-  const isPreset = SHOT_CLOCK_CHOICES.some((item) => item.seconds === selected);
-  const customActive = shotClockCustomOpen || (!isPreset && selected > 0);
-  if (customActive) shotClockCustomOpen = true;
-  shotClockChoices.innerHTML = `${SHOT_CLOCK_CHOICES.map(
-    (item) => `
+  const choices = timerChoicesForValue(SHOT_CLOCK_CHOICES, selected);
+  shotClockChoices.innerHTML = choices
+    .map(
+      (item) => `
     <button
       type="button"
-      class="appearance-choice${!customActive && item.seconds === selected ? " selected" : ""}"
+      class="appearance-choice${item.seconds === selected ? " selected" : ""}"
       data-shot-clock="${item.seconds}"
-      aria-pressed="${!customActive && item.seconds === selected ? "true" : "false"}"
-    >${item.label}</button>
-  `,
-  ).join("")}
-    <button
-      type="button"
-      class="appearance-choice${customActive ? " selected" : ""}"
-      data-shot-clock="${SHOT_CLOCK_CUSTOM}"
-      aria-pressed="${customActive ? "true" : "false"}"
-    >Custom</button>`;
-  if (shotClockCustomForm && shotClockCustomInput) {
-    shotClockCustomForm.classList.toggle("hidden", !customActive);
-    if (customActive && document.activeElement !== shotClockCustomInput) {
-      const value = selected > 0 ? selected : 45;
-      shotClockCustomInput.value = String(Math.min(600, Math.max(10, value)));
-    }
-  }
-}
-
-function commitShotClockCustom(form: HTMLElement | null) {
-  if (!form || !shotClockCustomInput) return false;
-  const raw = shotClockCustomInput.value.trim();
-  const seconds = Number(raw);
-  if (
-    !raw ||
-    !Number.isFinite(seconds) ||
-    !Number.isInteger(seconds) ||
-    seconds < 10 ||
-    seconds > 600
-  ) {
-    showToast("Enter an integer from 10 to 600 seconds.");
-    return false;
-  }
-
-  // pointerdown (Save) and submit (Enter / click) share this path; dedupe one gesture.
-  const now = Date.now();
-  if (
-    form.dataset.shotClockSaving === "1" &&
-    now - Number(form.dataset.shotClockSavedAt || 0) < 750
-  ) {
-    return true;
-  }
-  form.dataset.shotClockSaving = "1";
-  form.dataset.shotClockSavedAt = String(now);
-
-  shotClockCustomOpen = true;
-  emitWithAck("game:setShotClock", { seconds });
-  shotClockCustomInput.blur();
-  queueMicrotask(() => {
-    delete form.dataset.shotClockSaving;
-  });
-  return true;
+      aria-pressed="${item.seconds === selected ? "true" : "false"}"
+    >${item.label}</button>`,
+    )
+    .join("");
 }
 
 /** Host setting: "Show rest of board" after a fold-win (default on). */
@@ -1313,74 +1173,20 @@ function renderReadyTimerChoices() {
   if (!readyTimerPanel || !readyTimerChoices) return;
   const canEdit = Boolean(state?.canChangeReadyTimer) && !isOfflineSession();
   readyTimerPanel.classList.toggle("hidden", !canEdit);
-  if (!canEdit) {
-    readyTimerCustomOpen = false;
-    readyTimerCustomForm?.classList.add("hidden");
-    return;
-  }
-  if (isMenuReadyTimerEditing()) return;
+  if (!canEdit) return;
   const selected = Math.floor(Number(state?.readyTimeLimitMs) / 1000);
-  const isPreset = READY_TIMER_CHOICES.some((item) => item.seconds === selected);
-  const customActive = readyTimerCustomOpen || (!isPreset && selected > 0);
-  if (customActive) readyTimerCustomOpen = true;
-  readyTimerChoices.innerHTML = `${READY_TIMER_CHOICES.map(
-    (item) => `
+  const choices = timerChoicesForValue(READY_TIMER_CHOICES, selected);
+  readyTimerChoices.innerHTML = choices
+    .map(
+      (item) => `
     <button
       type="button"
-      class="appearance-choice${!customActive && item.seconds === selected ? " selected" : ""}"
+      class="appearance-choice${item.seconds === selected ? " selected" : ""}"
       data-ready-timer="${item.seconds}"
-      aria-pressed="${!customActive && item.seconds === selected ? "true" : "false"}"
-    >${item.label}</button>
-  `,
-  ).join("")}
-    <button
-      type="button"
-      class="appearance-choice${customActive ? " selected" : ""}"
-      data-ready-timer="${READY_TIMER_CUSTOM}"
-      aria-pressed="${customActive ? "true" : "false"}"
-    >Custom</button>`;
-  if (readyTimerCustomForm && readyTimerCustomInput) {
-    readyTimerCustomForm.classList.toggle("hidden", !customActive);
-    if (customActive && document.activeElement !== readyTimerCustomInput) {
-      const value = selected > 0 ? selected : 20;
-      readyTimerCustomInput.value = String(Math.min(300, Math.max(5, value)));
-    }
-  }
-}
-
-function commitReadyTimerCustom(form: HTMLElement | null) {
-  if (!form || !readyTimerCustomInput) return false;
-  const raw = readyTimerCustomInput.value.trim();
-  const seconds = Number(raw);
-  if (
-    !raw ||
-    !Number.isFinite(seconds) ||
-    !Number.isInteger(seconds) ||
-    seconds < 5 ||
-    seconds > 300
-  ) {
-    showToast("Enter an integer from 5 to 300 seconds.");
-    return false;
-  }
-
-  // pointerdown (Save) and submit (Enter / click) share this path; dedupe one gesture.
-  const now = Date.now();
-  if (
-    form.dataset.readyTimerSaving === "1" &&
-    now - Number(form.dataset.readyTimerSavedAt || 0) < 750
-  ) {
-    return true;
-  }
-  form.dataset.readyTimerSaving = "1";
-  form.dataset.readyTimerSavedAt = String(now);
-
-  readyTimerCustomOpen = true;
-  emitWithAck("game:setReadyTimer", { seconds });
-  readyTimerCustomInput.blur();
-  queueMicrotask(() => {
-    delete form.dataset.readyTimerSaving;
-  });
-  return true;
+      aria-pressed="${item.seconds === selected ? "true" : "false"}"
+    >${item.label}</button>`,
+    )
+    .join("");
 }
 
 function turnSecondsRemaining() {
@@ -1519,7 +1325,7 @@ function syncTurnCountdown() {
   turnCountdownTimer = setInterval(tick, 200);
 }
 
-/** Small personality pill on CPU seats ("Loose", "Grinder"…); full style in the tooltip. */
+/** Subtle personality label on CPU seats ("Loose", "Grinder"…); full style in the tooltip. */
 function botStyleTagMarkup(player: ClientPlayer) {
   if (!player.isBot || !player.botStyleShort) return "";
   const tag = escapeHtml(player.botProfile || "");
@@ -1738,7 +1544,7 @@ function renderActionFeed(newEntryId = "") {
       return `
       <article class="table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${lowTime ? "low-time" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${seatClockAttr}${styleAttr}>
         <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
-        <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>${botStyleTagMarkup(player)}${blindChipMarkup(player)}</span>
+        <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}</span>${player.isYou ? '<span class="seat-you-mark">you</span>' : ""}${botStyleTagMarkup(player)}${blindChipMarkup(player)}</span>
         <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}${clockMarkup}</span>
         <strong class="player-stack">${playerStackLabel(player)}</strong>
         ${barMarkup}

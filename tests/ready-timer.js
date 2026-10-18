@@ -183,7 +183,7 @@ assert.equal(READY_TIMER_MS, 20000);
 assert.equal(READY_TIMER_DEFAULT_MS, 20000);
 assert.equal(READY_TIMER_MIN_MS, 5000);
 assert.equal(READY_TIMER_MAX_MS, 300000);
-assert.deepEqual([...READY_TIMER_OPTIONS_MS], [0, 10000, 20000, 30000, 60000]);
+assert.deepEqual([...READY_TIMER_OPTIONS_MS], [0, 20000, 60000]);
 
 assert.equal(normalizeReadyTimerMs(10000), 10000);
 assert.equal(normalizeReadyTimerMs(20000), 20000);

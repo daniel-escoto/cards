@@ -153,13 +153,19 @@ const CPU_ACTION_DELAY_MS: number | null =
   process.env.CPU_ACTION_DELAY_MS != null && process.env.CPU_ACTION_DELAY_MS !== ""
     ? envNonNegativeMs("CPU_ACTION_DELAY_MS", 250)
     : null;
-/** Host shot-clock presets (ms). 0 = Off. Default 30s. Custom values allowed in [MIN, MAX]. */
-const SHOT_CLOCK_OPTIONS_MS = Object.freeze([0, 15000, 30000, 60000, 90000, 120000, 300000]);
+/**
+ * Host shot-clock UI presets (ms). 0 = Off. Default 30s.
+ * Values outside this list but within [MIN, MAX] still load and apply (live rooms / Redis).
+ */
+const SHOT_CLOCK_OPTIONS_MS = Object.freeze([0, 30000, 60000, 120000]);
 const SHOT_CLOCK_DEFAULT_MS = 30000;
 const SHOT_CLOCK_MIN_MS = 10000;
 const SHOT_CLOCK_MAX_MS = 600000;
-/** Host ready-up timer presets (ms). 0 = Off. Default 20s. Custom values allowed in [MIN, MAX]. */
-const READY_TIMER_OPTIONS_MS = Object.freeze([0, 10000, 20000, 30000, 60000]);
+/**
+ * Host ready-up timer UI presets (ms). 0 = Off. Default 20s.
+ * Values outside this list but within [MIN, MAX] still load and apply (live rooms / Redis).
+ */
+const READY_TIMER_OPTIONS_MS = Object.freeze([0, 20000, 60000]);
 const READY_TIMER_DEFAULT_MS = 20000;
 /** @deprecated alias — prefer READY_TIMER_DEFAULT_MS */
 const READY_TIMER_MS = READY_TIMER_DEFAULT_MS;

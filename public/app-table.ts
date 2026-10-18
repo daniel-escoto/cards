@@ -136,7 +136,7 @@ function render() {
       "hidden",
       !menuHero || isSpectatorView() || room?.phase === "gameover",
     );
-    if (menuHero) sitOutBtn.textContent = menuHero.sittingOut ? "Sit back in" : "Sit out next hand";
+    if (menuHero) sitOutBtn.textContent = menuHero.sittingOut ? "Sit back in" : "Sit out";
   }
   requestAnimationFrame(() => restoreActionFeedScroll(feedScroll));
 }
@@ -178,7 +178,7 @@ function renderControls(hero: ClientPlayer | null | undefined) {
   if (isSpectatorView()) {
     turnInfo.classList.remove("showdown-message");
     if (room.phase === "showdown") {
-      turnInfo.textContent = "Cards down. Revealing the winner…";
+      turnInfo.textContent = "Showdown";
       turnInfo.classList.add("showdown-message");
     } else if (["lobby", "complete"].includes(room.phase)) {
       const humans = room.players.filter(
@@ -188,19 +188,17 @@ function renderControls(hero: ClientPlayer | null | undefined) {
       const readyStatus =
         humans.length < 2 &&
         room.players.filter((player) => player.stack > 0 && !player.sittingOut).length < 2
-          ? "Watching · waiting for at least two active players."
-          : `Watching · ${readyCount} of ${humans.length} players ready`;
+          ? "Watching — need two players"
+          : `Watching — ${readyCount} of ${humans.length} ready`;
       turnInfo.textContent = readyStatus;
     } else {
       const currentIndex = findLastIndex(room.players, (player) => player.id === room.turn);
       const current = currentIndex >= 0 ? room.players[currentIndex] : null;
-      turnInfo.textContent = current
-        ? `Watching · pot ${formatAmount(room.pot, room.potCents)}. ${current.name} is acting.`
-        : `Watching · pot ${formatAmount(room.pot, room.potCents)}.`;
+      turnInfo.textContent = current ? `Watching — ${current.name}` : "Watching";
     }
     if (room.canTakeSeat) {
       const button = document.createElement("button");
-      button.textContent = acceptedMoneyTerms ? "Take a seat · Play next hand" : "Take a seat";
+      button.textContent = "Take a seat";
       button.addEventListener("click", () => takeSeatFromSpectator());
       gameButtons.appendChild(button);
     }
@@ -212,23 +210,23 @@ function renderControls(hero: ClientPlayer | null | undefined) {
     return;
   }
   if (hero?.sittingOut && (!isBettingPhase(room.phase) || !hero.cards.length)) {
-    turnInfo.textContent = "You’re sitting out. Your seat and stack are saved.";
+    turnInfo.textContent = "Sitting out";
     addButton("Sit back in", "game:sitOut", "", "", { sittingOut: false });
     return;
   }
   if (hero?.waitingForNextHand) {
-    turnInfo.textContent = "You’re seated. You’ll play on the next hand.";
+    turnInfo.textContent = "In next hand";
     return;
   }
   if (room.phase === "showdown") {
-    turnInfo.textContent = "Cards down. Revealing the winner…";
+    turnInfo.textContent = "Showdown";
     turnInfo.classList.add("showdown-message");
     return;
   }
   turnInfo.classList.remove("showdown-message");
 
   if (room.canAddBot) {
-    addButton("+ Add CPU player", "room:addBot", "secondary lobby-add-bot");
+    addButton("+ Add bot", "room:addBot", "secondary lobby-add-bot");
   }
   if (room.canReady) {
     const readyShortcut = room.isReady
@@ -254,27 +252,26 @@ function renderControls(hero: ClientPlayer | null | undefined) {
       const readyStatus =
         humans.length < 2 &&
         room.players.filter((player) => player.stack > 0 && !player.sittingOut).length < 2
-          ? "Waiting for at least two active players."
-          : `${readyCount} of ${humans.length} players ready`;
+          ? "Need two players to start"
+          : `${readyCount} of ${humans.length} ready`;
       // No ready-up number here or on the button: the seat progress bar is the countdown.
       turnInfo.textContent = readyStatus;
       return;
     }
     const currentIndex = findLastIndex(room.players, (player) => player.id === room.turn);
     const current = currentIndex >= 0 ? room.players[currentIndex] : null;
-    turnInfo.textContent = current
-      ? `Pot ${formatAmount(room.pot, room.potCents)}. ${current.name} is acting.`
-      : "Waiting for the host.";
+    turnInfo.textContent = current ? `${current.name} to act` : "Waiting for host";
     if (hero && isBettingPhase(room.phase) && !hero.folded && !hero.allIn) {
       renderHeroActionControls(hero, true);
     }
     return;
   }
 
+  // Pot is already in the panel header — keep the prompt short.
   turnInfo.textContent =
     room.toCall > 0
-      ? `Pot ${formatAmount(room.pot, room.potCents)}. Call ${formatAmount(room.toCall, room.toCallCents)} to continue.`
-      : `Pot ${formatAmount(room.pot, room.potCents)}. Your turn: check or bet.`;
+      ? `Call ${formatAmount(room.toCall, room.toCallCents)}`
+      : "Check or bet";
   turnInfo.classList.add("your-turn");
   renderHeroActionControls(hero, false);
 }
@@ -287,12 +284,13 @@ function renderBustPanel(room: ClientRoom) {
   turnInfo.replaceChildren();
   const title = document.createElement("strong");
   title.className = "bust-title";
-  title.textContent = "You busted.";
+  title.textContent = "You’re out";
   turnInfo.append(title);
   if (leader) {
-    turnInfo.append(
-      ` ${leader.name} leads with ${formatAmount(leader.stack, leader.stackCents)}. Rebuy to keep playing.`,
-    );
+    const detail = document.createElement("span");
+    detail.className = "bust-detail";
+    detail.textContent = `${leader.name} leads with ${formatAmount(leader.stack, leader.stackCents)}`;
+    turnInfo.append(detail);
   }
   turnInfo.classList.add("bust-message");
   const startingStack = typeof HoldemEngine?.STARTING_STACK === "number" ? HoldemEngine.STARTING_STACK : 1000;
@@ -337,11 +335,7 @@ function configureRaiseControls(hero: ClientPlayer, disabled = false) {
   const preferredRaise = canFullRaise
     ? Math.max(minRaise, state.currentBet + state.bigBlind)
     : maxRaise;
-  raiseLabel.textContent = !canFullRaise
-    ? "All in"
-    : state.currentBet > 0
-      ? "Raise to"
-      : "Bet amount";
+  raiseLabel.textContent = !canFullRaise ? "All in" : state.currentBet > 0 ? "Raise to" : "Bet";
   raiseControlsDisabled = disabled;
   raiseActionBtn.classList.toggle("hidden", mergePassiveConfirm);
   betControls.querySelector(".raise-row")?.classList.toggle("merge-check-bet", mergePassiveConfirm);
