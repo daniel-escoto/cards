@@ -1120,12 +1120,12 @@ select:focus {
 }
 
 .menu-subsection-title {
-  margin: 0 0 6px;
+  margin: 0;
   color: var(--muted);
-  font-size: 10px;
-  font-weight: 850;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
 }
 
 .menu-row-btn {
@@ -1134,10 +1134,24 @@ select:focus {
 }
 
 .menu-name-form-standalone {
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--panel-2) 72%, transparent);
+  padding: 2px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.menu-settings-view .checkbox-label {
+  min-height: 40px;
+  padding: 4px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.menu-settings-view .checkbox-label:hover,
+.menu-settings-view .checkbox-label:has(input:checked) {
+  border: none;
+  background: transparent;
 }
 
 .menu-disclosure,
@@ -1170,20 +1184,22 @@ select:focus {
 }
 
 .menu-host-view .host-settings-body {
-  gap: 10px;
+  gap: 14px;
 }
 
 .host-block {
   display: grid;
-  gap: 6px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--panel-2) 72%, transparent);
+  gap: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
 }
 
 .host-block + .host-block {
   margin-top: 0;
+  padding-top: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
 }
 
 .host-actions-row {
@@ -1216,15 +1232,15 @@ select:focus {
   display: grid;
   gap: 0;
   padding: 0;
-  border: 1px solid var(--line);
+  border: none;
   border-left: 3px solid var(--player-color, var(--line));
-  border-radius: 9px;
-  background: rgba(13, 19, 22, 0.72);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel-2) 55%, transparent);
   overflow: hidden;
 }
 
 .menu-player.you {
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--player-color, var(--accent)) 48%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel-2));
 }
 
 .menu-player.folded {
@@ -1376,10 +1392,11 @@ button.menu-player-row:not(:disabled):hover {
 .money-panel {
   display: grid;
   gap: 10px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(13, 19, 22, 0.72);
+  padding: 10px 0 0;
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: 0;
+  background: transparent;
 }
 
 .share-panel img {
@@ -1921,40 +1938,10 @@ button.menu-player-row:not(:disabled):hover {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .shot-clock-choices .appearance-choice {
-  min-height: 44px;
+  min-height: 40px;
   font-size: 12px;
-  font-weight: 850;
-}
-.shot-clock-custom-form {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: end;
-}
-.shot-clock-custom-form.hidden {
-  display: none;
-}
-.shot-clock-custom-form label {
-  display: grid;
-  gap: 4px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 850;
-}
-.shot-clock-custom-form input {
-  width: 100%;
-  min-height: 44px;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--text);
-  background: color-mix(in srgb, var(--panel) 72%, transparent);
-  font-size: 16px;
-  font-variant-numeric: tabular-nums;
-}
-.shot-clock-custom-form button {
-  min-height: 44px;
-  padding: 0 14px;
+  font-weight: 750;
+  border-radius: 9px;
 }
 
 .round-roster {
@@ -2427,9 +2414,10 @@ button.menu-player-row:not(:disabled):hover {
   padding-bottom: 7px;
 }
 .shortcut-help {
-  margin: -4px 0 0;
+  margin: 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 500;
   line-height: 1.35;
 }
 .keybind-list {

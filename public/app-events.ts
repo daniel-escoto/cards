@@ -18,19 +18,6 @@ soundEnabledInput.addEventListener("change", () => {
 community.addEventListener("click", (event) => {
   if ((event.target as HTMLElement).closest("[data-rabbit-reveal]")) revealRabbitBoard();
 });
-keybindList.addEventListener("click", (event) => {
-  const button = (event.target as HTMLElement).closest("[data-keybind-action]") as HTMLElement | null;
-  if (button) beginKeybindRecording(button.dataset.keybindAction || "");
-});
-resetKeybindsBtn.addEventListener("click", () => {
-  keybinds = { ...DEFAULT_KEYBINDS };
-  recordingKeybindAction = "";
-  saveKeybinds();
-  renderKeybinds();
-  if (state) renderControls(activeHero());
-  showToast("Shortcuts reset");
-});
-
 roomInput.addEventListener("input", () => {
   roomInput.value = roomInput.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
   acceptedMoneyTerms = null;
@@ -97,29 +84,9 @@ closeMenuBtn.addEventListener("click", hideGameMenu);
 addBotBtn.addEventListener("click", () => emitWithAck("room:addBot", {}));
 
 gameMenuModal.addEventListener("click", (event) => {
-  const feltButton = (event.target as HTMLElement).closest("button[data-felt]") as HTMLElement | null;
-  if (feltButton) {
-    applyTableAppearance(feltButton.dataset.felt || null, document.documentElement.dataset.deck || null, true);
-    showToast(`${(feltButton.textContent || "").trim()} felt selected`);
-    return;
-  }
-  const deckButton = (event.target as HTMLElement).closest("button[data-deck]") as HTMLElement | null;
-  if (deckButton) {
-    applyTableAppearance(document.documentElement.dataset.felt || null, deckButton.dataset.deck || null, true);
-    showToast(`${(deckButton.textContent || "").trim()} deck selected`);
-    return;
-  }
   const shotClockButton = (event.target as HTMLElement).closest("button[data-shot-clock]") as HTMLElement | null;
   if (shotClockButton) {
-    const choice = shotClockButton.dataset.shotClock;
-    if (choice === SHOT_CLOCK_CUSTOM) {
-      shotClockCustomOpen = true;
-      renderShotClockChoices();
-      shotClockCustomInput?.focus();
-      return;
-    }
-    shotClockCustomOpen = false;
-    const seconds = Math.floor(Number(choice));
+    const seconds = Math.floor(Number(shotClockButton.dataset.shotClock));
     emitWithAck("game:setShotClock", { seconds });
     return;
   }
@@ -132,15 +99,7 @@ gameMenuModal.addEventListener("click", (event) => {
   }
   const readyTimerButton = (event.target as HTMLElement).closest("button[data-ready-timer]") as HTMLElement | null;
   if (readyTimerButton) {
-    const choice = readyTimerButton.dataset.readyTimer;
-    if (choice === READY_TIMER_CUSTOM) {
-      readyTimerCustomOpen = true;
-      renderReadyTimerChoices();
-      readyTimerCustomInput?.focus();
-      return;
-    }
-    readyTimerCustomOpen = false;
-    const seconds = Math.floor(Number(choice));
+    const seconds = Math.floor(Number(readyTimerButton.dataset.readyTimer));
     emitWithAck("game:setReadyTimer", { seconds });
     return;
   }
@@ -176,18 +135,6 @@ gameMenuModal.addEventListener("pointerdown", (event) => {
   if (nameSaveBtn) {
     event.preventDefault();
     commitMenuDisplayName(nameSaveBtn.closest("[data-name-form]") as HTMLElement | null);
-    return;
-  }
-  const shotClockSaveBtn = (event.target as HTMLElement).closest("[data-shot-clock-form] button[type='submit']") as HTMLElement | null;
-  if (shotClockSaveBtn) {
-    event.preventDefault();
-    commitShotClockCustom(shotClockSaveBtn.closest("[data-shot-clock-form]") as HTMLElement | null);
-    return;
-  }
-  const readyTimerSaveBtn = (event.target as HTMLElement).closest("[data-ready-timer-form] button[type='submit']") as HTMLElement | null;
-  if (readyTimerSaveBtn) {
-    event.preventDefault();
-    commitReadyTimerCustom(readyTimerSaveBtn.closest("[data-ready-timer-form]") as HTMLElement | null);
   }
 });
 
@@ -213,14 +160,6 @@ gameMenuModal.addEventListener("submit", (event) => {
         state?.buyInCents ? state.buyInCents / 100 : 20,
       ),
     });
-    return;
-  }
-  if (event.target === shotClockCustomForm || (event.target as HTMLElement | null)?.closest?.("[data-shot-clock-form]")) {
-    commitShotClockCustom(((event.target as HTMLElement).closest("[data-shot-clock-form]") as HTMLElement | null) || shotClockCustomForm);
-    return;
-  }
-  if (event.target === readyTimerCustomForm || (event.target as HTMLElement | null)?.closest?.("[data-ready-timer-form]")) {
-    commitReadyTimerCustom(((event.target as HTMLElement).closest("[data-ready-timer-form]") as HTMLElement | null) || readyTimerCustomForm);
     return;
   }
   const nameForm = (event.target as HTMLElement).closest("[data-name-form]") as HTMLElement | null;
@@ -419,30 +358,6 @@ document.addEventListener("keydown", (event) => {
   if (rabbitTarget && (event.key === "Enter" || event.key === " ")) {
     event.preventDefault();
     revealRabbitBoard();
-    return;
-  }
-  if (recordingKeybindAction) {
-    event.preventDefault();
-    event.stopPropagation();
-    if (event.key === "Escape") {
-      cancelKeybindRecording();
-      return;
-    }
-    if (
-      event.metaKey ||
-      event.ctrlKey ||
-      event.altKey ||
-      ["Shift", "Control", "Alt", "Meta", "Tab"].includes(event.key)
-    ) {
-      showToast("Choose a single non-modifier key");
-      return;
-    }
-    const nextKey = normalizedKey(event.key);
-    if (!nextKey || ["Dead", "Unidentified"].includes(nextKey)) {
-      showToast("That key is not available");
-      return;
-    }
-    assignKeybind(recordingKeybindAction, nextKey);
     return;
   }
   if (event.key === "Escape" && !gameMenuModal.classList.contains("hidden")) {

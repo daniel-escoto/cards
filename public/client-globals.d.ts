@@ -433,11 +433,7 @@ declare global {
   var menuPlayers: HTMLElement;
   var openPlayerSheetId: string;
   var copyIconResetTimer: ReturnType<typeof setTimeout> | null;
-  var feltChoices: HTMLElement;
-  var deckChoices: HTMLElement;
   var soundEnabledInput: HTMLInputElement;
-  var keybindList: HTMLElement;
-  var resetKeybindsBtn: HTMLButtonElement;
   var sharePanel: HTMLElement;
   var shareQr: HTMLImageElement;
   var shareLink: HTMLInputElement;
@@ -452,21 +448,13 @@ declare global {
   var menuBigBlindInput: HTMLInputElement;
   var shotClockPanel: HTMLElement;
   var shotClockChoices: HTMLElement;
-  var shotClockCustomForm: HTMLFormElement;
-  var shotClockCustomInput: HTMLInputElement;
   var readyTimerPanel: HTMLElement;
   var rabbitHuntPanel: HTMLElement;
   var rabbitHuntChoices: HTMLElement;
   var readyTimerChoices: HTMLElement;
-  var readyTimerCustomForm: HTMLFormElement;
-  var readyTimerCustomInput: HTMLInputElement;
   var SHOT_CLOCK_CHOICES: TimerChoice[];
-  var SHOT_CLOCK_CUSTOM: string;
   var READY_TIMER_CHOICES: TimerChoice[];
-  var READY_TIMER_CUSTOM: string;
   var serverTimeOffsetMs: number;
-  var shotClockCustomOpen: boolean;
-  var readyTimerCustomOpen: boolean;
   var cashInInput: HTMLInputElement;
   var cashInBtn: HTMLButtonElement;
   var cashOutBtn: HTMLButtonElement;
@@ -504,11 +492,7 @@ declare global {
   var playerStackLabel: HoldemFormatAPI["playerStackLabel"];
   var cardTemplate: HoldemFormatAPI["cardTemplate"];
   var playerColorStyle: HoldemFormatAPI["playerColorStyle"];
-  var KEYBIND_DEFINITIONS: KeybindDefinition[];
-  var DEFAULT_KEYBINDS: KeybindMap;
-  var DEFAULT_KEYBIND_ALIASES: KeybindAliasMap;
   var keybinds: KeybindMap;
-  var recordingKeybindAction: string;
   var state: ClientRoom | null;
   var practiceSession: PracticeSessionHandle | null;
   var turnCountdownTimer: ReturnType<typeof setInterval> | null;
@@ -547,21 +531,15 @@ declare global {
   var deviceTheme: MediaQueryList;
   var previousGameTouchY: number | null;
 
-  function normalizedKey(key: string | undefined): string | undefined;
-  function loadKeybinds(): KeybindMap;
   function keybindLabel(key: string | undefined): string | undefined;
   function activeKeybindAliases(action: string): string[];
   function keysForAction(action: string): string[];
   function keybindDisplay(action: string): string;
-  function saveKeybinds(): void;
-  function renderKeybinds(): void;
-  function beginKeybindRecording(action: string): void;
-  function cancelKeybindRecording(): void;
-  function assignKeybind(action: string, key: string): void;
   function matchesKeybind(event: KeyboardEvent, action: string): boolean;
+  function formatTimerChoiceLabel(seconds: number): string;
+  function timerChoicesForValue(presets: TimerChoice[], selectedSeconds: number): TimerChoice[];
   function applyTheme(theme: string): void;
   function applyTableAppearance(felt: string | null, deck: string | null, persist?: boolean): void;
-  function renderAppearanceChoices(): void;
   function getDeviceId(): string;
   function roomCredentials(roomId: string): RoomCredential | null;
   function saveRoomCredentials(
@@ -600,8 +578,6 @@ declare global {
   function seatedPlayers(list?: ClientPlayer[] | null): ClientPlayer[];
   function roundStatus(player: ClientPlayer): string;
   function isMenuNameEditing(): boolean;
-  function isMenuShotClockEditing(): boolean;
-  function isMenuReadyTimerEditing(): boolean;
   function syncServerTimeOffset(nextState: ClientRoom | null | undefined): void;
   function clientNow(): number;
   function formatTurnCountdown(seconds: number): string;
@@ -636,12 +612,10 @@ declare global {
     phase: string | null | undefined,
   ): ActionLogEntry[];
   function renderShotClockChoices(): void;
-  function commitShotClockCustom(form: HTMLElement | null): void;
   function renderReadyTimerChoices(): void;
   function renderRabbitHuntChoices(): void;
   function rabbitFaceDownTemplate(withHint: boolean): string;
   function revealRabbitBoard(): void;
-  function commitReadyTimerCustom(form: HTMLElement | null): void;
   function turnSecondsRemaining(): number;
   function turnPctRemaining(): number;
   function actingSeatShowsClock(player: ClientPlayer): boolean;
