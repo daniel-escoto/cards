@@ -55,6 +55,42 @@ async function hostAndSeat(page, name, botCount) {
   if (botCount > 0) await addBots(page, botCount);
 }
 
+async function readyUp(page) {
+  const ready = page.locator("#gameButtons button", { hasText: /Ready up/i });
+  await ready.waitFor({ state: "visible", timeout: 15000 });
+  await ready.click();
+}
+
+async function waitForInHand(page) {
+  await page
+    .waitForFunction(
+      () => {
+        const heroCards = document.querySelectorAll("#heroHand .card").length;
+        const yourTurn = document.querySelector("#turnInfo.your-turn");
+        const bet = document.querySelector("#betControls:not(.hidden)");
+        const actBtn = Array.from(document.querySelectorAll("#gameButtons button")).some((b) =>
+          /^(Fold|Check|Call|Raise|Bet|All in)/i.test((b.textContent || "").trim()),
+        );
+        const acting = /to act|Acting/i.test(document.querySelector("#turnInfo")?.textContent || "");
+        return heroCards >= 1 && (yourTurn || bet || actBtn || acting);
+      },
+      { timeout: 25000 },
+    )
+    .catch(() => {});
+  for (let i = 0; i < 40; i += 1) {
+    const open = await page.evaluate(() =>
+      Boolean(
+        document.querySelector("#betControls:not(.hidden)") ||
+          Array.from(document.querySelectorAll("#gameButtons button")).some((b) =>
+            /^(Fold|Check|Call)/i.test((b.textContent || "").trim()),
+          ),
+      ),
+    );
+    if (open) break;
+    await page.waitForTimeout(200);
+  }
+}
+
 async function forceRoom(page, kind) {
   await page.evaluate((mode) => {
     const base = window.state && typeof window.state === "object" ? window.state : {};
