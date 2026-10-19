@@ -33,7 +33,7 @@ const block = (selector) => {
 };
 assert.match(block(".bet-controls.is-reserved,\n.action-placeholder"), /visibility:\s*hidden/);
 assert.match(block(".control-panel > .winner-list,\n.control-panel > .bet-controls"), /grid-row:\s*5/);
-assert.match(block(".control-panel"), /grid-template-rows:\s*auto 0 auto auto auto/);
+assert.match(block(".control-panel"), /grid-template-rows:\s*auto 0 minmax\(calc\(15px \* 1\.35\), auto\) auto auto/);
 
 // 3. reserveActionSpace fills empty rows with invisible, unfocusable placeholders.
 const grab = (fn) => {
@@ -47,10 +47,14 @@ const context = {
   gameButtons: document.querySelector("#gameButtons"),
   betControls,
   betPresets: document.querySelector("#betPresets"),
+  winnerList: document.querySelector("#winnerList"),
 };
+const panel = document.querySelector(".control-panel");
 vm.runInNewContext(
-  ["setBetControlsReserved", "actionPlaceholder", "reserveActionSpace"].map(grab).join("\n") +
-    "\nthis.reserve = setBetControlsReserved; this.fill = reserveActionSpace;",
+  ["setBetControlsReserved", "actionPlaceholder", "reserveActionSpace", "winnerHowText"]
+    .map(grab)
+    .join("\n") +
+    "\nthis.reserve = setBetControlsReserved; this.fill = reserveActionSpace; this.how = winnerHowText;",
   context,
 );
 context.reserve(true);
@@ -70,5 +74,29 @@ context.fill();
 assert.equal(context.gameButtons.querySelector(".action-placeholder"), null, "no placeholder next to real buttons");
 assert.equal(betControls.hasAttribute("aria-hidden"), false);
 assert.equal(betControls.inert, false);
+
+assert.ok(!panel.classList.contains("is-result") && !panel.classList.contains("is-idle"), "in-hand: default layout");
+
+// 4. Hand end fills the reserved slot: result block when there are winners, centered status otherwise.
+context.gameButtons.innerHTML = "";
+context.reserve(true);
+context.fill();
+assert.ok(panel.classList.contains("is-idle"), "showdown / folded: status centered in the space");
+assert.ok(!panel.classList.contains("is-result"));
+
+context.winnerList.innerHTML = '<div class="result-line">x</div>';
+context.gameButtons.innerHTML = "<button>Ready up</button>";
+context.fill();
+assert.ok(panel.classList.contains("is-result"), "ready-up with winners: result block layout");
+assert.ok(!panel.classList.contains("is-idle"));
+assert.match(block(".control-panel.is-result > .winner-list,\n.control-panel.is-result > .bet-controls"), /grid-row:\s*3/);
+assert.match(block(".control-panel.is-idle > .turn-info"), /grid-row:\s*3 \/ 6/);
+
+// 5. Result copy: no "with Everyone else folded".
+assert.equal(context.how("Everyone else folded"), "Everyone folded");
+assert.equal(context.how("Everyone folded"), "Everyone folded");
+assert.equal(context.how("Full House, 4's over 5's"), "Full House, 4's over 5's");
+assert.equal(context.how(""), "");
+assert.doesNotMatch(tableSrc, /\} with \$\{escapeHtml\(winner\.hand\)\}/);
 
 console.log("Action space reserve checks passed.");

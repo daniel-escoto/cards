@@ -2415,7 +2415,7 @@ button.menu-player-row:not(:disabled):hover {
   /* Fixed tracks: hand · (spacer that keeps the old gap) · prompt · buttons · bet slot.
      Winner lines share the bet slot, so the panel is one height in every hand state. */
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto 0 auto auto auto;
+  grid-template-rows: auto 0 minmax(calc(15px * 1.35), auto) auto auto;
   gap: 12px;
   padding: 16px;
   border: 1px solid var(--surface-border);
@@ -2991,6 +2991,10 @@ kbd {
   display: grid;
 }
 
+/* Explicit column so overlapping / spanning rows never spawn an implicit column. */
+.control-panel > * {
+  grid-column: 1;
+}
 .control-panel > .hand-row {
   grid-row: 1;
 }
@@ -3010,6 +3014,72 @@ kbd {
 }
 .control-panel:has(> .bet-controls:not(.is-reserved)) > .winner-list {
   visibility: hidden;
+}
+/* Hand result: the centered result block takes the reserved bet slot (row 3) and the ready
+   line + buttons drop below it. Same tracks, so the panel height doesn't change. */
+.control-panel.is-result > .winner-list,
+.control-panel.is-result > .bet-controls {
+  grid-row: 3;
+}
+.control-panel.is-result > .turn-info {
+  grid-row: 4;
+  text-align: center;
+}
+.control-panel.is-result > .game-buttons {
+  grid-row: 5;
+}
+.control-panel.is-result > .winner-list {
+  /* Never size the row: the reserved bet controls do. The block fills the slot and centers. */
+  align-self: stretch;
+  contain: size;
+  align-content: center;
+  gap: 10px;
+  overflow: hidden;
+}
+/* Split pots: compact lines so two or three winners fit the same slot. */
+.control-panel.is-result > .winner-list:has(> .result-line + .result-line) {
+  gap: 4px;
+}
+.winner-list:has(> .result-line + .result-line) .result-head {
+  font-size: 15px;
+}
+.winner-list:has(> .result-line + .result-line) .result-how {
+  font-size: 12px;
+  line-height: 1.2;
+}
+.winner-list:has(> .result-line + .result-line + .result-line) .result-how {
+  display: none;
+}
+/* No buttons and no result (showdown, folded, waiting): center the status in the space. */
+.control-panel.is-idle > .turn-info {
+  grid-row: 3 / 6;
+  align-self: center;
+  text-align: center;
+}
+.result-line {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  text-align: center;
+}
+.result-head {
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+.result-head .seat-name {
+  font-weight: 850;
+}
+.result-amount {
+  font-variant-numeric: tabular-nums;
+}
+.result-how {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
 }
 .bet-controls.is-reserved,
 .action-placeholder {
@@ -3316,6 +3386,18 @@ kbd {
   .turn-info {
     font-size: 16px;
     min-height: calc(16px * 1.35);
+  }
+
+  .control-panel {
+    grid-template-rows: auto 0 minmax(calc(16px * 1.35), auto) auto auto;
+  }
+
+  .result-head {
+    font-size: 20px;
+  }
+
+  .result-how {
+    font-size: 14px;
   }
 
   .players {
