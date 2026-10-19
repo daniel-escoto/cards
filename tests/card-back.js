@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Face-down card back: self-contained inline SVG (no external assets), drawn in the card's own
- * 72:100 box and stretched to fit so it never changes card size, and mirror-symmetric.
+ * 72:100 box and stretched to fit so it never changes card size, mirror-symmetric, and minimal
+ * (classic red field, cream border, thin inset line, faint fine lattice; no ornaments).
  */
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -27,5 +28,13 @@ assert.ok(pattern, "lattice pattern present");
 const [w, h, x, y] = pattern.slice(1).map(Number);
 assert.equal((36 - x - w / 2) % w, 0, "lattice centered horizontally");
 assert.equal((50 - y - h / 2) % h, 0, "lattice centered vertically");
-assert.match(svg, /<g transform='translate\(36 50\)'>/, "medallion centered");
+
+// Minimal classic red back: red field + cream border, no ornaments.
+assert.match(svg, /fill='#b3262e'/, "classic red field");
+assert.match(svg, /fill='#f7f1e6'/, "cream border");
+assert.doesNotMatch(svg, /<(circle|ellipse|g)\b/, "no medallion, rosettes or dots");
+assert.ok((svg.match(/<path\b/g) || []).length <= 1, "lattice is a single fine stroke path");
+for (const sw of svg.matchAll(/stroke-width='([\d.]+)'/g)) {
+  assert.ok(Number(sw[1]) <= 1, "only fine lines");
+}
 console.log("Card back checks passed.");
