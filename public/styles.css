@@ -1981,6 +1981,8 @@ button.menu-player-row:not(:disabled):hover {
   text-align: right;
 }
 .player-stack {
+  /* Same width on every row (each row is its own grid), so status and stack columns line up. */
+  min-width: 5ch;
   padding: 0;
   border-radius: 0;
   color: rgba(255, 255, 255, 0.92);
@@ -2178,6 +2180,15 @@ button.menu-player-row:not(:disabled):hover {
   font-weight: 650;
   letter-spacing: 0.01em;
 }
+/* Fixed slot for the SB/BB chip, present even when empty, so the "you" / CPU tag before it
+   right-aligns to the same edge on every row. */
+.seat-chip-slot {
+  flex: 0 0 var(--seat-chip-size, 18px);
+  width: var(--seat-chip-size, 18px);
+  height: var(--seat-chip-size, 18px);
+  display: inline-grid;
+  place-items: center;
+}
 .blind-chip {
   --chip-color: var(--accent);
   flex: 0 0 auto;
@@ -2202,6 +2213,7 @@ button.menu-player-row:not(:disabled):hover {
 /* CPU personality — quiet label, not a badge. */
 .bot-style-tag {
   flex: 0 0 auto;
+  text-align: right;
   padding: 0;
   border: none;
   border-radius: 0;
@@ -3689,7 +3701,8 @@ kbd {
 
   .table-player-row {
     min-height: 40px;
-    grid-template-columns: 12px minmax(10ch, 1.4fr) minmax(3.4rem, 0.8fr) auto;
+    /* Fixed status width on phones: the name column gets the rest instead of a roomy status. */
+    grid-template-columns: 12px minmax(10ch, 1fr) 4.25rem auto;
     gap: 7px;
     padding: 7px 9px;
     border-radius: 11px;
@@ -3714,6 +3727,9 @@ kbd {
   .seat-you-mark {
     font-size: 10px;
   }
+  .seat-chip-slot {
+    --seat-chip-size: 16px;
+  }
   .blind-chip {
     width: 16px;
     height: 16px;
@@ -3729,7 +3745,7 @@ kbd {
     font-size: 11px;
   }
   .player-stack {
-    min-width: max-content;
+    min-width: 5ch;
     font-size: 12px;
     white-space: nowrap;
   }
