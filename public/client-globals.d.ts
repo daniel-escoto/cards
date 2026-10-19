@@ -569,6 +569,10 @@ declare global {
   function showMenuSettingsView(): void;
   function hideGameMenu(): void;
   function syncMenuNameForm(): void;
+  function renderControlsContent(hero: ClientPlayer | null | undefined): void;
+  function setBetControlsReserved(reserved: boolean): void;
+  function actionPlaceholder(label: string): HTMLButtonElement;
+  function reserveActionSpace(): void;
   function syncHostMenuSection(): void;
   function syncBlindPanel(canBlinds: boolean): void;
   function playerIsOut(player: ClientPlayer): boolean;

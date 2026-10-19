@@ -2412,6 +2412,10 @@ button.menu-player-row:not(:disabled):hover {
 
 .control-panel {
   display: grid;
+  /* Fixed tracks: hand · (spacer that keeps the old gap) · prompt · buttons · bet slot.
+     Winner lines share the bet slot, so the panel is one height in every hand state. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 0 auto auto auto;
   gap: 12px;
   padding: 16px;
   border: 1px solid var(--surface-border);
@@ -2985,6 +2989,32 @@ kbd {
 
 .hero-hand .card .card-corner {
   display: grid;
+}
+
+.control-panel > .hand-row {
+  grid-row: 1;
+}
+.control-panel > .turn-info {
+  grid-row: 3;
+}
+.control-panel > .game-buttons {
+  grid-row: 4;
+}
+.control-panel > .winner-list,
+.control-panel > .bet-controls {
+  grid-row: 5;
+  grid-column: 1;
+}
+.control-panel > .winner-list {
+  align-self: start;
+}
+.control-panel:has(> .bet-controls:not(.is-reserved)) > .winner-list {
+  visibility: hidden;
+}
+.bet-controls.is-reserved,
+.action-placeholder {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .bet-controls {
