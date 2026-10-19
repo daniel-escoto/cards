@@ -191,9 +191,6 @@ copyShareBtn.addEventListener("click", () => copyText(shareLink.value, copyShare
 openSettingsBtn.addEventListener("click", showMenuSettingsView);
 closeSettingsBtn.addEventListener("click", showMenuMainView);
 closeSettingsMenuBtn.addEventListener("click", hideGameMenu);
-openHostBtn.addEventListener("click", showMenuHostView);
-closeHostBtn.addEventListener("click", showMenuMainView);
-closeHostMenuBtn.addEventListener("click", hideGameMenu);
 
 backToMenuBtn.addEventListener("click", () => {
   hideGameMenu();

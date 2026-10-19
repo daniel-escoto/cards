@@ -321,9 +321,6 @@
                 Settings
               </button>
               <button id="sitOutBtn" type="button" class="secondary menu-row-btn">Sit out</button>
-              <button id="openHostBtn" type="button" class="secondary menu-row-btn hidden">
-                Host
-              </button>
               <button
                 id="backToMenuBtn"
                 type="button"
@@ -331,103 +328,6 @@
               >
                 Leave
               </button>
-            </div>
-          </div>
-
-          <div id="menuHostView" class="menu-view menu-host-view hidden">
-            <div class="modal-head">
-              <div class="settings-head">
-                <button
-                  id="closeHostBtn"
-                  class="ghost settings-back-btn"
-                  type="button"
-                  aria-label="Back to menu"
-                >
-                  ←
-                </button>
-                <h2 id="hostTitle" class="menu-title">Host</h2>
-              </div>
-              <button
-                id="closeHostMenuBtn"
-                class="ghost icon-btn"
-                type="button"
-                aria-label="Close menu"
-              >
-                ×
-              </button>
-            </div>
-            <div class="menu-stack host-settings-body">
-              <div id="blindPanel" class="host-block blind-settings-panel hidden">
-                <p class="menu-subsection-title">Blinds</p>
-                <form id="blindForm" class="blind-settings-form">
-                  <div class="blind-fields">
-                    <label>
-                      <span id="menuSmallBlindLabel">Small</span>
-                      <input
-                        id="menuSmallBlindInput"
-                        type="number"
-                        min="1"
-                        step="1"
-                        inputmode="decimal"
-                      />
-                    </label>
-                    <label>
-                      <span id="menuBigBlindLabel">Big</span>
-                      <input
-                        id="menuBigBlindInput"
-                        type="number"
-                        min="2"
-                        step="1"
-                        inputmode="decimal"
-                      />
-                    </label>
-                  </div>
-                  <button type="submit">Update blinds</button>
-                </form>
-              </div>
-              <div id="shotClockPanel" class="host-block shot-clock-panel hidden">
-                <p class="menu-subsection-title">Shot clock</p>
-                <div class="appearance-group">
-                  <div
-                    id="shotClockChoices"
-                    class="appearance-choices shot-clock-choices"
-                    role="radiogroup"
-                    aria-label="Shot clock"
-                  ></div>
-                </div>
-                <p class="shortcut-help">Auto-check or fold when time runs out.</p>
-              </div>
-              <div id="readyTimerPanel" class="host-block shot-clock-panel hidden">
-                <p class="menu-subsection-title">Ready timer</p>
-                <div class="appearance-group">
-                  <div
-                    id="readyTimerChoices"
-                    class="appearance-choices shot-clock-choices"
-                    role="radiogroup"
-                    aria-label="Ready-up timer"
-                  ></div>
-                </div>
-                <p class="shortcut-help">Sit out if not ready in time.</p>
-              </div>
-              <div id="rabbitHuntPanel" class="host-block shot-clock-panel hidden">
-                <p class="menu-subsection-title">Show rest of board</p>
-                <div class="appearance-group">
-                  <div
-                    id="rabbitHuntChoices"
-                    class="appearance-choices shot-clock-choices"
-                    role="radiogroup"
-                    aria-label="Show rest of board"
-                  ></div>
-                </div>
-                <p class="shortcut-help">After a fold-win, reveal the cards that would have come.</p>
-              </div>
-              <div id="hostActionsPanel" class="host-block host-actions-panel hidden">
-                <p class="menu-subsection-title">Game</p>
-                <div class="host-actions-row">
-                  <button id="restartGameBtn" type="button" class="secondary">Restart</button>
-                  <button id="endGameBtn" type="button" class="danger">End game</button>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -494,6 +394,84 @@
                   >Buy-ins during a hand apply to the next deal. Settle up after the game.</small
                 >
               </form>
+              <section
+                id="settingsTableSection"
+                class="settings-table-section hidden"
+                aria-labelledby="settingsTableTitle"
+              >
+                <h3 id="settingsTableTitle" class="settings-section-title">Table</h3>
+                <div id="blindPanel" class="host-block blind-settings-panel hidden">
+                  <p class="menu-subsection-title">Blinds</p>
+                  <form id="blindForm" class="blind-settings-form">
+                    <div class="blind-fields">
+                      <label>
+                        <span id="menuSmallBlindLabel">Small</span>
+                        <input
+                          id="menuSmallBlindInput"
+                          type="number"
+                          min="1"
+                          step="1"
+                          inputmode="decimal"
+                        />
+                      </label>
+                      <label>
+                        <span id="menuBigBlindLabel">Big</span>
+                        <input
+                          id="menuBigBlindInput"
+                          type="number"
+                          min="2"
+                          step="1"
+                          inputmode="decimal"
+                        />
+                      </label>
+                    </div>
+                    <button type="submit">Update blinds</button>
+                  </form>
+                </div>
+                <div id="shotClockPanel" class="host-block shot-clock-panel hidden">
+                  <p class="menu-subsection-title">Shot clock</p>
+                  <div class="appearance-group">
+                    <div
+                      id="shotClockChoices"
+                      class="appearance-choices shot-clock-choices"
+                      role="radiogroup"
+                      aria-label="Shot clock"
+                    ></div>
+                  </div>
+                  <p class="shortcut-help">Auto-check or fold when time runs out.</p>
+                </div>
+                <div id="readyTimerPanel" class="host-block shot-clock-panel hidden">
+                  <p class="menu-subsection-title">Ready timer</p>
+                  <div class="appearance-group">
+                    <div
+                      id="readyTimerChoices"
+                      class="appearance-choices shot-clock-choices"
+                      role="radiogroup"
+                      aria-label="Ready-up timer"
+                    ></div>
+                  </div>
+                  <p class="shortcut-help">Sit out if not ready in time.</p>
+                </div>
+                <div id="rabbitHuntPanel" class="host-block shot-clock-panel hidden">
+                  <p class="menu-subsection-title">Show rest of board</p>
+                  <div class="appearance-group">
+                    <div
+                      id="rabbitHuntChoices"
+                      class="appearance-choices shot-clock-choices"
+                      role="radiogroup"
+                      aria-label="Show rest of board"
+                    ></div>
+                  </div>
+                  <p class="shortcut-help">After a fold-win, reveal the cards that would have come.</p>
+                </div>
+                <div id="hostActionsPanel" class="host-block host-actions-panel hidden">
+                  <p class="menu-subsection-title">Game</p>
+                  <div class="host-actions-row">
+                    <button id="restartGameBtn" type="button" class="secondary">Restart</button>
+                    <button id="endGameBtn" type="button" class="danger">End game</button>
+                  </div>
+                </div>
+              </section>
             </div>
           </div>
         </div>

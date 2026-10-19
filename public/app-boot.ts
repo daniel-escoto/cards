@@ -38,13 +38,10 @@ var gameMenuModal = document.querySelector("#gameMenuModal") as HTMLElement;
 var closeMenuBtn = document.querySelector("#closeMenuBtn") as HTMLButtonElement;
 var menuMainView = document.querySelector("#menuMainView") as HTMLElement;
 var menuSettingsView = document.querySelector("#menuSettingsView") as HTMLElement;
-var menuHostView = document.querySelector("#menuHostView") as HTMLElement;
 var openSettingsBtn = document.querySelector("#openSettingsBtn") as HTMLButtonElement;
 var closeSettingsBtn = document.querySelector("#closeSettingsBtn") as HTMLButtonElement;
 var closeSettingsMenuBtn = document.querySelector("#closeSettingsMenuBtn") as HTMLButtonElement;
-var openHostBtn = document.querySelector("#openHostBtn") as HTMLButtonElement;
-var closeHostBtn = document.querySelector("#closeHostBtn") as HTMLButtonElement;
-var closeHostMenuBtn = document.querySelector("#closeHostMenuBtn") as HTMLButtonElement;
+var settingsTableSection = document.querySelector("#settingsTableSection") as HTMLElement;
 var addBotBtn = document.querySelector("#addBotBtn") as HTMLButtonElement;
 var restartGameBtn = document.querySelector("#restartGameBtn") as HTMLButtonElement;
 var endGameBtn = document.querySelector("#endGameBtn") as HTMLButtonElement;
@@ -598,23 +595,15 @@ function showTable(room: ClientRoom) {
 
 function showMenuMainView() {
   menuSettingsView.classList.add("hidden");
-  menuHostView.classList.add("hidden");
   menuMainView.classList.remove("hidden");
 }
 
 function showMenuSettingsView() {
   menuMainView.classList.add("hidden");
-  menuHostView.classList.add("hidden");
   menuSettingsView.classList.remove("hidden");
   syncMenuNameForm();
+  syncHostMenuSection();
   closeSettingsBtn.focus({ preventScroll: true });
-}
-
-function showMenuHostView() {
-  menuMainView.classList.add("hidden");
-  menuSettingsView.classList.add("hidden");
-  menuHostView.classList.remove("hidden");
-  closeHostBtn.focus({ preventScroll: true });
 }
 
 function hideGameMenu() {
@@ -698,8 +687,9 @@ function syncMenuNameForm() {
   if (input && hero) input.value = hero.name;
 }
 
+/** Host-only "Table" section inside Settings; re-run on every room update so it tracks host changes live. */
 function syncHostMenuSection() {
-  if (!openHostBtn || !hostActionsPanel) return;
+  if (!settingsTableSection || !hostActionsPanel) return;
   const canRestart = Boolean(state?.canRestartGame && state.phase !== "lobby");
   const canEnd = Boolean(state?.canEndGame);
   const canBlinds = Boolean(state?.canChangeBlinds) && !isSpectatorView();
@@ -708,13 +698,34 @@ function syncHostMenuSection() {
   const canReadyTimer =
     Boolean(state?.canChangeReadyTimer) && !isOfflineSession() && !isSpectatorView();
   const canRabbitHunt = Boolean(state?.canChangeRabbitHunt) && !isSpectatorView();
+  syncBlindPanel(canBlinds);
   restartGameBtn.classList.toggle("hidden", !canRestart);
   endGameBtn.classList.toggle("hidden", !canEnd);
   hostActionsPanel.classList.toggle("hidden", !canRestart && !canEnd);
   const showHost =
     canBlinds || canShotClock || canReadyTimer || canRabbitHunt || canRestart || canEnd;
-  openHostBtn.classList.toggle("hidden", !showHost);
-  if (!showHost) menuHostView.classList.add("hidden");
+  settingsTableSection.classList.toggle("hidden", !showHost);
+}
+
+function syncBlindPanel(canBlinds: boolean) {
+  const wasHidden = blindPanel.classList.contains("hidden");
+  blindPanel.classList.toggle("hidden", !canBlinds);
+  if (!canBlinds || !state) return;
+  // Refill when the panel first appears (menu open or host handed over); never clobber an edit.
+  if (!wasHidden || blindPanel.contains(document.activeElement)) return;
+  const moneyMode = state.moneyMode;
+  menuSmallBlindLabel.textContent = moneyMode ? "Small ($)" : "Small";
+  menuBigBlindLabel.textContent = moneyMode ? "Big ($)" : "Big";
+  menuSmallBlindInput.value = moneyMode
+    ? (state.smallBlindCents / 100).toFixed(2)
+    : String(state.smallBlind);
+  menuBigBlindInput.value = moneyMode
+    ? (state.bigBlindCents / 100).toFixed(2)
+    : String(state.bigBlind);
+  menuSmallBlindInput.min = moneyMode ? "0.01" : "1";
+  menuBigBlindInput.min = moneyMode ? "0.02" : "2";
+  menuSmallBlindInput.step = moneyMode ? "0.01" : "1";
+  menuBigBlindInput.step = moneyMode ? "0.01" : "1";
 }
 
 function commitMenuDisplayName(nameForm: HTMLElement | null) {
@@ -871,22 +882,8 @@ function showGameMenu() {
   const offline = isOfflineSession();
   shareGameBtn.classList.toggle("hidden", offline);
   sharePanel.classList.add("hidden");
-  blindPanel.classList.toggle("hidden", !state?.canChangeBlinds || isSpectatorView());
-  if (state?.canChangeBlinds) {
-    const moneyMode = state.moneyMode;
-    menuSmallBlindLabel.textContent = moneyMode ? "Small ($)" : "Small";
-    menuBigBlindLabel.textContent = moneyMode ? "Big ($)" : "Big";
-    menuSmallBlindInput.value = moneyMode
-      ? (state.smallBlindCents / 100).toFixed(2)
-      : String(state.smallBlind);
-    menuBigBlindInput.value = moneyMode
-      ? (state.bigBlindCents / 100).toFixed(2)
-      : String(state.bigBlind);
-    menuSmallBlindInput.min = moneyMode ? "0.01" : "1";
-    menuBigBlindInput.min = moneyMode ? "0.02" : "2";
-    menuSmallBlindInput.step = moneyMode ? "0.01" : "1";
-    menuBigBlindInput.step = moneyMode ? "0.01" : "1";
-  }
+  // Hide first so syncHostMenuSection refills the blind inputs with current values on open.
+  blindPanel.classList.add("hidden");
   renderShotClockChoices();
   renderReadyTimerChoices();
   renderRabbitHuntChoices();

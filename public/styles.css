@@ -1210,8 +1210,21 @@ select:focus {
   margin-bottom: 8px;
 }
 
-.menu-host-view .host-settings-body {
+/* Host-only "Table" section at the bottom of Settings. */
+.settings-table-section {
+  display: grid;
   gap: 14px;
+  margin-top: 8px;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+}
+
+.settings-section-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.2;
 }
 
 .host-block {
