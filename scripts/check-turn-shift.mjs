@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Playwright check: the action panel and seat list must not move when the turn passes
- * from the hero to a CPU. Needs a running server and `playwright` installed (not in CI).
+ * from the hero to a CPU, nor when a hand ends (showdown / fold-win) and the table goes to
+ * ready-up. Needs a running server and `playwright` installed (not in CI).
  *   node scripts/check-turn-shift.mjs [baseUrl] [chromePath]
  */
 import { chromium } from "playwright";
@@ -44,6 +45,26 @@ async function runViewport(browser, viewport) {
       return out;
     }, WATCH);
 
+  // Every rAF, record the panel / seat-list rect per hand phase (lobby excluded: no hand yet).
+  await page.evaluate(() => {
+    const w = window;
+    w.__phaseRects = {};
+    const tick = () => {
+      const phase = w.state?.phase;
+      if (phase && phase !== "lobby" && phase !== "gameover") {
+        const key = ["preflop", "flop", "turn", "river"].includes(phase) ? "in-hand" : phase;
+        const rect = (selector) => {
+          const r = document.querySelector(selector)?.getBoundingClientRect();
+          return r ? [r.y, r.height].map((v) => v.toFixed(2)).join("/") : "";
+        };
+        const value = `panel ${rect(".control-panel")} players ${rect("#players")}`;
+        (w.__phaseRects[key] ||= {})[value] = true;
+      }
+      requestAnimationFrame(tick);
+    };
+    tick();
+  });
+
   const failures = [];
   let checked = 0;
   for (let i = 0; i < 400 && checked < 3; i += 1) {
@@ -78,6 +99,26 @@ async function runViewport(browser, viewport) {
     }
     await page.waitForTimeout(100);
   }
+  // Play on until a hand has finished, so in-hand, showdown/fold-win and ready-up are all seen.
+  for (let i = 0; i < 300; i += 1) {
+    const seen = await page.evaluate(() => Object.keys(window.__phaseRects));
+    if (seen.includes("in-hand") && seen.includes("complete")) break;
+    const button = page.locator("#gameButtons button:not([disabled])", { hasText: /^(Check|Call)/ });
+    if (await page.evaluate(() => Boolean(window.state?.isYourTurn)) && (await button.count())) {
+      await button.first().click().catch(() => {});
+    }
+    await page.waitForTimeout(100);
+  }
+  const phaseRects = await page.evaluate(() =>
+    Object.fromEntries(Object.entries(window.__phaseRects).map(([k, v]) => [k, Object.keys(v)])),
+  );
+  const distinct = new Set(Object.values(phaseRects).flat());
+  if (!phaseRects.complete) failures.push(`${viewport.width}x${viewport.height}: never reached ready-up`);
+  if (distinct.size > 1) {
+    failures.push(
+      `${viewport.width}x${viewport.height} panel height changes across hand phases: ${JSON.stringify(phaseRects)}`,
+    );
+  }
   await context.close();
   if (!checked)
     failures.push(`${viewport.width}x${viewport.height}: never observed a hero→CPU turn change`);
@@ -89,7 +130,7 @@ const failures = [];
 for (const viewport of VIEWPORTS) failures.push(...(await runViewport(browser, viewport)));
 await browser.close();
 if (failures.length) {
-  console.error("Layout shifted on turn change:\n" + failures.join("\n"));
+  console.error("Layout shifted:\n" + failures.join("\n"));
   process.exit(1);
 }
-console.log("check-turn-shift: panel and seat list stable across turn changes");
+console.log("check-turn-shift: panel and seat list stable across turn changes and hand end");

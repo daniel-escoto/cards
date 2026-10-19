@@ -395,7 +395,7 @@ document.addEventListener("keydown", (event) => {
   if (!state.isYourTurn) return;
   if (
     (matchesKeybind(event, "raiseUp") || matchesKeybind(event, "raiseDown")) &&
-    !betControls.classList.contains("hidden")
+    !betControls.classList.contains("is-reserved")
   ) {
     event.preventDefault();
     changeRaise(matchesKeybind(event, "raiseUp") ? 1 : -1);
@@ -415,7 +415,7 @@ document.addEventListener("keydown", (event) => {
       emitWithAck("game:action", { type: state.toCall > 0 ? "call" : "check" });
     }
   }
-  if (matchesKeybind(event, "raise") && !betControls.classList.contains("hidden")) {
+  if (matchesKeybind(event, "raise") && !betControls.classList.contains("is-reserved")) {
     // Merged confirm: R / raise-up keys increment off the detent to a real size.
     if (mergePassiveConfirm) changeRaise(1);
     else raiseActionBtn.click();

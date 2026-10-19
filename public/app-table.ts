@@ -162,10 +162,44 @@ function scrollActionFeed() {
 }
 
 function renderControls(hero: ClientPlayer | null | undefined) {
+  renderControlsContent(hero);
+  reserveActionSpace();
+}
+
+/**
+ * Keep the control panel one height across in-hand, showdown, folded and ready-up so the
+ * table never jumps: the bet controls stay laid out (visibility only) and an empty button
+ * row holds an invisible placeholder the size of a real button.
+ */
+function setBetControlsReserved(reserved: boolean) {
+  betControls.classList.toggle("is-reserved", reserved);
+  betControls.inert = reserved;
+  if (reserved) betControls.setAttribute("aria-hidden", "true");
+  else betControls.removeAttribute("aria-hidden");
+}
+
+function actionPlaceholder(label: string) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "action-placeholder";
+  button.textContent = label;
+  button.tabIndex = -1;
+  button.setAttribute("aria-hidden", "true");
+  return button;
+}
+
+function reserveActionSpace() {
+  if (!gameButtons.children.length) gameButtons.appendChild(actionPlaceholder("Ready up"));
+  if (betControls.classList.contains("is-reserved") && !betPresets.children.length) {
+    betPresets.appendChild(actionPlaceholder("All in"));
+  }
+}
+
+function renderControlsContent(hero: ClientPlayer | null | undefined) {
   if (!state) return;
   const room = state;
   gameButtons.innerHTML = "";
-  betControls.classList.add("hidden");
+  setBetControlsReserved(true);
   raiseControlsDisabled = false;
   mergePassiveConfirm = false;
   confirmActionBtn = null;
@@ -328,7 +362,7 @@ function configureRaiseControls(hero: ClientPlayer, disabled = false) {
   if (!state) return;
   const maxRaise = hero.bet + hero.stack;
   if (maxRaise <= state.currentBet) return;
-  betControls.classList.remove("hidden");
+  setBetControlsReserved(false);
   // Full min-raise tools only when the stack can meet minRaiseTo; otherwise jam-only.
   const canFullRaise = maxRaise >= state.minRaiseTo;
   const minRaise = canFullRaise ? Math.min(maxRaise, state.minRaiseTo) : maxRaise;

@@ -259,7 +259,7 @@ async function runViewport(browser, viewport) {
       () => {
         const yourTurn = document.querySelector("#turnInfo.your-turn");
         const community = document.querySelector("#community");
-        const bet = document.querySelector("#betControls:not(.hidden)");
+        const bet = document.querySelector("#betControls:not(.is-reserved)");
         const fold = Array.from(document.querySelectorAll("#gameButtons button")).some((b) =>
           /fold|check|call|raise|bet/i.test(b.textContent || ""),
         );
@@ -273,7 +273,7 @@ async function runViewport(browser, viewport) {
     const hasAction = await page.evaluate(() => {
       return Boolean(
         document.querySelector("#turnInfo.your-turn") ||
-          document.querySelector("#betControls:not(.hidden)") ||
+          document.querySelector("#betControls:not(.is-reserved)") ||
           Array.from(document.querySelectorAll("#gameButtons button")).some((b) =>
             /fold|check|call|raise|bet|all.?in/i.test(b.textContent || ""),
           ),

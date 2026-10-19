@@ -150,7 +150,7 @@ async function runViewport(browser, viewport) {
       () => {
         const heroCards = document.querySelectorAll("#heroHand .card").length;
         const yourTurn = document.querySelector("#turnInfo.your-turn");
-        const bet = document.querySelector("#betControls:not(.hidden)");
+        const bet = document.querySelector("#betControls:not(.is-reserved)");
         const actBtn = Array.from(document.querySelectorAll("#gameButtons button")).some((b) =>
           /^(Fold|Check|Call|Raise|Bet|All in)/i.test((b.textContent || "").trim()),
         );
@@ -165,7 +165,7 @@ async function runViewport(browser, viewport) {
   for (let i = 0; i < 50; i += 1) {
     open = await page.evaluate(() =>
       Boolean(
-        document.querySelector("#betControls:not(.hidden)") ||
+        document.querySelector("#betControls:not(.is-reserved)") ||
           Array.from(document.querySelectorAll("#gameButtons button")).some((b) =>
             /^(Fold|Check|Call)/i.test((b.textContent || "").trim()),
           ),
