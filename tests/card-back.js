@@ -1,0 +1,31 @@
+#!/usr/bin/env node
+/**
+ * Face-down card back: self-contained inline SVG (no external assets), drawn in the card's own
+ * 72:100 box and stretched to fit so it never changes card size, and mirror-symmetric.
+ */
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const css = fs.readFileSync(path.join(__dirname, "../public/styles.css"), "utf8");
+const m = /\n\.card\.back \{([^}]*)\}/.exec(css);
+assert.ok(m, ".card.back rule exists");
+const rule = m[1];
+const uri = /url\("data:image\/svg\+xml,([^"]+)"\)/.exec(rule);
+assert.ok(uri, "card back is an inline SVG data URI");
+assert.match(rule, /center \/ 100% 100% no-repeat/, "stretched to the card box, no tiling");
+assert.doesNotMatch(rule, /\b(width|height|padding|border|margin|aspect-ratio)\s*:/, "no sizing changes");
+
+const svg = decodeURIComponent(uri[1]);
+assert.match(svg, /viewBox='0 0 72 100'/, "drawn at the card's 0.72 aspect");
+assert.doesNotMatch(svg, /https?:\/\/(?!www\.w3\.org\/2000\/svg)/, "no external references");
+assert.doesNotMatch(uri[1], /#/, "every # is percent-encoded in the data URI");
+
+// Mirror symmetry: the lattice cell centers land on the card center (36, 50).
+const pattern = /<pattern id='l' width='(\d+)' height='(\d+)' x='(\d+)' y='(\d+)'/.exec(svg);
+assert.ok(pattern, "lattice pattern present");
+const [w, h, x, y] = pattern.slice(1).map(Number);
+assert.equal((36 - x - w / 2) % w, 0, "lattice centered horizontally");
+assert.equal((50 - y - h / 2) % h, 0, "lattice centered vertically");
+assert.match(svg, /<g transform='translate\(36 50\)'>/, "medallion centered");
+console.log("Card back checks passed.");
