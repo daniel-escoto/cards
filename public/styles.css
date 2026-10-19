@@ -1401,7 +1401,6 @@ button.menu-player-row:not(:disabled):hover {
 .shown-hand .card {
   width: 34px;
   padding: 5px;
-  border-radius: 5px;
   font-size: 12px;
 }
 
@@ -1618,7 +1617,11 @@ button.menu-player-row:not(:disabled):hover {
   display: grid;
   grid-template-rows: auto 1fr auto;
   padding: 8px;
-  border-radius: 10px;
+  /* One shared corner radius for every card type and size: a fraction of the card's own width
+     (vertical % scaled by the 0.72 aspect so corners stay circular). The face-down back's SVG
+     rounds its cream border and inset line concentrically from this same fraction. */
+  --card-radius: 14%;
+  border-radius: var(--card-radius) / calc(var(--card-radius) * 0.72);
   background: var(--card-paper);
   container-type: inline-size;
   color: var(--black-card);
@@ -1634,12 +1637,13 @@ button.menu-player-row:not(:disabled):hover {
 
 /* Face-down back: minimal classic red back (cream border, thin inset line, faint fine lattice).
    One inline SVG drawn in the card's own 72:100 box and stretched to fit, so it stays
-   vector-crisp at every size and never affects layout. */
+   vector-crisp at every size and never affects layout. Its inner corners are concentric with
+   --card-radius (14% of width = 10.08 viewBox units): rx = 10.08 - inset. */
 .card.back {
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 100' preserveAspectRatio='none'%3E%3Cdefs%3E%3Cpattern id='l' width='6' height='6' x='3' y='5' patternUnits='userSpaceOnUse'%3E%3Cpath d='M0 0L6 6M6 0L0 6' stroke='%23d04a52' stroke-width='.4' fill='none'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='72' height='100' fill='%23f7f1e6'/%3E%3Crect x='4.5' y='4.5' width='63' height='91' rx='4' fill='%23b3262e'/%3E%3Crect x='8.5' y='8.5' width='55' height='83' rx='2.5' fill='url(%23l)'/%3E%3Crect x='7.5' y='7.5' width='57' height='85' rx='3' fill='none' stroke='%23f7f1e6' stroke-width='.8' stroke-opacity='.85'/%3E%3C/svg%3E")
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 100' preserveAspectRatio='none'%3E%3Cdefs%3E%3Cpattern id='l' width='6' height='6' x='3' y='5' patternUnits='userSpaceOnUse'%3E%3Cpath d='M0 0L6 6M6 0L0 6' stroke='%23ec7a70' stroke-width='.4' stroke-opacity='.75' fill='none'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='72' height='100' fill='%23f7f1e6'/%3E%3Crect x='4.5' y='4.5' width='63' height='91' rx='5.58' fill='%23d6453f'/%3E%3Crect x='8.5' y='8.5' width='55' height='83' rx='1.58' fill='url(%23l)'/%3E%3Crect x='7.5' y='7.5' width='57' height='85' rx='2.58' fill='none' stroke='%23f7f1e6' stroke-width='.8' stroke-opacity='.9'/%3E%3C/svg%3E")
       center / 100% 100% no-repeat,
-    #b3262e;
+    #f7f1e6;
   color: transparent;
 }
 
@@ -2797,7 +2801,7 @@ kbd {
   --red-card: #a33b35;
 }
 :root[data-deck="heritage"] .card {
-  border-radius: 7px;
+  --card-radius: 10%;
   font-family: Georgia, "Times New Roman", serif;
 }
 :root[data-deck="heritage"] .card:not(.back) {
@@ -2834,7 +2838,7 @@ kbd {
   --red-card: #c2473d;
 }
 :root[data-deck="minimal"] .card {
-  border-radius: 5px;
+  --card-radius: 7.5%;
   box-shadow: 0 5px 14px rgba(0, 0, 0, 0.2);
 }
 :root[data-deck="minimal"] .card:not(.back) {
