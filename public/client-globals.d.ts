@@ -573,6 +573,7 @@ declare global {
   function setBetControlsReserved(reserved: boolean): void;
   function actionPlaceholder(label: string): HTMLButtonElement;
   function reserveActionSpace(): void;
+  function winnerHowText(hand: string | null | undefined): string;
   function syncHostMenuSection(): void;
   function syncBlindPanel(canBlinds: boolean): void;
   function playerIsOut(player: ClientPlayer): boolean;

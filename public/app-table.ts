@@ -106,9 +106,11 @@ function render() {
       const winnerPlayer = room.players.find(
         (player) => player.id === winner.playerId || player.name === winner.name,
       );
+      const how = winnerHowText(winner.hand);
       return `
-      <div ${playerColorStyle(winnerPlayer)}>
-        <span class="seat-name">${escapeHtml(winner.name)}</span> wins ${formatAmount(winner.amount, winner.amountCents)} with ${escapeHtml(winner.hand)}
+      <div class="result-line" ${playerColorStyle(winnerPlayer)}>
+        <span class="result-head"><span class="seat-name">${escapeHtml(winner.name)}</span> wins <span class="result-amount">${formatAmount(winner.amount, winner.amountCents)}</span></span>
+        ${how ? `<span class="result-how">${escapeHtml(how)}</span>` : ""}
       </div>
     `;
     })
@@ -190,9 +192,29 @@ function actionPlaceholder(label: string) {
 
 function reserveActionSpace() {
   if (!gameButtons.children.length) gameButtons.appendChild(actionPlaceholder("Ready up"));
-  if (betControls.classList.contains("is-reserved") && !betPresets.children.length) {
+  const reserved = betControls.classList.contains("is-reserved");
+  if (reserved && !betPresets.children.length) {
     betPresets.appendChild(actionPlaceholder("All in"));
   }
+  // Fill the reserved bet slot instead of leaving it blank: hand results get a centered
+  // result block there (prompt + buttons drop below it); other button-less states (showdown,
+  // folded, waiting) center their status line in the space.
+  const panel = betControls.parentElement;
+  if (!panel) return;
+  const hasResult = winnerList.children.length > 0;
+  const hasButtons = Array.from(gameButtons.children).some(
+    (child) => !child.classList.contains("action-placeholder"),
+  );
+  panel.classList.toggle("is-result", reserved && hasResult);
+  panel.classList.toggle("is-idle", reserved && !hasResult && !hasButtons);
+}
+
+/** Second line of a result: "Everyone folded" for fold-wins, otherwise the made hand. */
+function winnerHowText(hand: string | null | undefined) {
+  const text = String(hand || "").trim();
+  if (!text) return "";
+  if (/folded/i.test(text)) return "Everyone folded";
+  return text;
 }
 
 function renderControlsContent(hero: ClientPlayer | null | undefined) {

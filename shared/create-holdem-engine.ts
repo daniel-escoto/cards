@@ -793,7 +793,7 @@ export function createHoldemEngine(Hand: HandConstructor) {
     // Fold-win: winner does not show. Optional Show hand remains via showPlayerCards.
     winner.showCards = false;
     room.winners = [
-      { playerId: winner.id, name: winner.name, amount, hand: "Everyone else folded" },
+      { playerId: winner.id, name: winner.name, amount, hand: "Everyone folded" },
     ];
     room.message = `${winner.name} wins ${amount}.`;
     logAction(room, `${winner.name} wins ${amount}.`, {
