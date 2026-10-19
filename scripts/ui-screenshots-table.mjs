@@ -28,7 +28,7 @@ async function openMenu(page) {
 }
 
 async function closeMenu(page) {
-  const close = page.locator("#closeMenuBtn, #closeSettingsMenuBtn, #closeHostMenuBtn").first();
+  const close = page.locator("#closeMenuBtn, #closeSettingsMenuBtn").first();
   if (await close.isVisible().catch(() => false)) await close.click();
   else await page.keyboard.press("Escape");
   await page.waitForSelector("#gameMenuModal.hidden", { timeout: 5000 }).catch(() => {});

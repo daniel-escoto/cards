@@ -413,13 +413,10 @@ declare global {
   var closeMenuBtn: HTMLButtonElement;
   var menuMainView: HTMLElement;
   var menuSettingsView: HTMLElement;
-  var menuHostView: HTMLElement;
   var openSettingsBtn: HTMLButtonElement;
   var closeSettingsBtn: HTMLButtonElement;
   var closeSettingsMenuBtn: HTMLButtonElement;
-  var openHostBtn: HTMLButtonElement;
-  var closeHostBtn: HTMLButtonElement;
-  var closeHostMenuBtn: HTMLButtonElement;
+  var settingsTableSection: HTMLElement;
   var addBotBtn: HTMLButtonElement;
   var restartGameBtn: HTMLButtonElement;
   var endGameBtn: HTMLButtonElement;
@@ -570,10 +567,10 @@ declare global {
   function showTable(room: ClientRoom): void;
   function showMenuMainView(): void;
   function showMenuSettingsView(): void;
-  function showMenuHostView(): void;
   function hideGameMenu(): void;
   function syncMenuNameForm(): void;
   function syncHostMenuSection(): void;
+  function syncBlindPanel(canBlinds: boolean): void;
   function playerIsOut(player: ClientPlayer): boolean;
   function seatedPlayers(list?: ClientPlayer[] | null): ClientPlayer[];
   function roundStatus(player: ClientPlayer): string;

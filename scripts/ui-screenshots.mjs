@@ -45,7 +45,7 @@ async function openMenu(page) {
 }
 
 async function closeMenu(page) {
-  const close = page.locator("#closeMenuBtn, #closeSettingsMenuBtn, #closeHostMenuBtn").first();
+  const close = page.locator("#closeMenuBtn, #closeSettingsMenuBtn").first();
   if (await close.isVisible().catch(() => false)) {
     await close.click();
   } else {
@@ -101,36 +101,16 @@ async function captureSettingsSections(page, viewport) {
 }
 
 async function captureHostSections(page, viewport) {
-  const hostBtn = page.locator("#openHostBtn");
-  if (!(await hostBtn.isVisible().catch(() => false))) {
-    // Host button may be hidden until syncHostMenuSection decides; force open if possible.
-    const canOpen = await page.evaluate(() => {
-      const btn = document.querySelector("#openHostBtn");
-      return btn && !btn.classList.contains("hidden");
-    });
-    if (!canOpen) {
-      // Try revealing via evaluate for screenshot completeness when host.
-      await page.evaluate(() => {
-        const btn = document.querySelector("#openHostBtn");
-        if (btn) btn.classList.remove("hidden");
-      });
-    }
+  // Host controls are the host-only "Table" section at the bottom of Settings.
+  await page.click("#openSettingsBtn");
+  await waitVisible(page, "#menuSettingsView:not(.hidden)");
+  const table = page.locator("#settingsTableSection");
+  if (await table.isVisible().catch(() => false)) {
+    await table.scrollIntoViewIfNeeded();
+    await shot(page, viewport.name, "settings-table");
   }
-  if (await hostBtn.isVisible().catch(() => false)) {
-    await hostBtn.click();
-    await waitVisible(page, "#menuHostView:not(.hidden)");
-    await shot(page, viewport.name, "host-panel");
-    // Capture scrolled sections if tall
-    for (const id of ["shotClockPanel", "readyTimerPanel", "rabbitHuntPanel"]) {
-      const panel = page.locator(`#${id}`);
-      if (await panel.isVisible().catch(() => false)) {
-        await panel.scrollIntoViewIfNeeded();
-        await shot(page, viewport.name, `host-${id.replace("Panel", "").replace(/([A-Z])/g, "-$1").toLowerCase().replace(/^-/, "")}`);
-      }
-    }
-    await page.click("#closeHostBtn");
-    await waitVisible(page, "#menuMainView:not(.hidden)");
-  }
+  await page.click("#closeSettingsBtn");
+  await waitVisible(page, "#menuMainView:not(.hidden)");
 }
 
 async function forceBustUi(page) {
