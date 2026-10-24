@@ -205,8 +205,13 @@ function reserveActionSpace() {
   const hasButtons = Array.from(gameButtons.children).some(
     (child) => !child.classList.contains("action-placeholder"),
   );
+  // Before the first hand (lobby, waiting for players) there's nothing to keep stable against,
+  // so the panel drops the reserved bet space and just fits its content.
+  const handLive = Boolean(state && !["lobby", "complete", "gameover"].includes(state.phase));
+  const compact = reserved && !hasResult && !handLive;
+  panel.classList.toggle("is-compact", compact);
   panel.classList.toggle("is-result", reserved && hasResult);
-  panel.classList.toggle("is-idle", reserved && !hasResult && !hasButtons);
+  panel.classList.toggle("is-idle", reserved && !hasResult && !hasButtons && !compact);
 }
 
 /** Second line of a result: "Everyone folded" for fold-wins, otherwise the made hand. */

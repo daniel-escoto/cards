@@ -48,6 +48,7 @@ const context = {
   betControls,
   betPresets: document.querySelector("#betPresets"),
   winnerList: document.querySelector("#winnerList"),
+  state: { phase: "flop" },
 };
 const panel = document.querySelector(".control-panel");
 vm.runInNewContext(
@@ -92,7 +93,41 @@ assert.ok(!panel.classList.contains("is-idle"));
 assert.match(block(".control-panel.is-result > .winner-list,\n.control-panel.is-result > .bet-controls"), /grid-row:\s*3/);
 assert.match(block(".control-panel.is-idle > .turn-info"), /grid-row:\s*3 \/ 6/);
 
-// 5. Result copy: no "with Everyone else folded".
+// 5. Pre-game (lobby / waiting for players, incl. the first ready-up): no hand to stay stable
+// against, so the panel drops the reserved bet row and fits its content.
+context.winnerList.innerHTML = "";
+for (const phase of ["lobby", "complete"]) {
+  context.state = { phase };
+  context.gameButtons.innerHTML = "<button>+ Add bot</button>";
+  context.reserve(true);
+  context.fill();
+  assert.ok(panel.classList.contains("is-compact"), `${phase} without a result: compact panel`);
+  assert.ok(!panel.classList.contains("is-idle") && !panel.classList.contains("is-result"));
+}
+context.gameButtons.innerHTML = "";
+context.fill();
+assert.ok(panel.classList.contains("is-compact"), "lobby with no buttons: still compact");
+assert.ok(!panel.classList.contains("is-idle"), "lobby: no centered idle reserve");
+// Mid-hand waiting states (folded / showdown) keep the reserve so nothing jumps.
+for (const phase of ["preflop", "flop", "river", "showdown"]) {
+  context.state = { phase };
+  context.fill();
+  assert.ok(!panel.classList.contains("is-compact"), `${phase}: keeps reserved space`);
+  assert.ok(panel.classList.contains("is-idle"), `${phase}: status centered in the reserve`);
+}
+// After a hand, ready-up with a result keeps the full height (result block).
+context.state = { phase: "complete" };
+context.winnerList.innerHTML = '<div class="result-line">x</div>';
+context.gameButtons.innerHTML = "<button>Ready up</button>";
+context.fill();
+assert.ok(panel.classList.contains("is-result") && !panel.classList.contains("is-compact"));
+const compactBlock = block(
+  ".control-panel.is-compact > .bet-controls,\n.control-panel.is-compact > .winner-list,\n.control-panel.is-compact .action-placeholder",
+);
+assert.match(compactBlock, /display:\s*none/, "compact hides the reserved bet row and placeholders");
+assert.match(block(".control-panel.is-compact"), /grid-template-rows:\s*auto 0 minmax\(calc\(15px \* 1\.35\), auto\) auto;/);
+
+// 6. Result copy: no "with Everyone else folded".
 assert.equal(context.how("Everyone else folded"), "Everyone folded");
 assert.equal(context.how("Everyone folded"), "Everyone folded");
 assert.equal(context.how("Full House, 4's over 5's"), "Full House, 4's over 5's");

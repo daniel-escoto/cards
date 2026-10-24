@@ -3072,6 +3072,21 @@ kbd {
 .winner-list:has(> .result-line + .result-line + .result-line) .result-how {
   display: none;
 }
+/* Pre-game (lobby / waiting for players): no hand to stay stable against, so drop the reserved
+   bet row and its placeholders; the panel fits its content. */
+.control-panel.is-compact {
+  grid-template-rows: auto 0 minmax(calc(15px * 1.35), auto) auto;
+}
+.control-panel.is-compact > .bet-controls,
+.control-panel.is-compact > .winner-list,
+.control-panel.is-compact .action-placeholder {
+  display: none;
+}
+@media (min-width: 1040px) {
+  .control-panel.is-compact {
+    grid-template-rows: auto 0 minmax(calc(16px * 1.35), auto) auto;
+  }
+}
 /* No buttons and no result (showdown, folded, waiting): center the status in the space. */
 .control-panel.is-idle > .turn-info {
   grid-row: 3 / 6;
