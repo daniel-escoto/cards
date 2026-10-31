@@ -268,6 +268,7 @@ declare global {
     paper(at?: number, pan?: number): void;
     tap(at?: number, frequency?: number, volume?: number, pan?: number): void;
     click(): void;
+    buttonTap(primary?: boolean): void;
     chips(kind?: string): void;
     deal(count?: number): void;
     turn(): void;

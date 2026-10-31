@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Playwright check: seat rows line up. The "you" / CPU tag right edge, SB/BB chip slot, status
+ * Playwright check: seat rows line up. The SB/BB chip sits right after the name (small gap), status
  * and stack columns must match across rows at 390x844, 360x780 and 1280x800 with 2, 5 and 9
- * players, and long names must truncate without overlapping the tag. Needs a running server and
+ * players, and long names must truncate without pushing the chip out of the name column. Needs a running server and
  * `playwright` installed (not in CI).
  *   node scripts/check-seat-align.mjs [baseUrl] [chromePath]
  */
@@ -28,19 +28,18 @@ for (const vp of [{ width: 390, height: 844 }, { width: 360, height: 780 }, { wi
         const r = (sel) => { const el = row.querySelector(sel); if (!el) return null; const b = el.getBoundingClientRect(); return { l: b.left, r: b.right, w: b.width }; };
         const nameEl = row.querySelector(".seat-name-text");
         return {
-          tag: r(".seat-you-mark"), chip: r(".blind-chip"), action: r(".player-action"), stack: r(".player-stack"),
+          chip: r(".blind-chip"), action: r(".player-action"), stack: r(".player-stack"),
           name: r(".seat-name-text"), truncated: nameEl ? nameEl.scrollWidth > nameEl.clientWidth + 0.5 : false, nameText: nameEl?.textContent,
           rowW: row.getBoundingClientRect().width,
         };
       });
     });
-    const tagR = m.filter((x) => x.tag).map((x) => x.tag.r);
-    const chipL = m.filter((x) => x.chip).map((x) => x.chip.l);
+    const chipGap = m.filter((x) => x.chip && x.name).map((x) => x.chip.l - x.name.r);
     const actR = m.map((x) => x.action.r), actL = m.map((x) => x.action.l), stR = m.map((x) => x.stack.r), stL = m.map((x) => x.stack.l);
-    const res = { rows: m.length, tagRightSpread: spread(tagR), chipLeftSpread: spread(chipL), statusLeftSpread: spread(actL), statusRightSpread: spread(actR), stackLeftSpread: spread(stL), stackRightSpread: spread(stR),
-      longNameTruncated: m.find((x) => x.nameText?.startsWith("Alexandrine"))?.truncated, nameOverlapsTag: m.some((x) => x.tag && x.name && x.name.r > x.tag.l + 0.5) };
+    const res = { rows: m.length, chipGapSpread: spread(chipGap), chipGap: chipGap[0], statusLeftSpread: spread(actL), statusRightSpread: spread(actR), stackLeftSpread: spread(stL), stackRightSpread: spread(stR),
+      longNameTruncated: m.find((x) => x.nameText?.startsWith("Alexandrine"))?.truncated, chipPastStatus: m.some((x) => x.chip && x.chip.r > x.action.l) };
     console.log(`${tag} ${vp.width}x${vp.height} n=${n}`, JSON.stringify(res));
-    if (res.tagRightSpread > 0.5 || res.statusRightSpread > 0.5 || res.stackRightSpread > 0.5 || res.stackLeftSpread > 0.5 || res.nameOverlapsTag) fail = true;
+    if (res.chipGapSpread > 0.5 || res.chipPastStatus || res.statusRightSpread > 0.5 || res.stackRightSpread > 0.5 || res.stackLeftSpread > 0.5) fail = true;
     await page.context().close();
   }
 }

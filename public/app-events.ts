@@ -1,9 +1,20 @@
 deviceTheme.addEventListener("change", (event) => applyTheme(event.matches ? "light" : "dark"));
 
-document.addEventListener("pointerdown", () => tableSounds.unlock(), { once: true });
+// iOS Safari only lets an AudioContext start/resume inside a user gesture; unlock on the first
+// ones (touchend/click count on iOS, pointerdown elsewhere).
+for (const type of ["pointerdown", "touchend", "keydown"]) {
+  document.addEventListener(type, () => tableSounds.unlock(), { once: true, passive: true });
+}
+/** Fold / Check / Call / Bet / Raise / All in / Ready up get the fuller "primary" tap. */
+function isPrimaryActionButton(button: HTMLButtonElement) {
+  if (button.closest("#gameButtons") || button.id === "raiseActionBtn") return true;
+  return /^all in\b/i.test((button.textContent || "").trim());
+}
 document.addEventListener("click", (event) => {
-  const button = (event.target as HTMLElement).closest("button");
-  if (button && !button.disabled) tableSounds.click();
+  const target = event.target;
+  const button = target instanceof Element ? target.closest("button") : null;
+  if (!button || button.disabled || button.classList.contains("action-placeholder")) return;
+  tableSounds.buttonTap(isPrimaryActionButton(button));
 });
 soundEnabledInput.addEventListener("change", () => {
   tableSounds.setEnabled(soundEnabledInput.checked);

@@ -2178,22 +2178,14 @@ button.menu-player-row:not(:disabled):hover {
   gap: 6px;
   min-width: 0;
 }
+/* Name, then its SB/BB badge right after it; the name truncates first so the badge stays. */
 .seat-name-text {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.seat-you-mark {
-  flex: 0 0 auto;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.01em;
-}
-/* Fixed slot for the SB/BB chip, present even when empty, so the "you" / CPU tag before it
-   right-aligns to the same edge on every row. */
 .seat-chip-slot {
   flex: 0 0 var(--seat-chip-size, 18px);
   width: var(--seat-chip-size, 18px);
@@ -3594,19 +3586,14 @@ kbd {
     height: var(--game-vh);
     min-height: 0;
     overflow: hidden;
-    /* The table runs to the bottom edge: no page-colored strip under it. */
-    padding-bottom: 0;
-  }
-
-  /* Whatever shows below the table (Safari's floating toolbar, overscroll, a rounding pixel)
-     is felt-colored, so the bottom edge reads as one surface. */
-  html.game-open-root {
-    background: var(--felt-dark);
+    /* Same gutter under the table as on its sides (plus the home-indicator inset if any). */
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
   }
 
   .table-view {
-    height: calc(var(--game-vh) - 10px);
+    height: calc(var(--game-vh) - 10px - max(10px, env(safe-area-inset-bottom)));
     min-height: 0;
+    /* Two rows only: an empty third row added a gap, so the bottom gutter was wider than the sides. */
     grid-template-rows: auto minmax(0, 1fr);
     align-content: start;
     gap: 7px;
@@ -3676,13 +3663,6 @@ kbd {
     border-radius: 18px;
   }
 
-  /* In game the felt meets the bottom edge flush (square bottom, no bottom border). */
-  .table-view .felt {
-    border-bottom-width: 0;
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-  }
-
   .table-meta {
     position: static;
     display: flex;
@@ -3746,9 +3726,6 @@ kbd {
 
   .table-player-row .seat-name {
     font-size: 13px;
-  }
-  .seat-you-mark {
-    font-size: 10px;
   }
   .seat-chip-slot {
     --seat-chip-size: 16px;

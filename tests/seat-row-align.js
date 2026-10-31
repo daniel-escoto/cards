@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * Seat rows: the SB/BB chip gets a fixed slot on every row (even when empty), so the "you" / CPU
- * tag right-aligns to one edge; the stack has a shared min width so status/stack columns line up.
+ * Seat rows: no "you" tag (the hero row is highlighted); the SB/BB chip sits right after the name,
+ * and the name truncates first so the chip is never pushed out; the stack has a shared min width
+ * so status/stack columns line up.
  */
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -13,9 +14,11 @@ const css = fs.readFileSync(path.join(root, "public/styles.css"), "utf8");
 
 assert.match(
   boot,
-  /'<span class="seat-you-mark">you<\/span>' : ""\}<span class="seat-chip-slot">\$\{blindChipMarkup\(player\)\}<\/span>/,
-  "chip slot always rendered after the tag, wrapping the (possibly empty) blind chip",
+  /<span class="seat-name-text">\$\{escapeHtml\(player\.name\)\}<\/span>\$\{seatChipMarkup\(player\)\}<\/span>/,
+  "blind chip rendered right after the name",
 );
+assert.doesNotMatch(boot, /seat-you-mark/, "no 'you' tag in seat rows");
+assert.doesNotMatch(css, /\.seat-you-mark/);
 // Seat list shows no CPU personality label next to bot names.
 assert.doesNotMatch(boot, /botStyleTagMarkup|bot-style-tag/, "no bot personality label in seat rows");
 assert.doesNotMatch(css, /\.bot-style-tag/);
@@ -24,7 +27,9 @@ const block = (selector) => {
   const m = new RegExp(`(^|\\n)${escaped}\\s*\\{([^}]*)\\}`).exec(css);
   return m ? m[2] : "";
 };
-assert.match(block(".seat-chip-slot"), /flex:\s*0 0 var\(--seat-chip-size, 18px\)/);
+assert.match(block(".seat-chip-slot"), /flex:\s*0 0 var\(--seat-chip-size, 18px\)/, "chip never shrinks");
+assert.match(block(".seat-name-text"), /flex:\s*0 1 auto/, "name hugs its text, shrinks (truncates) first");
+assert.match(block(".seat-name-text"), /text-overflow:\s*ellipsis/);
 assert.match(block(".player-stack"), /min-width:\s*5ch/);
 assert.doesNotMatch(css, /\.player-stack\s*\{[^}]*min-width:\s*max-content/, "stack width must not vary per row");
 // Shot-clock bar sits inside the row's rounded corners (inset >= corner radius), as a pill.
