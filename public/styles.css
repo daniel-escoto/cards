@@ -1932,11 +1932,13 @@ button.menu-player-row:not(:disabled):hover {
   font-variant-numeric: tabular-nums;
   font-weight: 850;
 }
+/* Shot-clock bar: a rounded pill inset by the row's corner radius, so its ends sit on the
+   straight part of the bottom edge (clear of the rounded corners and the 3px left accent). */
 .turn-clock-bar {
   position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 3px;
+  left: 12px;
+  right: 12px;
+  bottom: 4px;
   height: 3px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.12);
@@ -2218,25 +2220,6 @@ button.menu-player-row:not(:disabled):hover {
 }
 .blind-chip.big {
   --chip-color: #e07a4a;
-}
-
-/* CPU personality — quiet label, not a badge. */
-.bot-style-tag {
-  flex: 0 0 auto;
-  text-align: right;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.42);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-.bot-style-tag[data-bot-style] {
-  color: rgba(255, 255, 255, 0.42);
 }
 
 .turn-info.bust-message {
@@ -3611,12 +3594,20 @@ kbd {
     height: var(--game-vh);
     min-height: 0;
     overflow: hidden;
+    /* The table runs to the bottom edge: no page-colored strip under it. */
+    padding-bottom: 0;
+  }
+
+  /* Whatever shows below the table (Safari's floating toolbar, overscroll, a rounding pixel)
+     is felt-colored, so the bottom edge reads as one surface. */
+  html.game-open-root {
+    background: var(--felt-dark);
   }
 
   .table-view {
-    height: calc(var(--game-vh) - 20px);
+    height: calc(var(--game-vh) - 10px);
     min-height: 0;
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
     align-content: start;
     gap: 7px;
     overflow: hidden;
@@ -3685,6 +3676,13 @@ kbd {
     border-radius: 18px;
   }
 
+  /* In game the felt meets the bottom edge flush (square bottom, no bottom border). */
+  .table-view .felt {
+    border-bottom-width: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
   .table-meta {
     position: static;
     display: flex;
@@ -3741,9 +3739,9 @@ kbd {
     font-size: 11px;
   }
   .turn-clock-bar {
-    left: 6px;
-    right: 6px;
-    bottom: 2px;
+    left: 11px;
+    right: 11px;
+    bottom: 3px;
   }
 
   .table-player-row .seat-name {
@@ -3759,12 +3757,6 @@ kbd {
     width: 16px;
     height: 16px;
     font-size: 6.5px;
-  }
-  .bot-style-tag {
-    max-width: 4.2em;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: 10px;
   }
   .player-action {
     font-size: 11px;

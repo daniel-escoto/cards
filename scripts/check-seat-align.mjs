@@ -28,7 +28,7 @@ for (const vp of [{ width: 390, height: 844 }, { width: 360, height: 780 }, { wi
         const r = (sel) => { const el = row.querySelector(sel); if (!el) return null; const b = el.getBoundingClientRect(); return { l: b.left, r: b.right, w: b.width }; };
         const nameEl = row.querySelector(".seat-name-text");
         return {
-          tag: r(".seat-you-mark, .bot-style-tag"), chip: r(".blind-chip"), action: r(".player-action"), stack: r(".player-stack"),
+          tag: r(".seat-you-mark"), chip: r(".blind-chip"), action: r(".player-action"), stack: r(".player-stack"),
           name: r(".seat-name-text"), truncated: nameEl ? nameEl.scrollWidth > nameEl.clientWidth + 0.5 : false, nameText: nameEl?.textContent,
           rowW: row.getBoundingClientRect().width,
         };
