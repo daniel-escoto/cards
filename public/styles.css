@@ -2467,6 +2467,12 @@ button.menu-player-row:not(:disabled):hover {
 .menu-disclosure[open] > :not(summary) {
   padding: 0 10px 10px;
 }
+/* "Wide table" only matters where the table is capped (desktop). */
+@media (max-width: 1039px) {
+  .checkbox-label.wide-table-toggle {
+    display: none;
+  }
+}
 .sound-toggle {
   min-height: 44px;
   padding-top: 7px;
@@ -3363,7 +3369,13 @@ kbd {
 }
 
 @media (min-width: 1040px) {
+  /* Default: the game is capped at a comfortable width (1100px table + the app's 20px gutters)
+     and centered, so seats, board and action panel stay together on big windows. Settings →
+     "Wide table" (per device) restores the full-width layout. */
   .app:has(.table-view:not(.hidden)) {
+    width: min(1140px, 100%);
+  }
+  :root[data-wide-table="on"] .app:has(.table-view:not(.hidden)) {
     width: min(1600px, 100%);
   }
 

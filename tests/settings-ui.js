@@ -122,4 +122,58 @@ const boot = fs.readFileSync(path.join(__dirname, "../dist/public/app-boot.js"),
   assert.ok(context.settingsTableSection.classList.contains("hidden"), "Table section hides live");
 }
 
+{
+  // Desktop "Wide table": default off (capped, centered table); on restores full width. Per device.
+  const dom = new JSDOM(html);
+  const { document } = dom.window;
+  const input = document.querySelector("#wideTableInput");
+  assert.ok(input, "wide table toggle present in settings");
+  assert.equal(input.type, "checkbox");
+  assert.equal(input.checked, false, "wide table defaults off");
+  assert.equal(input.closest(".wide-table-toggle").querySelector("strong").textContent, "Wide table");
+  const sound = document.querySelector("#soundEnabledInput").closest("label");
+  assert.equal(sound.nextElementSibling, input.closest("label"), "sits right after Sound");
+  assert.match(html, /localStorage\.getItem\("holdem:wide-table"\) === "on"/, "applied before first paint");
+
+  const css = fs.readFileSync(path.join(__dirname, "../public/styles.css"), "utf8");
+  const desktop = css.slice(css.indexOf("/* Default: the game is capped"));
+  assert.match(desktop, /\.app:has\(\.table-view:not\(\.hidden\)\) \{\s*width: min\(1140px, 100%\);/);
+  assert.match(
+    desktop,
+    /:root\[data-wide-table="on"\] \.app:has\(\.table-view:not\(\.hidden\)\) \{\s*width: min\(1600px, 100%\);/,
+  );
+  assert.match(css, /@media \(max-width: 1039px\) \{\s*\.checkbox-label\.wide-table-toggle \{\s*display: none;/, "hidden on mobile");
+
+  // Runtime: setWideTable persists and toggles the root attribute.
+  const vm = require("vm");
+  const store = new Map();
+  const grab = (fn) => {
+    const start = boot.indexOf(`function ${fn}(`);
+    assert.ok(start >= 0, `${fn} exists`);
+    const end = boot.indexOf("\n}", start);
+    return boot.slice(start, end + 2);
+  };
+  const context = {
+    document,
+    wideTableInput: input,
+    WIDE_TABLE_KEY: "holdem:wide-table",
+    localStorage: { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)) },
+  };
+  vm.runInNewContext(
+    ["wideTableEnabled", "applyWideTable", "setWideTable"].map(grab).join("\n") +
+      "\nthis.enabled = wideTableEnabled; this.set = setWideTable;",
+    context,
+  );
+  assert.equal(context.enabled(), false, "nothing stored: off");
+  context.set(true);
+  assert.equal(store.get("holdem:wide-table"), "on");
+  assert.equal(document.documentElement.dataset.wideTable, "on");
+  assert.equal(input.checked, true);
+  assert.equal(context.enabled(), true);
+  context.set(false);
+  assert.equal(store.get("holdem:wide-table"), "off");
+  assert.equal(document.documentElement.dataset.wideTable, undefined);
+  assert.equal(input.checked, false);
+}
+
 console.log("Settings UI trim checks passed.");
