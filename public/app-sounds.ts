@@ -226,6 +226,54 @@
       body.stop(start + 0.07);
     }
 
+    /**
+     * Button press: a soft, warm "pop" (~45ms). A low-passed triangle with a fast pitch drop for
+     * the body plus a tiny filtered-noise transient for the tap. Primary actions (Fold / Check /
+     * Call / Bet / Raise / All in / Ready up) sit a little higher and fuller than secondary
+     * buttons (presets, +/−, Add bot, menu). Respects the sound setting via unlock(); never throws.
+     */
+    buttonTap(primary = false) {
+      try {
+        if (!this.enabled) return;
+        const context = this.unlock();
+        if (!context || context.state === "closed") return;
+        const start = context.currentTime + 0.002;
+        const base = primary ? 430 : 330;
+        const body = context.createOscillator();
+        const warm = context.createBiquadFilter();
+        const envelope = this.output(0);
+        body.type = "triangle";
+        body.frequency.setValueAtTime(base * 1.7, start);
+        body.frequency.exponentialRampToValueAtTime(base, start + 0.028);
+        warm.type = "lowpass";
+        warm.frequency.value = primary ? 2600 : 2000;
+        warm.Q.value = 0.6;
+        envelope.gain.setValueAtTime(0.0001, start);
+        envelope.gain.exponentialRampToValueAtTime(primary ? 0.2 : 0.14, start + 0.004);
+        envelope.gain.exponentialRampToValueAtTime(0.0001, start + 0.048);
+        body.connect(warm).connect(envelope);
+        body.start(start);
+        body.stop(start + 0.055);
+        if (this.noiseBuffer) {
+          const noise = context.createBufferSource();
+          const band = context.createBiquadFilter();
+          const tick = this.output(0);
+          noise.buffer = this.noiseBuffer;
+          band.type = "bandpass";
+          band.frequency.value = primary ? 3200 : 2600;
+          band.Q.value = 0.9;
+          tick.gain.setValueAtTime(0.0001, start);
+          tick.gain.exponentialRampToValueAtTime(0.06, start + 0.002);
+          tick.gain.exponentialRampToValueAtTime(0.0001, start + 0.014);
+          noise.connect(band).connect(tick);
+          noise.start(start, Math.random() * 0.2, 0.02);
+          noise.stop(start + 0.02);
+        }
+      } catch (_) {
+        // Autoplay / AudioContext failures must never block input.
+      }
+    }
+
     /** Short descending blip when shot-clock or ready-up timer hits 0. Distinct from the soft tick. */
     timerTimeout() {
       try {

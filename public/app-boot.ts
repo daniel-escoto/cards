@@ -1330,6 +1330,12 @@ function blindChipMarkup(player: ClientPlayer) {
   return "";
 }
 
+/** SB/BB badge right after the name (nothing when the seat has no blind). */
+function seatChipMarkup(player: ClientPlayer) {
+  const chip = blindChipMarkup(player);
+  return chip ? `<span class="seat-chip-slot">${chip}</span>` : "";
+}
+
 function readyTimerActive() {
   if (typeof ReadyClock !== "undefined" && ReadyClock.readyPhaseActive) {
     return Boolean(state?.readyEndsAt && ReadyClock.readyPhaseActive(state.phase));
@@ -1533,7 +1539,7 @@ function renderActionFeed(newEntryId = "") {
       return `
       <article class="table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${lowTime ? "low-time" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${seatClockAttr}${styleAttr}>
         <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
-        <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}</span>${player.isYou ? '<span class="seat-you-mark">you</span>' : ""}<span class="seat-chip-slot">${blindChipMarkup(player)}</span></span>
+        <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}</span>${seatChipMarkup(player)}</span>
         <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}${clockMarkup}</span>
         <strong class="player-stack">${playerStackLabel(player)}</strong>
         ${barMarkup}
