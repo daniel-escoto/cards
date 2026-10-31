@@ -55,6 +55,10 @@ export function createHoldemEngine(Hand: HandConstructor) {
       looseness: 1.24,
       bluff: 0.13,
       skill: 0.58,
+      cbet: 0.55,
+      barrel: 0.4,
+      stickiness: 0.05,
+      heroCall: 0.05,
     },
     {
       tag: "cpu_b204",
@@ -65,6 +69,10 @@ export function createHoldemEngine(Hand: HandConstructor) {
       looseness: 0.74,
       bluff: 0.025,
       skill: 0.82,
+      cbet: 0.5,
+      barrel: 0.08,
+      stickiness: -0.07,
+      heroCall: 0.01,
     },
     {
       tag: "cpu_19d8",
@@ -75,6 +83,10 @@ export function createHoldemEngine(Hand: HandConstructor) {
       looseness: 1.0,
       bluff: 0.065,
       skill: 0.76,
+      cbet: 0.56,
+      barrel: 0.34,
+      stickiness: 0,
+      heroCall: 0.03,
     },
     {
       tag: "cpu_e621",
@@ -85,6 +97,10 @@ export function createHoldemEngine(Hand: HandConstructor) {
       looseness: 1.08,
       bluff: 0.1,
       skill: 0.68,
+      cbet: 0.55,
+      barrel: 0.58,
+      stickiness: 0,
+      heroCall: 0.03,
     },
     {
       tag: "cpu_04ac",
@@ -95,6 +111,10 @@ export function createHoldemEngine(Hand: HandConstructor) {
       looseness: 1.3,
       bluff: 0.02,
       skill: 0.48,
+      cbet: 0.06,
+      barrel: 0.01,
+      stickiness: 0.14,
+      heroCall: 0.1,
     },
     {
       tag: "cpu_c97e",
@@ -105,6 +125,10 @@ export function createHoldemEngine(Hand: HandConstructor) {
       looseness: 0.94,
       bluff: 0.09,
       skill: 0.9,
+      cbet: 0.56,
+      barrel: 0.6,
+      stickiness: 0.02,
+      heroCall: 0.1,
     },
     {
       tag: "cpu_52b1",
@@ -115,6 +139,10 @@ export function createHoldemEngine(Hand: HandConstructor) {
       looseness: 0.68,
       bluff: 0.035,
       skill: 0.7,
+      cbet: 0.55,
+      barrel: 0.24,
+      stickiness: 0.03,
+      heroCall: 0.02,
     },
   ];
   const PLAYER_COLORS = [
@@ -1535,6 +1563,168 @@ export function createHoldemEngine(Hand: HandConstructor) {
     };
   }
 
+  /**
+   * Outs to a flush or straight that use at least one hole card (0 on the river or
+   * once the hand is already made). Open-ender / double gutter = 8, gutshot = 4,
+   * flush draw = 9; combos cap at 15.
+   */
+  function countDrawOuts(hand: CardCode[], community: CardCode[]): number {
+    if (hand.length !== 2 || community.length < 3 || community.length >= 5) return 0;
+    const cards = [...hand, ...community];
+    let outs = 0;
+    for (const suit of suits) {
+      const count = cards.filter((card) => card[1] === suit).length;
+      if (count === 4 && hand.some((card) => card[1] === suit)) outs += 9;
+      if (count >= 5) return 0;
+    }
+    const withLowAce = (values: number[]): Set<number> =>
+      new Set(values.flatMap((value) => (value === 14 ? [14, 1] : [value])));
+    const values = withLowAce(cards.map(cardRankValue));
+    const holeValues = withLowAce(hand.map(cardRankValue));
+    const completing = new Set<number>();
+    for (let low = 1; low <= 10; low += 1) {
+      const window = [low, low + 1, low + 2, low + 3, low + 4];
+      const missing = window.filter((value) => !values.has(value));
+      if (missing.length === 0) return outs;
+      if (missing.length === 1 && window.some((value) => holeValues.has(value))) {
+        completing.add(missing[0] === 1 ? 14 : missing[0]);
+      }
+    }
+    return Math.min(15, outs + Math.min(8, completing.size * 4));
+  }
+
+  /** True when the hole cards improve on the board (a pair or better of our own). */
+  function hasMadeHand(hand: CardCode[], community: CardCode[]): boolean {
+    if (hand.length !== 2 || community.length < 3) return false;
+    const own = Hand.solve([...hand, ...community]);
+    if (own.rank <= 1) return false;
+    const board = Hand.solve([...community]);
+    if (own.rank > board.rank) return true;
+    // Same category (e.g. both a pair): ours only counts when it beats the board alone.
+    return own.rank > 2 && Hand.winners([own, board]).length === 1;
+  }
+
+  /** Player who made the last preflop raise this hand (the "preflop raiser"), if any. */
+  function preflopRaiserId(room: Room): string | null {
+    for (let index = room.actionLog.length - 1; index >= 0; index -= 1) {
+      const entry = room.actionLog[index];
+      if (entry.phase === "preflop" && /^Raises to\s+/i.test(entry.action || "")) {
+        return entry.playerId || null;
+      }
+    }
+    return null;
+  }
+
+  /** Last player to bet or raise on `phase` (null if it went check-around). */
+  function streetAggressorId(room: Room, phase: string): string | null {
+    for (let index = room.actionLog.length - 1; index >= 0; index -= 1) {
+      const entry = room.actionLog[index];
+      if (entry.phase === phase && /^Raises to\s+/i.test(entry.action || "")) {
+        return entry.playerId || null;
+      }
+    }
+    return null;
+  }
+
+  const PREVIOUS_STREET: Record<string, string> = { flop: "preflop", turn: "flop", river: "turn" };
+
+  /**
+   * Postflop decisions. Equity is estimated against a random hand, then discounted
+   * for the bettor's (stronger) range and the bet size, with a floor from draw
+   * outs. Calls need that equity to beat the pot odds plus a style margin; checked-to
+   * spots mix value bets with c-bets, semi-bluffs, barrels and river bluffs.
+   */
+  function choosePostflopAction(
+    room: Room,
+    player: Player,
+    { callAmount, canRaise, minRaiseTo, maxBet }: {
+      callAmount: number;
+      canRaise: boolean;
+      minRaiseTo: number;
+      maxBet: number;
+    },
+  ): { type: ActionType; raiseTo?: number } {
+    const { bigBlind } = currentBlinds(room);
+    const profile = computerProfile(player);
+    const opponents = Math.max(
+      1,
+      livePlayers(room).filter((item) => item.id !== player.id).length,
+    );
+    const river = room.community.length >= 5;
+    const perceptionNoise = (Math.random() - 0.5) * (1 - profile.skill) * 0.12;
+    const headsUpEquity = Math.max(
+      0.01,
+      Math.min(0.99, estimatePostflopEquity(player.hand, room.community, 140) + perceptionNoise),
+    );
+    const outs = countDrawOuts(player.hand, room.community);
+    const made = hasMadeHand(player.hand, room.community);
+    const cardsToCome = 5 - room.community.length;
+    const drawEquity = Math.min(0.55, outs * (cardsToCome >= 2 ? 0.04 : 0.021));
+    // Multiway: needing to beat everyone, but opponents' hands overlap, so soften the power.
+    const strength = headsUpEquity ** (1 + (opponents - 1) * 0.7);
+    const raiseTo = (confidence: number) =>
+      chooseComputerRaiseTo(room, player, minRaiseTo, confidence);
+    const multiwayDamp = 0.85 ** (opponents - 1);
+
+    if (callAmount === 0) {
+      const ableToBet = canRaise && minRaiseTo <= maxBet;
+      if (!ableToBet) return { type: "check" };
+      if (made && strength > 0.5) {
+        const valueChance = Math.min(0.92, (strength - 0.36) * 2 * profile.aggression);
+        if (Math.random() < valueChance) return { type: "raise", raiseTo: raiseTo(strength) };
+      }
+      const isPfr = preflopRaiserId(room) === player.id;
+      const firstToBetFlop = room.phase === "flop" && !streetAggressorId(room, "flop");
+      const barrelling = streetAggressorId(room, PREVIOUS_STREET[room.phase] || "") === player.id;
+      let bluffChance;
+      if (isPfr && firstToBetFlop) {
+        bluffChance = profile.cbet * multiwayDamp;
+      } else if (outs >= 8) {
+        bluffChance = Math.min(0.7, (0.02 + profile.barrel * 1.25) * profile.aggression) * multiwayDamp;
+      } else if (outs >= 4) {
+        bluffChance = profile.barrel * 0.6 * multiwayDamp;
+      } else if (river && strength < 0.3) {
+        bluffChance = profile.barrel * (barrelling ? 0.9 : 0.35) * multiwayDamp;
+      } else {
+        bluffChance = profile.barrel * (barrelling ? 0.7 : 0.45) * multiwayDamp;
+      }
+      if (Math.random() < bluffChance) {
+        return { type: "raise", raiseTo: raiseTo(Math.max(strength, 0.4)) };
+      }
+      return { type: "check" };
+    }
+
+    const potBeforeBet = Math.max(bigBlind, collectPot(room) - callAmount);
+    const betFraction = Math.min(1.5, callAmount / potBeforeBet);
+    const requiredEquity = callAmount / Math.max(1, collectPot(room) + callAmount);
+    // A bet narrows the bettor's range toward made hands: bigger bets, more so.
+    const rangeDiscount = 1.45 + betFraction * 0.65 + (river ? 0.7 : 0);
+    const rangeEquity = Math.max(headsUpEquity ** rangeDiscount, drawEquity * 0.9) ** opponents;
+    const margin = 0.04 - profile.stickiness - (profile.looseness - 1) * 0.05;
+    const edge = rangeEquity - requiredEquity - margin;
+    const ableToRaise = canRaise && minRaiseTo <= maxBet;
+
+    if (ableToRaise) {
+      const valueRaise =
+        made && rangeEquity > 0.6 ? Math.min(0.7, (rangeEquity - 0.5) * 1.6 * profile.aggression) : 0;
+      const bluffRaise = river
+        ? profile.barrel * 0.06
+        : outs >= 8
+          ? profile.barrel * 0.4
+          : profile.barrel * 0.05;
+      if (Math.random() < valueRaise + bluffRaise * multiwayDamp) {
+        return { type: "raise", raiseTo: raiseTo(Math.max(rangeEquity, 0.45)) };
+      }
+    }
+    const callChance = Math.max(0, Math.min(0.97, 0.5 + edge * 4.5));
+    if (Math.random() < callChance) return { type: "call" };
+    // Hero call: a river bluff-catcher (ace-high, weak pair) the math says to fold.
+    if (river && headsUpEquity >= 0.3 && Math.random() < profile.heroCall * 1.5) {
+      return { type: "call" };
+    }
+    return { type: "fold" };
+  }
+
   function chooseComputerAction(room: Room, player: Player): { type: ActionType; raiseTo?: number } {
     const { bigBlind } = currentBlinds(room);
     const callAmount = Math.max(0, room.currentBet - player.bet);
@@ -1545,6 +1735,10 @@ export function createHoldemEngine(Hand: HandConstructor) {
     const rawConfidence = estimateComputerConfidence(room, player);
     const judgmentNoise = (Math.random() - 0.5) * (1 - profile.skill) * 0.42;
     let confidence = Math.max(0.04, Math.min(0.96, rawConfidence + judgmentNoise));
+
+    if (room.community.length > 0) {
+      return choosePostflopAction(room, player, { callAmount, canRaise, minRaiseTo, maxBet });
+    }
 
     if (callAmount === 0) {
       const equity = estimateComputerEquity(room, player);
