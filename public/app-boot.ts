@@ -1322,14 +1322,6 @@ function syncTurnCountdown() {
   turnCountdownTimer = setInterval(tick, 200);
 }
 
-/** Subtle personality label on CPU seats ("Loose", "Grinder"…); full style in the tooltip. */
-function botStyleTagMarkup(player: ClientPlayer) {
-  if (!player.isBot || !player.botStyleShort) return "";
-  const tag = escapeHtml(player.botProfile || "");
-  const style = escapeHtml(player.botStyle || player.botStyleShort);
-  return `<span class="bot-style-tag" data-bot-style="${tag}" title="${style}" aria-label="${style} CPU">${escapeHtml(player.botStyleShort)}</span>`;
-}
-
 function blindChipMarkup(player: ClientPlayer) {
   if (player.isBigBlind)
     return '<span class="blind-chip big" title="Big blind" aria-label="Big blind">BB</span>';
@@ -1541,7 +1533,7 @@ function renderActionFeed(newEntryId = "") {
       return `
       <article class="table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${lowTime ? "low-time" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${seatClockAttr}${styleAttr}>
         <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
-        <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}</span>${player.isYou ? '<span class="seat-you-mark">you</span>' : ""}${botStyleTagMarkup(player)}<span class="seat-chip-slot">${blindChipMarkup(player)}</span></span>
+        <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}</span>${player.isYou ? '<span class="seat-you-mark">you</span>' : ""}<span class="seat-chip-slot">${blindChipMarkup(player)}</span></span>
         <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}${clockMarkup}</span>
         <strong class="player-stack">${playerStackLabel(player)}</strong>
         ${barMarkup}
