@@ -55,6 +55,7 @@ var menuNameForm = document.querySelector("#menuNameForm") as HTMLFormElement;
 var menuPlayers = document.querySelector("#menuPlayers") as HTMLElement;
 var openPlayerSheetId = "";
 var soundEnabledInput = document.querySelector("#soundEnabledInput") as HTMLInputElement;
+var wideTableInput = document.querySelector("#wideTableInput") as HTMLInputElement | null;
 var sharePanel = document.querySelector("#sharePanel") as HTMLElement;
 var shareQr = document.querySelector("#shareQr") as HTMLImageElement;
 var shareLink = document.querySelector("#shareLink") as HTMLInputElement;
@@ -119,6 +120,30 @@ var reconnectBannerVisible = false;
 
 var tableSounds = new TableSounds();
 soundEnabledInput.checked = tableSounds.enabled;
+
+/** Desktop "Wide table": off by default (table capped and centered); on = full-width layout. */
+var WIDE_TABLE_KEY = "holdem:wide-table";
+function wideTableEnabled() {
+  try {
+    return localStorage.getItem(WIDE_TABLE_KEY) === "on";
+  } catch (_) {
+    return false;
+  }
+}
+function applyWideTable(enabled: boolean) {
+  if (enabled) document.documentElement.dataset.wideTable = "on";
+  else delete document.documentElement.dataset.wideTable;
+  if (wideTableInput) wideTableInput.checked = enabled;
+}
+function setWideTable(enabled: boolean) {
+  try {
+    localStorage.setItem(WIDE_TABLE_KEY, enabled ? "on" : "off");
+  } catch (_) {
+    // Private mode / storage full: still apply for this session.
+  }
+  applyWideTable(enabled);
+}
+applyWideTable(wideTableEnabled());
 
 var {
   escapeHtml,

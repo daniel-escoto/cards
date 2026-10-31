@@ -36,6 +36,12 @@
       document.documentElement.dataset.theme = initialTheme;
       document.querySelector("#themeColor").content =
         initialTheme === "light" ? "#eef1ec" : "#090d10";
+      try {
+        // Per-device "Wide table" (desktop): set before first paint so the table never jumps.
+        if (localStorage.getItem("holdem:wide-table") === "on") {
+          document.documentElement.dataset.wideTable = "on";
+        }
+      } catch (_) {}
     </script>
     <link rel="stylesheet" href="/styles.css" />
   </head>
@@ -370,6 +376,13 @@
                 <span class="switch-control" aria-hidden="true"></span>
                 <span class="checkbox-copy">
                   <strong>Sound</strong>
+                </span>
+              </label>
+              <label class="checkbox-label sound-toggle menu-row wide-table-toggle">
+                <input id="wideTableInput" type="checkbox" />
+                <span class="switch-control" aria-hidden="true"></span>
+                <span class="checkbox-copy">
+                  <strong>Wide table</strong>
                 </span>
               </label>
               <form id="moneyPanel" class="money-panel hidden">

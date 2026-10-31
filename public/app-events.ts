@@ -16,6 +16,9 @@ document.addEventListener("click", (event) => {
   if (!button || button.disabled || button.classList.contains("action-placeholder")) return;
   tableSounds.buttonTap(isPrimaryActionButton(button));
 });
+wideTableInput?.addEventListener("change", (event) =>
+  setWideTable((event.currentTarget as HTMLInputElement).checked),
+);
 soundEnabledInput.addEventListener("change", () => {
   tableSounds.setEnabled(soundEnabledInput.checked);
   if (soundEnabledInput.checked) {

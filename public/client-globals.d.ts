@@ -432,6 +432,11 @@ declare global {
   var openPlayerSheetId: string;
   var copyIconResetTimer: ReturnType<typeof setTimeout> | null;
   var soundEnabledInput: HTMLInputElement;
+  var wideTableInput: HTMLInputElement | null;
+  var WIDE_TABLE_KEY: string;
+  function wideTableEnabled(): boolean;
+  function applyWideTable(enabled: boolean): void;
+  function setWideTable(enabled: boolean): void;
   var sharePanel: HTMLElement;
   var shareQr: HTMLImageElement;
   var shareLink: HTMLInputElement;
