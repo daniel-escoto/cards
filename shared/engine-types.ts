@@ -39,6 +39,14 @@ export interface BotProfile {
   looseness: number;
   bluff: number;
   skill: number;
+  /** Flop c-bet chance as the preflop raiser with a hand that would not bet for value. */
+  cbet: number;
+  /** Postflop bluff appetite: semi-bluffs with draws, barrels and river bluffs. */
+  barrel: number;
+  /** Postflop call bias facing a bet: > 0 sticky, < 0 folds more. */
+  stickiness: number;
+  /** River chance to call down with a bluff-catcher the math says to fold. */
+  heroCall: number;
 }
 
 export interface MakePlayerArgs {

@@ -18,6 +18,9 @@ function seededRandom(seed = 1) {
   };
 }
 
+// Every rate below goes through Math.random; seed it so the bot-stat checks can't flake.
+Math.random = seededRandom(20261031);
+
 const looseCannon = { id: "bot:ROOM:1" };
 const patientGrinder = { id: "bot:ROOM:2" };
 const balancedRegular = { id: "bot:ROOM:3" };

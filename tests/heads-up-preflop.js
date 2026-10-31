@@ -7,7 +7,9 @@ const seeded = (seed) => () => {
   seed = (seed * 1664525 + 1013904223) % 4294967296;
   return seed / 4294967296;
 };
-const deck = engine.makeDeck();
+// Built after the RNG is seeded below: makeDeck shuffles with the engine's randomInt,
+// which defaults to crypto and made every run deal different cards.
+let deck = [];
 const style = (short) => engine.BOT_PROFILES.find((profile) => profile.short === short);
 const STYLES = ["Loose", "Balanced", "Quick"];
 
@@ -46,6 +48,7 @@ function rate(n, decide) {
 const realRandom = Math.random;
 Math.random = seeded(2026);
 engine.setRandomInt(() => 0);
+deck = engine.makeDeck();
 try {
   const results = {};
   for (const short of STYLES) {
