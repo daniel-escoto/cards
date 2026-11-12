@@ -1,7 +1,7 @@
 {
   "name": "holdem.nyc",
   "short_name": "holdem",
-  "description": "Private-room Texas Hold'em for the city. Host a table, share a code, play with friends.",
+  "description": "Private-room Texas Hold'em. Host a table, share a code, play with friends.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#090d10",
