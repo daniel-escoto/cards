@@ -1,6 +1,6 @@
 # holdem.nyc
 
-Private-room Texas Hold'em for the city. Host a table, share a code, play with friends. The server owns online game state and clients connect over Socket.IO. Chip Host without a server connection runs the same rules engine in the browser (add CPU players at the table; works offline after the first visit).
+Private-room Texas Hold'em. Host a table, share a code, play with friends. The server owns online game state and clients connect over Socket.IO. Chip Host without a server connection runs the same rules engine in the browser (add CPU players at the table; works offline after the first visit).
 
 ## Features
 
