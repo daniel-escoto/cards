@@ -2,7 +2,6 @@ const assert = require("node:assert/strict");
 const {
   USAGE_LOG_PREFIX,
   formatUsageLine,
-  logUsage,
   setUsageLogWriter,
   resetUsageStats,
   noteRoomUsage,
