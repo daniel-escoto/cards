@@ -4,6 +4,7 @@ import "../runtime";
 import "../rooms/state";
 import "../money/ledger";
 import "../timers";
+import usage = require("../usage-log");
 import type { Socket } from "socket.io";
 import type {
   ClientToServerEvents,
@@ -82,7 +83,11 @@ function registerSocketHandlers(): void {
           bigBlind: cleanBig,
           reconnectTokenHash: credentials.tokenHash,
         });
-        if (!room.moneyMode) api.addComputerPlayers(room, requestedSize || computerPlayers);
+        if (!room.moneyMode) {
+          const previousIds = usage.seatedIds(room);
+          api.addComputerPlayers(room, requestedSize || computerPlayers);
+          usage.logNewSeatedPlayers(room, previousIds);
+        }
         api.markRoomLive(room.id);
         api.attachSocketToPlayer(socket, room, room.players[0]);
         ack?.({ ok: true, roomId: room.id, playerId, reconnectToken: credentials.token });
@@ -116,6 +121,7 @@ function registerSocketHandlers(): void {
           if (staleSpectator) api.removeSpectator(room, staleSpectator);
           existing.name = api.cleanName(name || "");
           api.attachSocketToPlayer(socket, room, existing);
+          usage.logPlayerJoined(room, existing, api.playerIndex(room, existing.id), { rejoin: true });
           ack?.({ ok: true, roomId: room.id });
           api.emitRoom(room);
           return;
@@ -203,8 +209,14 @@ function registerSocketHandlers(): void {
             reconnectTokenHash: credentials.tokenHash,
           }),
         );
-        api.attachSocketToPlayer(socket, room, room.players[room.players.length - 1]);
-        if (room.tableSize) api.addComputerPlayers(room, room.tableSize);
+        const seated = room.players[room.players.length - 1];
+        api.attachSocketToPlayer(socket, room, seated);
+        usage.logPlayerJoined(room, seated, room.players.length - 1);
+        if (room.tableSize) {
+          const previousIds = usage.seatedIds(room);
+          api.addComputerPlayers(room, room.tableSize);
+          usage.logNewSeatedPlayers(room, previousIds);
+        }
         ack?.({ ok: true, roomId: room.id, playerId, reconnectToken: credentials.token });
         api.emitRoom(room);
       },
@@ -240,6 +252,10 @@ function registerSocketHandlers(): void {
         }
         existing.name = api.cleanName(name || "");
         api.attachSocketToSpectator(socket, room, existing);
+        usage.logPlayerJoined(room, { id: existing.id, name: existing.name, isBot: false }, null, {
+          spectator: true,
+          rejoin: true,
+        });
         ack?.({
           ok: true,
           roomId: room.id,
@@ -258,6 +274,9 @@ function registerSocketHandlers(): void {
       });
       api.ensureSpectators(room).push(spectator);
       api.attachSocketToSpectator(socket, room, spectator);
+      usage.logPlayerJoined(room, { id: spectator.id, name: spectator.name, isBot: false }, null, {
+        spectator: true,
+      });
       ack?.({
         ok: true,
         roomId: room.id,
@@ -360,8 +379,14 @@ function registerSocketHandlers(): void {
             reconnectTokenHash: credentials.tokenHash,
           }),
         );
-        api.attachSocketToPlayer(socket, room, room.players[room.players.length - 1]);
-        if (room.tableSize) api.addComputerPlayers(room, room.tableSize);
+        const seated = room.players[room.players.length - 1];
+        api.attachSocketToPlayer(socket, room, seated);
+        usage.logPlayerJoined(room, seated, room.players.length - 1);
+        if (room.tableSize) {
+          const previousIds = usage.seatedIds(room);
+          api.addComputerPlayers(room, room.tableSize);
+          usage.logNewSeatedPlayers(room, previousIds);
+        }
         ack?.({
           ok: true,
           roomId: room.id,
@@ -392,6 +417,7 @@ function registerSocketHandlers(): void {
           return;
         }
         api.clearSpectators(room);
+        usage.logRoomClosed(room, "empty");
         api.rooms.delete(room.id);
         api.scheduleSave();
         return;
@@ -413,7 +439,9 @@ function registerSocketHandlers(): void {
         return ack?.({ ok: false, error: "CPU players can only be added before the game begins." });
       if (room.players.length >= api.MAX_PLAYERS)
         return ack?.({ ok: false, error: "The table is full." });
+      const previousIds = usage.seatedIds(room);
       api.addComputerPlayers(room, room.players.length + 1);
+      usage.logNewSeatedPlayers(room, previousIds);
       ack?.({ ok: true });
       api.emitRoom(room);
     });
