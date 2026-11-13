@@ -11,6 +11,7 @@ import type {
   StoredPlayer,
   StoredRoom,
 } from "../../shared/types";
+import usage = require("../usage-log");
 
 function clearTimer(timer: ReturnType<typeof setTimeout> | null | undefined): void {
   if (timer != null) clearTimeout(timer);
@@ -53,7 +54,9 @@ async function claimRoomForLiveActivity(roomId: string) {
 
 function tryStartReadyHand(room: Room) {
   if (api.holdNewHands) return false;
-  return api.maybeStartReadyHand(room);
+  const started = api.maybeStartReadyHand(room);
+  if (started) usage.logHandStarted(room);
+  return started;
 }
 
 function anyHandInProgress() {
@@ -314,6 +317,7 @@ function scheduleDormantRoomCleanup(room: Room) {
     api.clearReadyTimer(current);
     clearSpectators(current);
     clearTimer(current.dormantTimer);
+    usage.logRoomClosed(current, "expired");
     api.rooms.delete(current.id);
     scheduleSave();
   }, remaining);
@@ -493,6 +497,7 @@ function restoreRoom(raw: StoredRoom | Record<string, unknown>): Room | null {
         Array.isArray(data.settlements) && data.settlements.length
           ? room.settlements
           : api.optimizeSettlements(room.moneyLedger || []);
+      usage.noteRoomUsage(room);
       return room;
     }
     return null;
@@ -506,6 +511,7 @@ function restoreRoom(raw: StoredRoom | Record<string, unknown>): Room | null {
     );
   }
   if (room.dealer >= room.players.length) room.dealer = 0;
+  usage.noteRoomUsage(room);
   return room;
 }
 
@@ -745,6 +751,8 @@ function makeRoom(hostId: string, hostName: string, socketId: string, tableSize 
   };
   api.rooms.set(id, room);
   if (moneyMode) api.syncPlayerToMoneyLedger(room, room.players[0]);
+  usage.logRoomCreated(room, hostName, moneyMode);
+  usage.logPlayerJoined(room, room.players[0], 0);
   return room;
 }
 
@@ -866,6 +874,7 @@ function removeSpectator(room: Room, spectator: Spectator) {
   }
   spectator.socketIds = new Set();
   spectator.connected = false;
+  usage.logPlayerLeft(room, spectator.name, { kind: "human", spectator: true });
 }
 
 function clearSpectators(room: Room) {
@@ -889,6 +898,7 @@ function replaceRaiseEligibleId(room: Room, oldId: string, newId: string) {
 
 function convertBotToHuman(socket: { id: string; join: (roomId: string) => void }, room: Room, bot: Player, playerId: string, name: string, reconnectTokenHash: string | null | undefined) {
   const oldId = bot.id;
+  const botName = bot.name;
   const hadHumanBefore = room.players.some((player) => !player.isBot);
   bot.id = playerId;
   bot.reconnectTokenHash = reconnectTokenHash || bot.replacedReconnectTokenHash || null;
@@ -908,6 +918,8 @@ function convertBotToHuman(socket: { id: string; join: (roomId: string) => void 
   replaceActedId(room, oldId, playerId);
   replaceRaiseEligibleId(room, oldId, playerId);
   attachSocketToPlayer(socket, room, bot);
+  usage.logPlayerLeft(room, botName, { kind: "bot" });
+  usage.logPlayerJoined(room, bot, api.playerIndex(room, playerId));
   room.message = `${bot.name} took over a CPU seat.`;
   return bot;
 }
@@ -935,6 +947,8 @@ function convertHumanToBot(room: Room, player: Player) {
   replaceActedId(room, oldId, player.id);
   replaceRaiseEligibleId(room, oldId, player.id);
   if (room.hostId === oldId) chooseNextHost(room);
+  usage.logPlayerLeft(room, oldName, { kind: "human" });
+  usage.logPlayerJoined(room, player, api.playerIndex(room, player.id));
   room.message = `${player.name} took over ${oldName}'s seat.`;
   scheduleDormantRoomCleanup(room);
   return player;
@@ -1276,6 +1290,7 @@ function removePlayerAfterDisconnect(room: Room, player: Player) {
   player.invested = 0;
   player.folded = true;
   room.players.splice(index, 1);
+  usage.logPlayerLeft(room, player.name, { kind: "human" });
   if (room.players.length === 0) {
     if (room.moneyMode) {
       preserveSettledMoneyRoom(room);
@@ -1284,6 +1299,7 @@ function removePlayerAfterDisconnect(room: Room, player: Player) {
     api.clearTurnTimer(room);
     api.clearReadyTimer(room);
     clearSpectators(room);
+    usage.logRoomClosed(room, "empty");
     api.rooms.delete(room.id);
     scheduleSave();
     return;
@@ -1398,6 +1414,7 @@ function kickPlayerFromRoom(room: Room, playerId: string) {
   if (index < room.dealer) room.dealer -= 1;
   if (room.dealer >= room.players.length) room.dealer = 0;
   room.message = `${removed.name} was kicked from the table.`;
+  usage.logPlayerLeft(room, removed.name, { kind: removed.isBot ? "bot" : "human" });
   return removed;
 }
 
