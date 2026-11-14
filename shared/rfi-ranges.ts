@@ -98,7 +98,7 @@ function broadwayPlus(high: string, minLow: string, suited: boolean): string[] {
   return out;
 }
 
-/** Expand compact tokens like `77+`, `ATs+`, `ATo+`, `KQs` into hand keys. */
+/** Expand compact tokens like `77+`, `ATs+`, `TT-55`, `A5s-A2s`, `KQs` into hand keys. */
 export function expandRangeTokens(tokens: readonly string[]): string[] {
   const out: string[] = [];
   for (const raw of tokens) {
@@ -109,6 +109,23 @@ export function expandRangeTokens(tokens: readonly string[]): string[] {
       out.push(...pairsFrom(`${pairPlus[1]!.toUpperCase()}${pairPlus[1]!.toUpperCase()}`));
       continue;
     }
+    const pairDash = /^([2-9TJQKA])\1-([2-9TJQKA])\2$/i.exec(token);
+    if (pairDash) {
+      const high = pairDash[1]!.toUpperCase();
+      const low = pairDash[2]!.toUpperCase();
+      let from = rankIndex(high);
+      let to = rankIndex(low);
+      if (from > to) {
+        const swap = from;
+        from = to;
+        to = swap;
+      }
+      for (let i = from; i <= to; i += 1) {
+        const rank = RANK_ORDER[i]!;
+        out.push(`${rank}${rank}`);
+      }
+      continue;
+    }
     const plusSuited = /^([2-9TJQKA])([2-9TJQKA])s\+$/i.exec(token);
     if (plusSuited) {
       out.push(...broadwayPlus(plusSuited[1]!.toUpperCase(), plusSuited[2]!.toUpperCase(), true));
@@ -117,6 +134,44 @@ export function expandRangeTokens(tokens: readonly string[]): string[] {
     const plusOff = /^([2-9TJQKA])([2-9TJQKA])o\+$/i.exec(token);
     if (plusOff) {
       out.push(...broadwayPlus(plusOff[1]!.toUpperCase(), plusOff[2]!.toUpperCase(), false));
+      continue;
+    }
+    const dashSuited = /^([2-9TJQKA])([2-9TJQKA])s-\1([2-9TJQKA])s$/i.exec(token);
+    if (dashSuited) {
+      const high = dashSuited[1]!.toUpperCase();
+      const a = dashSuited[2]!.toUpperCase();
+      const b = dashSuited[3]!.toUpperCase();
+      let from = rankIndex(a);
+      let to = rankIndex(b);
+      if (from > to) {
+        const swap = from;
+        from = to;
+        to = swap;
+      }
+      const highIdx = rankIndex(high);
+      for (let i = from; i <= to; i += 1) {
+        if (i === highIdx) continue;
+        out.push(`${high}${RANK_ORDER[i]!}s`);
+      }
+      continue;
+    }
+    const dashOff = /^([2-9TJQKA])([2-9TJQKA])o-\1([2-9TJQKA])o$/i.exec(token);
+    if (dashOff) {
+      const high = dashOff[1]!.toUpperCase();
+      const a = dashOff[2]!.toUpperCase();
+      const b = dashOff[3]!.toUpperCase();
+      let from = rankIndex(a);
+      let to = rankIndex(b);
+      if (from > to) {
+        const swap = from;
+        from = to;
+        to = swap;
+      }
+      const highIdx = rankIndex(high);
+      for (let i = from; i <= to; i += 1) {
+        if (i === highIdx) continue;
+        out.push(`${high}${RANK_ORDER[i]!}o`);
+      }
       continue;
     }
     const single = /^([2-9TJQKA])([2-9TJQKA])([so])$/i.exec(token);

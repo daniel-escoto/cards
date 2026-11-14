@@ -360,6 +360,40 @@
               aria-live="polite"
             ></div>
             <div id="trainerActions" class="game-buttons"></div>
+            <div
+              id="trainerBetControls"
+              class="bet-controls is-reserved"
+              aria-hidden="true"
+              inert
+            >
+              <div class="raise-row">
+                <div class="raise-stepper" aria-label="Raise amount">
+                  <button
+                    id="trainerRaiseMinus"
+                    type="button"
+                    class="secondary"
+                    aria-label="Decrease raise"
+                  >
+                    -
+                  </button>
+                  <div class="raise-display">
+                    <span id="trainerRaiseLabel">Raise to</span>
+                    <strong id="trainerRaiseAmount">180</strong>
+                  </div>
+                  <button
+                    id="trainerRaisePlus"
+                    type="button"
+                    class="secondary"
+                    aria-label="Increase raise"
+                  >
+                    +
+                  </button>
+                </div>
+                <button id="trainerRaiseActionBtn" type="button" class="raise-action has-shortcut">
+                  Raise <kbd>R</kbd>
+                </button>
+              </div>
+            </div>
           </section>
           <div id="trainerPlayers" class="players" aria-live="polite"></div>
         </section>
@@ -381,7 +415,7 @@
         <div class="modal-panel menu-panel">
           <div class="modal-head">
             <div>
-              <p class="eyebrow">Preflop RFI</p>
+              <p class="eyebrow">Preflop drills</p>
               <h2 id="trainerMenuTitle" class="menu-title">Trainer</h2>
             </div>
             <button
@@ -394,6 +428,17 @@
             </button>
           </div>
           <div class="menu-stack">
+            <div class="trainer-drill" role="group" aria-label="Drill type">
+              <button id="trainerDrillRfi" class="mode-option selected" type="button" aria-pressed="true">
+                RFI
+              </button>
+              <button id="trainerDrillFacing" class="mode-option" type="button" aria-pressed="false">
+                Facing raise
+              </button>
+              <button id="trainerDrillMix" class="mode-option" type="button" aria-pressed="false">
+                Mix
+              </button>
+            </div>
             <div class="trainer-size" role="group" aria-label="Table size">
               <button id="trainerSize6" class="mode-option selected" type="button" aria-pressed="true">
                 6-max
@@ -435,8 +480,9 @@
               ×
             </button>
           </div>
-          <div class="trainer-chart-legend" aria-hidden="true">
+          <div id="trainerChartLegend" class="trainer-chart-legend" aria-hidden="true">
             <span class="trainer-legend-raise">Raise</span>
+            <span class="trainer-legend-call hidden">Call</span>
             <span class="trainer-legend-fold">Fold</span>
           </div>
           <div id="trainerChart" class="trainer-chart"></div>
@@ -705,6 +751,7 @@
     <script src="/shared/pokersolver.js"></script>
     <script src="/shared/engine.js"></script>
     <script src="/shared/rfi-ranges.js"></script>
+    <script src="/shared/vs-open-ranges.js"></script>
     <script src="/shared/coach-odds.js"></script>
     <script src="/practice.js"></script>
     <script src="/deploy-handoff.js"></script>

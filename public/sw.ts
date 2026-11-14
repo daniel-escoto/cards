@@ -72,6 +72,7 @@ const APP_SHELL = [
   "/shared/pokersolver.js",
   "/shared/engine.js",
   "/shared/rfi-ranges.js",
+  "/shared/vs-open-ranges.js",
   "/shared/coach-odds.js",
 ];
 

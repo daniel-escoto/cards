@@ -72,6 +72,29 @@ await esbuild.build({
   logLevel: "info",
 });
 
+// Node CJS vs-open ranges — keep for tests; browser IIFE overwrites .js.
+// vs-open-ranges imports rfi-ranges; retarget CJS require at rfi-ranges.node.js.
+{
+  const nodePath = path.join(dist, "shared/vs-open-ranges.node.js");
+  copyFile(path.join(dist, "shared/vs-open-ranges.js"), nodePath);
+  const nodeSrc = fs
+    .readFileSync(nodePath, "utf8")
+    .replace(/require\("\.\/rfi-ranges"\)/g, 'require("./rfi-ranges.node")');
+  fs.writeFileSync(nodePath, nodeSrc);
+}
+
+await esbuild.build({
+  absWorkingDir: root,
+  entryPoints: [path.join(root, "shared/vs-open-ranges.ts")],
+  outfile: path.join(dist, "shared/vs-open-ranges.js"),
+  bundle: true,
+  format: "iife",
+  globalName: "VsOpenRanges",
+  platform: "browser",
+  target: ["es2022"],
+  logLevel: "info",
+});
+
 // Node CJS coach odds — keep for tests; browser IIFE overwrites .js
 copyFile(path.join(dist, "shared/coach-odds.js"), path.join(dist, "shared/coach-odds.node.js"));
 

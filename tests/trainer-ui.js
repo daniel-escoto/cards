@@ -27,6 +27,11 @@ assert.match(html, /id="trainerSeatPopover"/);
 assert.match(html, /class="table-view trainer-view/);
 assert.match(html, /id="trainerActions" class="game-buttons"/);
 assert.match(html, /shared\/rfi-ranges\.js/);
+assert.match(html, /shared\/vs-open-ranges\.js/);
+assert.match(html, /id="trainerDrillRfi"/);
+assert.match(html, /id="trainerDrillFacing"/);
+assert.match(html, /id="trainerDrillMix"/);
+assert.match(html, /id="trainerBetControls"/);
 assert.match(html, /trainer\.js/);
 
 // Trainer sits outside the join form (avoid submit side-effects). Offline vs-bots
@@ -48,17 +53,28 @@ assert.match(trainer, /POSITION_FULL_NAME/);
 assert.match(trainer, /Under the gun/);
 assert.match(trainer, /trainerHintBtn/);
 assert.match(trainer, /rfiTeachingHint/);
+assert.match(trainer, /facingTeachingHint/);
+assert.match(trainer, /explainFacingDecision/);
+assert.match(trainer, /legalRaiseTo/);
 assert.match(trainer, /trainer-why/);
+assert.match(trainer, /trainer-borderline-note/);
 assert.match(trainer, /hinted/);
 assert.match(trainer, /blind-chip/);
 assert.match(trainer, /table-player-row/);
 assert.match(trainer, /trainerFoldBtn/);
+assert.match(trainer, /trainerCallBtn/);
+assert.match(trainer, /trainerRetryBtn/);
+assert.match(trainer, /DRILL_KEY/);
 assert.doesNotMatch(trainer, /onPractice/);
+assert.doesNotMatch(trainer, /\bany\b/);
 
 assert.match(css, /--trainer-chart-raise-bg/);
+assert.match(css, /--trainer-chart-call-bg/);
 assert.match(css, /--trainer-chart-fold-bg/);
 assert.match(css, /\.trainer-why/);
+assert.match(css, /\.trainer-borderline-note/);
 assert.match(css, /\.coach-hint/);
+assert.match(css, /\.trainer-drill/);
 // Trainer reuses Practice .felt / .community / .players / .control-panel — no desktop overrides.
 assert.match(
   css,

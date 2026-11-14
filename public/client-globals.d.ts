@@ -449,10 +449,98 @@ declare global {
 
   const RfiRanges: RfiRangesAPI;
 
+  interface VsOpenRangesAPI {
+    facingHeroPositions(tableSize: 6 | 9): readonly string[];
+    facingOpenerPositions(tableSize: 6 | 9, hero: string): readonly string[];
+    isValidFacingPair(tableSize: 6 | 9, hero: string, opener: string): boolean;
+    standardFacingAction(
+      tableSize: 6 | 9,
+      hero: string,
+      opener: string,
+      handKey: string,
+    ): "fold" | "call" | "raise" | null;
+    gradeFacingAction(
+      tableSize: 6 | 9,
+      hero: string,
+      opener: string,
+      handKey: string,
+      chosen: "fold" | "call" | "raise",
+    ): { correct: boolean; standard: "fold" | "call" | "raise"; handKey: string } | null;
+    facingBorderline?(
+      tableSize: 6 | 9,
+      hero: string,
+      opener: string,
+      handKey: string,
+    ): "inside" | "outside" | null;
+    facingChart(
+      tableSize: 6 | 9,
+      hero: string,
+      opener: string,
+    ): Array<{ key: string; action: "fold" | "call" | "raise"; row: number; col: number }> | null;
+    facingTeachingHint?(
+      tableSize: 6 | 9,
+      hero: string,
+      opener: string,
+      handKey: string,
+    ): {
+      concept: string;
+      reveal: string;
+      standard: "fold" | "call" | "raise";
+    } | null;
+    explainFacingDecision?(
+      tableSize: 6 | 9,
+      hero: string,
+      opener: string,
+      handKey: string,
+      chosen: "fold" | "call" | "raise",
+    ): {
+      verdict: "correct" | "mistake";
+      badge: "Best" | "Fine" | "Mistake";
+      reason: string;
+      borderline: "inside" | "outside" | null;
+      borderlineNote: string | null;
+      category: string;
+      categoryLabel: string;
+      heroName: string;
+      openerName: string;
+      why: string[];
+      ruleOfThumb: string;
+    } | null;
+    dealRandomFacingSpot(
+      tableSize: 6 | 9,
+      options?: {
+        random?: () => number;
+        smallBlind?: number;
+        bigBlind?: number;
+        startingStack?: number;
+      },
+    ): {
+      tableSize: 6 | 9;
+      heroPosition: string;
+      openerPosition: string;
+      callers: string[];
+      cards: [PublicCard, PublicCard];
+      handKey: string;
+      standard: "fold" | "call" | "raise";
+      bigBlind: number;
+      smallBlind: number;
+      openTo: number;
+      toCall: number;
+      pot: number;
+      minRaiseTo: number;
+      maxRaiseTo: number;
+      preferredRaiseTo: number;
+    };
+    FACING_OPEN_BB_MULT?: number;
+  }
+
+  const VsOpenRanges: VsOpenRangesAPI;
+
   interface PreflopTrainerAPI {
     bind(doc?: Document): { destroy: () => void } | null;
     STATS_KEY: string;
     TABLE_KEY: string;
+    DRILL_KEY?: string;
   }
 
   const PreflopTrainer: PreflopTrainerAPI;
@@ -546,6 +634,7 @@ declare global {
     ReadyClock?: ReadyClockAPI;
     InviteUrl?: InviteUrlAPI;
     RfiRanges?: RfiRangesAPI;
+    VsOpenRanges?: VsOpenRangesAPI;
     PreflopTrainer?: PreflopTrainerAPI;
     Coach?: CoachAPI;
     CopyForAi?: CopyForAiAPI;

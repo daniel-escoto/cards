@@ -1,15 +1,19 @@
 /**
- * Offline Preflop Trainer — RFI Raise/Fold drills presented as table-layout puzzles.
+ * Offline Preflop Trainer — RFI and facing-raise drills as table-layout puzzles.
  */
 (function (
   root: typeof globalThis & {
     PreflopTrainer?: PreflopTrainerAPI;
     RfiRanges?: RfiRangesAPI;
+    VsOpenRanges?: VsOpenRangesAPI;
     HoldemFormat?: HoldemFormatAPI;
+    RaiseSizing?: RaiseSizingAPI;
   },
   factory: (
     ranges: RfiRangesAPI | undefined,
+    vsOpen: VsOpenRangesAPI | undefined,
     format: HoldemFormatAPI | undefined,
+    sizing: RaiseSizingAPI | undefined,
   ) => PreflopTrainerAPI,
 ) {
   if (typeof module === "object" && module.exports) {
@@ -23,27 +27,52 @@
         ranges = undefined;
       }
     }
+    let vsOpen: VsOpenRangesAPI | undefined;
+    try {
+      vsOpen = require("../shared/vs-open-ranges.node.js") as VsOpenRangesAPI;
+    } catch {
+      try {
+        vsOpen = require("../shared/vs-open-ranges.js") as VsOpenRangesAPI;
+      } catch {
+        vsOpen = undefined;
+      }
+    }
     let format: HoldemFormatAPI | undefined;
     try {
       format = require("./app-format.js") as HoldemFormatAPI;
     } catch {
       format = undefined;
     }
-    module.exports = factory(ranges, format);
+    let sizing: RaiseSizingAPI | undefined;
+    try {
+      sizing = require("./raise-sizing.js") as RaiseSizingAPI;
+    } catch {
+      sizing = undefined;
+    }
+    module.exports = factory(ranges, vsOpen, format, sizing);
   } else {
-    root.PreflopTrainer = factory(root.RfiRanges, root.HoldemFormat);
+    root.PreflopTrainer = factory(
+      root.RfiRanges,
+      root.VsOpenRanges,
+      root.HoldemFormat,
+      root.RaiseSizing,
+    );
   }
 })(
   typeof globalThis !== "undefined" ? globalThis : (this as typeof globalThis),
-  function (ranges, format) {
+  function (ranges, vsOpen, format, sizing) {
     "use strict";
 
     const STATS_KEY = "holdem:trainer-stats";
     const TABLE_KEY = "holdem:trainer-table";
+    const DRILL_KEY = "holdem:trainer-drill";
     const SMALL_BLIND = 10;
     const BIG_BLIND = 20;
     const STARTING_STACK = 1000;
-    const POT = SMALL_BLIND + BIG_BLIND;
+    const POT_RFI = SMALL_BLIND + BIG_BLIND;
+
+    type DrillMode = "rfi" | "facing" | "mix";
+    type FacingAction = "fold" | "call" | "raise";
 
     /** Full table seats including BB (RFI spots never deal BB). */
     const TABLE_SEATS_6 = ["UTG", "HJ", "CO", "BTN", "SB", "BB"] as const;
@@ -105,7 +134,8 @@
       byPosition: Record<string, PositionStat>;
     };
 
-    type SpotState = {
+    type RfiSpotState = {
+      kind: "rfi";
       tableSize: 6 | 9;
       position: string;
       cards: [PublicCard, PublicCard];
@@ -114,10 +144,35 @@
       answered: boolean;
       chosen: "raise" | "fold" | null;
       correct: boolean | null;
-      /** 0 = unused, 1 = concept shown, 2 = move revealed. */
       hintStep: 0 | 1 | 2;
       whyOpen: boolean;
+      scored: boolean;
     };
+
+    type FacingSpotState = {
+      kind: "facing";
+      tableSize: 6 | 9;
+      position: string;
+      openerPosition: string;
+      callers: string[];
+      cards: [PublicCard, PublicCard];
+      handKey: string;
+      standard: FacingAction;
+      openTo: number;
+      toCall: number;
+      pot: number;
+      minRaiseTo: number;
+      maxRaiseTo: number;
+      raiseTo: number;
+      answered: boolean;
+      chosen: FacingAction | null;
+      correct: boolean | null;
+      hintStep: 0 | 1 | 2;
+      whyOpen: boolean;
+      scored: boolean;
+    };
+
+    type SpotState = RfiSpotState | FacingSpotState;
 
     function emptyStats(): TrainerStats {
       return {
@@ -198,6 +253,24 @@
       }
     }
 
+    function loadDrillMode(): DrillMode {
+      try {
+        const raw = localStorage.getItem(DRILL_KEY);
+        if (raw === "facing" || raw === "mix" || raw === "rfi") return raw;
+      } catch {
+        /* ignore */
+      }
+      return "rfi";
+    }
+
+    function saveDrillMode(mode: DrillMode): void {
+      try {
+        localStorage.setItem(DRILL_KEY, mode);
+      } catch {
+        /* ignore */
+      }
+    }
+
     function pct(correct: number, total: number): string {
       if (total <= 0) return "—";
       return `${Math.round((100 * correct) / total)}%`;
@@ -259,6 +332,24 @@
       return STARTING_STACK;
     }
 
+    function openerStack(spot: FacingSpotState): number {
+      // openTo is the total bet; SB open already includes the blind.
+      return STARTING_STACK - spot.openTo;
+    }
+
+    function seatStackFacing(seat: string, spot: FacingSpotState): number {
+      if (seat === spot.openerPosition) return openerStack(spot);
+      if (spot.callers.includes(seat)) return STARTING_STACK - spot.openTo;
+      if (seat === spot.position) {
+        const posted =
+          seat === "BB" ? BIG_BLIND : seat === "SB" ? SMALL_BLIND : 0;
+        return STARTING_STACK - posted;
+      }
+      if (seat === "SB") return STARTING_STACK - SMALL_BLIND;
+      if (seat === "BB") return STARTING_STACK - BIG_BLIND;
+      return STARTING_STACK;
+    }
+
     function seatChipMarkup(seat: string): string {
       const chips: string[] = [];
       if (seat === "BTN") {
@@ -275,6 +366,38 @@
         );
       }
       return chips.map((chip) => `<span class="seat-chip-slot">${chip}</span>`).join("");
+    }
+
+    function snapRaiseTo(
+      preferred: number,
+      minRaiseTo: number,
+      maxRaiseTo: number,
+    ): number {
+      if (sizing && typeof sizing.legalRaiseTo === "function") {
+        return sizing.legalRaiseTo(preferred, {
+          minRaiseTo,
+          maxRaiseTo,
+          step: BIG_BLIND,
+        });
+      }
+      const clamped = Math.max(minRaiseTo, Math.min(maxRaiseTo, preferred));
+      return Math.round(clamped / BIG_BLIND) * BIG_BLIND;
+    }
+
+    function nudgeRaise(
+      current: number,
+      direction: number,
+      minRaiseTo: number,
+      maxRaiseTo: number,
+    ): number {
+      if (sizing && typeof sizing.nudgeRaiseTo === "function") {
+        return sizing.nudgeRaiseTo(current, direction, {
+          minRaiseTo,
+          maxRaiseTo,
+          step: BIG_BLIND,
+        });
+      }
+      return snapRaiseTo(current + direction * BIG_BLIND, minRaiseTo, maxRaiseTo);
     }
 
     function bind(doc: Document = document): { destroy: () => void } | null {
@@ -308,11 +431,31 @@
       const controlPanel = trainerView.querySelector(
         "#trainerControlPanel",
       ) as HTMLElement | null;
+      const betControls = trainerView.querySelector(
+        "#trainerBetControls",
+      ) as HTMLElement | null;
+      const raiseAmountEl = trainerView.querySelector(
+        "#trainerRaiseAmount",
+      ) as HTMLElement | null;
+      const raiseMinusBtn = trainerView.querySelector(
+        "#trainerRaiseMinus",
+      ) as HTMLButtonElement | null;
+      const raisePlusBtn = trainerView.querySelector(
+        "#trainerRaisePlus",
+      ) as HTMLButtonElement | null;
+      const raiseActionBtn = trainerView.querySelector(
+        "#trainerRaiseActionBtn",
+      ) as HTMLButtonElement | null;
 
       const menuModal = doc.querySelector("#trainerMenuModal") as HTMLElement | null;
       const closeMenuBtn = doc.querySelector("#trainerCloseMenuBtn") as HTMLButtonElement | null;
       const size6Btn = doc.querySelector("#trainerSize6") as HTMLButtonElement | null;
       const size9Btn = doc.querySelector("#trainerSize9") as HTMLButtonElement | null;
+      const drillRfiBtn = doc.querySelector("#trainerDrillRfi") as HTMLButtonElement | null;
+      const drillFacingBtn = doc.querySelector(
+        "#trainerDrillFacing",
+      ) as HTMLButtonElement | null;
+      const drillMixBtn = doc.querySelector("#trainerDrillMix") as HTMLButtonElement | null;
       const statsEl = doc.querySelector("#trainerStats") as HTMLElement | null;
       const resetBtn = doc.querySelector("#trainerResetBtn") as HTMLButtonElement | null;
       const leaveBtn = doc.querySelector("#trainerLeaveBtn") as HTMLButtonElement | null;
@@ -321,6 +464,9 @@
       const closeChartBtn = doc.querySelector("#trainerCloseChartBtn") as HTMLButtonElement | null;
       const chartEl = doc.querySelector("#trainerChart") as HTMLElement | null;
       const chartEyebrow = doc.querySelector("#trainerChartEyebrow") as HTMLElement | null;
+      const chartLegendCall = doc.querySelector(
+        "#trainerChartLegend .trainer-legend-call",
+      ) as HTMLElement | null;
       const seatPopover = trainerView.querySelector("#trainerSeatPopover") as HTMLElement | null;
 
       if (
@@ -335,10 +481,18 @@
         !actionsEl ||
         !playersEl ||
         !controlPanel ||
+        !betControls ||
+        !raiseAmountEl ||
+        !raiseMinusBtn ||
+        !raisePlusBtn ||
+        !raiseActionBtn ||
         !menuModal ||
         !closeMenuBtn ||
         !size6Btn ||
         !size9Btn ||
+        !drillRfiBtn ||
+        !drillFacingBtn ||
+        !drillMixBtn ||
         !statsEl ||
         !resetBtn ||
         !leaveBtn ||
@@ -351,6 +505,7 @@
       }
 
       let tableSize: 6 | 9 = loadTableSize();
+      let drillMode: DrillMode = loadDrillMode();
       let stats = loadStats();
       let spot: SpotState | null = null;
       let active = false;
@@ -428,7 +583,6 @@
       }
 
       function cardHtml(card: PublicCard | null): string {
-        // Null → face-down back (same as Practice community slots via HoldemFormat.cardTemplate).
         if (format && typeof format.cardTemplate === "function") {
           return format.cardTemplate(card);
         }
@@ -440,7 +594,6 @@
         </div>`;
       }
 
-      /** Same five face-down board slots Practice shows preflop (no street pill). */
       function facedownBoardHtml(): string {
         return Array.from({ length: 5 }, () => cardHtml(null)).join("");
       }
@@ -468,6 +621,15 @@
           const hintMark = row.hinted > 0 ? ` · ${row.hinted}h` : "";
           parts.push(`${pos} ${row.correct}/${row.total}${hintMark}`);
         }
+        if (vsOpen) {
+          for (const pos of vsOpen.facingHeroPositions(tableSize)) {
+            if ((order as readonly string[]).includes(pos)) continue;
+            const row = stats.byPosition[pos];
+            if (!row || row.total === 0) continue;
+            const hintMark = row.hinted > 0 ? ` · ${row.hinted}h` : "";
+            parts.push(`${pos} ${row.correct}/${row.total}${hintMark}`);
+          }
+        }
         statsEl!.textContent = parts.join(" · ");
       }
 
@@ -478,11 +640,77 @@
         coachEl!.removeAttribute("data-hint-step");
       }
 
+      function setBetControlsVisible(visible: boolean): void {
+        if (visible) {
+          // Practice hides .bet-controls under .is-compact; drop compact while raising.
+          controlPanel!.classList.remove("is-compact");
+          betControls!.classList.remove("is-reserved");
+          betControls!.removeAttribute("inert");
+          betControls!.setAttribute("aria-hidden", "false");
+        } else {
+          controlPanel!.classList.add("is-compact");
+          betControls!.classList.add("is-reserved");
+          betControls!.setAttribute("inert", "");
+          betControls!.setAttribute("aria-hidden", "true");
+        }
+      }
+
+      function syncRaiseDisplay(): void {
+        if (!spot || spot.kind !== "facing" || spot.answered) {
+          setBetControlsVisible(false);
+          return;
+        }
+        raiseAmountEl!.textContent = String(spot.raiseTo);
+        setBetControlsVisible(true);
+      }
+
       function renderHintCoach(): void {
         if (!spot || spot.answered || spot.hintStep === 0) {
           hideCoach();
           return;
         }
+        if (spot.kind === "facing") {
+          if (!vsOpen || typeof vsOpen.facingTeachingHint !== "function") {
+            hideCoach();
+            return;
+          }
+          const hint = vsOpen.facingTeachingHint(
+            tableSize,
+            spot.position,
+            spot.openerPosition,
+            spot.handKey,
+          );
+          if (!hint) {
+            hideCoach();
+            return;
+          }
+          const head = doc.createElement("div");
+          head.className = "coach-hint-head";
+          const badge = doc.createElement("span");
+          badge.className = "coach-hint-badge";
+          badge.textContent = spot.hintStep === 1 ? "Hint" : "Hint · reveal";
+          const headline = doc.createElement("strong");
+          headline.className = "coach-hint-headline";
+          headline.textContent =
+            spot.hintStep === 1
+              ? "Think about the spot"
+              : hint.standard === "raise"
+                ? "3-bet"
+                : hint.standard === "call"
+                  ? "Call"
+                  : "Fold";
+          head.append(badge, headline);
+          const reason = doc.createElement("p");
+          reason.className = "coach-hint-reason trainer-coach-reason-wrap";
+          reason.textContent = spot.hintStep === 1 ? hint.concept : hint.reveal;
+          coachEl!.replaceChildren(head, reason);
+          coachEl!.dataset.hintStep = String(spot.hintStep);
+          if (spot.hintStep === 2) coachEl!.dataset.action = hint.standard;
+          else coachEl!.removeAttribute("data-action");
+          coachEl!.classList.remove("hidden");
+          return;
+        }
+
         const hint =
           typeof ranges!.rfiTeachingHint === "function"
             ? ranges!.rfiTeachingHint(tableSize, spot.position, spot.handKey)
@@ -498,21 +726,53 @@
         badge.textContent = spot.hintStep === 1 ? "Hint" : "Hint · reveal";
         const headline = doc.createElement("strong");
         headline.className = "coach-hint-headline";
-        headline.textContent = spot.hintStep === 1 ? "Think about the seat" : hint.standard === "raise" ? "Raise" : "Fold";
+        headline.textContent =
+          spot.hintStep === 1 ? "Think about the seat" : hint.standard === "raise" ? "Raise" : "Fold";
         head.append(badge, headline);
-
         const reason = doc.createElement("p");
         reason.className = "coach-hint-reason trainer-coach-reason-wrap";
         reason.textContent = spot.hintStep === 1 ? hint.concept : hint.reveal;
-
         coachEl!.replaceChildren(head, reason);
         coachEl!.dataset.hintStep = String(spot.hintStep);
-        if (spot.hintStep === 2) {
-          coachEl!.dataset.action = hint.standard;
-        } else {
-          coachEl!.removeAttribute("data-action");
-        }
+        if (spot.hintStep === 2) coachEl!.dataset.action = hint.standard;
+        else coachEl!.removeAttribute("data-action");
         coachEl!.classList.remove("hidden");
+      }
+
+      function appendWhyDetails(
+        nodes: Node[],
+        why: string[],
+        ruleOfThumb: string,
+        whyOpen: boolean,
+      ): void {
+        if (why.length === 0) return;
+        const details = doc.createElement("details");
+        details.className = "trainer-why";
+        details.open = whyOpen;
+        details.addEventListener("toggle", () => {
+          if (!spot) return;
+          spot.whyOpen = details.open;
+        });
+        const summary = doc.createElement("summary");
+        summary.textContent = "Why?";
+        const body = doc.createElement("div");
+        body.className = "trainer-why-body";
+        const list = doc.createElement("ul");
+        list.className = "trainer-why-list";
+        for (const line of why) {
+          const item = doc.createElement("li");
+          item.textContent = line;
+          list.append(item);
+        }
+        body.append(list);
+        if (ruleOfThumb) {
+          const rule = doc.createElement("p");
+          rule.className = "trainer-why-rule";
+          rule.textContent = `Remember: ${ruleOfThumb}`;
+          body.append(rule);
+        }
+        details.append(summary, body);
+        nodes.push(details);
       }
 
       function renderAnswerCoach(): void {
@@ -520,6 +780,60 @@
           hideCoach();
           return;
         }
+
+        if (spot.kind === "facing") {
+          const chosen = spot.chosen || "fold";
+          const explain =
+            vsOpen && typeof vsOpen.explainFacingDecision === "function"
+              ? vsOpen.explainFacingDecision(
+                  tableSize,
+                  spot.position,
+                  spot.openerPosition,
+                  spot.handKey,
+                  chosen,
+                )
+              : null;
+          const correct = Boolean(spot.correct);
+          const badgeLabel = explain?.badge || (correct ? "Best" : "Mistake");
+          const reasonText =
+            explain?.reason ||
+            (correct ? "Nice — that matches the chart." : "Check the chart for this spot.");
+
+          const head = doc.createElement("div");
+          head.className = "coach-hint-head";
+          const badge = doc.createElement("span");
+          badge.className = "coach-hint-badge";
+          badge.textContent = "Trainer";
+          const headline = doc.createElement("strong");
+          headline.className = "coach-hint-headline";
+          const icon = correct ? "✓" : "✗";
+          headline.textContent = `${icon} ${badgeLabel}`;
+          head.append(badge, headline);
+
+          const reason = doc.createElement("p");
+          reason.className = "coach-hint-reason trainer-coach-reason-wrap";
+          reason.textContent = reasonText;
+
+          const nodes: Node[] = [head, reason];
+          if (explain?.borderlineNote) {
+            const note = doc.createElement("p");
+            note.className = "trainer-borderline-note";
+            note.textContent = explain.borderlineNote;
+            nodes.push(note);
+          }
+          if (explain) {
+            appendWhyDetails(nodes, explain.why, explain.ruleOfThumb, spot.whyOpen);
+          }
+
+          coachEl!.replaceChildren(...nodes);
+          if (badgeLabel === "Mistake") coachEl!.dataset.action = "fold";
+          else if (badgeLabel === "Best") coachEl!.dataset.action = "raise";
+          else coachEl!.dataset.action = "call";
+          coachEl!.removeAttribute("data-hint-step");
+          coachEl!.classList.remove("hidden");
+          return;
+        }
+
         const chosen = spot.chosen || "fold";
         const explain =
           typeof ranges!.explainRfiDecision === "function"
@@ -549,34 +863,8 @@
         reason.textContent = reasonText;
 
         const nodes: Node[] = [head, reason];
-        if (explain && explain.why.length > 0) {
-          const details = doc.createElement("details");
-          details.className = "trainer-why";
-          details.open = spot.whyOpen;
-          details.addEventListener("toggle", () => {
-            if (!spot) return;
-            spot.whyOpen = details.open;
-          });
-          const summary = doc.createElement("summary");
-          summary.textContent = "Why?";
-          const body = doc.createElement("div");
-          body.className = "trainer-why-body";
-          const list = doc.createElement("ul");
-          list.className = "trainer-why-list";
-          for (const line of explain.why) {
-            const item = doc.createElement("li");
-            item.textContent = line;
-            list.append(item);
-          }
-          body.append(list);
-          if (explain.ruleOfThumb) {
-            const rule = doc.createElement("p");
-            rule.className = "trainer-why-rule";
-            rule.textContent = `Remember: ${explain.ruleOfThumb}`;
-            body.append(rule);
-          }
-          details.append(summary, body);
-          nodes.push(details);
+        if (explain) {
+          appendWhyDetails(nodes, explain.why, explain.ruleOfThumb, spot.whyOpen);
         }
 
         coachEl!.replaceChildren(...nodes);
@@ -616,6 +904,34 @@
         size9Btn!.setAttribute("aria-pressed", tableSize === 9 ? "true" : "false");
       }
 
+      function renderDrillToggle(): void {
+        const facingAvailable = Boolean(vsOpen);
+        drillFacingBtn!.disabled = !facingAvailable;
+        drillMixBtn!.disabled = !facingAvailable;
+        if (!facingAvailable && drillMode !== "rfi") {
+          drillMode = "rfi";
+          saveDrillMode(drillMode);
+        }
+        drillRfiBtn!.classList.toggle("selected", drillMode === "rfi");
+        drillFacingBtn!.classList.toggle("selected", drillMode === "facing");
+        drillMixBtn!.classList.toggle("selected", drillMode === "mix");
+        drillRfiBtn!.setAttribute("aria-pressed", drillMode === "rfi" ? "true" : "false");
+        drillFacingBtn!.setAttribute(
+          "aria-pressed",
+          drillMode === "facing" ? "true" : "false",
+        );
+        drillMixBtn!.setAttribute("aria-pressed", drillMode === "mix" ? "true" : "false");
+      }
+
+      function chosenActionLabel(spotState: SpotState): string {
+        if (spotState.kind === "rfi") {
+          return spotState.chosen === "raise" ? "Raise" : "Fold";
+        }
+        if (spotState.chosen === "raise") return `Raises to ${spotState.raiseTo}`;
+        if (spotState.chosen === "call") return `Calls ${spotState.toCall}`;
+        return "Fold";
+      }
+
       function renderPlayers(): void {
         if (!spot) {
           playersEl!.innerHTML = "";
@@ -623,17 +939,92 @@
         }
         const seats = seatsForTable(spot.tableSize);
         const heroIndex = seats.indexOf(spot.position);
+
+        if (spot.kind === "rfi") {
+          const html = seats
+            .map((seat, index) => {
+              const isHero = seat === spot!.position;
+              const folded = heroIndex >= 0 && index < heroIndex;
+              const isActing = isHero && !spot!.answered;
+              const waitingAfter = !folded && !isHero;
+              let action = "";
+              let actionClass = "";
+              const nextSeat =
+                !spot!.answered && heroIndex >= 0
+                  ? seats[(heroIndex + 1) % seats.length] || null
+                  : null;
+              const nextArrow =
+                isActing && nextSeat
+                  ? seats.indexOf(nextSeat) < heroIndex
+                    ? "▲"
+                    : "▼"
+                  : "";
+              if (folded) {
+                action = "Fold";
+              } else if (isHero && spot!.answered) {
+                action = chosenActionLabel(spot!);
+                actionClass = spot!.chosen === "raise" ? " action-token-raise" : "";
+              } else if (isActing) {
+                action = "Acting";
+              } else if (waitingAfter) {
+                action = "—";
+                actionClass = " is-waiting";
+              }
+              const classes = [
+                "table-player-row",
+                isActing ? "turn" : "",
+                folded ? "folded" : "",
+                isHero ? "you" : "",
+              ]
+                .filter(Boolean)
+                .join(" ");
+              const full = positionFullName(seat);
+              const blurb = positionBlurb(seat);
+              const arrowMarkup = nextArrow
+                ? `<span class="next-act-arrow" title="Next to act ${nextArrow === "▲" ? "above" : "below"}" aria-label="Next player ${nextArrow === "▲" ? "above" : "below"}">${nextArrow}</span>`
+                : "";
+              return `<article
+              class="${classes} trainer-seat-row"
+              data-seat="${escapeHtml(seat)}"
+              data-full="${escapeHtml(full)}"
+              data-blurb="${escapeHtml(blurb)}"
+              tabindex="0"
+              role="button"
+              aria-label="${escapeHtml(seat)}, ${escapeHtml(full)}. ${escapeHtml(blurb)}"
+            >
+              <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
+              <span class="seat-name seat-name-with-chips">
+                <span class="seat-name-text">${escapeHtml(seat)}</span>${seatChipMarkup(seat)}
+              </span>
+              <span class="player-action${actionClass}">${escapeHtml(action)}${arrowMarkup}</span>
+              <strong class="player-stack">${stackForSeat(seat)}</strong>
+            </article>`;
+            })
+            .join("");
+          playersEl!.innerHTML = html;
+          closeSeatPopover();
+          return;
+        }
+
+        const facing = spot;
+        const openerIndex = seats.indexOf(facing.openerPosition);
         const html = seats
           .map((seat, index) => {
-            const isHero = seat === spot!.position;
-            const folded = heroIndex >= 0 && index < heroIndex;
-            const isActing = isHero && !spot!.answered;
-            const waitingAfter = !folded && !isHero;
+            const isHero = seat === facing.position;
+            const isOpener = seat === facing.openerPosition;
+            const isCaller = facing.callers.includes(seat);
+            const foldedBefore =
+              (openerIndex >= 0 && index < openerIndex) ||
+              (openerIndex >= 0 &&
+                heroIndex >= 0 &&
+                index > openerIndex &&
+                index < heroIndex &&
+                !isCaller);
+            const isActing = isHero && !facing.answered;
             let action = "";
             let actionClass = "";
-            // Next live seat after the hero in visual order (wraps for BTN → UTG).
             const nextSeat =
-              !spot!.answered && heroIndex >= 0
+              !facing.answered && heroIndex >= 0
                 ? seats[(heroIndex + 1) % seats.length] || null
                 : null;
             const nextArrow =
@@ -642,21 +1033,31 @@
                   ? "▲"
                   : "▼"
                 : "";
-            if (folded) {
+            if (foldedBefore) {
               action = "Fold";
-            } else if (isHero && spot!.answered) {
-              action = spot!.chosen === "raise" ? "Raise" : "Fold";
-              actionClass = spot!.chosen === "raise" ? " action-token-raise" : "";
+            } else if (isOpener) {
+              action = `Raises to ${facing.openTo}`;
+              actionClass = " action-token-raise";
+            } else if (isCaller) {
+              action = `Calls ${facing.openTo}`;
+            } else if (isHero && facing.answered) {
+              action = chosenActionLabel(facing);
+              actionClass =
+                facing.chosen === "raise"
+                  ? " action-token-raise"
+                  : facing.chosen === "call"
+                    ? " action-token-call"
+                    : "";
             } else if (isActing) {
               action = "Acting";
-            } else if (waitingAfter) {
+            } else {
               action = "—";
               actionClass = " is-waiting";
             }
             const classes = [
               "table-player-row",
               isActing ? "turn" : "",
-              folded ? "folded" : "",
+              foldedBefore ? "folded" : "",
               isHero ? "you" : "",
             ]
               .filter(Boolean)
@@ -680,7 +1081,7 @@
                 <span class="seat-name-text">${escapeHtml(seat)}</span>${seatChipMarkup(seat)}
               </span>
               <span class="player-action${actionClass}">${escapeHtml(action)}${arrowMarkup}</span>
-              <strong class="player-stack">${stackForSeat(seat)}</strong>
+              <strong class="player-stack">${seatStackFacing(seat, facing)}</strong>
             </article>`;
           })
           .join("");
@@ -689,7 +1090,50 @@
       }
 
       function renderChart(highlightKey: string): void {
-        const cells = ranges!.rfiChart(tableSize, spot!.position);
+        if (!spot) {
+          chartEl!.innerHTML = "";
+          return;
+        }
+        if (spot.kind === "facing") {
+          if (!vsOpen) {
+            chartEl!.innerHTML = "";
+            return;
+          }
+          const cells = vsOpen.facingChart(tableSize, spot.position, spot.openerPosition);
+          if (!cells) {
+            chartEl!.innerHTML = "";
+            return;
+          }
+          if (chartLegendCall) chartLegendCall.classList.remove("hidden");
+          const ranks = ranges!.RANK_ORDER;
+          let html =
+            '<div class="trainer-chart-grid" role="img" aria-label="Facing raise chart">';
+          html += '<span class="trainer-chart-corner"></span>';
+          for (const rank of ranks) {
+            html += `<span class="trainer-chart-axis">${rank}</span>`;
+          }
+          for (let row = 0; row < 13; row += 1) {
+            html += `<span class="trainer-chart-axis">${ranks[row]}</span>`;
+            for (let col = 0; col < 13; col += 1) {
+              const cell = cells[row * 13 + col]!;
+              const highlight = cell.key === highlightKey ? " is-hand" : "";
+              let shape = " is-offsuit";
+              if (cell.key.length === 2) shape = " is-pair";
+              else if (cell.key.endsWith("s")) shape = " is-suited";
+              const label = cell.key.length <= 3 ? cell.key : cell.key.slice(0, 2);
+              html += `<span class="trainer-chart-cell is-${cell.action}${shape}${highlight}" title="${cell.key}">${label}</span>`;
+            }
+          }
+          html += "</div>";
+          chartEl!.innerHTML = html;
+          if (chartEyebrow) {
+            chartEyebrow.textContent = `${positionLabel(spot.position)} vs ${spot.openerPosition} open · ${tableSize}-max`;
+          }
+          return;
+        }
+
+        if (chartLegendCall) chartLegendCall.classList.add("hidden");
+        const cells = ranges!.rfiChart(tableSize, spot.position);
         if (!cells) {
           chartEl!.innerHTML = "";
           return;
@@ -716,18 +1160,40 @@
         html += "</div>";
         chartEl!.innerHTML = html;
         if (chartEyebrow) {
-          chartEyebrow.textContent = `${positionLabel(spot!.position)} · ${tableSize}-max open`;
+          chartEyebrow.textContent = `${positionLabel(spot.position)} · ${tableSize}-max open`;
         }
       }
 
       function renderActions(): void {
         if (!spot) {
           actionsEl!.innerHTML = "";
+          setBetControlsVisible(false);
           return;
         }
         if (!spot.answered) {
           const hintLabel =
             spot.hintStep === 0 ? "Hint" : spot.hintStep === 1 ? "Hint again" : "Hinted";
+          if (spot.kind === "facing") {
+            actionsEl!.innerHTML = `
+              <button id="trainerHintBtn" class="secondary" type="button" ${
+                spot.hintStep >= 2 ? "disabled" : ""
+              }>${hintLabel}</button>
+              <button id="trainerFoldBtn" class="secondary has-shortcut" type="button">
+                Fold <kbd>F</kbd>
+              </button>
+              <button id="trainerCallBtn" class="secondary has-shortcut" type="button">
+                Call ${spot.toCall} <kbd>C</kbd>
+              </button>
+            `;
+            const hintBtn = actionsEl!.querySelector("#trainerHintBtn") as HTMLButtonElement;
+            const foldBtn = actionsEl!.querySelector("#trainerFoldBtn") as HTMLButtonElement;
+            const callBtn = actionsEl!.querySelector("#trainerCallBtn") as HTMLButtonElement;
+            hintBtn.addEventListener("click", onHint);
+            foldBtn.addEventListener("click", () => answerFacing("fold"));
+            callBtn.addEventListener("click", () => answerFacing("call"));
+            syncRaiseDisplay();
+            return;
+          }
           actionsEl!.innerHTML = `
             <button id="trainerHintBtn" class="secondary" type="button" ${
               spot.hintStep >= 2 ? "disabled" : ""
@@ -743,12 +1209,21 @@
           const foldBtn = actionsEl!.querySelector("#trainerFoldBtn") as HTMLButtonElement;
           const raiseBtn = actionsEl!.querySelector("#trainerRaiseBtn") as HTMLButtonElement;
           hintBtn.addEventListener("click", onHint);
-          foldBtn.addEventListener("click", () => answer("fold"));
-          raiseBtn.addEventListener("click", () => answer("raise"));
+          foldBtn.addEventListener("click", () => answerRfi("fold"));
+          raiseBtn.addEventListener("click", () => answerRfi("raise"));
+          setBetControlsVisible(false);
           return;
         }
+
+        setBetControlsVisible(false);
+        const showRetry = spot.kind === "facing" && spot.correct === false;
         actionsEl!.innerHTML = `
           <button id="trainerChartBtn" class="secondary" type="button">Chart</button>
+          ${
+            showRetry
+              ? `<button id="trainerRetryBtn" class="secondary has-shortcut" type="button">Retry <kbd>T</kbd></button>`
+              : ""
+          }
           <button id="trainerNextBtn" class="has-shortcut" type="button">
             Next hand <kbd>N</kbd>
           </button>
@@ -757,6 +1232,8 @@
         const nextBtn = actionsEl!.querySelector("#trainerNextBtn") as HTMLButtonElement;
         chartBtn.addEventListener("click", openChart);
         nextBtn.addEventListener("click", () => dealNext());
+        const retryBtn = actionsEl!.querySelector("#trainerRetryBtn") as HTMLButtonElement | null;
+        if (retryBtn) retryBtn.addEventListener("click", retrySpot);
       }
 
       function renderTurnInfo(): void {
@@ -768,20 +1245,38 @@
         if (!spot.answered) {
           turnInfoEl!.classList.add("your-turn");
           turnInfoEl!.classList.remove("showdown-message");
+          if (spot.kind === "facing") {
+            const openerLabel = positionLabel(spot.openerPosition);
+            const callerNote =
+              spot.callers.length > 0
+                ? ` · ${spot.callers.map((c) => positionLabel(c)).join(", ")} call`
+                : "";
+            turnInfoEl!.innerHTML = `${escapeHtml(openerLabel)} raises to ${
+              spot.openTo
+            }${escapeHtml(callerNote)} · <span class="trainer-pos-label" title="${escapeHtml(
+              positionFullName(spot.position),
+            )}">${escapeHtml(positionLabel(spot.position))}</span>`;
+            return;
+          }
           turnInfoEl!.innerHTML = `Folded to you · <span class="trainer-pos-label" title="${escapeHtml(
             positionFullName(spot.position),
           )}">${escapeHtml(positionLabel(spot.position))}</span>`;
           return;
         }
-        // Answer feedback lives in #trainerCoach (shared .coach-hint card).
         turnInfoEl!.classList.remove("your-turn", "showdown-message");
         turnInfoEl!.textContent = "";
       }
 
-      function dealNext(): void {
-        closeChart();
+      function pickDrillKind(): "rfi" | "facing" {
+        if (drillMode === "rfi" || !vsOpen) return "rfi";
+        if (drillMode === "facing") return "facing";
+        return Math.random() < 0.5 ? "rfi" : "facing";
+      }
+
+      function dealRfiSpot(): void {
         const dealt = ranges!.dealRandomRfiSpot(tableSize);
         spot = {
+          kind: "rfi",
           tableSize: dealt.tableSize,
           position: dealt.position,
           cards: dealt.cards,
@@ -792,12 +1287,59 @@
           correct: null,
           hintStep: 0,
           whyOpen: false,
+          scored: false,
         };
+        potEl!.textContent = String(POT_RFI);
+      }
+
+      function dealFacingSpot(): void {
+        if (!vsOpen) {
+          dealRfiSpot();
+          return;
+        }
+        const dealt = vsOpen.dealRandomFacingSpot(tableSize, {
+          smallBlind: SMALL_BLIND,
+          bigBlind: BIG_BLIND,
+          startingStack: STARTING_STACK,
+        });
+        const raiseTo = snapRaiseTo(
+          dealt.preferredRaiseTo,
+          dealt.minRaiseTo,
+          dealt.maxRaiseTo,
+        );
+        spot = {
+          kind: "facing",
+          tableSize: dealt.tableSize,
+          position: dealt.heroPosition,
+          openerPosition: dealt.openerPosition,
+          callers: dealt.callers.slice(),
+          cards: dealt.cards,
+          handKey: dealt.handKey,
+          standard: dealt.standard,
+          openTo: dealt.openTo,
+          toCall: dealt.toCall,
+          pot: dealt.pot,
+          minRaiseTo: dealt.minRaiseTo,
+          maxRaiseTo: dealt.maxRaiseTo,
+          raiseTo,
+          answered: false,
+          chosen: null,
+          correct: null,
+          hintStep: 0,
+          whyOpen: false,
+          scored: false,
+        };
+        potEl!.textContent = String(dealt.pot);
+      }
+
+      function dealNext(): void {
+        closeChart();
+        if (pickDrillKind() === "facing") dealFacingSpot();
+        else dealRfiSpot();
+        if (!spot) return;
         trainerView.classList.remove("is-answered");
-        potEl!.textContent = String(POT);
-        const holes = cardHtml(dealt.cards[0]) + cardHtml(dealt.cards[1]);
+        const holes = cardHtml(spot.cards[0]) + cardHtml(spot.cards[1]);
         heroHandEl!.innerHTML = holes;
-        // Board slot matches Practice preflop: five face-down cards; hole cards stay in the panel.
         communityEl!.innerHTML = facedownBoardHtml();
         chartEl!.innerHTML = "";
         hideCoach();
@@ -807,8 +1349,25 @@
         renderActions();
       }
 
-      function answer(chosen: "raise" | "fold"): void {
-        if (!spot || spot.answered) return;
+      function retrySpot(): void {
+        if (!spot || spot.kind !== "facing" || !spot.answered) return;
+        closeChart();
+        spot.answered = false;
+        spot.chosen = null;
+        spot.correct = null;
+        spot.hintStep = 0;
+        spot.whyOpen = false;
+        // Keep scored=true so a second attempt does not double-count stats.
+        trainerView.classList.remove("is-answered");
+        hideCoach();
+        renderPlayers();
+        renderTurnInfo();
+        renderCoach();
+        renderActions();
+      }
+
+      function answerRfi(chosen: "raise" | "fold"): void {
+        if (!spot || spot.kind !== "rfi" || spot.answered) return;
         const graded = ranges!.gradeRfiAction(tableSize, spot.position, spot.handKey, chosen);
         if (!graded) return;
         const hinted = spot.hintStep > 0;
@@ -822,9 +1381,41 @@
         renderTurnInfo();
         renderCoach();
         renderActions();
-        stats = recordResult(stats, spot.position, graded.correct, hinted);
-        saveStats(stats);
-        renderStats();
+        if (!spot.scored) {
+          spot.scored = true;
+          stats = recordResult(stats, spot.position, graded.correct, hinted);
+          saveStats(stats);
+          renderStats();
+        }
+      }
+
+      function answerFacing(chosen: FacingAction): void {
+        if (!spot || spot.kind !== "facing" || spot.answered || !vsOpen) return;
+        const graded = vsOpen.gradeFacingAction(
+          tableSize,
+          spot.position,
+          spot.openerPosition,
+          spot.handKey,
+          chosen,
+        );
+        if (!graded) return;
+        const hinted = spot.hintStep > 0;
+        spot.answered = true;
+        spot.chosen = chosen;
+        spot.correct = graded.correct;
+        spot.whyOpen = false;
+        trainerView.classList.add("is-answered");
+        renderChart(spot.handKey);
+        renderPlayers();
+        renderTurnInfo();
+        renderCoach();
+        renderActions();
+        if (!spot.scored) {
+          spot.scored = true;
+          stats = recordResult(stats, spot.position, graded.correct, hinted);
+          saveStats(stats);
+          renderStats();
+        }
       }
 
       function openMenu(): void {
@@ -859,6 +1450,7 @@
         closeMenu();
         closeChart();
         renderSizeToggle();
+        renderDrillToggle();
         renderStats();
         dealNext();
         try {
@@ -878,6 +1470,7 @@
         closeChart();
         closeSeatPopover();
         hideCoach();
+        setBetControlsVisible(false);
         trainerView.classList.add("hidden");
         trainerView.classList.remove("is-answered");
         welcome.classList.remove("hidden");
@@ -899,6 +1492,15 @@
         renderSizeToggle();
         dealNext();
         renderStats();
+      }
+
+      function onDrill(mode: DrillMode): void {
+        if (drillMode === mode) return;
+        if ((mode === "facing" || mode === "mix") && !vsOpen) return;
+        drillMode = mode;
+        saveDrillMode(mode);
+        renderDrillToggle();
+        dealNext();
       }
 
       function onKeydown(event: KeyboardEvent): void {
@@ -934,20 +1536,45 @@
         }
         const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
         if (!spot?.answered) {
+          if (spot?.kind === "facing") {
+            if (key === "r") {
+              event.preventDefault();
+              answerFacing("raise");
+              return;
+            }
+            if (key === "c") {
+              event.preventDefault();
+              answerFacing("call");
+              return;
+            }
+            if (key === "f") {
+              event.preventDefault();
+              answerFacing("fold");
+              return;
+            }
+            return;
+          }
           if (key === "r") {
             event.preventDefault();
-            answer("raise");
+            answerRfi("raise");
             return;
           }
           if (key === "f") {
             event.preventDefault();
-            answer("fold");
+            answerRfi("fold");
             return;
           }
         } else if (key === " " || key === "Enter" || key === "n") {
           event.preventDefault();
           dealNext();
-        } else if (key === "c") {
+        } else if (key === "t" && spot?.kind === "facing" && spot.correct === false) {
+          event.preventDefault();
+          retrySpot();
+        } else if (key === "c" && spot?.kind === "rfi") {
+          event.preventDefault();
+          openChart();
+        } else if (key === "c" && spot?.kind === "facing") {
+          // Facing answered: C was Call while deciding; after answer open chart.
           event.preventDefault();
           openChart();
         }
@@ -966,6 +1593,9 @@
       };
       const onSize6 = () => onSize(6);
       const onSize9 = () => onSize(9);
+      const onDrillRfi = () => onDrill("rfi");
+      const onDrillFacing = () => onDrill("facing");
+      const onDrillMix = () => onDrill("mix");
       const onMenuBackdrop = (event: MouseEvent) => {
         if (event.target === menuModal) closeMenu();
       };
@@ -997,6 +1627,20 @@
         if (target instanceof HTMLElement && target.closest(".trainer-seat-row")) return;
         closeSeatPopover();
       };
+      const onRaiseMinus = () => {
+        if (!spot || spot.kind !== "facing" || spot.answered) return;
+        spot.raiseTo = nudgeRaise(spot.raiseTo, -1, spot.minRaiseTo, spot.maxRaiseTo);
+        syncRaiseDisplay();
+      };
+      const onRaisePlus = () => {
+        if (!spot || spot.kind !== "facing" || spot.answered) return;
+        spot.raiseTo = nudgeRaise(spot.raiseTo, 1, spot.minRaiseTo, spot.maxRaiseTo);
+        syncRaiseDisplay();
+      };
+      const onRaiseAction = () => {
+        if (!spot || spot.kind !== "facing" || spot.answered) return;
+        answerFacing("raise");
+      };
 
       trainerBtn.addEventListener("click", onTrainerClick);
       homeBtn.addEventListener("click", onHome);
@@ -1006,11 +1650,17 @@
       resetBtn.addEventListener("click", onReset);
       size6Btn.addEventListener("click", onSize6);
       size9Btn.addEventListener("click", onSize9);
+      drillRfiBtn.addEventListener("click", onDrillRfi);
+      drillFacingBtn.addEventListener("click", onDrillFacing);
+      drillMixBtn.addEventListener("click", onDrillMix);
       closeChartBtn.addEventListener("click", closeChart);
       menuModal.addEventListener("click", onMenuBackdrop);
       chartModal.addEventListener("click", onChartBackdrop);
       playersEl.addEventListener("click", onSeatRowActivate);
       playersEl.addEventListener("keydown", onSeatRowKeydown);
+      raiseMinusBtn.addEventListener("click", onRaiseMinus);
+      raisePlusBtn.addEventListener("click", onRaisePlus);
+      raiseActionBtn.addEventListener("click", onRaiseAction);
       doc.addEventListener("pointerdown", onDocPointerDown, true);
       window.addEventListener("resize", closeSeatPopover);
       doc.addEventListener("keydown", onKeydown);
@@ -1034,11 +1684,17 @@
           resetBtn.removeEventListener("click", onReset);
           size6Btn.removeEventListener("click", onSize6);
           size9Btn.removeEventListener("click", onSize9);
+          drillRfiBtn.removeEventListener("click", onDrillRfi);
+          drillFacingBtn.removeEventListener("click", onDrillFacing);
+          drillMixBtn.removeEventListener("click", onDrillMix);
           closeChartBtn.removeEventListener("click", closeChart);
           menuModal.removeEventListener("click", onMenuBackdrop);
           chartModal.removeEventListener("click", onChartBackdrop);
           playersEl.removeEventListener("click", onSeatRowActivate);
           playersEl.removeEventListener("keydown", onSeatRowKeydown);
+          raiseMinusBtn.removeEventListener("click", onRaiseMinus);
+          raisePlusBtn.removeEventListener("click", onRaisePlus);
+          raiseActionBtn.removeEventListener("click", onRaiseAction);
           doc.removeEventListener("pointerdown", onDocPointerDown, true);
           window.removeEventListener("resize", closeSeatPopover);
           doc.removeEventListener("keydown", onKeydown);
@@ -1064,6 +1720,7 @@
       recordResult,
       STATS_KEY,
       TABLE_KEY,
+      DRILL_KEY,
     };
   },
 );
