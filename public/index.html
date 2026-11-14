@@ -656,17 +656,17 @@
         </div>
       </div>
       <div
-        id="handReviewModal"
-        class="modal hidden"
+        id="handReviewChrome"
+        class="hand-review-chrome hidden"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="handReviewTitle"
+        aria-label="Hand review"
       >
-        <div class="modal-panel menu-panel hand-review-panel">
-          <div class="modal-head">
+        <div class="hand-review-chrome-bar">
+          <div class="hand-review-chrome-head">
             <div>
               <p class="eyebrow">Hand review</p>
-              <h2 id="handReviewTitle" class="menu-title">Review</h2>
+              <p id="handReviewSummary" class="hand-review-summary" aria-live="polite"></p>
             </div>
             <button
               id="handReviewCloseBtn"
@@ -677,9 +677,24 @@
               ×
             </button>
           </div>
-          <p id="handReviewSummary" class="hand-review-summary" aria-live="polite"></p>
-          <div id="handReviewList" class="hand-review-list" role="list"></div>
-          <div id="handReviewRetry" class="hand-review-retry hidden" aria-live="polite"></div>
+          <p id="handReviewVerdict" class="hand-review-verdict hidden" aria-live="polite"></p>
+          <div id="handReviewRetryBar" class="hand-review-retry-bar hidden" aria-live="polite"></div>
+          <div class="hand-review-nav" aria-label="Replay controls">
+            <button id="handReviewStartBtn" type="button" class="secondary" aria-label="First step">
+              ⏮
+            </button>
+            <button id="handReviewPrevBtn" type="button" class="secondary" aria-label="Previous step">
+              ◀
+            </button>
+            <div id="handReviewTimeline" class="hand-review-timeline" role="list"></div>
+            <button id="handReviewNextBtn" type="button" class="secondary" aria-label="Next step">
+              ▶
+            </button>
+            <button id="handReviewEndBtn" type="button" class="secondary" aria-label="Last step">
+              ⏭
+            </button>
+          </div>
+          <p id="handReviewStepLabel" class="hand-review-step-label" aria-live="polite"></p>
         </div>
       </div>
       <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>

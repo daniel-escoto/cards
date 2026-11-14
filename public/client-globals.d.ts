@@ -637,30 +637,35 @@ declare global {
   var sitOutBtn: HTMLButtonElement;
   var handReviewBtn: HTMLButtonElement;
   var copyForAiBtn: HTMLButtonElement;
-  var handReviewModal: HTMLElement;
+  var handReviewChrome: HTMLElement;
   var handReviewCloseBtn: HTMLButtonElement;
   var handReviewSummary: HTMLElement;
-  var handReviewList: HTMLElement;
-  var handReviewRetry: HTMLElement;
-  var lastHandReviewReport: {
-    items: Array<{
+  var handReviewVerdict: HTMLElement;
+  var handReviewRetryBar: HTMLElement;
+  var handReviewTimeline: HTMLElement;
+  var handReviewStepLabel: HTMLElement;
+  var handReviewStartBtn: HTMLButtonElement;
+  var handReviewPrevBtn: HTMLButtonElement;
+  var handReviewNextBtn: HTMLButtonElement;
+  var handReviewEndBtn: HTMLButtonElement;
+  var handReviewActive: boolean;
+  var handReviewSavedState: ClientRoom | null;
+  var handReviewRetryItem: { verdict: string } | null;
+  var lastHandReplay: {
+    steps: Array<{
       id: string;
-      street: string;
-      boardCodes: string[];
-      heroCodes: [string, string];
-      pot: number;
-      toCall: number;
-      currentBet: number;
-      taken: string;
-      raiseTo: number | null;
-      equity: number;
-      potOdds: number;
-      recommended: string;
-      recommendedRaiseTo: number | null;
-      verdict: "best" | "fine" | "mistake";
-      badge: string;
-      reason: string;
+      index: number;
+      label: string;
+      decision: {
+        verdict: "best" | "fine" | "mistake";
+        badge: string;
+        reason: string;
+        taken: string;
+        raiseTo: number | null;
+      } | null;
+      isHeroDecision: boolean;
     }>;
+    items: Array<{ verdict: string }>;
     best: number;
     fine: number;
     mistake: number;
@@ -962,6 +967,9 @@ declare global {
   function syncHandReviewBtn(): void;
   function openHandReview(): void;
   function hideHandReview(): void;
+  function paintHandReviewStep(index: number): void;
+  function handReviewStepBy(delta: number): void;
+  function recordHandReviewRoom(room: ClientRoom): void;
   function copyForAiFeatureAvailable(room?: ClientRoom | null): boolean;
   function syncCopyForAiBtn(): void;
 
@@ -998,23 +1006,30 @@ declare global {
       options?: { equityFor?: (decision: Record<string, unknown>) => number },
     ): {
       items: Array<{
-        id: string;
-        street: string;
-        boardCodes: string[];
-        heroCodes: [string, string];
-        pot: number;
-        toCall: number;
-        currentBet: number;
-        taken: string;
-        raiseTo: number | null;
-        equity: number;
-        potOdds: number;
-        recommended: string;
-        recommendedRaiseTo: number | null;
         verdict: "best" | "fine" | "mistake";
         badge: string;
         reason: string;
       }>;
+      best: number;
+      fine: number;
+      mistake: number;
+      summary: string;
+    };
+    buildHandReplay(recording: Record<string, unknown>): {
+      steps: Array<{
+        id: string;
+        index: number;
+        label: string;
+        decision: {
+          verdict: "best" | "fine" | "mistake";
+          badge: string;
+          reason: string;
+          taken: string;
+          raiseTo: number | null;
+        } | null;
+        isHeroDecision: boolean;
+      }>;
+      items: Array<{ verdict: string }>;
       best: number;
       fine: number;
       mistake: number;
@@ -1028,6 +1043,11 @@ declare global {
       street: string;
       taken: string;
       raiseTo: number | null;
+    }): string;
+    formatVerdictLine(item: {
+      verdict: string;
+      badge: string;
+      reason: string;
     }): string;
   }
 

@@ -75,19 +75,6 @@ function render() {
   const feltElement = document.querySelector(".felt") as HTMLElement | null;
   if (lastPhase && lastPhase !== room.phase) replayAnimation(feltElement, "street-change", 650);
   feltElement?.classList.toggle("showdown-wait", room.phase === "showdown");
-  // New deal: drop in-progress captures so the next hand starts clean.
-  const handNumber = Number(room.handNumber) || 0;
-  if (
-    handNumber > 0 &&
-    handNumber !== handReviewCaptureHand &&
-    ["preflop", "flop", "turn", "river"].includes(room.phase)
-  ) {
-    // Keep the finished report for Review; only reset the live capture buffer.
-    if (handReviewDecisions.length > 0 && lastHandReviewReport == null) {
-      lastHandReviewReport = buildLastHandReviewReport();
-    }
-    resetHandReviewCapture(handNumber);
-  }
   lastPhase = room.phase;
 
   const entries = (room.actionLog || []).filter((entry) => entry.phase !== "lobby");
@@ -158,13 +145,58 @@ function render() {
   requestAnimationFrame(() => restoreActionFeedScroll(feedScroll));
 }
 
-/** Captured hero decisions for the current bot-only hand (cleared on new deal). */
-var handReviewDecisions: HandReviewDecisionCapture[] = [];
-var handReviewCaptureHand = 0;
-var lastHandReviewReport: HandReviewReport | null = null;
-var handReviewRetryItem: HandReviewItem | null = null;
+/** Chess.com-style hand recording + table replay (bot games only). */
+var handRecording: {
+  handNumber: number;
+  heroId: string;
+  heroCodes: [string, string];
+  steps: Array<{
+    id: string;
+    label: string;
+    actorId: string | null;
+    kind: "action" | "hero_decision" | "street" | "showdown" | "result";
+    table: ReplayTableStateLocal;
+    heroDecision?: HandReviewDecisionLocal;
+  }>;
+} | null = null;
+var handReviewLastLogId = "";
+var lastHandReplay: HandReplayLocal | null = null;
+var handReviewActive = false;
+var handReviewSavedState: ClientRoom | null = null;
+var handReviewStepIndex = 0;
+var handReviewRetryItem: HandReviewItemLocal | null = null;
+var handReviewTouchStartX = 0;
 
-type HandReviewDecisionCapture = {
+type ReplaySeatLocal = {
+  id: string;
+  name: string;
+  isHero: boolean;
+  isBot: boolean;
+  stack: number;
+  bet: number;
+  folded: boolean;
+  allIn: boolean;
+  dealer: boolean;
+  isSmallBlind: boolean;
+  isBigBlind: boolean;
+  isTurn: boolean;
+  holeCodes: string[] | null;
+  lastAction: string | null;
+};
+
+type ReplayTableStateLocal = {
+  street: "preflop" | "flop" | "turn" | "river" | "showdown" | "complete";
+  pot: number;
+  toCall: number;
+  currentBet: number;
+  minRaiseTo: number;
+  boardCodes: string[];
+  seats: ReplaySeatLocal[];
+  actingSeatId: string | null;
+  winners: Array<{ playerId: string; name: string; amount: number; hand?: string }>;
+};
+
+type HandReviewDecisionLocal = {
   id: string;
   street: "preflop" | "flop" | "turn" | "river";
   boardCodes: string[];
@@ -177,12 +209,12 @@ type HandReviewDecisionCapture = {
   taken: "fold" | "check" | "call" | "bet" | "raise";
   raiseTo?: number | null;
   equity?: number;
+  canRaise?: boolean;
   minRaiseTo?: number;
   maxRaiseTo?: number;
-  canRaise?: boolean;
 };
 
-type HandReviewItem = {
+type HandReviewItemLocal = {
   id: string;
   street: "preflop" | "flop" | "turn" | "river";
   boardCodes: string[];
@@ -201,17 +233,172 @@ type HandReviewItem = {
   reason: string;
 };
 
-type HandReviewReport = {
-  items: HandReviewItem[];
+type HandReplayLocal = {
+  steps: Array<{
+    id: string;
+    index: number;
+    label: string;
+    actorId: string | null;
+    kind: "action" | "hero_decision" | "street" | "showdown" | "result";
+    table: ReplayTableStateLocal;
+    decision: HandReviewItemLocal | null;
+    isHeroDecision: boolean;
+  }>;
+  items: HandReviewItemLocal[];
   best: number;
   fine: number;
   mistake: number;
   summary: string;
 };
 
-function resetHandReviewCapture(handNumber: number) {
-  handReviewCaptureHand = handNumber;
-  handReviewDecisions = [];
+function publicCardFromCode(code: string): PublicCard {
+  const suitMap: Record<string, string> = { s: "♠", h: "♥", d: "♦", c: "♣" };
+  const rankChar = code[0] || "";
+  const suitChar = (code[1] || "").toLowerCase();
+  return {
+    code,
+    rank: rankChar === "T" ? "10" : rankChar,
+    suit: suitMap[suitChar] || suitChar,
+    color: suitChar === "h" || suitChar === "d" ? "red" : "black",
+  };
+}
+
+function snapshotReplayTable(
+  room: ClientRoom,
+  options: { revealShowdown?: boolean; lastActionById?: Map<string, string> } = {},
+): ReplayTableStateLocal {
+  const reveal = Boolean(options.revealShowdown);
+  const lastActions = options.lastActionById || new Map<string, string>();
+  const phase = String(room.phase || "preflop");
+  const street = (
+    ["preflop", "flop", "turn", "river", "showdown", "complete"].includes(phase)
+      ? phase
+      : "preflop"
+  ) as ReplayTableStateLocal["street"];
+  return {
+    street,
+    pot: Math.max(0, Number(room.pot) || 0),
+    toCall: Math.max(0, Number(room.toCall) || 0),
+    currentBet: Math.max(0, Number(room.currentBet) || 0),
+    minRaiseTo: Math.max(0, Number(room.minRaiseTo) || 0),
+    boardCodes: (room.community || []).map((card) => card?.code || "").filter(Boolean),
+    actingSeatId: room.turn || null,
+    winners: (room.winners || []).map((winner) => ({
+      playerId: winner.playerId,
+      name: winner.name,
+      amount: winner.amount,
+      hand: winner.hand || undefined,
+    })),
+    seats: (room.players || []).map((player) => {
+      const codes = (player.cards || [])
+        .map((card) => card?.code || "")
+        .filter(Boolean);
+      const showHoles =
+        Boolean(player.isYou) ||
+        (reveal && (player.showCards || codes.length === 2) && codes.length === 2);
+      return {
+        id: player.id,
+        name: player.name,
+        isHero: Boolean(player.isYou),
+        isBot: Boolean(player.isBot),
+        stack: player.stack,
+        bet: player.bet,
+        folded: Boolean(player.folded),
+        allIn: Boolean(player.allIn),
+        dealer: Boolean(player.dealer),
+        isSmallBlind: Boolean(player.isSmallBlind),
+        isBigBlind: Boolean(player.isBigBlind),
+        isTurn: Boolean(player.isTurn || player.id === room.turn),
+        holeCodes: showHoles && codes.length === 2 ? [codes[0]!, codes[1]!] : null,
+        lastAction: lastActions.get(player.id) || null,
+      };
+    }),
+  };
+}
+
+function resetHandRecording(handNumber: number, heroId: string, heroCodes: [string, string]) {
+  handRecording = { handNumber, heroId, heroCodes, steps: [] };
+  handReviewLastLogId = "";
+}
+
+function ensureHandRecording(room: ClientRoom) {
+  if (typeof handReviewFeatureAvailable !== "function" || !handReviewFeatureAvailable(room)) {
+    return null;
+  }
+  const hero = room.players?.find((player) => player.isYou && !player.isBot);
+  if (!hero) return null;
+  const codes = (hero.cards || []).map((card) => card?.code || "").filter(Boolean);
+  if (codes.length !== 2) return handRecording;
+  const handNumber = Number(room.handNumber) || 0;
+  if (!handRecording || handRecording.handNumber !== handNumber) {
+    resetHandRecording(handNumber, hero.id, [codes[0]!, codes[1]!]);
+  }
+  return handRecording;
+}
+
+function latestActionByPlayer(room: ClientRoom): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const entry of room.actionLog || []) {
+    if (!entry.playerId || !entry.action) continue;
+    if (/posts (small|big) blind/i.test(entry.action)) continue;
+    map.set(entry.playerId, entry.action);
+  }
+  return map;
+}
+
+function recordHandReviewRoom(room: ClientRoom) {
+  const recording = ensureHandRecording(room);
+  if (!recording) return;
+  const entries = (room.actionLog || []).filter((entry) => entry.phase !== "lobby");
+  const latest = entries.at(-1);
+  if (!latest || latest.id === handReviewLastLogId) {
+    // Finalize result frame when winners arrive.
+    if (
+      (room.phase === "complete" || (room.winners || []).length > 0) &&
+      recording.steps.length > 0 &&
+      recording.steps.at(-1)?.kind !== "result"
+    ) {
+      recording.steps.push({
+        id: `${recording.handNumber}-result`,
+        label: room.winners?.[0] ? `${room.winners[0].name} wins` : "Hand over",
+        actorId: room.winners?.[0]?.playerId || null,
+        kind: "result",
+        table: snapshotReplayTable(room, {
+          revealShowdown: true,
+          lastActionById: latestActionByPlayer(room),
+        }),
+      });
+      finalizeHandReplay();
+    }
+    return;
+  }
+  handReviewLastLogId = latest.id;
+  const actionText = String(latest.action || latest.text || "").trim();
+  const isStreet = /dealt/i.test(actionText);
+  const isShow = /shows hand/i.test(actionText);
+  const kind = isStreet ? "street" : isShow ? "showdown" : "action";
+  // Skip duplicate after-frame when the prior step was this hero decision (already recorded).
+  const lastStep = recording.steps.at(-1);
+  if (
+    lastStep?.kind === "hero_decision" &&
+    latest.playerId &&
+    lastStep.actorId === latest.playerId
+  ) {
+    return;
+  }
+  recording.steps.push({
+    id: latest.id,
+    label: actionText || latest.text || "Action",
+    actorId: latest.playerId || null,
+    kind,
+    table: snapshotReplayTable(room, {
+      revealShowdown: room.phase === "showdown" || room.phase === "complete" || isShow,
+      lastActionById: latestActionByPlayer(room),
+    }),
+  });
+  if (room.phase === "complete" || (room.winners || []).length > 0) {
+    finalizeHandReplay();
+  }
 }
 
 function captureHandReviewDecision(payload: Record<string, unknown>) {
@@ -222,27 +409,19 @@ function captureHandReviewDecision(payload: Record<string, unknown>) {
   if (!["preflop", "flop", "turn", "river"].includes(state.phase)) return;
   const hero = activeHero();
   if (!hero || !hero.cards || hero.cards.length < 2) return;
-  const codes = hero.cards
-    .map((card) => card?.code || "")
-    .filter(Boolean) as string[];
+  const codes = hero.cards.map((card) => card?.code || "").filter(Boolean);
   if (codes.length !== 2) return;
-
-  const handNumber = Number(state.handNumber) || 0;
-  if (handNumber !== handReviewCaptureHand) {
-    resetHandReviewCapture(handNumber);
-  }
+  const recording = ensureHandRecording(state);
+  if (!recording) return;
 
   const type = String(payload.type || "");
   if (!["fold", "check", "call", "bet", "raise"].includes(type)) return;
-  const taken = type as HandReviewDecisionCapture["taken"];
+  const taken = type as HandReviewDecisionLocal["taken"];
   const raiseTo =
     taken === "raise" || taken === "bet"
       ? Math.max(0, Math.floor(Number(payload.raiseTo) || 0))
       : null;
-
-  const boardCodes = (state.community || [])
-    .map((card) => card?.code || "")
-    .filter(Boolean);
+  const boardCodes = (state.community || []).map((card) => card?.code || "").filter(Boolean);
   const liveOpponents = (state.players || []).filter(
     (player) =>
       !player.isYou && !player.folded && (player.stack > 0 || player.allIn || player.invested > 0),
@@ -250,62 +429,73 @@ function captureHandReviewDecision(payload: Record<string, unknown>) {
   const toCall = Math.max(0, Number(state.toCall) || 0);
   const pot = Math.max(0, Number(state.pot) || 0);
   const currentBet = Math.max(0, Number(state.currentBet) || 0);
-  const minRaiseTo = Math.max(0, Number(state.minRaiseTo) || currentBet + (Number(state.minRaise) || 0));
+  const minRaiseTo = Math.max(
+    0,
+    Number(state.minRaiseTo) || currentBet + (Number(state.minRaise) || 0),
+  );
   const maxRaiseTo = hero.bet + hero.stack;
-
   let equity: number | undefined;
   if (typeof Coach !== "undefined" && Coach.buildCoachSuggestion) {
     const suggestion = Coach.buildCoachSuggestion(state, { iterations: 80 });
     if (suggestion && typeof suggestion.equity === "number") equity = suggestion.equity;
   }
-
-  handReviewDecisions.push({
-    id: `${handNumber}-${handReviewDecisions.length + 1}`,
-    street: state.phase as HandReviewDecisionCapture["street"],
-    boardCodes,
-    heroCodes: [codes[0]!, codes[1]!],
-    pot,
-    toCall,
-    currentBet,
-    heroStack: hero.stack,
-    opponentStacks: liveOpponents.map((player) => player.stack),
-    taken,
-    raiseTo,
-    equity,
-    minRaiseTo,
-    maxRaiseTo,
-    canRaise: Boolean(state.canRaise || state.canShove) && maxRaiseTo > currentBet,
+  const id = `${recording.handNumber}-hero-${recording.steps.length + 1}`;
+  const label =
+    taken === "raise" || taken === "bet"
+      ? `You ${taken === "bet" ? "bet" : "raise to"} ${raiseTo}`
+      : `You ${taken}`;
+  recording.steps.push({
+    id,
+    label,
+    actorId: hero.id,
+    kind: "hero_decision",
+    table: snapshotReplayTable(state, { lastActionById: latestActionByPlayer(state) }),
+    heroDecision: {
+      id,
+      street: state.phase as HandReviewDecisionLocal["street"],
+      boardCodes,
+      heroCodes: [codes[0]!, codes[1]!],
+      pot,
+      toCall,
+      currentBet,
+      heroStack: hero.stack,
+      opponentStacks: liveOpponents.map((player) => player.stack),
+      taken,
+      raiseTo,
+      equity,
+      minRaiseTo,
+      maxRaiseTo,
+      canRaise: Boolean(state.canRaise || state.canShove) && maxRaiseTo > currentBet,
+    },
   });
 }
 
-function buildLastHandReviewReport(): HandReviewReport | null {
-  if (typeof HandReview === "undefined" || typeof HandReview.buildHandReview !== "function") {
-    return null;
+function finalizeHandReplay() {
+  if (!handRecording || !handRecording.steps.length) return;
+  if (typeof HandReview === "undefined" || typeof HandReview.buildHandReplay !== "function") {
+    return;
   }
-  if (!handReviewDecisions.length) return null;
-  return HandReview.buildHandReview(handReviewDecisions) as HandReviewReport;
+  lastHandReplay = HandReview.buildHandReplay(handRecording) as HandReplayLocal;
+  if (typeof syncHandReviewBtn === "function") syncHandReviewBtn();
 }
 
 function maybeOfferHandReview(room: ClientRoom) {
   if (typeof handReviewFeatureAvailable !== "function" || !handReviewFeatureAvailable(room)) {
-    lastHandReviewReport = null;
+    lastHandReplay = null;
     if (typeof syncHandReviewBtn === "function") syncHandReviewBtn();
     return;
   }
-  // Finalize once winners (or between-hands complete) land with captured decisions.
   const betweenHands =
     room.phase === "complete" ||
-    (room.canReady && (room.winners?.length || 0) > 0) ||
-    (room.phase === "lobby" && handReviewDecisions.length > 0 && (room.winners?.length || 0) > 0);
-  if (betweenHands && handReviewDecisions.length > 0) {
-    const report = buildLastHandReviewReport();
-    if (report) lastHandReviewReport = report;
+    (room.canReady && (room.winners?.length || 0) > 0);
+  if (betweenHands && handRecording && handRecording.steps.length > 0) {
+    finalizeHandReplay();
   }
   if (typeof syncHandReviewBtn === "function") syncHandReviewBtn();
 }
 
 function addReviewHandButton() {
-  if (!lastHandReviewReport || lastHandReviewReport.items.length === 0) return;
+  if (!lastHandReplay || lastHandReplay.steps.length === 0) return;
   if (typeof handReviewFeatureAvailable !== "function" || !handReviewFeatureAvailable()) return;
   const button = document.createElement("button");
   button.type = "button";
@@ -315,91 +505,224 @@ function addReviewHandButton() {
   gameButtons.appendChild(button);
 }
 
+function roomFromReplayTable(
+  table: ReplayTableStateLocal,
+  template: ClientRoom,
+): ClientRoom {
+  const community = table.boardCodes.map((code) => publicCardFromCode(code));
+  const players = table.seats.map((seat) => {
+    const base = template.players.find((player) => player.id === seat.id);
+    const holes = seat.holeCodes
+      ? seat.holeCodes.map((code) => publicCardFromCode(code))
+      : [null, null];
+    return {
+      ...(base || {
+        id: seat.id,
+        name: seat.name,
+        color: "#888",
+        stackCents: 0,
+        buyInsCents: 0,
+        cashOutCents: 0,
+        netCents: 0,
+        betCents: 0,
+        invested: seat.bet,
+        investedCents: 0,
+        sittingOut: false,
+        waitingForNextHand: false,
+        connected: true,
+        botProfile: null,
+        botStyle: null,
+        botStyleShort: null,
+        showCards: false,
+        ready: false,
+        disconnectExpiresAt: null,
+        isHost: false,
+        canMakeHost: false,
+        canKick: false,
+      }),
+      name: seat.name,
+      stack: seat.stack,
+      bet: seat.bet,
+      folded: seat.folded,
+      allIn: seat.allIn,
+      isBot: seat.isBot,
+      isYou: seat.isHero,
+      dealer: seat.dealer,
+      isSmallBlind: seat.isSmallBlind,
+      isBigBlind: seat.isBigBlind,
+      isTurn: seat.isTurn,
+      showCards: Boolean(seat.holeCodes && !seat.isHero),
+      cards: holes,
+    } as ClientPlayer;
+  });
+  return {
+    ...template,
+    phase: table.street === "complete" ? "complete" : table.street === "showdown" ? "showdown" : table.street,
+    pot: table.pot,
+    toCall: table.toCall,
+    currentBet: table.currentBet,
+    minRaiseTo: table.minRaiseTo,
+    community,
+    rabbitCards: [],
+    winners: table.winners.map((winner) => ({
+      playerId: winner.playerId,
+      name: winner.name,
+      amount: winner.amount,
+      amountCents: 0,
+      hand: winner.hand || "",
+    })),
+    turn: table.actingSeatId,
+    isYourTurn: false,
+    canReady: false,
+    canRaise: false,
+    canShove: false,
+    canShowHand: false,
+    canStart: false,
+    canNextHand: false,
+    canAddBot: false,
+    canRebuy: false,
+    bustedOut: false,
+    players,
+  };
+}
+
 function openHandReview() {
-  if (!handReviewModal || !lastHandReviewReport) return;
+  if (!lastHandReplay || !lastHandReplay.steps.length || !state) return;
+  if (handReviewActive) return;
+  handReviewSavedState = state;
+  handReviewActive = true;
   handReviewRetryItem = null;
-  if (handReviewRetry) {
-    handReviewRetry.classList.add("hidden");
-    handReviewRetry.replaceChildren();
-  }
-  renderHandReviewSheet(lastHandReviewReport);
-  handReviewModal.classList.remove("hidden");
+  handReviewStepIndex = 0;
+  document.body.classList.add("hand-review-open");
+  handReviewChrome?.classList.remove("hidden");
+  if (handReviewSummary) handReviewSummary.textContent = lastHandReplay.summary;
+  paintHandReviewStep(0);
 }
 
 function hideHandReview() {
-  if (!handReviewModal) return;
-  handReviewModal.classList.add("hidden");
+  if (!handReviewActive) return;
+  handReviewActive = false;
   handReviewRetryItem = null;
-  if (handReviewRetry) {
-    handReviewRetry.classList.add("hidden");
-    handReviewRetry.replaceChildren();
+  document.body.classList.remove("hand-review-open");
+  handReviewChrome?.classList.add("hidden");
+  if (handReviewRetryBar) {
+    handReviewRetryBar.classList.add("hidden");
+    handReviewRetryBar.replaceChildren();
   }
+  if (handReviewSavedState) {
+    state = handReviewSavedState;
+    handReviewSavedState = null;
+  }
+  render();
 }
 
-function renderHandReviewSheet(report: HandReviewReport) {
-  if (handReviewSummary) handReviewSummary.textContent = report.summary;
-  if (!handReviewList) return;
-  handReviewList.replaceChildren();
-  const api = typeof HandReview !== "undefined" ? HandReview : null;
-  for (const item of report.items) {
-    const row = document.createElement("article");
-    row.className = `hand-review-item is-${item.verdict}`;
-    row.setAttribute("role", "listitem");
+function paintHandReviewStep(index: number) {
+  if (!lastHandReplay || !handReviewSavedState) return;
+  const steps = lastHandReplay.steps;
+  if (!steps.length) return;
+  handReviewStepIndex = Math.max(0, Math.min(steps.length - 1, index));
+  const step = steps[handReviewStepIndex]!;
+  handReviewRetryItem = null;
+  if (handReviewRetryBar) {
+    handReviewRetryBar.classList.add("hidden");
+    handReviewRetryBar.replaceChildren();
+  }
+  state = roomFromReplayTable(step.table, handReviewSavedState);
+  render();
+  // Review chrome owns the control panel content.
+  renderHandReviewChrome(step);
+}
 
-    const head = document.createElement("div");
-    head.className = "hand-review-item-head";
-    const badge = document.createElement("span");
-    badge.className = "hand-review-badge";
-    const mark =
-      item.verdict === "best" ? "✓" : item.verdict === "mistake" ? "✗" : "~";
-    badge.textContent = `${mark} ${item.badge}`;
-    const title = document.createElement("strong");
-    title.className = "hand-review-item-title";
-    title.textContent = api?.formatDecisionHeadline
-      ? api.formatDecisionHeadline(item)
-      : `${item.street} · ${item.taken}`;
-    head.append(badge, title);
-
-    const meta = document.createElement("p");
-    meta.className = "hand-review-item-meta";
-    const board =
-      item.boardCodes.length > 0 ? item.boardCodes.join(" ") : "Preflop";
-    meta.textContent = `${item.heroCodes.join(" ")} · ${board} · Pot ${item.pot}${
-      item.toCall > 0 ? ` · Call ${item.toCall}` : ""
-    }`;
-
-    const reason = document.createElement("p");
-    reason.className = "hand-review-item-reason";
-    reason.textContent = item.reason;
-
-    row.append(head, meta, reason);
-
-    if (item.verdict === "mistake") {
-      const retry = document.createElement("button");
-      retry.type = "button";
-      retry.className = "secondary hand-review-retry-btn";
-      retry.textContent = "Retry";
-      retry.addEventListener("click", () => showHandReviewRetry(item));
-      row.append(retry);
+function renderHandReviewChrome(step: HandReplayLocal["steps"][number]) {
+  if (handReviewStepLabel) {
+    const total = lastHandReplay?.steps.length || 1;
+    handReviewStepLabel.textContent = `${handReviewStepIndex + 1}/${total} · ${step.label}`;
+  }
+  if (handReviewVerdict) {
+    if (step.decision) {
+      const line =
+        typeof HandReview !== "undefined" && HandReview.formatVerdictLine
+          ? HandReview.formatVerdictLine(step.decision)
+          : `${step.decision.badge} · ${step.decision.reason}`;
+      handReviewVerdict.textContent = line;
+      handReviewVerdict.className = `hand-review-verdict is-${step.decision.verdict}`;
+      handReviewVerdict.classList.remove("hidden");
+    } else {
+      handReviewVerdict.classList.add("hidden");
+      handReviewVerdict.textContent = "";
     }
-
-    handReviewList.append(row);
   }
+  if (handReviewTimeline && lastHandReplay) {
+    handReviewTimeline.replaceChildren();
+    lastHandReplay.steps.forEach((dotStep, idx) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "hand-review-dot";
+      if (dotStep.isHeroDecision && dotStep.decision) {
+        btn.classList.add("is-hero", `is-${dotStep.decision.verdict}`);
+      }
+      if (idx === handReviewStepIndex) btn.classList.add("is-active");
+      btn.setAttribute("role", "listitem");
+      btn.setAttribute("aria-label", `Step ${idx + 1}: ${dotStep.label}`);
+      btn.addEventListener("click", () => paintHandReviewStep(idx));
+      handReviewTimeline.append(btn);
+    });
+  }
+  // Mistake: offer Try again under the verdict.
+  if (step.decision?.verdict === "mistake" && handReviewRetryBar) {
+    const tryBtn = document.createElement("button");
+    tryBtn.type = "button";
+    tryBtn.textContent = "Try again";
+    const heroStack =
+      step.table.seats.find((seat) => seat.isHero)?.stack ?? step.decision.pot;
+    tryBtn.addEventListener("click", () =>
+      startHandReviewRetry(step.decision!, step.table, heroStack),
+    );
+    handReviewRetryBar.replaceChildren(tryBtn);
+    handReviewRetryBar.classList.remove("hidden");
+  }
+  gameButtons.innerHTML = "";
+  turnInfo.textContent = step.decision
+    ? `You ${step.decision.taken}${step.decision.raiseTo != null ? ` ${step.decision.raiseTo}` : ""}`
+    : step.label;
+  turnInfo.classList.toggle("your-turn", Boolean(step.decision));
+  setBetControlsReserved(false);
 }
 
-function showHandReviewRetry(item: HandReviewItem) {
-  if (!handReviewRetry) return;
+function startHandReviewRetry(
+  item: HandReviewItemLocal,
+  beforeTable: ReplayTableStateLocal,
+  heroStack: number,
+) {
+  if (!handReviewRetryBar || !handReviewSavedState) return;
   handReviewRetryItem = item;
-  handReviewRetry.classList.remove("hidden");
-  handReviewRetry.replaceChildren();
+  // Paint the decision's before-state on the table.
+  const template = handReviewSavedState;
+  const table: ReplayTableStateLocal = {
+    ...beforeTable,
+    street: item.street,
+    pot: item.pot,
+    toCall: item.toCall,
+    currentBet: item.currentBet,
+    boardCodes: item.boardCodes.slice(),
+    actingSeatId: beforeTable.seats.find((seat) => seat.isHero)?.id || null,
+    winners: [],
+    seats: beforeTable.seats.map((seat) => ({
+      ...seat,
+      stack: seat.isHero ? heroStack : seat.stack,
+      isTurn: seat.isHero,
+      holeCodes: seat.isHero ? [item.heroCodes[0], item.heroCodes[1]] : null,
+      lastAction: null,
+    })),
+  };
+  state = roomFromReplayTable(table, template);
+  state.isYourTurn = true;
+  state.toCall = item.toCall;
+  state.currentBet = item.currentBet;
+  state.canRaise = true;
+  render();
 
-  const title = document.createElement("p");
-  title.className = "hand-review-retry-title";
-  const board = item.boardCodes.length > 0 ? item.boardCodes.join(" ") : "Preflop";
-  title.textContent = `Retry · ${item.heroCodes.join(" ")} · ${board} · Pot ${item.pot}${
-    item.toCall > 0 ? ` · Call ${item.toCall}` : ""
-  }`;
-
+  handReviewRetryBar.replaceChildren();
   const actions = document.createElement("div");
   actions.className = "hand-review-retry-actions";
   const choices: Array<"fold" | "check" | "call" | "raise"> =
@@ -407,7 +730,6 @@ function showHandReviewRetry(item: HandReviewItem) {
   const feedback = document.createElement("p");
   feedback.className = "hand-review-retry-feedback";
   feedback.setAttribute("aria-live", "polite");
-
   for (const choice of choices) {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -422,9 +744,27 @@ function showHandReviewRetry(item: HandReviewItem) {
     });
     actions.append(btn);
   }
+  const cont = document.createElement("button");
+  cont.type = "button";
+  cont.className = "secondary";
+  cont.textContent = "Continue review";
+  cont.addEventListener("click", () => paintHandReviewStep(handReviewStepIndex));
+  handReviewRetryBar.append(actions, feedback, cont);
+  handReviewRetryBar.classList.remove("hidden");
+  if (handReviewVerdict) {
+    handReviewVerdict.textContent = `Try again · Pot ${item.pot}${item.toCall > 0 ? ` · Call ${item.toCall}` : ""}`;
+    handReviewVerdict.className = "hand-review-verdict is-mistake";
+    handReviewVerdict.classList.remove("hidden");
+  }
+  gameButtons.innerHTML = "";
+  turnInfo.textContent =
+    item.toCall > 0 ? `Call ${item.toCall}` : "Check or bet";
+  turnInfo.classList.add("your-turn");
+}
 
-  handReviewRetry.append(title, actions, feedback);
-  handReviewRetry.scrollIntoView({ block: "nearest" });
+function handReviewStepBy(delta: number) {
+  if (!handReviewActive || handReviewRetryItem) return;
+  paintHandReviewStep(handReviewStepIndex + delta);
 }
 
 function captureActionFeedScroll() {
@@ -519,6 +859,16 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
   betPresets.innerHTML = "";
   turnInfo.textContent = "";
   turnInfo.classList.remove("your-turn", "bust-message");
+
+  // Replay chrome owns the panel while open (paintHandReviewStep fills labels).
+  if (handReviewActive) {
+    setBetControlsReserved(false);
+    betControls.classList.add("is-reserved");
+    betControls.setAttribute("aria-hidden", "true");
+    betControls.setAttribute("inert", "");
+    raiseActionBtn.classList.add("hidden");
+    return;
+  }
 
   if (isSpectatorView()) {
     turnInfo.classList.remove("showdown-message");
@@ -964,6 +1314,10 @@ function showSharePanel() {
 }
 
 function emitWithAck(eventName: string, payload?: Record<string, unknown>) {
+  // Offline Practice: pause Ready/auto-deal while the replay chrome is open.
+  if (handReviewActive && (eventName === "game:ready" || eventName === "game:action")) {
+    return;
+  }
   if (eventName === "game:action" && payload) {
     captureHandReviewDecision(payload);
   }

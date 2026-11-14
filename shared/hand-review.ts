@@ -1,7 +1,7 @@
 /**
  * Post-hand review for bot-only tables (chess.com Game Review style).
- * Pure grading over captured hero decisions — reuses coach-odds implied-odds math.
- * No LLM. Equity is injected by the caller (Monte Carlo or a test fixture).
+ * Pure builders over a typed HandRecording — grades hero decisions with coach-odds
+ * implied-odds math. No LLM. Equity is injected by the caller.
  */
 
 import {
@@ -14,6 +14,7 @@ export type ReviewStreet = "preflop" | "flop" | "turn" | "river";
 export type ReviewAction = "fold" | "check" | "call" | "bet" | "raise";
 export type ReviewVerdict = "best" | "fine" | "mistake";
 export type ReviewBadge = "Best" | "Fine" | "Borderline" | "Mistake";
+export type ReplayStreet = ReviewStreet | "showdown" | "complete";
 
 export type HandReviewDecision = {
   id: string;
@@ -61,6 +62,79 @@ export type HandReviewReport = {
   summary: string;
 };
 
+/** Seat row for one replay frame. */
+export type ReplaySeat = {
+  id: string;
+  name: string;
+  isHero: boolean;
+  isBot: boolean;
+  stack: number;
+  bet: number;
+  folded: boolean;
+  allIn: boolean;
+  dealer: boolean;
+  isSmallBlind: boolean;
+  isBigBlind: boolean;
+  isTurn: boolean;
+  /** Visible holes only — hero always; bots only when revealed at showdown. */
+  holeCodes: string[] | null;
+  lastAction: string | null;
+};
+
+/** Table frame shown at one replay step. */
+export type ReplayTableState = {
+  street: ReplayStreet;
+  pot: number;
+  toCall: number;
+  currentBet: number;
+  minRaiseTo: number;
+  boardCodes: string[];
+  seats: ReplaySeat[];
+  actingSeatId: string | null;
+  winners: Array<{ playerId: string; name: string; amount: number; hand?: string }>;
+};
+
+export type HandRecordingStep = {
+  id: string;
+  label: string;
+  actorId: string | null;
+  kind: "action" | "hero_decision" | "street" | "showdown" | "result";
+  /** Table to paint (BEFORE for hero_decision; AFTER otherwise). */
+  table: ReplayTableState;
+  /** Present on hero voluntary decisions — graded by buildHandReplay. */
+  heroDecision?: HandReviewDecision;
+};
+
+/** Raw per-hand recording captured during play (input to buildHandReplay). */
+export type HandRecording = {
+  handNumber: number;
+  heroId: string;
+  heroCodes: [string, string];
+  steps: HandRecordingStep[];
+};
+
+export type ReplayStep = {
+  id: string;
+  index: number;
+  label: string;
+  actorId: string | null;
+  kind: HandRecordingStep["kind"];
+  table: ReplayTableState;
+  /** Graded hero decision when kind === "hero_decision". */
+  decision: HandReviewItem | null;
+  /** Timeline dots: true for hero decision steps. */
+  isHeroDecision: boolean;
+};
+
+export type HandReplay = {
+  steps: ReplayStep[];
+  items: HandReviewItem[];
+  best: number;
+  fine: number;
+  mistake: number;
+  summary: string;
+};
+
 function pct(value: number): string {
   return `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`;
 }
@@ -74,7 +148,11 @@ function streetLabel(street: ReviewStreet): string {
 
 function actionLabel(action: ReviewAction, raiseTo: number | null): string {
   if (action === "raise" || action === "bet") {
-    return raiseTo != null ? `${action === "bet" ? "Bet" : "Raise to"} ${raiseTo}` : action === "bet" ? "Bet" : "Raise";
+    return raiseTo != null
+      ? `${action === "bet" ? "Bet" : "Raise to"} ${raiseTo}`
+      : action === "bet"
+        ? "Bet"
+        : "Raise";
   }
   return action.charAt(0).toUpperCase() + action.slice(1);
 }
@@ -104,12 +182,25 @@ export function recommendAction(input: {
 
   if (toCall <= 0) {
     if (equity >= 0.62 && input.canRaise) {
-      const raiseTo = Math.max(input.minRaiseTo, Math.min(input.maxRaiseTo, Math.round(input.currentBet + Math.max(pot * 0.5, 1))));
-      return { action: input.currentBet > 0 ? "raise" : "bet", raiseTo, advice: null, potOdds };
+      const raiseTo = Math.max(
+        input.minRaiseTo,
+        Math.min(input.maxRaiseTo, Math.round(input.currentBet + Math.max(pot * 0.5, 1))),
+      );
+      return {
+        action: input.currentBet > 0 ? "raise" : "bet",
+        raiseTo,
+        advice: null,
+        potOdds,
+      };
     }
     if (equity >= 0.52 && input.canRaise) {
       const raiseTo = Math.max(input.minRaiseTo, Math.min(input.maxRaiseTo, input.minRaiseTo));
-      return { action: input.currentBet > 0 ? "raise" : "bet", raiseTo, advice: null, potOdds };
+      return {
+        action: input.currentBet > 0 ? "raise" : "bet",
+        raiseTo,
+        advice: null,
+        potOdds,
+      };
     }
     return { action: "check", raiseTo: null, advice: null, potOdds };
   }
@@ -140,7 +231,6 @@ export function recommendAction(input: {
 
 function sameAction(taken: ReviewAction, recommended: ReviewAction): boolean {
   if (taken === recommended) return true;
-  // Bet/raise are both aggressive continues.
   if ((taken === "bet" || taken === "raise") && (recommended === "bet" || recommended === "raise")) {
     return true;
   }
@@ -206,7 +296,6 @@ export function gradeHandDecision(
       : typeof decision.maxRaiseTo === "number"
         ? decision.maxRaiseTo
         : decision.heroStack + Math.max(0, decision.currentBet);
-  // Hero's remaining stack is the jam ceiling; min raise defaults to a full raise when known.
   const minRaiseTo =
     typeof options.minRaiseTo === "number"
       ? options.minRaiseTo
@@ -307,6 +396,50 @@ export function buildHandReview(
   };
 }
 
+/**
+ * Build a step-through replay from a typed hand recording.
+ * Grades every hero_decision step and places verdicts on the timeline.
+ */
+export function buildHandReplay(recording: HandRecording): HandReplay {
+  const steps: ReplayStep[] = [];
+  const items: HandReviewItem[] = [];
+
+  recording.steps.forEach((raw, index) => {
+    let decision: HandReviewItem | null = null;
+    if (raw.kind === "hero_decision" && raw.heroDecision) {
+      decision = gradeHandDecision(raw.heroDecision);
+      items.push(decision);
+    }
+    steps.push({
+      id: raw.id,
+      index,
+      label: raw.label,
+      actorId: raw.actorId,
+      kind: raw.kind,
+      table: raw.table,
+      decision,
+      isHeroDecision: raw.kind === "hero_decision",
+    });
+  });
+
+  const best = items.filter((item) => item.verdict === "best").length;
+  const fine = items.filter((item) => item.verdict === "fine").length;
+  const mistake = items.filter((item) => item.verdict === "mistake").length;
+  const parts = [`${items.length} decision${items.length === 1 ? "" : "s"}`];
+  if (best) parts.push(`${best} Best`);
+  if (fine) parts.push(`${fine} Fine`);
+  if (mistake) parts.push(`${mistake} Mistake${mistake === 1 ? "" : "s"}`);
+
+  return {
+    steps,
+    items,
+    best,
+    fine,
+    mistake,
+    summary: parts.join(" · ") || `${steps.length} steps`,
+  };
+}
+
 /** Grade a retry attempt against the original review item. */
 export function gradeRetry(
   item: HandReviewItem,
@@ -314,7 +447,10 @@ export function gradeRetry(
 ): { correct: boolean; line: string } {
   const correct = sameAction(taken, item.recommended);
   if (correct) {
-    return { correct: true, line: `✓ Now Best — ${actionLabel(item.recommended, item.recommendedRaiseTo)}.` };
+    return {
+      correct: true,
+      line: `✓ Now Best — ${actionLabel(item.recommended, item.recommendedRaiseTo)}.`,
+    };
   }
   return {
     correct: false,
@@ -324,4 +460,9 @@ export function gradeRetry(
 
 export function formatDecisionHeadline(item: HandReviewItem): string {
   return `${streetLabel(item.street)} · ${actionLabel(item.taken, item.raiseTo)}`;
+}
+
+export function formatVerdictLine(item: HandReviewItem): string {
+  const mark = item.verdict === "best" ? "✓" : item.verdict === "mistake" ? "✗" : "~";
+  return `${mark} ${item.badge} · ${item.reason}`;
 }

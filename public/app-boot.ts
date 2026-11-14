@@ -54,11 +54,17 @@ var backToMenuBtn = document.querySelector("#backToMenuBtn") as HTMLButtonElemen
 var sitOutBtn = document.querySelector("#sitOutBtn") as HTMLButtonElement;
 var handReviewBtn = document.querySelector("#handReviewBtn") as HTMLButtonElement;
 var copyForAiBtn = document.querySelector("#copyForAiBtn") as HTMLButtonElement;
-var handReviewModal = document.querySelector("#handReviewModal") as HTMLElement;
+var handReviewChrome = document.querySelector("#handReviewChrome") as HTMLElement;
 var handReviewCloseBtn = document.querySelector("#handReviewCloseBtn") as HTMLButtonElement;
 var handReviewSummary = document.querySelector("#handReviewSummary") as HTMLElement;
-var handReviewList = document.querySelector("#handReviewList") as HTMLElement;
-var handReviewRetry = document.querySelector("#handReviewRetry") as HTMLElement;
+var handReviewVerdict = document.querySelector("#handReviewVerdict") as HTMLElement;
+var handReviewRetryBar = document.querySelector("#handReviewRetryBar") as HTMLElement;
+var handReviewTimeline = document.querySelector("#handReviewTimeline") as HTMLElement;
+var handReviewStepLabel = document.querySelector("#handReviewStepLabel") as HTMLElement;
+var handReviewStartBtn = document.querySelector("#handReviewStartBtn") as HTMLButtonElement;
+var handReviewPrevBtn = document.querySelector("#handReviewPrevBtn") as HTMLButtonElement;
+var handReviewNextBtn = document.querySelector("#handReviewNextBtn") as HTMLButtonElement;
+var handReviewEndBtn = document.querySelector("#handReviewEndBtn") as HTMLButtonElement;
 var hostActionsPanel = document.querySelector("#hostActionsPanel") as HTMLElement;
 var menuRoomCode = document.querySelector("#menuRoomCode") as HTMLElement;
 var menuRoomEyebrow = document.querySelector("#menuRoomEyebrow") as HTMLElement | null;
@@ -481,7 +487,14 @@ function applyRoomUpdate(room: ClientRoom) {
       state.handNumber !== room.handNumber ||
       state.phase !== room.phase);
   syncServerTimeOffset(room);
+  // While reviewing, keep the live room for later restore; don't yank the replay frame.
+  if (typeof handReviewActive !== "undefined" && handReviewActive) {
+    handReviewSavedState = room;
+    if (typeof recordHandReviewRoom === "function") recordHandReviewRoom(room);
+    return;
+  }
   state = room;
+  if (typeof recordHandReviewRoom === "function") recordHandReviewRoom(room);
   if (newTurn) tableSounds.turn();
   const self = state.players.find((player) => player.isYou && !player.isBot);
   if (self) {
@@ -941,13 +954,13 @@ function syncHandReviewBtn() {
   if (!handReviewBtn) return;
   const available =
     handReviewFeatureAvailable() &&
-    typeof lastHandReviewReport !== "undefined" &&
-    lastHandReviewReport != null &&
-    lastHandReviewReport.items.length > 0;
+    typeof lastHandReplay !== "undefined" &&
+    lastHandReplay != null &&
+    lastHandReplay.steps.length > 0;
   handReviewBtn.classList.toggle("hidden", !available);
   handReviewBtn.disabled = !available;
   handReviewBtn.setAttribute("aria-disabled", available ? "false" : "true");
-  handReviewBtn.title = available ? "Review your decisions from the last hand" : "Bot games only";
+  handReviewBtn.title = available ? "Replay the last hand on the table" : "Bot games only";
 }
 
 function copyForAiFeatureAvailable(room: ClientRoom | null | undefined = state) {
