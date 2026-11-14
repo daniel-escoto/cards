@@ -257,6 +257,7 @@
       const accuracyEl = trainerView.querySelector("#trainerAccuracy") as HTMLElement | null;
       const potEl = trainerView.querySelector("#trainerPotValue") as HTMLElement | null;
       const heroHandEl = trainerView.querySelector("#trainerHeroHand") as HTMLElement | null;
+      const communityEl = trainerView.querySelector("#trainerCommunity") as HTMLElement | null;
       const turnInfoEl = trainerView.querySelector("#trainerTurnInfo") as HTMLElement | null;
       const actionsEl = trainerView.querySelector("#trainerActions") as HTMLElement | null;
       const playersEl = trainerView.querySelector("#trainerPlayers") as HTMLElement | null;
@@ -284,6 +285,7 @@
         !accuracyEl ||
         !potEl ||
         !heroHandEl ||
+        !communityEl ||
         !turnInfoEl ||
         !actionsEl ||
         !playersEl ||
@@ -529,7 +531,11 @@
         };
         trainerView.classList.remove("is-answered");
         potEl!.textContent = String(POT);
-        heroHandEl!.innerHTML = cardHtml(dealt.cards[0]) + cardHtml(dealt.cards[1]);
+        const holes = cardHtml(dealt.cards[0]) + cardHtml(dealt.cards[1]);
+        heroHandEl!.innerHTML = holes;
+        // Desktop spotlight uses the community slot (Practice board area); phones keep panel cards.
+        communityEl!.innerHTML =
+          `<span class="trainer-board-label">Preflop</span>${holes}`;
         chartEl!.innerHTML = "";
         renderPlayers();
         renderTurnInfo();

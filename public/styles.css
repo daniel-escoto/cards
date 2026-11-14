@@ -613,17 +613,16 @@ html.trainer-open-root {
 }
 
 .trainer-board {
-  /* Overlay badge — do not reserve a felt grid track (avoids dead empty green). */
-  position: absolute;
-  top: 10px;
-  left: 50%;
-  z-index: 2;
   display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   align-items: center;
   justify-content: center;
   min-height: 0;
-  transform: translateX(-50%);
-  pointer-events: none;
+}
+
+.trainer-board .card {
+  width: clamp(72px, 8vw, 110px);
 }
 
 /* Keep seats packed above the action panel (not stranded under a void of felt). */
@@ -927,29 +926,29 @@ html.trainer-open-root {
 }
 
 @media (max-width: 779px) {
+  /* Phones keep hole cards in the action panel; community is just a PREFLOP badge. */
   .trainer-view .felt {
     position: relative;
-    /* No board-card row: seats + action panel only. */
-    grid-template-rows: minmax(0, 1fr) auto;
-  }
-
-  .trainer-view .players {
-    grid-row: 1;
-    overflow-y: auto;
-    padding-top: 34px;
-  }
-
-  .trainer-view .control-panel {
-    grid-row: 2;
+    grid-template-rows: auto minmax(0, 1fr) auto;
   }
 
   .trainer-view .trainer-board {
-    top: 10px;
+    grid-row: 1;
+    min-height: 0;
+    padding: 0;
   }
 
-  .trainer-view .community.trainer-board {
-    position: absolute;
-    grid-row: auto;
+  .trainer-view .trainer-board .card {
+    display: none;
+  }
+
+  .trainer-view .players {
+    grid-row: 2;
+    overflow-y: auto;
+  }
+
+  .trainer-view .control-panel {
+    grid-row: 3;
   }
 
   .trainer-chart-panel {
@@ -960,46 +959,45 @@ html.trainer-open-root {
 
 @media (min-width: 780px) {
   /*
-   * Trainer has no board cards — single felt row: seats left, action panel right.
-   * PREFLOP is an absolute badge (not a grid track).
+   * Match Practice: seats left, spotlight cards top-right, compact action panel bottom-right.
+   * Large hole cards fill the community slot so the felt isn't empty.
    */
   .trainer-view .felt {
-    position: relative;
-    grid-template-columns: minmax(0, 1.05fr) minmax(300px, 0.95fr);
-    grid-template-rows: minmax(0, 1fr);
-    align-content: stretch;
     overflow: hidden;
   }
 
   .trainer-view .trainer-board {
-    top: 14px;
-    left: 14px;
+    position: static;
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
     transform: none;
+    min-height: 160px;
   }
 
   .trainer-view .trainer-board-label {
+    position: absolute;
+    top: 14px;
+    left: 14px;
     padding: 4px 10px;
     font-size: 11px;
+  }
+
+  .trainer-view #trainerHeroHand {
+    display: none;
   }
 
   .trainer-view .players {
     position: static;
     grid-column: 1;
-    grid-row: 1;
-    align-self: stretch;
-    height: 100%;
-    max-height: 100%;
-    min-height: 0;
-    padding-top: 36px;
+    grid-row: 1 / 3;
   }
 
   .trainer-view .control-panel {
     grid-column: 2;
-    grid-row: 1;
-    /* Fill the right column so the felt isn't a void above a tiny action card. */
-    align-self: stretch;
+    grid-row: 2;
+    align-self: end;
     justify-self: stretch;
-    align-content: end;
     width: 100%;
     max-width: 100%;
     min-width: 0;
