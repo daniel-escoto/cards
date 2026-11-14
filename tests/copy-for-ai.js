@@ -196,7 +196,7 @@ function player(id, overrides = {}) {
   const html = fs.readFileSync(path.join(__dirname, "../public/index.html"), "utf8");
   assert.match(
     html,
-    /id="menuPlayers"[\s\S]*?id="coachBtn"[\s\S]*?id="copyForAiBtn"[\s\S]*?id="openSettingsBtn"/,
+    /id="menuPlayers"[\s\S]*?id="shareGameBtn"[\s\S]*?id="coachBtn"[\s\S]*?id="copyForAiBtn"[\s\S]*?id="openSettingsBtn"/,
   );
 }
 

@@ -46,7 +46,7 @@ const sw = swSelf;
 
 const CACHE_VERSION = "__BUILD_ID__";
 /** Bump when the app-shell file set changes so clients drop stale precaches. */
-const SHELL_REVISION = "3";
+const SHELL_REVISION = "4";
 const CACHE_NAME = `holdem-nyc-shell-${CACHE_VERSION}-${SHELL_REVISION}`;
 const APP_SHELL = [
   "/",
@@ -59,15 +59,19 @@ const APP_SHELL = [
   "/app-table.js",
   "/app-events.js",
   "/practice.js",
+  "/trainer.js",
   "/deploy-handoff.js",
   "/raise-sizing.js",
   "/card-art.js",
   "/turn-clock-warning.js",
   "/ready-clock.js",
   "/invite-url.js",
+  "/coach.js",
+  "/copy-for-ai.js",
   "/manifest.webmanifest",
   "/shared/pokersolver.js",
   "/shared/engine.js",
+  "/shared/rfi-ranges.js",
 ];
 
 sw.addEventListener("install", (event) => {
@@ -90,6 +94,20 @@ sw.addEventListener("activate", (event) => {
   );
 });
 
+function isRoomCodePath(pathname: string) {
+  return /^\/[A-Za-z0-9]{6}\/?$/i.test(pathname);
+}
+
+function isAppShellNavigation(pathname: string) {
+  return (
+    pathname === "/" ||
+    pathname === "/index.html" ||
+    pathname === "/trainer" ||
+    pathname === "/trainer/" ||
+    isRoomCodePath(pathname)
+  );
+}
+
 sw.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
@@ -101,6 +119,27 @@ sw.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/socket.io/")) return;
   // Always network for the service worker script so deploys activate cleanly.
   if (url.pathname === "/sw.js") return;
+
+  // Short room links + /trainer: network first, then cached app shell (do not
+  // store a separate cache entry per room code).
+  if (request.mode === "navigate" && isAppShellNavigation(url.pathname)) {
+    event.respondWith(
+      (async () => {
+        try {
+          const response = await fetch(request);
+          if (response && response.ok) return response;
+        } catch {
+          /* offline — fall through to shell */
+        }
+        return (
+          (await caches.match("/index.html")) ||
+          (await caches.match("/")) ||
+          Response.error()
+        );
+      })(),
+    );
+    return;
+  }
 
   event.respondWith(
     (async () => {

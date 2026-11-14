@@ -335,11 +335,22 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
   }
 
   // Pot is already in the panel header — keep the prompt short.
-  turnInfo.textContent =
-    room.toCall > 0
-      ? `Call ${formatAmount(room.toCall, room.toCallCents)}`
-      : "Check or bet";
-  turnInfo.classList.add("your-turn");
+  // When Coach is on, the coach card carries the action; skip the duplicate "Call N" line.
+  const coachWillShow =
+    typeof coachFeatureAvailable === "function" &&
+    coachFeatureAvailable(room) &&
+    typeof coachPrefEnabled === "function" &&
+    coachPrefEnabled();
+  if (coachWillShow) {
+    turnInfo.textContent = "";
+    turnInfo.classList.remove("your-turn");
+  } else {
+    turnInfo.textContent =
+      room.toCall > 0
+        ? `Call ${formatAmount(room.toCall, room.toCallCents)}`
+        : "Check or bet";
+    turnInfo.classList.add("your-turn");
+  }
   renderHeroActionControls(hero, false);
   renderCoachHint();
 }
@@ -348,7 +359,8 @@ function renderCoachHint() {
   if (!coachHint) return;
   const hide = () => {
     coachHint.classList.add("hidden");
-    coachHint.textContent = "";
+    coachHint.replaceChildren();
+    coachHint.removeAttribute("data-action");
   };
   if (
     !state ||
@@ -362,7 +374,11 @@ function renderCoachHint() {
     hide();
     return;
   }
-  if (typeof Coach === "undefined" || !Coach.buildCoachSuggestion || !Coach.formatCoachHint) {
+  if (
+    typeof Coach === "undefined" ||
+    !Coach.buildCoachSuggestion ||
+    typeof Coach.formatCoachHintModel !== "function"
+  ) {
     hide();
     return;
   }
@@ -371,7 +387,51 @@ function renderCoachHint() {
     hide();
     return;
   }
-  coachHint.textContent = Coach.formatCoachHint(suggestion, state);
+  const model = Coach.formatCoachHintModel(suggestion, state);
+  coachHint.dataset.action = model.action;
+  coachHint.replaceChildren();
+
+  const head = document.createElement("div");
+  head.className = "coach-hint-head";
+  const badge = document.createElement("span");
+  badge.className = "coach-hint-badge";
+  badge.textContent = "Coach";
+  const headline = document.createElement("strong");
+  headline.className = "coach-hint-headline";
+  headline.textContent = model.headline;
+  head.append(badge, headline);
+
+  const reason = document.createElement("p");
+  reason.className = "coach-hint-reason";
+  reason.textContent = model.reason;
+
+  const stats = document.createElement("div");
+  stats.className = "coach-hint-stats";
+  const parts = [
+    ["Equity", model.equity],
+    ["Pot odds", model.potOdds],
+    ["To call", model.toCall],
+  ] as const;
+  parts.forEach(([label, value], index) => {
+    if (index > 0) {
+      const sep = document.createElement("span");
+      sep.className = "coach-hint-sep";
+      sep.setAttribute("aria-hidden", "true");
+      sep.textContent = "·";
+      stats.append(sep);
+    }
+    const chip = document.createElement("span");
+    chip.className = "coach-hint-stat";
+    const labelEl = document.createElement("span");
+    labelEl.className = "coach-hint-stat-label";
+    labelEl.textContent = label;
+    const valueEl = document.createElement("strong");
+    valueEl.textContent = value;
+    chip.append(labelEl, document.createTextNode(" "), valueEl);
+    stats.append(chip);
+  });
+
+  coachHint.append(head, reason, stats);
   coachHint.classList.remove("hidden");
 }
 
@@ -694,11 +754,14 @@ async function copyText(text: string, button: HTMLElement) {
 }
 
 function showSharePanel() {
+  if (typeof showMenuInviteView === "function") {
+    showMenuInviteView();
+    return;
+  }
   const link = inviteUrl();
   if (!link) return;
   shareLink.value = link;
   shareQr.src = `/qr.svg?text=${encodeURIComponent(link)}`;
-  sharePanel.classList.toggle("hidden");
 }
 
 function emitWithAck(eventName: string, payload?: Record<string, unknown>) {

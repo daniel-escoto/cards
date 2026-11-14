@@ -200,26 +200,46 @@
       };
     }
 
+    function actionHeadline(suggestion: CoachSuggestion): string {
+      if (suggestion.action === "raise" || suggestion.action === "bet") {
+        const verb = suggestion.action === "bet" ? "Bet" : "Raise to";
+        return suggestion.raiseTo != null ? `${verb} ${suggestion.raiseTo}` : verb;
+      }
+      return suggestion.action.charAt(0).toUpperCase() + suggestion.action.slice(1);
+    }
+
+    function formatToCall(suggestion: CoachSuggestion, room: ClientRoom): string {
+      if (suggestion.toCall <= 0) return "—";
+      if (room.moneyMode) {
+        return `$${(Math.round(Number(room.toCallCents) || 0) / 100).toFixed(2)}`;
+      }
+      return String(suggestion.toCall);
+    }
+
+    /** Structured coach card copy (headline / reason / stats). */
+    function formatCoachHintModel(suggestion: CoachSuggestion, room: ClientRoom): CoachHintModel {
+      return {
+        action: suggestion.action,
+        headline: actionHeadline(suggestion),
+        reason: suggestion.reason,
+        equity: pct(suggestion.equity),
+        potOdds: suggestion.toCall > 0 ? pct(suggestion.potOdds) : "—",
+        toCall: formatToCall(suggestion, room),
+      };
+    }
+
+    /** Plain-text fallback for tests / copy. */
     function formatCoachHint(suggestion: CoachSuggestion, room: ClientRoom) {
-      const callBit =
-        suggestion.toCall > 0
-          ? `pot odds ${pct(suggestion.potOdds)} (call ${
-              room.moneyMode
-                ? `$${(Math.round(Number(room.toCallCents) || 0) / 100).toFixed(2)}`
-                : suggestion.toCall
-            })`
-          : "checked to you";
-      const action =
-        suggestion.action === "raise" || suggestion.action === "bet"
-          ? `${suggestion.action === "bet" ? "Bet" : "Raise"} ${suggestion.raiseTo}`
-          : suggestion.action.charAt(0).toUpperCase() + suggestion.action.slice(1);
-      return `Coach · ${pct(suggestion.equity)} eq · ${callBit}\nSuggest: ${action} — ${suggestion.reason}`;
+      const model = formatCoachHintModel(suggestion, room);
+      return `${model.headline} — ${model.reason}\nEquity ${model.equity} · Pot odds ${model.potOdds} · To call ${model.toCall}`;
     }
 
     return {
       coachAvailableForPlayers,
       buildCoachSuggestion,
       formatCoachHint,
+      formatCoachHintModel,
+      actionHeadline,
     };
   },
 );

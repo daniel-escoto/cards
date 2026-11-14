@@ -179,6 +179,15 @@ declare global {
     summary: string;
   }
 
+  interface CoachHintModel {
+    action: CoachSuggestion["action"];
+    headline: string;
+    reason: string;
+    equity: string;
+    potOdds: string;
+    toCall: string;
+  }
+
   interface CoachAPI {
     coachAvailableForPlayers(
       players: Array<{ id: string; isYou?: boolean; isBot?: boolean }>,
@@ -189,6 +198,8 @@ declare global {
       options?: { random?: () => number; iterations?: number },
     ): CoachSuggestion | null;
     formatCoachHint(suggestion: CoachSuggestion, room: ClientRoom): string;
+    formatCoachHintModel(suggestion: CoachSuggestion, room: ClientRoom): CoachHintModel;
+    actionHeadline(suggestion: CoachSuggestion): string;
   }
 
   const Coach: CoachAPI;
@@ -308,9 +319,54 @@ declare global {
 
   interface InviteUrlAPI {
     CANONICAL_ORIGIN: string;
+    ROOM_CODE_PATH: RegExp;
     isProductionInviteHost(hostname: unknown): boolean;
+    normalizeRoomCode(value: unknown): string;
+    roomCodeFromPath(pathname: unknown): string;
+    isRoomCodePath(pathname: unknown): boolean;
     canonicalInviteUrl(roomId: unknown, locationLike?: InviteLocationLike | string): string;
   }
+
+  interface RfiRangesAPI {
+    RANK_ORDER: readonly string[];
+    positionsForTable(tableSize: 6 | 9): readonly string[];
+    handKeyFromCodes(codeA: string, codeB: string): string | null;
+    standardRfiAction(
+      tableSize: 6 | 9,
+      position: string,
+      handKey: string,
+    ): "raise" | "fold" | null;
+    gradeRfiAction(
+      tableSize: 6 | 9,
+      position: string,
+      handKey: string,
+      chosen: "raise" | "fold",
+    ): { correct: boolean; standard: "raise" | "fold"; handKey: string } | null;
+    rfiChart(
+      tableSize: 6 | 9,
+      position: string,
+    ): Array<{ key: string; action: "raise" | "fold"; row: number; col: number }> | null;
+    dealRandomRfiSpot(
+      tableSize: 6 | 9,
+      random?: () => number,
+    ): {
+      tableSize: 6 | 9;
+      position: string;
+      cards: [PublicCard, PublicCard];
+      handKey: string;
+      standard: "raise" | "fold";
+    };
+  }
+
+  const RfiRanges: RfiRangesAPI;
+
+  interface PreflopTrainerAPI {
+    bind(doc?: Document): { destroy: () => void } | null;
+    STATS_KEY: string;
+    TABLE_KEY: string;
+  }
+
+  const PreflopTrainer: PreflopTrainerAPI;
 
   const InviteUrl: InviteUrlAPI;
 
@@ -400,6 +456,10 @@ declare global {
     TurnClockWarning?: TurnClockWarningAPI;
     ReadyClock?: ReadyClockAPI;
     InviteUrl?: InviteUrlAPI;
+    RfiRanges?: RfiRangesAPI;
+    PreflopTrainer?: PreflopTrainerAPI;
+    Coach?: CoachAPI;
+    CopyForAi?: CopyForAiAPI;
     TableSounds?: TableSoundsConstructor;
     HoldemFormat?: HoldemFormatAPI;
     HoldemKeybinds?: HoldemKeybindsAPI;
@@ -472,9 +532,13 @@ declare global {
   var closeMenuBtn: HTMLButtonElement;
   var menuMainView: HTMLElement;
   var menuSettingsView: HTMLElement;
+  var menuInviteView: HTMLElement;
   var openSettingsBtn: HTMLButtonElement;
   var closeSettingsBtn: HTMLButtonElement;
   var closeSettingsMenuBtn: HTMLButtonElement;
+  var closeInviteBtn: HTMLButtonElement;
+  var closeInviteMenuBtn: HTMLButtonElement;
+  var inviteRoomCode: HTMLElement;
   var settingsTableSection: HTMLElement;
   var addBotBtn: HTMLButtonElement;
   var restartGameBtn: HTMLButtonElement;
@@ -635,6 +699,7 @@ declare global {
   function showTable(room: ClientRoom): void;
   function showMenuMainView(): void;
   function showMenuSettingsView(): void;
+  function showMenuInviteView(): void;
   function hideGameMenu(): void;
   function syncMenuNameForm(): void;
   function renderControlsContent(hero: ClientPlayer | null | undefined): void;

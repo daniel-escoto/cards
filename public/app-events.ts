@@ -202,6 +202,8 @@ sitOutBtn.addEventListener("click", () => {
 
 shareGameBtn.addEventListener("click", showSharePanel);
 copyShareBtn.addEventListener("click", () => copyText(shareLink.value, copyShareBtn));
+closeInviteBtn?.addEventListener("click", showMenuMainView);
+closeInviteMenuBtn?.addEventListener("click", hideGameMenu);
 coachBtn?.addEventListener("click", () => {
   if (!coachFeatureAvailable()) {
     syncCoachBtn();

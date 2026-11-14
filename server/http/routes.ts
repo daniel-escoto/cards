@@ -38,6 +38,26 @@ function registerHttpRoutes(): void {
   api.app.use(express.static(publicDir));
   api.app.use("/shared", express.static(sharedDir));
 
+  /** Deep link into the offline Preflop Trainer (same shell; client opens the view). */
+  api.app.get("/trainer", (_req: Request, res: Response): void => {
+    res.sendFile(path.join(publicDir, "index.html"));
+  });
+
+  /**
+   * Short room links: GET /{CODE} → app shell (same index.html as /).
+   * Registered after static + /shared + /trainer so real files, /socket.io, /api/*,
+   * /sw.js, /manifest.webmanifest, /healthz, and /trainer are never shadowed.
+   * Pattern is exactly 6 alphanumeric chars (room ids); case-insensitive.
+   */
+  api.app.get("/:code", (req: Request, res: Response, next: express.NextFunction): void => {
+    const code = String(req.params.code || "");
+    if (!/^[A-Za-z0-9]{6}$/i.test(code)) {
+      next();
+      return;
+    }
+    res.sendFile(path.join(publicDir, "index.html"));
+  });
+
   api.app.get("/qr.svg", async (req: Request, res: Response): Promise<void> => {
     const text = String(req.query.text || "").slice(0, 512);
     if (!text) {

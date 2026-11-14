@@ -153,8 +153,59 @@
               <button id="tableActionBtn" type="submit">Host table</button>
               <button id="watchBtn" class="secondary hidden" type="button">Watch</button>
             </div>
+            <div class="welcome-secondary-actions" role="group" aria-label="Offline play">
+              <button id="practiceBtn" class="secondary" type="button">Practice</button>
+              <button id="trainerBtn" class="secondary" type="button">Trainer</button>
+            </div>
             <p id="joinError" class="error" role="alert"></p>
           </form>
+        </div>
+      </section>
+
+      <section id="trainerView" class="trainer-view hidden" aria-label="Preflop trainer">
+        <div class="welcome-atmosphere" aria-hidden="true">
+          <div class="welcome-glow welcome-glow-a"></div>
+          <div class="welcome-glow welcome-glow-b"></div>
+        </div>
+        <div class="trainer-stage">
+          <header class="trainer-head">
+            <button id="trainerBackBtn" class="secondary trainer-back" type="button">Home</button>
+            <div class="trainer-titles">
+              <h1 class="trainer-title">Trainer</h1>
+              <p class="trainer-subtitle">Preflop RFI — folded to you</p>
+            </div>
+          </header>
+
+          <div class="trainer-size" role="group" aria-label="Table size">
+            <button id="trainerSize6" class="mode-option selected" type="button" aria-pressed="true">
+              6-max
+            </button>
+            <button id="trainerSize9" class="mode-option" type="button" aria-pressed="false">
+              9-max
+            </button>
+          </div>
+
+          <div class="trainer-spot">
+            <p id="trainerPosition" class="trainer-position" aria-live="polite">UTG · 6-max</p>
+            <div id="trainerCards" class="trainer-cards" aria-live="polite"></div>
+          </div>
+
+          <div id="trainerActions" class="trainer-actions">
+            <button id="trainerRaiseBtn" type="button">Raise</button>
+            <button id="trainerFoldBtn" class="secondary" type="button">Fold</button>
+          </div>
+
+          <div id="trainerFeedback" class="trainer-feedback hidden" aria-live="polite">
+            <p id="trainerFeedbackTitle" class="trainer-feedback-title"></p>
+            <p id="trainerFeedbackDetail" class="trainer-feedback-detail"></p>
+            <div id="trainerChart" class="trainer-chart"></div>
+            <button id="trainerNextBtn" type="button">Next hand</button>
+          </div>
+
+          <div class="trainer-stats-row">
+            <p id="trainerStats" class="trainer-stats" aria-live="polite">Overall 0/0 (—)</p>
+            <button id="trainerResetBtn" class="ghost" type="button">Reset stats</button>
+          </div>
         </div>
       </section>
 
@@ -308,15 +359,8 @@
             </div>
 
             <div class="menu-stack">
-              <button id="shareGameBtn" type="button" class="secondary menu-row-btn">Invite</button>
-              <div id="sharePanel" class="share-panel hidden">
-                <img id="shareQr" alt="Room invite QR code" />
-                <div class="share-link-row">
-                  <input id="shareLink" readonly aria-label="Room invite link" />
-                  <button id="copyShareBtn" type="button" class="secondary">Copy</button>
-                </div>
-              </div>
               <div id="menuPlayers" class="menu-players"></div>
+              <button id="shareGameBtn" type="button" class="secondary menu-row-btn">Invite</button>
               <button id="coachBtn" type="button" class="secondary menu-row-btn" aria-pressed="false">
                 Coach: Off
               </button>
@@ -341,6 +385,40 @@
               >
                 Leave
               </button>
+            </div>
+          </div>
+
+          <div id="menuInviteView" class="menu-view menu-invite-view hidden">
+            <div class="modal-head">
+              <div class="settings-head">
+                <button
+                  id="closeInviteBtn"
+                  class="ghost settings-back-btn"
+                  type="button"
+                  aria-label="Back to menu"
+                >
+                  ←
+                </button>
+                <h2 id="inviteTitle" class="menu-title">Invite</h2>
+              </div>
+              <button
+                id="closeInviteMenuBtn"
+                class="ghost icon-btn"
+                type="button"
+                aria-label="Close menu"
+              >
+                ×
+              </button>
+            </div>
+            <div class="menu-stack">
+              <div id="sharePanel" class="share-panel">
+                <img id="shareQr" alt="Room invite QR code" />
+                <div class="share-link-row">
+                  <input id="shareLink" readonly aria-label="Room invite link" />
+                  <button id="copyShareBtn" type="button" class="secondary">Copy</button>
+                </div>
+                <p id="inviteRoomCode" class="invite-room-code" aria-live="polite"></p>
+              </div>
             </div>
           </div>
 
@@ -504,6 +582,7 @@
 
     <script src="/shared/pokersolver.js"></script>
     <script src="/shared/engine.js"></script>
+    <script src="/shared/rfi-ranges.js"></script>
     <script src="/practice.js"></script>
     <script src="/deploy-handoff.js"></script>
     <script src="/socket.io/socket.io.js"></script>
@@ -517,6 +596,7 @@
     <script src="/app-sounds.js"></script>
     <script src="/app-format.js"></script>
     <script src="/app-keybinds.js"></script>
+    <script src="/trainer.js"></script>
     <script src="/app-boot.js"></script>
     <script src="/app-table.js"></script>
     <script src="/app-events.js"></script>

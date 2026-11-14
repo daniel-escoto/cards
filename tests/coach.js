@@ -120,6 +120,12 @@ function seat(id, overrides = {}) {
   const blob = JSON.stringify(suggestion) + Coach.formatCoachHint(suggestion, room);
   assert.doesNotMatch(blob, /Qc|Jd/);
   assert.doesNotMatch(blob, /villain/);
+  const model = Coach.formatCoachHintModel(suggestion, room);
+  assert.ok(model.headline);
+  assert.ok(model.reason);
+  assert.match(model.equity, /%$/);
+  assert.equal(model.action, suggestion.action);
+  assert.doesNotMatch(model.headline + model.reason, /Coach ·/);
 }
 
 {
@@ -160,10 +166,15 @@ function seat(id, overrides = {}) {
 
 {
   const html = fs.readFileSync(path.join(__dirname, "../public/index.html"), "utf8");
-  assert.match(html, /id="menuPlayers"[\s\S]*?id="coachBtn"[\s\S]*?id="copyForAiBtn"/);
+  assert.match(
+    html,
+    /id="menuPlayers"[\s\S]*?id="shareGameBtn"[\s\S]*?id="coachBtn"[\s\S]*?id="copyForAiBtn"/,
+  );
   assert.match(html, /id="coachHint"/);
   const css = fs.readFileSync(path.join(__dirname, "../public/styles.css"), "utf8");
   assert.match(css, /\.blind-chip\.dealer\s*\{[^}]*#f5f5f4/);
+  assert.match(css, /\.coach-hint-headline/);
+  assert.match(css, /coach-hint\[data-action="fold"\]/);
 }
 
 console.log("Coach checks passed.");
