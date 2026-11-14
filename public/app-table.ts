@@ -589,6 +589,13 @@ function roomFromReplayTable(
   };
 }
 
+function bustCardRenderCache() {
+  // Review rebuilds PublicCards from codes; bust signatures so suit glyphs
+  // (♥♦♣♠) always replace any stale letter-suit DOM from a prior paint.
+  lastHeroSignature = "";
+  lastCommunitySignature = null;
+}
+
 function openHandReview() {
   if (!lastHandReplay || !lastHandReplay.steps.length || !state) return;
   if (handReviewActive) return;
@@ -599,6 +606,7 @@ function openHandReview() {
   document.body.classList.add("hand-review-open");
   handReviewChrome?.classList.remove("hidden");
   if (handReviewSummary) handReviewSummary.textContent = lastHandReplay.summary;
+  bustCardRenderCache();
   paintHandReviewStep(0);
 }
 
@@ -630,10 +638,43 @@ function paintHandReviewStep(index: number) {
     handReviewRetryBar.classList.add("hidden");
     handReviewRetryBar.replaceChildren();
   }
+  bustCardRenderCache();
   state = roomFromReplayTable(step.table, handReviewSavedState);
   render();
   // Review chrome owns the control panel content.
   renderHandReviewChrome(step);
+}
+
+function paintHandReviewVerdict(item: HandReviewItemLocal | null, prompt?: string) {
+  if (!handReviewVerdict) return;
+  if (prompt) {
+    handReviewVerdict.textContent = prompt;
+    handReviewVerdict.className = "hand-review-verdict is-prompt";
+    handReviewVerdict.classList.remove("hidden");
+    return;
+  }
+  if (!item) {
+    handReviewVerdict.classList.add("hidden");
+    handReviewVerdict.replaceChildren();
+    return;
+  }
+  const badge =
+    typeof HandReview !== "undefined" && HandReview.formatVerdictBadge
+      ? HandReview.formatVerdictBadge(item)
+      : `${item.verdict === "mistake" ? "✗" : item.verdict === "best" ? "✓" : "~"} ${item.badge}`;
+  const why =
+    typeof HandReview !== "undefined" && HandReview.formatVerdictWhy
+      ? HandReview.formatVerdictWhy(item)
+      : item.reason;
+  const mark = document.createElement("span");
+  mark.className = "hand-review-verdict-mark";
+  mark.textContent = badge;
+  const detail = document.createElement("span");
+  detail.className = "hand-review-verdict-why";
+  detail.textContent = why;
+  handReviewVerdict.replaceChildren(mark, detail);
+  handReviewVerdict.className = `hand-review-verdict is-${item.verdict}`;
+  handReviewVerdict.classList.remove("hidden");
 }
 
 function renderHandReviewChrome(step: HandReplayLocal["steps"][number]) {
@@ -641,19 +682,10 @@ function renderHandReviewChrome(step: HandReplayLocal["steps"][number]) {
     const total = lastHandReplay?.steps.length || 1;
     handReviewStepLabel.textContent = `${handReviewStepIndex + 1}/${total} · ${step.label}`;
   }
-  if (handReviewVerdict) {
-    if (step.decision) {
-      const line =
-        typeof HandReview !== "undefined" && HandReview.formatVerdictLine
-          ? HandReview.formatVerdictLine(step.decision)
-          : `${step.decision.badge} · ${step.decision.reason}`;
-      handReviewVerdict.textContent = line;
-      handReviewVerdict.className = `hand-review-verdict is-${step.decision.verdict}`;
-      handReviewVerdict.classList.remove("hidden");
-    } else {
-      handReviewVerdict.classList.add("hidden");
-      handReviewVerdict.textContent = "";
-    }
+  if (step.decision) {
+    paintHandReviewVerdict(step.decision);
+  } else {
+    paintHandReviewVerdict(null);
   }
   if (handReviewTimeline && lastHandReplay) {
     handReviewTimeline.replaceChildren();
@@ -718,6 +750,7 @@ function startHandReviewRetry(
       lastAction: null,
     })),
   };
+  bustCardRenderCache();
   state = roomFromReplayTable(table, template);
   state.isYourTurn = true;
   state.toCall = item.toCall;
@@ -733,6 +766,12 @@ function startHandReviewRetry(
   const feedback = document.createElement("p");
   feedback.className = "hand-review-retry-feedback";
   feedback.setAttribute("aria-live", "polite");
+  const cont = document.createElement("button");
+  cont.type = "button";
+  cont.className = "ghost hand-review-continue";
+  cont.textContent = "Continue review";
+  cont.hidden = true;
+  cont.addEventListener("click", () => paintHandReviewStep(handReviewStepIndex));
   for (const choice of choices) {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -744,21 +783,16 @@ function startHandReviewRetry(
       feedback.textContent = result.line;
       feedback.classList.toggle("is-correct", result.correct);
       feedback.classList.toggle("is-wrong", !result.correct);
+      cont.hidden = false;
     });
     actions.append(btn);
   }
-  const cont = document.createElement("button");
-  cont.type = "button";
-  cont.className = "secondary";
-  cont.textContent = "Continue review";
-  cont.addEventListener("click", () => paintHandReviewStep(handReviewStepIndex));
   handReviewRetryBar.append(actions, feedback, cont);
   handReviewRetryBar.classList.remove("hidden");
-  if (handReviewVerdict) {
-    handReviewVerdict.textContent = `Try again · Pot ${item.pot}${item.toCall > 0 ? ` · Call ${item.toCall}` : ""}`;
-    handReviewVerdict.className = "hand-review-verdict is-mistake";
-    handReviewVerdict.classList.remove("hidden");
-  }
+  paintHandReviewVerdict(
+    null,
+    `Try again · Pot ${item.pot}${item.toCall > 0 ? ` · Call ${item.toCall}` : ""}`,
+  );
   gameButtons.innerHTML = "";
   turnInfo.textContent =
     item.toCall > 0 ? `Call ${item.toCall}` : "Check or bet";

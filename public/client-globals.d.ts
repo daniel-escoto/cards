@@ -865,6 +865,11 @@ declare global {
     turnId: string | null | undefined,
     phase: string | null | undefined,
   ): ClientPlayer | null;
+  function nextActArrowGlyph(
+    visualSeats: Array<{ id: string }>,
+    actingId: string | null | undefined,
+    nextId: string | null | undefined,
+  ): "▲" | "▼" | "";
   function seatWaitingForStreetAction(
     player: ClientPlayer,
     options: { hasStreetAction: boolean; isActing: boolean; phase: string | null | undefined },
@@ -1048,6 +1053,8 @@ declare global {
       taken: string;
       raiseTo: number | null;
     }): string;
+    formatVerdictBadge(item: { verdict: string; badge: string }): string;
+    formatVerdictWhy(item: { reason: string }): string;
     formatVerdictLine(item: {
       verdict: string;
       badge: string;

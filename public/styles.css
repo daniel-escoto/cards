@@ -2281,11 +2281,6 @@ button.menu-player-row:not(:disabled):hover {
   background: color-mix(in srgb, var(--accent) 16%, rgba(8, 16, 18, 0.45));
   box-shadow: inset 3px 0 0 var(--player-color, var(--accent));
 }
-/* Next-to-act: clearly weaker than .turn (no fill bump, thinner/fainter inset). */
-.table-player-row.next-to-act:not(.turn) {
-  border-color: color-mix(in srgb, var(--accent) 22%, rgba(255, 255, 255, 0.1));
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--player-color, var(--accent)) 32%, transparent);
-}
 .table-player-row.folded {
   opacity: 0.55;
 }
@@ -2395,10 +2390,20 @@ button.menu-player-row:not(:disabled):hover {
   white-space: nowrap;
   text-align: right;
 }
-.player-action.is-waiting,
-.player-action.is-next {
+.player-action.is-waiting {
   color: rgba(255, 255, 255, 0.38);
   font-weight: 550;
+}
+/* Direction toward the next-to-act seat — lives on the Acting row, not the next row. */
+.next-act-arrow {
+  display: inline-block;
+  margin-left: 0.35em;
+  color: color-mix(in srgb, var(--accent) 72%, rgba(255, 255, 255, 0.55));
+  font-size: 0.78em;
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: 0.08em;
+  letter-spacing: 0;
 }
 .player-stack {
   /* Same width on every row (each row is its own grid), so status and stack columns line up. */
@@ -3606,72 +3611,114 @@ kbd {
   text-align: center;
 }
 
-/* —— Hand review replay (lives inside .control-panel, below hero/pot) —— */
+/* —— Hand review replay (lives inside .control-panel, below hero/pot) ——
+   Same felt / seat / board layout as a live hand — only the action-slot contents swap. */
 .control-panel > .hand-review-chrome {
   grid-row: 3 / 6;
   align-self: stretch;
+  min-height: 0;
 }
 .hand-review-chrome {
   display: grid;
-  gap: 8px;
+  align-content: start;
+  gap: 6px;
   min-width: 0;
 }
 .hand-review-chrome.hidden {
   display: none;
 }
-/* Swap in review chrome the same way Ready/actions replace each other — no overlay. */
+/* Swap in review chrome the same way Ready/actions replace each other — no overlay,
+   and keep the live-game control-panel track sizes (do not retarget grid-template-rows). */
 body.hand-review-open .control-panel > .turn-info,
 body.hand-review-open .control-panel > .game-buttons,
 body.hand-review-open .control-panel > .bet-controls,
 body.hand-review-open .control-panel > .winner-list {
   display: none !important;
 }
-body.hand-review-open .control-panel {
-  grid-template-rows: auto minmax(0, 1fr);
-}
-body.hand-review-open .control-panel > .hand-review-chrome {
-  grid-row: 2;
-  align-self: stretch;
-  min-height: 0;
-  overflow: auto;
-}
 .hand-review-chrome-head {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
+}
+.hand-review-chrome-head .eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45em;
+  margin: 0;
+  min-width: 0;
 }
 .hand-review-summary {
-  margin: 2px 0 0;
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
   line-height: 1.3;
 }
-.hand-review-verdict {
+.control-panel .hand-review-close {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  max-height: none;
   margin: 0;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1;
+  transform: none;
+}
+.control-panel .hand-review-close:hover,
+.control-panel .hand-review-close:active {
+  background: transparent;
+  color: var(--text);
+  transform: none;
+}
+.hand-review-verdict {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   font-size: 13px;
   font-weight: 700;
   line-height: 1.35;
-  background: color-mix(in srgb, var(--panel-2) 70%, transparent);
+  color: var(--text);
 }
 .hand-review-verdict.hidden {
   display: none;
 }
-.hand-review-verdict.is-best {
-  border-color: color-mix(in srgb, #3d9a5f 35%, var(--line));
+.hand-review-verdict-mark {
+  font-weight: 800;
+}
+.hand-review-verdict-why {
+  color: var(--muted);
+  font-weight: 650;
+}
+.hand-review-verdict.is-best .hand-review-verdict-mark {
   color: color-mix(in srgb, #3d9a5f 90%, var(--text));
 }
-.hand-review-verdict.is-fine {
-  border-color: color-mix(in srgb, #c9a227 35%, var(--line));
+.hand-review-verdict.is-fine .hand-review-verdict-mark {
   color: color-mix(in srgb, #c9a227 90%, var(--text));
 }
-.hand-review-verdict.is-mistake {
-  border-color: color-mix(in srgb, var(--danger) 35%, var(--line));
-  color: color-mix(in srgb, var(--danger) 90%, var(--text));
+.hand-review-verdict.is-mistake .hand-review-verdict-mark {
+  color: color-mix(in srgb, var(--danger) 92%, var(--text));
+}
+/* Neutral to-act prompt (Try again) — not the mistake/error look. */
+.hand-review-verdict.is-prompt {
+  color: var(--text);
+  font-weight: 700;
 }
 .hand-review-nav {
   display: flex;
@@ -3682,25 +3729,32 @@ body.hand-review-open .control-panel > .hand-review-chrome {
 /* Keep nav squares compact even under .control-panel button { min-height: 48px }. */
 .control-panel .hand-review-nav > button {
   flex: 0 0 auto;
-  width: 36px;
-  min-width: 36px;
-  max-width: 36px;
-  height: 36px;
-  min-height: 36px;
-  max-height: 36px;
+  width: 32px;
+  min-width: 32px;
+  max-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  max-height: 32px;
   padding: 0;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1;
 }
-.hand-review-timeline {
+.hand-review-timeline-wrap {
   flex: 1 1 auto;
   display: flex;
   align-items: center;
-  justify-content: space-evenly;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+}
+.hand-review-timeline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   gap: 8px;
   min-width: 0;
   overflow-x: auto;
-  padding: 6px 2px;
+  padding: 4px 2px;
   scrollbar-width: none;
 }
 .hand-review-timeline::-webkit-scrollbar {
@@ -3750,16 +3804,21 @@ body.hand-review-open .control-panel > .hand-review-chrome {
   background: color-mix(in srgb, var(--danger) 70%, transparent);
 }
 .hand-review-step-label {
+  flex: 0 1 auto;
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  line-height: 1.3;
-  min-height: 1.3em;
+  line-height: 1.2;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 42%;
 }
 .hand-review-retry-bar {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 .hand-review-retry-bar.hidden {
   display: none;
@@ -3777,12 +3836,41 @@ body.hand-review-open .control-panel > .hand-review-chrome {
   margin: 0;
   font-size: 13px;
   font-weight: 700;
+  min-height: 1.2em;
 }
 .hand-review-retry-feedback.is-correct {
   color: color-mix(in srgb, #3d9a5f 90%, var(--text));
 }
 .hand-review-retry-feedback.is-wrong {
   color: color-mix(in srgb, var(--danger) 90%, var(--text));
+}
+.control-panel .hand-review-continue {
+  justify-self: start;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transform: none;
+}
+.control-panel .hand-review-continue:hover,
+.control-panel .hand-review-continue:active {
+  background: transparent;
+  color: var(--text);
+  transform: none;
+}
+.control-panel .hand-review-continue[hidden] {
+  display: none !important;
 }
 .result-line {
   display: grid;

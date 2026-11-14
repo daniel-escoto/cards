@@ -301,7 +301,17 @@ function buildReason(args: {
     }
     return `You need to win ${pct(args.potOdds)} to call; you win about ${pct(args.equity)}. Call.`;
   }
-  return `Equity ${pct(args.equity)} vs pot odds ${pct(args.potOdds)} — ${actionLabel(args.recommended, args.recommendedRaiseTo)} was better.`;
+  // Compact chess.com-style why line for mistakes.
+  if (args.recommended === "raise" || args.recommended === "bet") {
+    return `${actionLabel(args.recommended, args.recommendedRaiseTo)} — you have ${pct(args.equity)} equity, only need ${pct(args.potOdds)}`;
+  }
+  if (args.recommended === "fold") {
+    return `Fold — you have ${pct(args.equity)} equity, need ${pct(args.potOdds)}`;
+  }
+  if (args.recommended === "call") {
+    return `Call — you have ${pct(args.equity)} equity, need ${pct(args.potOdds)}`;
+  }
+  return `${actionLabel(args.recommended, args.recommendedRaiseTo)} was better.`;
 }
 
 /**
@@ -500,7 +510,17 @@ export function formatDecisionHeadline(item: HandReviewItem): string {
   return `${streetLabel(item.street)} · ${actionLabel(item.taken, item.raiseTo)}`;
 }
 
-export function formatVerdictLine(item: HandReviewItem): string {
+/** Badge fragment only — e.g. "✗ Mistake" (UI colors the mark). */
+export function formatVerdictBadge(item: HandReviewItem): string {
   const mark = item.verdict === "best" ? "✓" : item.verdict === "mistake" ? "✗" : "~";
-  return `${mark} ${item.badge} · ${item.reason}`;
+  return `${mark} ${item.badge}`;
+}
+
+/** Short why line under the badge (no badge prefix). */
+export function formatVerdictWhy(item: HandReviewItem): string {
+  return item.reason;
+}
+
+export function formatVerdictLine(item: HandReviewItem): string {
+  return `${formatVerdictBadge(item)} · ${formatVerdictWhy(item)}`;
 }

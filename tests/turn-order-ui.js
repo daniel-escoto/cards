@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Next-to-act mark + waiting placeholder for seats that haven't acted this street.
+ * Next-to-act: arrow on the acting row (▲/▼ by visual list order), waiting "—".
  */
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -9,21 +9,27 @@ const { JSDOM } = require("jsdom");
 
 const root = path.join(__dirname, "..");
 const bootSrc = fs.readFileSync(path.join(root, "public/app-boot.ts"), "utf8");
+const trainerSrc = fs.readFileSync(path.join(root, "public/trainer.ts"), "utf8");
 const css = fs.readFileSync(path.join(root, "public/styles.css"), "utf8");
 
 assert.match(bootSrc, /function nextToActSeat\(/);
+assert.match(bootSrc, /function nextActArrowGlyph\(/);
 assert.match(bootSrc, /function seatWaitingForStreetAction\(/);
-assert.match(bootSrc, /isNext \? "next-to-act"/);
-assert.match(bootSrc, /action = isNext \? "Next" : "—"/);
-assert.match(css, /\.table-player-row\.next-to-act:not\(\.turn\)/);
+assert.match(bootSrc, /next-act-arrow/);
+assert.match(bootSrc, /action = "—"/);
+assert.doesNotMatch(bootSrc, /action = isNext \? "Next"/);
+assert.doesNotMatch(bootSrc, /"next-to-act"/);
+assert.doesNotMatch(bootSrc, /isNext \? "Next"/);
+assert.match(trainerSrc, /next-act-arrow/);
+assert.doesNotMatch(trainerSrc, /action = "Next"/);
+assert.doesNotMatch(trainerSrc, /"next-to-act"/);
+assert.match(css, /\.next-act-arrow/);
 assert.match(css, /\.player-action\.is-waiting/);
-assert.match(css, /\.player-action\.is-next/);
+assert.doesNotMatch(css, /\.table-player-row\.next-to-act/);
+assert.doesNotMatch(css, /\.player-action\.is-next/);
 
-const nextRule = /\.table-player-row\.next-to-act:not\(\.turn\)\s*\{([^}]*)\}/.exec(css)?.[1] || "";
 const turnRule = /\.table-player-row\.turn\s*\{([^}]*)\}/.exec(css)?.[1] || "";
 assert.match(turnRule, /inset 3px 0 0/);
-assert.match(nextRule, /inset 2px 0 0/);
-assert.doesNotMatch(nextRule, /accent\) 16%/);
 
 function loadGlobals() {
   const html = fs
@@ -84,7 +90,13 @@ function seat(id, overrides = {}) {
 }
 
 const window = loadGlobals();
-const { nextToActSeat, seatWaitingForStreetAction, seatCanActThisStreet, renderActionFeed } = window;
+const {
+  nextToActSeat,
+  nextActArrowGlyph,
+  seatWaitingForStreetAction,
+  seatCanActThisStreet,
+  renderActionFeed,
+} = window;
 
 {
   const players = [seat("a"), seat("b"), seat("c"), seat("d", { folded: true })];
@@ -93,6 +105,14 @@ const { nextToActSeat, seatWaitingForStreetAction, seatCanActThisStreet, renderA
   assert.equal(nextToActSeat(players, "b", "turn")?.id, "c");
   assert.equal(nextToActSeat(players, "a", "lobby"), null);
   assert.equal(nextToActSeat(players, null, "preflop"), null);
+}
+
+{
+  const seats = [seat("a"), seat("b"), seat("c")];
+  assert.equal(nextActArrowGlyph(seats, "a", "b"), "▼", "next below");
+  assert.equal(nextActArrowGlyph(seats, "c", "a"), "▲", "next above / wrap");
+  assert.equal(nextActArrowGlyph(seats, "a", "a"), "");
+  assert.equal(nextActArrowGlyph(seats, "a", null), "");
 }
 
 {
@@ -126,7 +146,7 @@ const { nextToActSeat, seatWaitingForStreetAction, seatCanActThisStreet, renderA
   );
 }
 
-// Rendered markup: Acting / Next / — / Fold with next-to-act class.
+// Actor near top → ▼ toward next below.
 {
   window.state = {
     id: "T",
@@ -150,12 +170,37 @@ const { nextToActSeat, seatWaitingForStreetAction, seatCanActThisStreet, renderA
   };
   const html = renderActionFeed();
   assert.match(html, /table-player-row[^"]*turn[^"]*"[^>]*>[\s\S]*?hero[\s\S]*?Acting/);
-  assert.match(html, /next-to-act/);
-  assert.match(html, /player-action is-next[^>]*>Next</);
+  assert.match(html, /next-act-arrow[^>]*>▼</);
+  assert.doesNotMatch(html, />Next</);
+  assert.doesNotMatch(html, /next-to-act/);
   assert.match(html, /player-action is-waiting[^>]*>—</);
   assert.match(html, />Fold</);
-  // Blind posts are not street actions — SB/BB still waiting (or Next if next).
   assert.doesNotMatch(html, /Posts small blind|posts small blind/i);
+}
+
+// Actor near bottom → ▲ toward next above (wrap).
+{
+  window.state = {
+    id: "T2",
+    phase: "flop",
+    turn: "bb",
+    pot: 80,
+    actionLog: [],
+    players: [
+      seat("hero", { isYou: true }),
+      seat("utg", { folded: true }),
+      seat("mp", { folded: true }),
+      seat("sb", { isSmallBlind: true, folded: true }),
+      seat("bb", { isBigBlind: true, isTurn: true }),
+    ],
+    community: [],
+    winners: [],
+    chipValueCents: 0,
+  };
+  const html = renderActionFeed();
+  assert.match(html, /table-player-row[^"]*turn[^"]*"[^>]*>[\s\S]*?bb[\s\S]*?Acting/);
+  assert.match(html, /next-act-arrow[^>]*>▲</);
+  assert.doesNotMatch(html, />Next</);
 }
 
 console.log("Turn order UI checks passed.");

@@ -243,13 +243,13 @@
               aria-label="Hand review"
             >
               <div class="hand-review-chrome-head">
-                <div>
-                  <p class="eyebrow">Hand review</p>
-                  <p id="handReviewSummary" class="hand-review-summary" aria-live="polite"></p>
-                </div>
+                <p class="eyebrow">
+                  Hand review
+                  <span id="handReviewSummary" class="hand-review-summary" aria-live="polite"></span>
+                </p>
                 <button
                   id="handReviewCloseBtn"
-                  class="ghost icon-btn"
+                  class="ghost hand-review-close"
                   type="button"
                   aria-label="Close hand review"
                 >
@@ -265,7 +265,10 @@
                 <button id="handReviewPrevBtn" type="button" class="secondary" aria-label="Previous step">
                   ◀
                 </button>
-                <div id="handReviewTimeline" class="hand-review-timeline" role="list"></div>
+                <div class="hand-review-timeline-wrap">
+                  <div id="handReviewTimeline" class="hand-review-timeline" role="list"></div>
+                  <p id="handReviewStepLabel" class="hand-review-step-label" aria-live="polite"></p>
+                </div>
                 <button id="handReviewNextBtn" type="button" class="secondary" aria-label="Next step">
                   ▶
                 </button>
@@ -273,7 +276,6 @@
                   ⏭
                 </button>
               </div>
-              <p id="handReviewStepLabel" class="hand-review-step-label" aria-live="polite"></p>
             </div>
             <div id="winnerList" class="winner-list"></div>
             <div id="turnInfo" class="turn-info"></div>

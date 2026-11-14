@@ -111,7 +111,11 @@ function table(overrides = {}) {
   });
   assert.equal(snappedRaise.recommendedRaiseTo, 120);
   assert.match(snappedRaise.reason, /Raise to 120/);
+  assert.match(snappedRaise.reason, /62% equity/);
+  assert.match(snappedRaise.reason, /only need 32%/);
   assert.doesNotMatch(snappedRaise.reason, /Raise to 125/);
+  assert.match(HandReview.formatVerdictBadge(snappedRaise), /✗ Mistake/);
+  assert.match(HandReview.formatVerdictWhy(snappedRaise), /Raise to 120/);
   const retrySnap = HandReview.gradeRetry(snappedRaise, "fold");
   assert.match(retrySnap.line, /Raise to 120/);
 }
@@ -300,6 +304,7 @@ function table(overrides = {}) {
   assert.equal(replay.steps[1].decision.verdict, "mistake");
   assert.equal(replay.steps[1].decision.recommendedRaiseTo, 120);
   assert.match(replay.steps[1].decision.reason, /Raise to 120/);
+  assert.match(replay.steps[1].decision.reason, /you have 62% equity/);
   assert.equal(replay.steps[2].isHeroDecision, true);
   assert.ok(
     replay.steps[2].decision.verdict === "fine" || replay.steps[2].decision.verdict === "best",
@@ -322,6 +327,8 @@ function table(overrides = {}) {
   assert.match(html, /id="handReviewBtn"/);
   assert.match(html, /id="handReviewChrome"/);
   assert.match(html, /id="handReviewTimeline"/);
+  assert.match(html, /hand-review-timeline-wrap/);
+  assert.match(html, /hand-review-close/);
   assert.match(html, /shared\/hand-review\.js/);
   assert.doesNotMatch(html, /id="handReviewModal"/);
   assert.doesNotMatch(html, /id="coachBtn"/);
@@ -331,20 +338,29 @@ function table(overrides = {}) {
   assert.match(css, /\.hand-review-timeline/);
   assert.match(css, /\.hand-review-dot/);
   assert.match(css, /body\.hand-review-open \.control-panel/);
+  assert.match(css, /\.hand-review-verdict\.is-prompt/);
+  assert.match(css, /\.hand-review-close/);
   assert.match(css, /aspect-ratio:\s*1/);
   assert.doesNotMatch(css, /position:\s*fixed[\s\S]{0,80}\.hand-review-chrome|\.hand-review-chrome[\s\S]{0,120}position:\s*fixed/);
+  assert.doesNotMatch(
+    css,
+    /body\.hand-review-open \.control-panel\s*\{\s*grid-template-rows/,
+  );
 
   const tableSrc = fs.readFileSync(path.join(__dirname, "../public/app-table.ts"), "utf8");
   assert.match(tableSrc, /buildHandReplay/);
   assert.match(tableSrc, /paintHandReviewStep/);
+  assert.match(tableSrc, /bustCardRenderCache/);
   assert.match(tableSrc, /captureHandReviewDecision/);
   assert.match(tableSrc, /raiseStep/);
   assert.match(tableSrc, /Try again/);
+  assert.match(tableSrc, /hand-review-continue/);
   assert.doesNotMatch(tableSrc, /renderHandReviewSheet/);
   assert.doesNotMatch(tableSrc, /renderCoachHint/);
 
   const sharedSrc = fs.readFileSync(path.join(__dirname, "../shared/hand-review.ts"), "utf8");
   assert.match(sharedSrc, /export function legalRaiseTo/);
+  assert.match(sharedSrc, /export function formatVerdictBadge/);
   assert.match(sharedSrc, /snap\(raw/);
 }
 

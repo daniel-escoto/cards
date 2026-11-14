@@ -631,8 +631,17 @@
             const waitingAfter = !folded && !isHero;
             let action = "";
             let actionClass = "";
+            // Next live seat after the hero in visual order (wraps for BTN → UTG).
             const nextSeat =
-              !spot!.answered && heroIndex >= 0 ? seats[heroIndex + 1] || null : null;
+              !spot!.answered && heroIndex >= 0
+                ? seats[(heroIndex + 1) % seats.length] || null
+                : null;
+            const nextArrow =
+              isActing && nextSeat
+                ? seats.indexOf(nextSeat) < heroIndex
+                  ? "▲"
+                  : "▼"
+                : "";
             if (folded) {
               action = "Fold";
             } else if (isHero && spot!.answered) {
@@ -641,19 +650,12 @@
             } else if (isActing) {
               action = "Acting";
             } else if (waitingAfter) {
-              // Live-game cue: next seat after the actor shows muted "Next".
-              if (seat === nextSeat) {
-                action = "Next";
-                actionClass = " is-next";
-              } else {
-                action = "—";
-                actionClass = " is-waiting";
-              }
+              action = "—";
+              actionClass = " is-waiting";
             }
             const classes = [
               "table-player-row",
               isActing ? "turn" : "",
-              seat === nextSeat ? "next-to-act" : "",
               folded ? "folded" : "",
               isHero ? "you" : "",
             ]
@@ -661,6 +663,9 @@
               .join(" ");
             const full = positionFullName(seat);
             const blurb = positionBlurb(seat);
+            const arrowMarkup = nextArrow
+              ? `<span class="next-act-arrow" title="Next to act ${nextArrow === "▲" ? "above" : "below"}" aria-label="Next player ${nextArrow === "▲" ? "above" : "below"}">${nextArrow}</span>`
+              : "";
             return `<article
               class="${classes} trainer-seat-row"
               data-seat="${escapeHtml(seat)}"
@@ -674,7 +679,7 @@
               <span class="seat-name seat-name-with-chips">
                 <span class="seat-name-text">${escapeHtml(seat)}</span>${seatChipMarkup(seat)}
               </span>
-              <span class="player-action${actionClass}">${escapeHtml(action)}</span>
+              <span class="player-action${actionClass}">${escapeHtml(action)}${arrowMarkup}</span>
               <strong class="player-stack">${stackForSeat(seat)}</strong>
             </article>`;
           })
