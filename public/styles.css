@@ -221,23 +221,21 @@ button:disabled {
   display: none !important;
 }
 
-/* —— Landing / lobby (welcome) + offline Trainer —— */
-body:has(#welcome:not(.hidden)),
-body:has(#trainerView:not(.hidden)) {
+/* —— Landing / lobby (welcome) —— */
+body:has(#welcome:not(.hidden)) {
   background:
     radial-gradient(ellipse 70% 50% at 50% -12%, rgba(96, 165, 250, 0.22), transparent 55%),
     linear-gradient(145deg, #10171b 0%, var(--bg) 68%);
 }
 
-:root[data-theme="light"] body:has(#welcome:not(.hidden)),
-:root[data-theme="light"] body:has(#trainerView:not(.hidden)) {
+:root[data-theme="light"] body:has(#welcome:not(.hidden)) {
   background:
     radial-gradient(ellipse 70% 50% at 50% -10%, rgba(37, 99, 185, 0.12), transparent 55%),
     linear-gradient(145deg, #f8faf6 0%, var(--bg) 68%);
 }
 
-body:has(#welcome:not(.hidden)) .app,
-body:has(#trainerView:not(.hidden)) .app {
+/* Welcome stays narrow; Trainer uses the same .app width as Practice/table-view. */
+body:has(#welcome:not(.hidden)) .app {
   width: min(720px, 100%);
   padding: 16px;
 }

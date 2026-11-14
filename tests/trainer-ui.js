@@ -68,6 +68,8 @@ assert.doesNotMatch(css, /\.trainer-view \.felt\s*\{/);
 assert.doesNotMatch(css, /\.trainer-view \.players\s*\{/);
 assert.doesNotMatch(css, /\.trainer-view \.community\s*\{/);
 assert.doesNotMatch(css, /\.trainer-view \.control-panel\s*\{/);
+// Welcome stays 720px; Trainer must not inherit that narrow app width.
+assert.doesNotMatch(css, /body:has\(#trainerView:not\(\.hidden\)\)\s*\.app/);
 assert.match(html, /id="trainerCommunity" class="community"/);
 assert.match(html, /id="trainerControlPanel" class="control-panel/);
 assert.match(html, /id="trainerPlayers" class="players"/);
