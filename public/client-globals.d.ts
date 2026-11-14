@@ -286,6 +286,19 @@ declare global {
       mergeCallRaise?: boolean;
       hardDetent?: boolean;
     }): boolean;
+    initialRaiseTo(options: {
+      facingBet: boolean;
+      mergePassiveConfirm: boolean;
+      currentBet: unknown;
+      minRaiseTo: unknown;
+      maxRaiseTo: unknown;
+      preferredRaiseTo?: unknown;
+    }): number;
+    displayRaiseAmount(options: {
+      facingBet: boolean;
+      atDetent: boolean;
+      value: unknown;
+    }): number;
     clampRaiseTo(rawValue: unknown, bounds?: RaiseBoundsInput): number;
     nudgeRaiseTo(rawValue: unknown, direction: number, bounds?: RaiseBoundsInput): number;
   }

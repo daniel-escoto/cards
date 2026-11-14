@@ -401,6 +401,48 @@ function renderCoachHint() {
   headline.textContent = model.headline;
   head.append(badge, headline);
 
+  const canApplyRaise =
+    (suggestion.action === "raise" || suggestion.action === "bet") &&
+    suggestion.raiseTo != null &&
+    !betControls.classList.contains("is-reserved") &&
+    !raiseControlsDisabled &&
+    raiseState.max > state.currentBet;
+
+  if (canApplyRaise) {
+    const useBtn = document.createElement("button");
+    useBtn.type = "button";
+    useBtn.className = "coach-hint-use";
+    useBtn.textContent = "Use";
+    useBtn.setAttribute(
+      "aria-label",
+      `Use coach size ${suggestion.raiseTo} in the raise box`,
+    );
+    const applySize = () => {
+      if (suggestion.raiseTo == null) return;
+      // Clamp onto the live raise ladder; never auto-submit the action.
+      setRaiseState({ value: suggestion.raiseTo });
+    };
+    useBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      applySize();
+    });
+    headline.classList.add("coach-hint-headline-action");
+    headline.setAttribute("role", "button");
+    headline.tabIndex = 0;
+    headline.title = "Set raise amount";
+    headline.addEventListener("click", (event) => {
+      event.preventDefault();
+      applySize();
+    });
+    headline.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      applySize();
+    });
+    head.append(useBtn);
+  }
+
   const reason = document.createElement("p");
   reason.className = "coach-hint-reason";
   reason.textContent = model.reason;
@@ -498,9 +540,17 @@ function configureRaiseControls(hero: ClientPlayer, disabled = false) {
   raiseControlsDisabled = disabled;
   raiseActionBtn.classList.toggle("hidden", mergePassiveConfirm);
   betControls.querySelector(".raise-row")?.classList.toggle("merge-check-bet", mergePassiveConfirm);
-  const initialValue = mergePassiveConfirm
-    ? RaiseSizing.passiveDetentValue(state.currentBet)
-    : Math.min(maxRaise, preferredRaise);
+  // Facing a bet: open on the minimum legal raise (never the Call detent / "0").
+  // Free check: keep the Check detent so confirm stays Check until the player sizes a bet.
+  const facingBet = (state.toCall || 0) > 0;
+  const initialValue = RaiseSizing.initialRaiseTo({
+    facingBet,
+    mergePassiveConfirm,
+    currentBet: state.currentBet,
+    minRaiseTo: minRaise,
+    maxRaiseTo: maxRaise,
+    preferredRaiseTo: preferredRaise,
+  });
   setRaiseState({
     min: minRaise,
     max: maxRaise,
@@ -578,13 +628,16 @@ function setRaiseState(next: Partial<RaiseState> | RaiseState) {
     ...next,
   };
   raiseState.value = clampRaise(raiseState.value);
-  // At the passive detent the confirm carries Call/Check; show zero increment here.
-  const displayChips = atPassiveDetent() ? 0 : raiseState.value;
-  const formattedAmount = formatAmount(
+  // Check detent → 0. Facing a bet → never paint 0 (Call detent shows matched bet).
+  const displayChips = RaiseSizing.displayRaiseAmount({
+    facingBet: (state.toCall || 0) > 0,
+    atDetent: atPassiveDetent(),
+    value: raiseState.value,
+  });
+  raiseAmount.textContent = formatAmount(
     displayChips,
     Math.round(displayChips * (state?.chipValueCents || 0)),
   );
-  raiseAmount.textContent = formattedAmount;
   const allInOnly = raiseState.max <= raiseState.min || raiseState.value >= raiseState.max;
   if (!mergePassiveConfirm) {
     setButtonLabel(
