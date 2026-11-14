@@ -756,7 +756,13 @@ html.trainer-open-root {
   flex: unset;
   min-width: 0;
   width: 100%;
+  height: 48px;
   min-height: 48px;
+  max-height: 48px;
+  padding-block: 0;
+  white-space: nowrap;
+  /* Primary Raise must match Fold/Call height — drop the tall accent glow. */
+  box-shadow: none;
 }
 
 /* Facing raise: stepper only in bet-controls; Raise button is in .game-buttons. */
@@ -1842,30 +1848,33 @@ button.menu-player-row:not(:disabled):hover {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 3px;
-  width: 56px;
-  min-width: 56px;
-  max-width: 56px;
-  height: 34px;
-  min-height: 34px;
+  gap: 4px;
+  width: 64px;
+  min-width: 64px;
+  max-width: 64px;
+  height: 40px;
+  min-height: 40px;
   overflow: visible;
   pointer-events: none;
 }
 .seat-shown-hand .card {
-  width: 26px;
-  min-width: 26px;
-  height: 34px;
+  width: 30px;
+  min-width: 30px;
+  height: 40px;
   padding: 3px 2px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.05;
   box-shadow: none;
 }
 .seat-shown-hand .card-rank {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
 }
 .seat-shown-hand .card-corner-suit {
-  font-size: 11px;
+  font-size: 12px;
+  /* Prefer symbol fonts so ♦/♥ never fall back to Latin lookalikes. */
+  font-family: "Segoe UI Symbol", "Apple Symbols", "Noto Sans Symbols 2", "DejaVu Sans", sans-serif;
+  font-weight: 700;
 }
 .seat-shown-hand .card-corner-top,
 .seat-shown-hand .card-corner-bottom {
@@ -2350,10 +2359,10 @@ button.menu-player-row:not(:disabled):hover {
 
 .table-player-row {
   position: relative;
-  min-height: 42px;
+  min-height: 44px;
   display: grid;
   /* Name | action | reserved hole-card slot | stack — card slot always present (no showdown shift). */
-  grid-template-columns: 14px minmax(9ch, 1.1fr) minmax(4.5rem, 0.95fr) 56px auto;
+  grid-template-columns: 14px minmax(9ch, 1.1fr) minmax(4.75rem, 0.95fr) 64px auto;
   align-items: center;
   gap: 8px;
   padding: 7px 10px;
@@ -4758,30 +4767,30 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
   }
 
   .table-player-row {
-    min-height: 40px;
+    min-height: 44px;
     /* Status gets room; mini cards stay legible without overlapping Ready/Not ready. */
-    grid-template-columns: 12px minmax(8ch, 1fr) minmax(4.25rem, 0.9fr) 52px auto;
+    grid-template-columns: 12px minmax(7ch, 1fr) minmax(4.5rem, 0.95fr) 60px auto;
     gap: 6px;
     padding: 7px 9px;
     border-radius: 11px;
   }
 
   .seat-shown-hand {
-    width: 52px;
-    min-width: 52px;
-    max-width: 52px;
-    height: 32px;
-    min-height: 32px;
+    width: 58px;
+    min-width: 58px;
+    max-width: 58px;
+    height: 36px;
+    min-height: 36px;
   }
   .seat-shown-hand .card {
-    width: 24px;
-    min-width: 24px;
-    height: 32px;
-    font-size: 10px;
+    width: 27px;
+    min-width: 27px;
+    height: 36px;
+    font-size: 11px;
   }
   .seat-shown-hand .card-rank,
   .seat-shown-hand .card-corner-suit {
-    font-size: 10px;
+    font-size: 11px;
   }
 
   .seat-timer {

@@ -109,13 +109,21 @@ context.gameButtons.innerHTML = "";
 context.fill();
 assert.ok(panel.classList.contains("is-compact"), "lobby with no buttons: still compact");
 assert.ok(!panel.classList.contains("is-idle"), "lobby: no centered idle reserve");
-// Mid-hand waiting states (folded / showdown) keep the reserve so nothing jumps.
+// Mid-hand waiting states (folded / showdown, no real buttons) keep the reserve so nothing jumps.
 for (const phase of ["preflop", "flop", "river", "showdown"]) {
   context.state = { phase };
   context.fill();
   assert.ok(!panel.classList.contains("is-compact"), `${phase}: keeps reserved space`);
   assert.ok(panel.classList.contains("is-idle"), `${phase}: status centered in the reserve`);
 }
+// Fold/Call-only (short all-in / no reopen): real buttons + reserved raise → collapse empty slot.
+context.state = { phase: "flop" };
+context.winnerList.innerHTML = "";
+context.gameButtons.innerHTML = "<button>Fold</button><button>Call 20</button>";
+context.reserve(true);
+context.fill();
+assert.ok(panel.classList.contains("is-compact"), "Fold/Call-only: drop empty raise reserve");
+assert.ok(!panel.classList.contains("is-idle") && !panel.classList.contains("is-result"));
 // After a hand, ready-up with a result keeps the full height (result block).
 context.state = { phase: "complete" };
 context.winnerList.innerHTML = '<div class="result-line">x</div>';

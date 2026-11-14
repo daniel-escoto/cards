@@ -46,7 +46,7 @@ assert.match(css, /\.hand-review-timeline\s*\{[^}]*overflow-x:\s*auto/s);
 
 // Seat hole cards: reserved grid column + inline markup (no appended feed cards).
 assert.match(css, /\.seat-shown-hand\s*\{/);
-assert.match(css, /grid-template-columns:[^;]*56px/s);
+assert.match(css, /grid-template-columns:[^;]*64px/s);
 
 // Welcome: centered idle; keyboard-open only via body class (not focus-within jump).
 assert.match(css, /\.welcome\s*\{[^}]*align-content:\s*safe center/s);

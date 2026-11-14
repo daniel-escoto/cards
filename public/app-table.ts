@@ -1048,10 +1048,10 @@ function reserveActionSpace() {
   const hasButtons = Array.from(gameButtons.children).some(
     (child) => !child.classList.contains("action-placeholder"),
   );
-  // Before the first hand (lobby, waiting for players) there's nothing to keep stable against,
-  // so the panel drops the reserved bet space and just fits its content.
+  // Drop the reserved bet row when it would only leave empty space: pre-hand lobby, or
+  // Fold/Call-only turns (short all-in / no reopen) where Raise isn't offered.
   const handLive = Boolean(state && !["lobby", "complete", "gameover"].includes(state.phase));
-  const compact = reserved && !hasResult && !handLive;
+  const compact = reserved && !hasResult && (!handLive || hasButtons);
   panel.classList.toggle("is-compact", compact);
   panel.classList.toggle("is-result", reserved && hasResult);
   panel.classList.toggle("is-idle", reserved && !hasResult && !hasButtons && !compact);
@@ -1264,6 +1264,7 @@ function renderHeroActionControls(hero: ClientPlayer, disabled: boolean) {
 
   // Bet panel only when raise/shove is legal. Facing a short all-in that did not
   // reopen — or when every villain is all-in — Call/Check alone is the UI.
+  // reserveActionSpace() then collapses the empty raise slot (is-compact).
   if (canRaiseUi && canBetMore) configureRaiseControls(hero, disabled);
   else setBetControlsReserved(true);
 }

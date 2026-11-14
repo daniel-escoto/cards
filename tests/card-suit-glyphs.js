@@ -47,5 +47,27 @@ assert.match(formatSrc, /normalizeSuitGlyph/);
 assert.match(formatSrc, /normalizePublicCard/);
 const trainerSrc = fs.readFileSync(path.join(__dirname, "../public/trainer.ts"), "utf8");
 assert.match(trainerSrc, /cardTemplate/);
+const bootSrc = fs.readFileSync(path.join(__dirname, "../public/app-boot.ts"), "utf8");
+assert.match(bootSrc, /seatShownHandMarkup/);
+assert.match(bootSrc, /cardTemplate\(card\)/);
+
+// No face render path may paint a bare suit letter for any letter-suit card.
+for (const suit of letters) {
+  const html = Format.cardTemplate({
+    code: `A${suit.toLowerCase()}`,
+    rank: "A",
+    suit,
+    color: suit.toLowerCase() === "h" || suit.toLowerCase() === "d" ? "red" : "black",
+  });
+  assert.doesNotMatch(
+    html,
+    new RegExp(`class="card-corner-suit suit">${suit}</`),
+    `bare suit letter ${suit} must not appear in card face`,
+  );
+  assert.ok(
+    [...glyphs].some((g) => html.includes(g)),
+    `card face for suit ${suit} must include a glyph`,
+  );
+}
 
 console.log("Card suit glyph checks passed.");
