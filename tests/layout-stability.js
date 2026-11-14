@@ -1,7 +1,6 @@
 /**
  * Static guards for layout stability: reserved slots, shadow rings (not border growth),
  * timeline label decoupled from dots, fixed verdict/retry heights.
- * Playwright bbox measurement lives in scripts/check-layout-stability.mjs (needs server).
  */
 const assert = require("node:assert/strict");
 const fs = require("node:fs");

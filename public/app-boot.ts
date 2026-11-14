@@ -1280,9 +1280,20 @@ function playerForAction(entry: ActionLogEntry) {
   return byNameIndex >= 0 ? state.players[byNameIndex] : null;
 }
 
+/**
+ * Seat-row hole cards only after betting is closed: all-in runout (`allInCardsExposed`)
+ * or showdown/complete. Never while someone still has to act.
+ */
+function seatHoleCardsMayReveal() {
+  if (!state) return false;
+  if (state.allInCardsExposed) return true;
+  return state.phase === "showdown" || state.phase === "complete";
+}
+
 /** Mini hole cards inline in the seat row — reserved slot so reveal never shifts layout. */
 function seatShownHandMarkup(player: ClientPlayer) {
   const visible =
+    seatHoleCardsMayReveal() &&
     Boolean(player.showCards) &&
     Array.isArray(player.cards) &&
     player.cards.some((card) => card && (card.code || card.rank));

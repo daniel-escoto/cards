@@ -167,6 +167,58 @@ function showdownRoom(players, overrides = {}) {
   );
 }
 
+// 4b) Facing a short all-in while hero still has to act: holes stay private.
+{
+  const room = engine.createPracticeRoom({
+    name: "Daniel",
+    playerId: "hero",
+    botCount: 1,
+    startingStack: 1000,
+    smallBlind: 10,
+    bigBlind: 20,
+    tableSize: 2,
+  });
+  room.players[0].ready = true;
+  assert.equal(engine.maybeStartReadyHand(room), true);
+
+  // Reach flop with both live, then the bot shoves short so hero still faces a call.
+  let guard = 0;
+  while (guard++ < 40) {
+    const actor = room.players.find((player) => player.id === room.turn);
+    assert.ok(actor, "hand still has an actor");
+    if (room.phase === "flop" && actor.isBot && !actor.allIn) {
+      actor.stack = 20;
+      engine.applyPlayerAction(room, actor.id, { type: "raise", raiseTo: actor.bet + actor.stack });
+      break;
+    }
+    if (room.currentBet > actor.bet) {
+      engine.applyPlayerAction(room, actor.id, { type: "call" });
+    } else {
+      engine.applyPlayerAction(room, actor.id, { type: "check" });
+    }
+  }
+
+  assert.equal(room.phase, "flop");
+  assert.equal(room.turn, "hero", "hero still to act after short shove");
+  assert.equal(room.allInCardsExposed, false, "betting still open — no runout expose");
+  const facing = engine.serializeRoom(room, "hero");
+  const shoveBot = facing.players.find((player) => player.isBot);
+  assert.ok(shoveBot.allIn);
+  assert.equal(shoveBot.showCards, false, "all-in holes stay hidden while hero can act");
+  assert.ok(
+    shoveBot.cards.every((card) => card === null),
+    "serialized holes are null while facing the shove",
+  );
+
+  // After hero calls, betting closes → cards up and board runs out.
+  engine.applyPlayerAction(room, "hero", { type: "call" });
+  assert.equal(room.allInCardsExposed, true, "cards expose once betting is closed");
+  assert.ok(
+    room.players.every((player) => !player.folded && player.showCards),
+    "live hands face-up on the runout",
+  );
+}
+
 // 5) Fold-win: winner does not show (optional Show hand still available).
 {
   const winner = basePlayer("hero", {

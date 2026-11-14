@@ -783,7 +783,7 @@ function renderMistakeRetryActions(item: HandReviewItemLocal, beforeTable: Repla
 
   const showBtn = document.createElement("button");
   showBtn.type = "button";
-  showBtn.className = "ghost hand-review-show-answer has-shortcut";
+  showBtn.className = "secondary hand-review-show-answer has-shortcut";
   showBtn.innerHTML = `<span>Show answer</span><kbd aria-hidden="true">A</kbd>`;
   showBtn.setAttribute("aria-label", "Show answer (A)");
   showBtn.addEventListener("click", () => {
@@ -1046,7 +1046,10 @@ function reserveActionSpace() {
   if (!panel) return;
   const hasResult = winnerList.children.length > 0;
   const hasButtons = Array.from(gameButtons.children).some(
-    (child) => !child.classList.contains("action-placeholder"),
+    (child) =>
+      !child.classList.contains("action-placeholder") &&
+      !child.classList.contains("action-links") &&
+      child.tagName === "BUTTON",
   );
   // Drop the reserved bet row when it would only leave empty space: pre-hand lobby, or
   // Fold/Call-only turns (short all-in / no reopen) where Raise isn't offered.
@@ -1145,9 +1148,7 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
     Boolean(room.isYourTurn && hero) && isBettingPhase(room.phase) && !betweenHands;
 
   if (!heroToAct) {
-    if (room.canAddBot && betweenHands) {
-      addButton("Add bot", "room:addBot", "secondary lobby-add-bot");
-    }
+    // At most two primary buttons per row: Ready + Review. Secondary actions are links.
     if (room.canReady && betweenHands) {
       const readyShortcut = room.isReady
         ? keybindLabel(keybinds.ready)
@@ -1161,10 +1162,21 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
       maybeOfferHandReview(room);
       addReviewHandButton();
     }
+    const links: HTMLElement[] = [];
+    if (room.canAddBot && betweenHands) {
+      links.push(textActionLink("Add bot", () => emitWithAck("room:addBot", {})));
+    }
     // Show hand is for multi-human tables (muck / reveal). Hide vs bots — no audience.
     if (showHandButtonAvailable(room)) {
-      addButton("Show hand", "game:showCards", "secondary", keybindLabel(keybinds.showHand));
+      const showShortcut = keybindLabel(keybinds.showHand);
+      links.push(
+        textActionLink(
+          showShortcut ? `Show hand (${showShortcut})` : "Show hand",
+          () => emitWithAck("game:showCards", {}),
+        ),
+      );
     }
+    if (links.length) appendActionLinks(links);
   }
 
   if (!heroToAct) {
@@ -1462,6 +1474,24 @@ function addButton(label: string, eventName: string, className = "", shortcut = 
   button.addEventListener("click", () => emitWithAck(eventName, payload));
   gameButtons.appendChild(button);
   return button;
+}
+
+/** Secondary action as a compact text link — never a third button in the row. */
+function textActionLink(label: string, onClick: () => void) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "text-action-link";
+  button.textContent = label;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function appendActionLinks(links: HTMLElement[]) {
+  if (!links.length) return;
+  const row = document.createElement("div");
+  row.className = "action-links";
+  row.replaceChildren(...links);
+  gameButtons.prepend(row);
 }
 
 function addActionButton(label: string, payload: Record<string, unknown>, className = "", disabled = false) {

@@ -66,9 +66,15 @@ assert.match(trainer, /table-player-row/);
 assert.match(trainer, /trainerFoldBtn/);
 assert.match(trainer, /trainerCallBtn/);
 assert.match(trainer, /trainerRetryBtn/);
+assert.match(trainer, /text-action-link/);
+assert.match(trainer, /action-links/);
 assert.match(trainer, /DRILL_KEY/);
 assert.doesNotMatch(trainer, /onPractice/);
 assert.doesNotMatch(trainer, /\bany\b/);
+// Max 2 primary buttons: facing Fold|Call (Raise in bet-controls); Hint/Chart are links.
+assert.match(css, /\.trainer-view \.game-buttons\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\)/s);
+assert.doesNotMatch(css, /Facing: Hint \| Fold \| Call \| Raise/);
+assert.match(css, /button\.text-action-link/);
 
 assert.match(css, /--trainer-chart-raise-bg/);
 assert.match(css, /--trainer-chart-call-bg/);

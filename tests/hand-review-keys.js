@@ -20,6 +20,27 @@ assert.match(tableSrc, /Review hand/);
 assert.match(tableSrc, /keybinds\.reviewHand/);
 assert.match(tableSrc, /Try again[\s\S]*?<kbd[^>]*>T<\/kbd>/);
 assert.match(tableSrc, /Show answer[\s\S]*?<kbd[^>]*>A<\/kbd>/);
+assert.match(
+  tableSrc,
+  /className = "secondary hand-review-show-answer has-shortcut"/,
+  "Show answer is a clean secondary button (not an underlined ghost)",
+);
+
+const css = fs.readFileSync(path.join(__dirname, "../public/styles.css"), "utf8");
+assert.match(
+  css,
+  /button\.has-shortcut,\s*\n\.raise-action\.has-shortcut\s*\{[^}]*gap:\s*8px/s,
+  "every has-shortcut control shares the Ready/Review 8px badge gap",
+);
+assert.match(
+  css,
+  /\.hand-review-retry-bar > \.hand-review-show-answer\s*\{[^}]*text-decoration:\s*none/s,
+  "Show answer must not underline through the A badge",
+);
+assert.doesNotMatch(
+  css,
+  /\.hand-review-retry-bar > \.hand-review-show-answer\s*\{[^}]*text-decoration:\s*underline/s,
+);
 
 const eventsSrc = fs.readFileSync(path.join(__dirname, "../public/app-events.ts"), "utf8");
 assert.match(eventsSrc, /reviewHand/);

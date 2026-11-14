@@ -671,13 +671,25 @@
 
       function syncRaiseDisplay(): void {
         if (!spot || spot.kind !== "facing" || spot.answered) {
-          setBetControlsVisible(false);
+          // Keep the raise slot reserved (not compact) so Fold/Call → answered doesn't jump.
+          if (spot?.kind === "facing") {
+            controlPanel!.classList.remove("is-compact");
+            betControls!.classList.add("is-reserved");
+            betControls!.setAttribute("inert", "");
+            betControls!.setAttribute("aria-hidden", "true");
+          } else {
+            setBetControlsVisible(false);
+          }
           return;
         }
         raiseAmountEl!.textContent = String(spot.raiseTo);
         setBetControlsVisible(true);
-        // Raise confirm lives in .game-buttons (same height as Fold/Call); hide the duplicate.
-        raiseActionBtn?.classList.add("hidden");
+        // Raise lives with sizing in bet-controls (max 2 buttons in .game-buttons).
+        raiseActionBtn?.classList.remove("hidden");
+      }
+
+      function textActionLink(id: string, label: string, onClick: () => void, disabled = false): string {
+        return `<button id="${id}" class="text-action-link" type="button"${disabled ? " disabled" : ""}>${label}</button>`;
       }
 
       function renderHintCoach(): void {
@@ -1187,47 +1199,49 @@
           setBetControlsVisible(false);
           return;
         }
+
         if (!spot.answered) {
           const hintLabel =
             spot.hintStep === 0 ? "Hint" : spot.hintStep === 1 ? "Hint again" : "Hinted";
           if (spot.kind === "facing") {
             trainerView.classList.add("is-facing");
-            // Fold / Call / Raise share one row at the same height; stepper stays above.
+            // Max 2 buttons: Fold | Call. Raise sits with sizing in bet-controls. Hint is a link.
             actionsEl!.innerHTML = `
-              <button id="trainerHintBtn" class="secondary" type="button" ${
-                spot.hintStep >= 2 ? "disabled" : ""
-              }>${hintLabel}</button>
+              <div class="action-links">${textActionLink(
+                "trainerHintBtn",
+                hintLabel,
+                () => {},
+                spot.hintStep >= 2,
+              )}</div>
               <button id="trainerFoldBtn" class="secondary has-shortcut" type="button">
-                Fold <kbd>F</kbd>
+                <span>Fold</span><kbd aria-hidden="true">F</kbd>
               </button>
               <button id="trainerCallBtn" class="secondary has-shortcut" type="button">
-                Call ${spot.toCall} <kbd>C</kbd>
-              </button>
-              <button id="trainerRaiseBtn" class="has-shortcut" type="button">
-                Raise <kbd>R</kbd>
+                <span>Call ${spot.toCall}</span><kbd aria-hidden="true">C</kbd>
               </button>
             `;
             const hintBtn = actionsEl!.querySelector("#trainerHintBtn") as HTMLButtonElement;
             const foldBtn = actionsEl!.querySelector("#trainerFoldBtn") as HTMLButtonElement;
             const callBtn = actionsEl!.querySelector("#trainerCallBtn") as HTMLButtonElement;
-            const raiseBtn = actionsEl!.querySelector("#trainerRaiseBtn") as HTMLButtonElement;
             hintBtn.addEventListener("click", onHint);
             foldBtn.addEventListener("click", () => answerFacing("fold"));
             callBtn.addEventListener("click", () => answerFacing("call"));
-            raiseBtn.addEventListener("click", () => answerFacing("raise"));
             syncRaiseDisplay();
             return;
           }
           trainerView.classList.remove("is-facing");
           actionsEl!.innerHTML = `
-            <button id="trainerHintBtn" class="secondary" type="button" ${
-              spot.hintStep >= 2 ? "disabled" : ""
-            }>${hintLabel}</button>
+            <div class="action-links">${textActionLink(
+              "trainerHintBtn",
+              hintLabel,
+              () => {},
+              spot.hintStep >= 2,
+            )}</div>
             <button id="trainerFoldBtn" class="secondary has-shortcut" type="button">
-              Fold <kbd>F</kbd>
+              <span>Fold</span><kbd aria-hidden="true">F</kbd>
             </button>
             <button id="trainerRaiseBtn" class="has-shortcut" type="button">
-              Raise <kbd>R</kbd>
+              <span>Raise</span><kbd aria-hidden="true">R</kbd>
             </button>
           `;
           const hintBtn = actionsEl!.querySelector("#trainerHintBtn") as HTMLButtonElement;
@@ -1241,22 +1255,25 @@
         }
 
         trainerView.classList.toggle("is-facing", spot.kind === "facing");
-        setBetControlsVisible(false);
+        syncRaiseDisplay();
         const showRetry = spot.kind === "facing" && spot.correct === false;
+        // Max 2 buttons: Retry (secondary) + Next hand (primary). Chart is a link.
         actionsEl!.innerHTML = `
-          <button id="trainerChartBtn" class="secondary" type="button">Chart</button>
+          <div class="action-links">${textActionLink("trainerChartBtn", "Chart", () => {})}</div>
           ${
             showRetry
-              ? `<button id="trainerRetryBtn" class="secondary has-shortcut" type="button">Retry <kbd>T</kbd></button>`
-              : ""
+              ? `<button id="trainerRetryBtn" class="secondary has-shortcut" type="button">
+                   <span>Retry</span><kbd aria-hidden="true">T</kbd>
+                 </button>`
+              : `<button id="trainerRetryPlaceholder" class="action-placeholder" type="button" tabindex="-1" aria-hidden="true">Retry</button>`
           }
           <button id="trainerNextBtn" class="has-shortcut" type="button">
-            Next hand <kbd>N</kbd>
+            <span>Next hand</span><kbd aria-hidden="true">N</kbd>
           </button>
         `;
         const chartBtn = actionsEl!.querySelector("#trainerChartBtn") as HTMLButtonElement;
-        const nextBtn = actionsEl!.querySelector("#trainerNextBtn") as HTMLButtonElement;
         chartBtn.addEventListener("click", openChart);
+        const nextBtn = actionsEl!.querySelector("#trainerNextBtn") as HTMLButtonElement;
         nextBtn.addEventListener("click", () => dealNext());
         const retryBtn = actionsEl!.querySelector("#trainerRetryBtn") as HTMLButtonElement | null;
         if (retryBtn) retryBtn.addEventListener("click", retrySpot);

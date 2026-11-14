@@ -740,19 +740,14 @@ html.trainer-open-root {
   line-height: 1.35;
 }
 
-/* Hint + Fold + Raise stay one row so the coach card doesn't push mobile scroll. */
-.trainer-view:not(.is-answered) .game-buttons {
+/* Max 2 action buttons per row; Hint/Chart live in .action-links above. */
+.trainer-view .game-buttons {
   display: grid;
-  grid-template-columns: minmax(4.25rem, auto) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
 }
 
-/* Facing: Hint | Fold | Call | Raise — same height row. */
-.trainer-view:not(.is-answered).is-facing .game-buttons {
-  grid-template-columns: minmax(4rem, auto) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
-}
-
-.trainer-view:not(.is-answered) .game-buttons > button {
+.trainer-view .game-buttons > button {
   flex: unset;
   min-width: 0;
   width: 100%;
@@ -761,21 +756,12 @@ html.trainer-open-root {
   max-height: 48px;
   padding-block: 0;
   white-space: nowrap;
-  /* Primary Raise must match Fold/Call height — drop the tall accent glow. */
   box-shadow: none;
 }
 
-/* Facing raise: stepper only in bet-controls; Raise button is in .game-buttons. */
+/* Facing: Raise stays with the sizing stepper (same as live table). */
 .trainer-view.is-facing #trainerRaiseActionBtn {
-  display: none !important;
-}
-.trainer-view.is-facing .raise-row {
-  grid-template-columns: 1fr;
-}
-
-.trainer-view .game-buttons > #trainerHintBtn {
-  padding-inline: 10px;
-  font-weight: 700;
+  display: inline-flex !important;
 }
 
 .trainer-seat-row {
@@ -1242,6 +1228,51 @@ select:focus {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+/* App-wide: secondary actions as compact text links (never a 3rd button in the row). */
+.action-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  width: 100%;
+  min-height: 1.25rem;
+}
+.game-buttons > .action-links {
+  flex: 1 0 100%;
+  order: -1;
+}
+.trainer-view .game-buttons > .action-links {
+  grid-column: 1 / -1;
+}
+button.text-action-link,
+.text-action-link {
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transform: none;
+}
+button.text-action-link:not(:disabled):hover,
+button.text-action-link:not(:disabled):active,
+.text-action-link:not(:disabled):hover {
+  background: transparent;
+  color: var(--text);
+  transform: none;
+}
+button.text-action-link:disabled {
+  opacity: 0.48;
+  text-decoration: none;
 }
 
 .actions-row > button {
@@ -3080,19 +3111,43 @@ kbd {
   font-weight: 900;
   line-height: 1;
   text-transform: uppercase;
+  text-decoration: none;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
-.game-buttons button.has-shortcut,
+/* One shared shortcut layout everywhere: label, then ~8px, then badge — vertically centered. */
+button.has-shortcut,
 .raise-action.has-shortcut {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
 }
-.game-buttons button.has-shortcut kbd,
-.raise-action kbd {
+button.has-shortcut > span,
+.raise-action.has-shortcut > span {
+  min-width: 0;
+}
+button.has-shortcut > kbd,
+.raise-action.has-shortcut > kbd {
+  flex: 0 0 auto;
+  align-self: center;
+  text-decoration: none;
+  pointer-events: none;
+}
+/* Primary accent buttons (Ready up, Try again, Raise): light badge on blue. */
+.game-buttons > button.has-shortcut:not(.secondary):not(.danger):not(.ghost) > kbd,
+.hand-review-retry-bar > .hand-review-try-again.has-shortcut > kbd,
+.raise-action.has-shortcut > kbd {
   border-color: rgba(255, 255, 255, 0.3);
   color: rgba(255, 255, 255, 0.82);
   background: rgba(0, 0, 0, 0.14);
+}
+/* Secondary buttons (Review hand, Show answer): keep token kbd so it reads in light + dark. */
+.game-buttons > button.has-shortcut.secondary > kbd,
+.hand-review-retry-bar > .hand-review-show-answer.has-shortcut > kbd {
+  border-color: color-mix(in srgb, var(--line) 72%, var(--muted));
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel-2) 74%, transparent);
 }
 @keyframes keybind-pulse {
   50% {
@@ -4043,17 +4098,15 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
   flex: 1 1 auto;
   min-height: 44px;
 }
+/* Show answer: clean secondary (same badge spacing as Review hand) — never underline the kbd. */
 .hand-review-retry-bar > .hand-review-show-answer {
   flex: 0 0 auto;
   min-height: 44px;
-  padding-inline: 10px;
+  padding-inline: 12px;
   font-size: 13px;
-  font-weight: 650;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  font-weight: 700;
+  text-decoration: none;
   box-shadow: none;
-  background: transparent;
-  border: 0;
 }
 .hand-review-retry-bar > .hand-review-continue {
   flex: 1 1 auto;
