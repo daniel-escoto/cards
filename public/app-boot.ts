@@ -48,7 +48,9 @@ var endGameBtn = document.querySelector("#endGameBtn") as HTMLButtonElement;
 var shareGameBtn = document.querySelector("#shareGameBtn") as HTMLButtonElement;
 var backToMenuBtn = document.querySelector("#backToMenuBtn") as HTMLButtonElement;
 var sitOutBtn = document.querySelector("#sitOutBtn") as HTMLButtonElement;
+var coachBtn = document.querySelector("#coachBtn") as HTMLButtonElement;
 var copyForAiBtn = document.querySelector("#copyForAiBtn") as HTMLButtonElement;
+var coachHint = document.querySelector("#coachHint") as HTMLElement;
 var hostActionsPanel = document.querySelector("#hostActionsPanel") as HTMLElement;
 var menuRoomCode = document.querySelector("#menuRoomCode") as HTMLElement;
 var menuRoomEyebrow = document.querySelector("#menuRoomEyebrow") as HTMLElement | null;
@@ -893,14 +895,60 @@ function syncCashInControls() {
   }
 }
 
+var COACH_PREF_KEY = "holdem:coachEnabled";
+
+function coachPrefEnabled() {
+  try {
+    return localStorage.getItem(COACH_PREF_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function setCoachPrefEnabled(enabled: boolean) {
+  try {
+    localStorage.setItem(COACH_PREF_KEY, enabled ? "1" : "0");
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+function coachFeatureAvailable(room: ClientRoom | null | undefined = state) {
+  if (!room || isSpectatorView(room)) return false;
+  if (typeof room.coachAvailable === "boolean") return room.coachAvailable;
+  // Client-side fallback for older snapshots: seated human vs bots only.
+  const hero = room.players?.find((player) => player.isYou);
+  if (!hero || hero.isBot) return false;
+  return (room.players || []).every((player) => player.isYou || player.isBot);
+}
+
+function syncCoachBtn() {
+  if (!coachBtn) return;
+  const available = coachFeatureAvailable();
+  const on = available && coachPrefEnabled();
+  coachBtn.disabled = !available;
+  coachBtn.textContent = on ? "Coach: On" : "Coach: Off";
+  coachBtn.setAttribute("aria-pressed", on ? "true" : "false");
+  coachBtn.title = available
+    ? on
+      ? "Hide coach hints on your turn"
+      : "Show equity and action hints on your turn (bot games only)"
+    : "Bot games only";
+  coachBtn.setAttribute("aria-disabled", available ? "false" : "true");
+}
+
+function copyForAiFeatureAvailable(room: ClientRoom | null | undefined = state) {
+  if (!room) return false;
+  if (typeof CopyForAi !== "undefined" && CopyForAi.copyForAiAllowed) {
+    return CopyForAi.copyForAiAllowed(room);
+  }
+  if (typeof room.copyForAiAvailable === "boolean") return room.copyForAiAvailable;
+  return false;
+}
+
 function syncCopyForAiBtn() {
   if (!copyForAiBtn) return;
-  // Practice / offline handoff: always on. Online + spectator: between hands only.
-  const allowed = isOfflineSession()
-    ? true
-    : typeof CopyForAi !== "undefined" && CopyForAi.copyForAiAllowed
-      ? CopyForAi.copyForAiAllowed(state)
-      : ["lobby", "complete", "gameover"].includes(state?.phase || "");
+  const allowed = copyForAiFeatureAvailable();
   copyForAiBtn.disabled = !allowed;
   copyForAiBtn.title = allowed ? "Copy a plain-text hand prompt" : "Available after the hand";
   copyForAiBtn.setAttribute("aria-disabled", allowed ? "false" : "true");
@@ -914,6 +962,7 @@ function showGameMenu() {
   const hero = activeHero();
   sitOutBtn.classList.toggle("hidden", !hero || isSpectatorView() || state?.phase === "gameover");
   if (hero) sitOutBtn.textContent = hero.sittingOut ? "Sit in" : "Sit out";
+  syncCoachBtn();
   syncCopyForAiBtn();
   moneyPanel.classList.toggle(
     "hidden",

@@ -91,6 +91,25 @@ declare global {
     addComputerPlayers(room: PracticeRoom, targetCount: number): void;
     resetReadiness(room: PracticeRoom): void;
     cleanName(name: unknown): string;
+    coachAvailableForViewer?(room: PracticeRoom, viewerId: string): boolean;
+    copyForAiAvailableForViewer?(
+      room: PracticeRoom,
+      viewerId: string,
+      isSpectator?: boolean,
+    ): boolean;
+    preflopHandScore?(cards: string[]): number;
+    estimatePostflopEquity?(
+      playerCards: string[],
+      community: string[],
+      iterations?: number,
+      random?: () => number,
+    ): number;
+    estimatePreflopEquityAgainstRange?(
+      playerCards: string[],
+      rangeFraction: number,
+      iterations?: number,
+      random?: () => number,
+    ): number;
   }
 
   interface PracticeSeat {
@@ -147,6 +166,32 @@ declare global {
   }
 
   const PracticeSession: PracticeSessionAPI;
+
+  interface CoachSuggestion {
+    equity: number;
+    potOdds: number;
+    toCall: number;
+    opponents: number;
+    handLabel: string;
+    action: "fold" | "check" | "call" | "bet" | "raise";
+    raiseTo: number | null;
+    reason: string;
+    summary: string;
+  }
+
+  interface CoachAPI {
+    coachAvailableForPlayers(
+      players: Array<{ id: string; isYou?: boolean; isBot?: boolean }>,
+      viewerId?: string | null,
+    ): boolean;
+    buildCoachSuggestion(
+      room: ClientRoom | null | undefined,
+      options?: { random?: () => number; iterations?: number },
+    ): CoachSuggestion | null;
+    formatCoachHint(suggestion: CoachSuggestion, room: ClientRoom): string;
+  }
+
+  const Coach: CoachAPI;
 
   interface CopyForAiAPI {
     isBettingPhase(phase: string | null | undefined): boolean;
@@ -437,7 +482,10 @@ declare global {
   var shareGameBtn: HTMLButtonElement;
   var backToMenuBtn: HTMLButtonElement;
   var sitOutBtn: HTMLButtonElement;
+  var coachBtn: HTMLButtonElement;
   var copyForAiBtn: HTMLButtonElement;
+  var coachHint: HTMLElement;
+  var COACH_PREF_KEY: string;
   var hostActionsPanel: HTMLElement;
   var menuRoomCode: HTMLElement;
   var menuRoomEyebrow: HTMLElement | null;
@@ -729,5 +777,11 @@ declare global {
   function flashCopyIcon(root?: HTMLElement | null): void;
   function writeClipboardText(text: string): Promise<boolean>;
   function copyText(text: string, button: HTMLElement): Promise<void>;
+  function coachPrefEnabled(): boolean;
+  function setCoachPrefEnabled(enabled: boolean): void;
+  function coachFeatureAvailable(room?: ClientRoom | null): boolean;
+  function syncCoachBtn(): void;
+  function copyForAiFeatureAvailable(room?: ClientRoom | null): boolean;
   function syncCopyForAiBtn(): void;
+  function renderCoachHint(): void;
 }

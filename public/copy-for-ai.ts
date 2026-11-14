@@ -42,13 +42,22 @@
     return ["showdown", "complete", "lobby", "gameover"].includes(String(phase || ""));
   }
 
+  function isBotOnlyTable(room: ClientRoom) {
+    const hero = (room.players || []).find((player) => player.isYou);
+    if (!hero || hero.isBot) return false;
+    return (room.players || []).every((player) => player.isYou || player.isBot);
+  }
+
   /**
-   * Online + spectator: only between hands.
-   * Offline Practice (`offline: true`): always allowed.
+   * Bot-only tables (Practice / online all-bots): always on.
+   * Spectators and multi-human tables: between hands only.
+   * Prefer server `copyForAiAvailable` when present.
    */
   function copyForAiAllowed(room: ClientRoom | null | undefined) {
     if (!room) return false;
-    if (room.offline) return true;
+    if (typeof room.copyForAiAvailable === "boolean") return room.copyForAiAvailable;
+    if (room.isSpectator) return isBetweenHands(room.phase);
+    if (room.offline || isBotOnlyTable(room)) return true;
     return isBetweenHands(room.phase);
   }
 

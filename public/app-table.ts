@@ -139,6 +139,7 @@ function render() {
       !menuHero || isSpectatorView() || room?.phase === "gameover",
     );
     if (menuHero) sitOutBtn.textContent = menuHero.sittingOut ? "Sit back in" : "Sit out";
+    if (typeof syncCoachBtn === "function") syncCoachBtn();
     if (typeof syncCopyForAiBtn === "function") syncCopyForAiBtn();
   }
   requestAnimationFrame(() => restoreActionFeedScroll(feedScroll));
@@ -236,6 +237,10 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
   betPresets.innerHTML = "";
   turnInfo.textContent = "";
   turnInfo.classList.remove("your-turn", "bust-message");
+  if (coachHint) {
+    coachHint.classList.add("hidden");
+    coachHint.textContent = "";
+  }
 
   if (isSpectatorView()) {
     turnInfo.classList.remove("showdown-message");
@@ -336,6 +341,38 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
       : "Check or bet";
   turnInfo.classList.add("your-turn");
   renderHeroActionControls(hero, false);
+  renderCoachHint();
+}
+
+function renderCoachHint() {
+  if (!coachHint) return;
+  const hide = () => {
+    coachHint.classList.add("hidden");
+    coachHint.textContent = "";
+  };
+  if (
+    !state ||
+    typeof coachFeatureAvailable !== "function" ||
+    !coachFeatureAvailable(state) ||
+    typeof coachPrefEnabled !== "function" ||
+    !coachPrefEnabled() ||
+    isSpectatorView() ||
+    !state.isYourTurn
+  ) {
+    hide();
+    return;
+  }
+  if (typeof Coach === "undefined" || !Coach.buildCoachSuggestion || !Coach.formatCoachHint) {
+    hide();
+    return;
+  }
+  const suggestion = Coach.buildCoachSuggestion(state, { iterations: 100 });
+  if (!suggestion) {
+    hide();
+    return;
+  }
+  coachHint.textContent = Coach.formatCoachHint(suggestion, state);
+  coachHint.classList.remove("hidden");
 }
 
 /** Every human is out of chips while CPUs play on: offer Rebuy / Restart instead of a dead table. */
