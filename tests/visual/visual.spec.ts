@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page, type Locator } from "@playwright/test";
 import {
   VIEWPORTS,
   type Theme,
@@ -6,38 +6,45 @@ import {
   openTrainer,
   forceTableState,
   openGameMenu,
-  openSettings,
   openTrainerMenu,
   forceTrainerScene,
 } from "./fixtures";
 
+/**
+ * Lean visual coverage (≤ ~24 PNGs): table, Hand Review retry+result,
+ * Trainer facing-raise, and both menus — at 375/1280 × light/dark.
+ * Screenshots target the surface under test (not full page) to keep
+ * baseline size ~1–2MB total.
+ */
 const THEMES: Theme[] = ["dark", "light"];
 
-async function shot(page: Page, name: string) {
-  // Hide caret / reduce flaky animations.
+async function stabilize(page: Page) {
   await page.addStyleTag({
     content: `
-      *, *::before, *::after { caret-color: transparent !important; transition: none !important; animation: none !important; }
+      *, *::before, *::after {
+        caret-color: transparent !important;
+        transition: none !important;
+        animation: none !important;
+      }
     `,
-  });
-  await expect(page).toHaveScreenshot(`${name}.png`, {
-    fullPage: false,
-    animations: "disabled",
   });
 }
 
-async function forceHandReview(
-  page: Page,
-  kind: "decision" | "mistake" | "result",
-) {
+async function shot(target: Locator, name: string) {
+  await expect(target).toHaveScreenshot(`${name}.png`, {
+    animations: "disabled",
+    // Element shots are smaller; allow light AA/subpixel noise.
+    maxDiffPixelRatio: 0.02,
+  });
+}
+
+async function forceHandReview(page: Page, kind: "mistake" | "result") {
   await page.evaluate((scene) => {
     const w = window as unknown as {
       state: Record<string, unknown> | null;
       lastHandReplay: unknown;
       openHandReview?: () => void;
-      paintHandReviewStep?: (i: number) => void;
       handReviewJumpToEnd?: () => void;
-      render?: () => void;
     };
 
     const decisionBest = {
@@ -148,7 +155,7 @@ async function forceHandReview(
     };
 
     w.lastHandReplay = {
-      steps: scene === "result" ? [heroStep, resultStep] : [heroStep, resultStep],
+      steps: [heroStep, resultStep],
       items: [decision],
       best: scene === "mistake" ? 0 : 1,
       fine: 0,
@@ -156,7 +163,6 @@ async function forceHandReview(
       summary: scene === "mistake" ? "1 mistake" : "Solid hand",
     };
 
-    // Ensure a live table state exists as the review template.
     if (!w.state) {
       w.state = {
         phase: "complete",
@@ -174,6 +180,15 @@ async function forceHandReview(
   await page.waitForSelector("body.hand-review-open");
 }
 
+/** Start a retry so the Try again / Call row is visible for the mistake baseline. */
+async function startHandReviewRetry(page: Page) {
+  const tryBtn = page.locator(".hand-review-try-again, #handReviewRetryBar button").first();
+  if (await tryBtn.isVisible().catch(() => false)) {
+    await tryBtn.click();
+    await page.waitForSelector("body.hand-review-retrying", { timeout: 5000 }).catch(() => {});
+  }
+}
+
 for (const theme of THEMES) {
   for (const vp of VIEWPORTS) {
     test.describe(`${theme} ${vp.name}`, () => {
@@ -183,109 +198,56 @@ for (const theme of THEMES) {
         deviceScaleFactor: 1,
       });
 
-      test(`lobby-waiting`, async ({ page }) => {
-        await openOfflineTable(page);
-        await forceTableState(page, "lobby-waiting");
-        await shot(page, `${theme}-${vp.name}-lobby-waiting`);
-      });
-
       test(`in-hand-on-turn`, async ({ page }) => {
         await openOfflineTable(page);
         await forceTableState(page, "in-hand-on-turn");
-        await shot(page, `${theme}-${vp.name}-in-hand-on-turn`);
+        await stabilize(page);
+        // Panel + seat strip: the actionable surface (not full-bleed felt).
+        await shot(page.locator("#tableView .control-panel"), `${theme}-${vp.name}-in-hand-on-turn`);
       });
 
-      test(`in-hand-off-turn`, async ({ page }) => {
-        await openOfflineTable(page);
-        await forceTableState(page, "in-hand-off-turn");
-        await shot(page, `${theme}-${vp.name}-in-hand-off-turn`);
-      });
-
-      test(`all-in-runout`, async ({ page }) => {
-        await openOfflineTable(page);
-        await forceTableState(page, "all-in-runout");
-        await shot(page, `${theme}-${vp.name}-all-in-runout`);
-      });
-
-      test(`showdown`, async ({ page }) => {
-        await openOfflineTable(page);
-        await forceTableState(page, "showdown");
-        await shot(page, `${theme}-${vp.name}-showdown`);
-      });
-
-      test(`game-menu`, async ({ page }) => {
-        await openOfflineTable(page);
-        await forceTableState(page, "lobby-waiting");
-        await openGameMenu(page);
-        await shot(page, `${theme}-${vp.name}-game-menu`);
-      });
-
-      test(`settings`, async ({ page }) => {
-        await openOfflineTable(page);
-        await forceTableState(page, "lobby-waiting");
-        await openSettings(page);
-        await shot(page, `${theme}-${vp.name}-settings`);
-      });
-
-      test(`hand-review-decision`, async ({ page }) => {
-        await openOfflineTable(page);
-        await forceTableState(page, "lobby-waiting");
-        await forceHandReview(page, "decision");
-        await shot(page, `${theme}-${vp.name}-hand-review-decision`);
-      });
-
-      test(`hand-review-mistake`, async ({ page }) => {
+      test(`hand-review-retry`, async ({ page }) => {
         await openOfflineTable(page);
         await forceTableState(page, "lobby-waiting");
         await forceHandReview(page, "mistake");
-        await shot(page, `${theme}-${vp.name}-hand-review-mistake`);
+        await startHandReviewRetry(page);
+        await stabilize(page);
+        await shot(page.locator("#tableView .control-panel"), `${theme}-${vp.name}-hand-review-retry`);
       });
 
       test(`hand-review-result`, async ({ page }) => {
         await openOfflineTable(page);
         await forceTableState(page, "lobby-waiting");
         await forceHandReview(page, "result");
-        await shot(page, `${theme}-${vp.name}-hand-review-result`);
-      });
-
-      test(`trainer-question`, async ({ page }) => {
-        await openTrainer(page);
-        await forceTrainerScene(page, "question");
-        // If no force hook, interact: ensure unanswered actions visible.
-        await page.waitForSelector("#trainerActions button", { timeout: 10000 });
-        await shot(page, `${theme}-${vp.name}-trainer-question`);
-      });
-
-      test(`trainer-answered`, async ({ page }) => {
-        await openTrainer(page);
-        await forceTrainerScene(page, "answered");
-        // Fallback: answer via Raise if still unanswered.
-        const raise = page.locator("#trainerRaiseBtn");
-        if (await raise.isVisible().catch(() => false)) {
-          await raise.click();
-          await page.waitForSelector("#trainerNextBtn", { timeout: 5000 });
-        }
-        await shot(page, `${theme}-${vp.name}-trainer-answered`);
+        await stabilize(page);
+        await shot(page.locator("#tableView .control-panel"), `${theme}-${vp.name}-hand-review-result`);
       });
 
       test(`trainer-facing-raise`, async ({ page }) => {
         await openTrainer(page);
-        // Switch drill to facing if menu available.
         await openTrainerMenu(page);
         const facing = page.locator("#trainerDrillFacing");
-        if (!(await facing.isDisabled())) {
-          await facing.click();
-        }
+        if (!(await facing.isDisabled())) await facing.click();
         await page.click("#trainerCloseMenuBtn");
         await forceTrainerScene(page, "facing-raise");
         await page.waitForSelector("#trainerFoldBtn, #trainerConfirmBtn", { timeout: 10000 });
-        await shot(page, `${theme}-${vp.name}-trainer-facing-raise`);
+        await stabilize(page);
+        await shot(page.locator("#trainerControlPanel"), `${theme}-${vp.name}-trainer-facing-raise`);
+      });
+
+      test(`game-menu`, async ({ page }) => {
+        await openOfflineTable(page);
+        await forceTableState(page, "lobby-waiting");
+        await openGameMenu(page);
+        await stabilize(page);
+        await shot(page.locator("#gameMenuModal .modal-panel"), `${theme}-${vp.name}-game-menu`);
       });
 
       test(`trainer-menu`, async ({ page }) => {
         await openTrainer(page);
         await openTrainerMenu(page);
-        await shot(page, `${theme}-${vp.name}-trainer-menu`);
+        await stabilize(page);
+        await shot(page.locator("#trainerMenuModal .modal-panel"), `${theme}-${vp.name}-trainer-menu`);
       });
     });
   }

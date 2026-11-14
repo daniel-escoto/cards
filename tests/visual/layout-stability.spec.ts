@@ -98,5 +98,38 @@ for (const vp of VIEWPORTS) {
         "between-hands players x drifted",
       ).toBe(true);
     });
+
+    test("seat columns align and table does not overflow horizontally", async ({ page }) => {
+      await openOfflineTable(page, "Alexandrine1");
+      await forceTableState(page, "in-hand-on-turn");
+      await page.waitForTimeout(100);
+
+      const metrics = await page.evaluate(() => {
+        const rows = [...document.querySelectorAll("#players .table-player-row")];
+        const col = (row: Element, sel: string) => {
+          const el = row.querySelector(sel);
+          if (!el) return null;
+          const b = el.getBoundingClientRect();
+          return { left: b.left, right: b.right };
+        };
+        const actionLefts = rows.map((r) => col(r, ".player-action")?.left).filter((n) => n != null);
+        const stackLefts = rows.map((r) => col(r, ".player-stack")?.left).filter((n) => n != null);
+        const spread = (xs: number[]) =>
+          xs.length ? Math.max(...xs) - Math.min(...xs) : 0;
+        const felt = document.querySelector(".felt")?.getBoundingClientRect();
+        const overflowX = document.documentElement.scrollWidth > document.documentElement.clientWidth + 1;
+        return {
+          statusSpread: spread(actionLefts as number[]),
+          stackSpread: spread(stackLefts as number[]),
+          overflowX,
+          feltWidth: felt?.width || 0,
+        };
+      });
+
+      expect(metrics.statusSpread, "status column drifted across seats").toBeLessThanOrEqual(1);
+      expect(metrics.stackSpread, "stack column drifted across seats").toBeLessThanOrEqual(1);
+      expect(metrics.overflowX, "page scrolls horizontally").toBe(false);
+      expect(metrics.feltWidth).toBeGreaterThan(0);
+    });
   });
 }

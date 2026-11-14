@@ -3,8 +3,8 @@
  * Two-column table (780px and up) must fit any window width: the felt's tracks have no
  * fixed pixel floors (360px + 400px floors pushed the board and action panel past the
  * felt's right edge in ~780–860px windows, worst in Safari), and every grid item may
- * shrink. The browser sweep lives in scripts/check-table-fit.mjs (widths 700–1440,
- * Wide table off and on); this guards the CSS that makes it pass.
+ * shrink. Live overflow checks live in tests/visual/layout-stability.spec.ts; this
+ * guards the CSS that makes them pass.
  */
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -52,8 +52,5 @@ assert.match(rule(".community"), /max-width:\s*100%/, "board never wider than it
 assert.match(rule(".community .card"), /flex:\s*0 1 auto/, "board cards shrink together");
 assert.match(rule(".community .card"), /min-width:\s*0/);
 
-assert.ok(
-  fs.existsSync(path.join(__dirname, "../scripts/check-table-fit.mjs")),
-  "width sweep script exists",
-);
+// Live overflow/width sweep lives in tests/visual/layout-stability.spec.ts.
 console.log("Table fit checks passed.");
