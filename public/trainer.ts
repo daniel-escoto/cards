@@ -71,8 +71,24 @@
       BB: "Big blind",
     };
 
+    const POSITION_BLURB: Record<string, string> = {
+      UTG: "first to act, play tight",
+      "UTG+1": "early seat, stay selective",
+      MP: "middle seat, still cautious",
+      LJ: "opens a bit wider than early",
+      HJ: "mid-late, expanding range",
+      CO: "late position, open wider",
+      BTN: "acts last, widest range",
+      SB: "out of position — open or fold",
+      BB: "already posted; defend later",
+    };
+
     function positionFullName(seat: string): string {
       return POSITION_FULL_NAME[seat] || seat;
+    }
+
+    function positionBlurb(seat: string): string {
+      return POSITION_BLURB[seat] || "table position";
     }
 
     function positionLabel(seat: string): string {
@@ -277,6 +293,7 @@
       const closeChartBtn = doc.querySelector("#trainerCloseChartBtn") as HTMLButtonElement | null;
       const chartEl = doc.querySelector("#trainerChart") as HTMLElement | null;
       const chartEyebrow = doc.querySelector("#trainerChartEyebrow") as HTMLElement | null;
+      const seatPopover = trainerView.querySelector("#trainerSeatPopover") as HTMLElement | null;
       const joinError = doc.querySelector("#joinError") as HTMLElement | null;
 
       if (
@@ -299,7 +316,8 @@
         !leaveBtn ||
         !chartModal ||
         !closeChartBtn ||
-        !chartEl
+        !chartEl ||
+        !seatPopover
       ) {
         return null;
       }
@@ -308,6 +326,78 @@
       let stats = loadStats();
       let spot: SpotState | null = null;
       let active = false;
+      let seatPopoverSeat: string | null = null;
+      let seatPopoverTimer: ReturnType<typeof setTimeout> | null = null;
+
+      function clearSeatPopoverTimer(): void {
+        if (seatPopoverTimer !== null) {
+          clearTimeout(seatPopoverTimer);
+          seatPopoverTimer = null;
+        }
+      }
+
+      function closeSeatPopover(): void {
+        clearSeatPopoverTimer();
+        seatPopoverSeat = null;
+        seatPopover!.classList.add("hidden");
+        seatPopover!.setAttribute("aria-hidden", "true");
+        seatPopover!.innerHTML = "";
+        playersEl!.querySelectorAll(".trainer-seat-row[aria-expanded='true']").forEach((row) => {
+          row.setAttribute("aria-expanded", "false");
+        });
+      }
+
+      function placeSeatPopover(anchor: HTMLElement): void {
+        const tip = seatPopover!;
+        tip.classList.remove("hidden");
+        tip.style.left = "0px";
+        tip.style.top = "0px";
+        const pad = 8;
+        const gap = 8;
+        const anchorRect = anchor.getBoundingClientRect();
+        const tipRect = tip.getBoundingClientRect();
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        let left = anchorRect.left;
+        let top = anchorRect.top - tipRect.height - gap;
+        if (top < pad) {
+          top = anchorRect.bottom + gap;
+        }
+        if (top + tipRect.height > vh - pad) {
+          top = Math.max(pad, vh - tipRect.height - pad);
+        }
+        if (left + tipRect.width > vw - pad) {
+          left = Math.max(pad, vw - tipRect.width - pad);
+        }
+        if (left < pad) left = pad;
+        tip.style.left = `${Math.round(left)}px`;
+        tip.style.top = `${Math.round(top)}px`;
+      }
+
+      function openSeatPopover(row: HTMLElement): void {
+        const seat = row.getAttribute("data-seat") || "";
+        if (!seat) return;
+        if (seatPopoverSeat === seat && !seatPopover!.classList.contains("hidden")) {
+          closeSeatPopover();
+          return;
+        }
+        const full = row.getAttribute("data-full") || positionFullName(seat);
+        const blurb = row.getAttribute("data-blurb") || positionBlurb(seat);
+        const title = full === seat ? seat : `${seat} · ${full}`;
+        closeSeatPopover();
+        seatPopoverSeat = seat;
+        seatPopover!.innerHTML = `<strong class="trainer-seat-popover-title">${escapeHtml(
+          title,
+        )}</strong><span class="trainer-seat-popover-blurb">${escapeHtml(blurb)}</span>`;
+        seatPopover!.classList.remove("hidden");
+        seatPopover!.setAttribute("aria-hidden", "false");
+        row.setAttribute("aria-expanded", "true");
+        placeSeatPopover(row);
+        clearSeatPopoverTimer();
+        seatPopoverTimer = setTimeout(() => {
+          closeSeatPopover();
+        }, 3200);
+      }
 
       function cardHtml(card: PublicCard): string {
         if (format && typeof format.cardTemplate === "function") {
@@ -393,16 +483,19 @@
               .filter(Boolean)
               .join(" ");
             const full = positionFullName(seat);
-            return `<article class="${classes}">
+            const blurb = positionBlurb(seat);
+            return `<article
+              class="${classes} trainer-seat-row"
+              data-seat="${escapeHtml(seat)}"
+              data-full="${escapeHtml(full)}"
+              data-blurb="${escapeHtml(blurb)}"
+              tabindex="0"
+              role="button"
+              aria-label="${escapeHtml(seat)}, ${escapeHtml(full)}. ${escapeHtml(blurb)}"
+            >
               <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
               <span class="seat-name seat-name-with-chips">
-                <button
-                  type="button"
-                  class="seat-name-text trainer-seat-label"
-                  title="${escapeHtml(full)}"
-                  aria-label="${escapeHtml(seat)}, ${escapeHtml(full)}"
-                  data-full="${escapeHtml(full)}"
-                >${escapeHtml(seat)}</button>${seatChipMarkup(seat)}
+                <span class="seat-name-text">${escapeHtml(seat)}</span>${seatChipMarkup(seat)}
               </span>
               <span class="player-action${actionClass}">${escapeHtml(action)}</span>
               <strong class="player-stack">${stackForSeat(seat)}</strong>
@@ -410,6 +503,7 @@
           })
           .join("");
         playersEl!.innerHTML = html;
+        closeSeatPopover();
       }
 
       function renderChart(highlightKey: string): void {
@@ -608,6 +702,7 @@
         active = false;
         closeMenu();
         closeChart();
+        closeSeatPopover();
         trainerView.classList.add("hidden");
         trainerView.classList.remove("is-answered");
         welcome.classList.remove("hidden");
@@ -651,6 +746,11 @@
           return;
         }
         if (event.key === "Escape") {
+          if (!seatPopover!.classList.contains("hidden")) {
+            event.preventDefault();
+            closeSeatPopover();
+            return;
+          }
           if (!chartModal!.classList.contains("hidden")) {
             event.preventDefault();
             closeChart();
@@ -705,21 +805,30 @@
       const onChartBackdrop = (event: MouseEvent) => {
         if (event.target === chartModal) closeChart();
       };
-      const onSeatLabelClick = (event: Event) => {
+      const onSeatRowActivate = (event: Event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
-        const btn = target.closest(".trainer-seat-label");
-        if (!(btn instanceof HTMLElement) || !playersEl!.contains(btn)) return;
+        const row = target.closest(".trainer-seat-row");
+        if (!(row instanceof HTMLElement) || !playersEl!.contains(row)) return;
         event.preventDefault();
-        const full = btn.getAttribute("data-full") || "";
-        const open = btn.getAttribute("data-tip") === "1";
-        playersEl!.querySelectorAll(".trainer-seat-label[data-tip='1']").forEach((el) => {
-          el.removeAttribute("data-tip");
-          el.removeAttribute("aria-describedby");
-        });
-        if (!open && full) {
-          btn.setAttribute("data-tip", "1");
-        }
+        event.stopPropagation();
+        openSeatPopover(row);
+      };
+      const onSeatRowKeydown = (event: KeyboardEvent) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        if (!target.classList.contains("trainer-seat-row")) return;
+        event.preventDefault();
+        openSeatPopover(target);
+      };
+      const onDocPointerDown = (event: Event) => {
+        if (seatPopover!.classList.contains("hidden")) return;
+        const target = event.target;
+        if (!(target instanceof Node)) return;
+        if (seatPopover!.contains(target)) return;
+        if (target instanceof HTMLElement && target.closest(".trainer-seat-row")) return;
+        closeSeatPopover();
       };
 
       trainerBtn.addEventListener("click", onTrainerClick);
@@ -734,7 +843,10 @@
       closeChartBtn.addEventListener("click", closeChart);
       menuModal.addEventListener("click", onMenuBackdrop);
       chartModal.addEventListener("click", onChartBackdrop);
-      playersEl.addEventListener("click", onSeatLabelClick);
+      playersEl.addEventListener("click", onSeatRowActivate);
+      playersEl.addEventListener("keydown", onSeatRowKeydown);
+      doc.addEventListener("pointerdown", onDocPointerDown, true);
+      window.addEventListener("resize", closeSeatPopover);
       doc.addEventListener("keydown", onKeydown);
 
       try {
@@ -760,8 +872,12 @@
           closeChartBtn.removeEventListener("click", closeChart);
           menuModal.removeEventListener("click", onMenuBackdrop);
           chartModal.removeEventListener("click", onChartBackdrop);
-          playersEl.removeEventListener("click", onSeatLabelClick);
+          playersEl.removeEventListener("click", onSeatRowActivate);
+          playersEl.removeEventListener("keydown", onSeatRowKeydown);
+          doc.removeEventListener("pointerdown", onDocPointerDown, true);
+          window.removeEventListener("resize", closeSeatPopover);
           doc.removeEventListener("keydown", onKeydown);
+          closeSeatPopover();
         },
       };
     }

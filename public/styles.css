@@ -752,51 +752,50 @@ html.trainer-open-root {
   line-height: 1.35;
 }
 
-.trainer-seat-label {
-  position: relative;
-  display: inline;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-weight: inherit;
-  letter-spacing: inherit;
-  text-align: left;
-  cursor: help;
-  min-height: 0;
-  box-shadow: none;
+.trainer-seat-row {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.trainer-seat-label:not(:disabled):hover,
-.trainer-seat-label:not(:disabled):active {
-  background: transparent;
-  transform: none;
+.trainer-seat-row:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 1px;
 }
 
-.trainer-seat-label[data-tip="1"]::after {
-  content: attr(data-full);
-  position: absolute;
-  left: 0;
-  bottom: calc(100% + 6px);
-  z-index: 5;
+/* Fixed so it is never clipped by .players / .seat-name overflow:hidden. */
+.trainer-seat-popover {
+  position: fixed;
+  z-index: 80;
+  display: grid;
+  gap: 2px;
   width: max-content;
-  max-width: min(200px, 70vw);
-  padding: 5px 8px;
+  max-width: min(280px, calc(100vw - 16px));
+  padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--panel);
   color: var(--text);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.25;
-  letter-spacing: 0;
-  text-transform: none;
-  white-space: nowrap;
   box-shadow: var(--surface-shadow);
   pointer-events: none;
+}
+
+.trainer-seat-popover.hidden {
+  display: none;
+}
+
+.trainer-seat-popover-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.trainer-seat-popover-blurb {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
 }
 
 .trainer-chart-panel {

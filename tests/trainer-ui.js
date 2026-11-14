@@ -21,6 +21,7 @@ assert.match(html, /id="trainerChart"/);
 assert.match(html, /id="trainerAccuracy"/);
 assert.match(html, /id="trainerMenuModal"/);
 assert.match(html, /id="trainerChartModal"/);
+assert.match(html, /id="trainerSeatPopover"/);
 assert.match(html, /class="table-view trainer-view/);
 assert.match(html, /id="trainerActions" class="game-buttons"/);
 assert.match(html, /shared\/rfi-ranges\.js/);
