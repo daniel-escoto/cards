@@ -651,7 +651,8 @@ function updateHeroCardVisibility() {
   heroHand.classList.toggle("cards-concealed", hasCards && heroCardsHidden);
   heroHand.setAttribute("aria-pressed", String(hasCards && heroCardsHidden));
   heroHand.setAttribute("aria-label", heroCardsHidden ? "Show your cards" : "Hide your cards");
-  heroHand.title = heroCardsHidden ? "Show your cards" : "Hide your cards";
+  // No native title tooltip — it overlaps ½ pot / raise controls on short panels.
+  heroHand.removeAttribute("title");
   heroHand.querySelectorAll(".card").forEach((card) => {
     card.classList.toggle("back", heroCardsHidden);
     card.setAttribute("aria-hidden", String(heroCardsHidden));

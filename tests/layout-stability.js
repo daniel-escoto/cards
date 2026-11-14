@@ -72,4 +72,14 @@ assert.doesNotMatch(
   "visible overflow lets seat rows cover the Mistake panel on 375/SE",
 );
 
+// Off-turn action panel: keep raise shell (ignoreRaiseOpen) so height matches your-turn.
+assert.match(tableSrc, /ignoreRaiseOpen:\s*disabled/);
+assert.match(tableSrc, /ignoreRaiseOpen\?:/);
+// No native title tooltip on hero cards (overlaps ½ pot on short panels).
+assert.match(bootSrc, /heroHand\.removeAttribute\("title"\)/);
+assert.doesNotMatch(bootSrc, /heroHand\.title\s*=/);
+// Hand Review retry reveals live controls without leaving the review shell.
+assert.match(css, /body\.hand-review-open\.hand-review-retrying[\s\S]*?\.game-buttons/);
+assert.match(tableSrc, /hand-review-retrying/);
+
 console.log("Layout stability static checks passed.");

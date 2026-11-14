@@ -695,6 +695,10 @@ function handReviewJumpToEnd() {
   paintHandReviewStep(landable[landable.length - 1]!);
 }
 
+function syncHandReviewRetryingClass() {
+  document.body.classList.toggle("hand-review-retrying", Boolean(handReviewActive && handReviewRetryItem));
+}
+
 function openHandReview() {
   if (!lastHandReplay || !lastHandReplay.steps.length || !state) return;
   if (handReviewActive) return;
@@ -705,6 +709,7 @@ function openHandReview() {
   // Force the first landable paint (sentinel so paintHandReviewStep does not no-op).
   handReviewStepIndex = -1;
   document.body.classList.add("hand-review-open");
+  syncHandReviewRetryingClass();
   handReviewChrome?.classList.remove("hidden");
   if (handReviewSummary) handReviewSummary.textContent = lastHandReplay.summary;
   bustCardRenderCache();
@@ -716,7 +721,7 @@ function hideHandReview() {
   handReviewActive = false;
   handReviewRetryItem = null;
   handReviewRevealedSteps = new Set();
-  document.body.classList.remove("hand-review-open");
+  document.body.classList.remove("hand-review-open", "hand-review-retrying");
   handReviewChrome?.classList.add("hidden");
   if (handReviewRetryBar) {
     handReviewRetryBar.classList.add("is-idle");
@@ -991,6 +996,7 @@ function submitHandReviewRetryAction(payload: Record<string, unknown>) {
   const result = HandReview.gradeRetry(item, taken);
   handReviewRevealedSteps.add(handReviewStepIndex);
   handReviewRetryItem = null;
+  syncHandReviewRetryingClass();
   // Collapse live action controls; nav chrome stays below.
   gameButtons.innerHTML = "";
   setBetControlsReserved(true);
@@ -1024,6 +1030,7 @@ function startHandReviewRetry(
 ) {
   if (!handReviewSavedState) return;
   handReviewRetryItem = item;
+  syncHandReviewRetryingClass();
   // Paint the decision's before-state on the table.
   const template = handReviewSavedState;
   const table: ReplayTableStateLocal = {
@@ -1331,6 +1338,8 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
     const currentIndex = findLastIndex(room.players, (player) => player.id === room.turn);
     const current = currentIndex >= 0 ? room.players[currentIndex] : null;
     turnInfo.textContent = current ? `${current.name} to act` : "Waiting for host";
+    // Keep Fold/Call + raise shell mounted (disabled) while still in the hand.
+    // Folded / all-in use the reserved idle slot instead (same height, no live buttons).
     if (hero && isBettingPhase(room.phase) && !hero.folded && !hero.allIn) {
       renderHeroActionControls(hero, true);
     }
@@ -1372,11 +1381,18 @@ function renderBustPanel(room: ClientRoom) {
  * True when a raise/shove is a legal, meaningful action for the hero.
  * Short all-ins that did not reopen (canRaise/canShove false) must not show Raise.
  * When every live opponent is already all-in, raising builds a dead side pot — Call only.
+ *
+ * `ignoreRaiseOpen`: off-turn disabled shell — raiseEligible clears after you act, but the
+ * raise row must stay mounted so the panel height does not jump between turns.
  */
-function heroCanRaiseMeaningfully(room: ClientRoom, hero: ClientPlayer): boolean {
+function heroCanRaiseMeaningfully(
+  room: ClientRoom,
+  hero: ClientPlayer,
+  options: { ignoreRaiseOpen?: boolean } = {},
+): boolean {
   const maxRaise = hero.bet + hero.stack;
   if (maxRaise <= room.currentBet) return false;
-  if (!(room.canRaise || room.canShove)) return false;
+  if (!options.ignoreRaiseOpen && !(room.canRaise || room.canShove)) return false;
   const liveVillains = (room.players || []).filter(
     (player) => !player.isYou && !player.folded && player.id !== hero.id,
   );
@@ -1390,7 +1406,9 @@ function renderHeroActionControls(hero: ClientPlayer, disabled: boolean) {
   if (!state) return;
   const maxRaise = hero.bet + hero.stack;
   const canBetMore = maxRaise > state.currentBet;
-  const canRaiseUi = heroCanRaiseMeaningfully(state, hero);
+  const canRaiseUi = heroCanRaiseMeaningfully(state, hero, {
+    ignoreRaiseOpen: disabled,
+  });
   // Merge Check/Bet or Call/Raise only when a raise is actually available.
   mergePassiveConfirm = canRaiseUi;
 
@@ -1410,7 +1428,9 @@ function renderHeroActionControls(hero: ClientPlayer, disabled: boolean) {
 
   // Bet panel only when raise/shove is legal. Facing a short all-in that did not
   // reopen — or when every villain is all-in — Call/Check alone is the UI.
-  // reserveActionSpace() then collapses the empty raise slot (is-compact).
+  // Off-turn uses ignoreRaiseOpen so the raise shell stays for layout stability.
+  // reserveActionSpace() then collapses the empty raise slot (is-compact) only for
+  // true Call-only spots.
   if (canRaiseUi && canBetMore) configureRaiseControls(hero, disabled);
   else setBetControlsReserved(true);
 }
@@ -1500,10 +1520,13 @@ function renderBetPresets(hero: ClientPlayer, disabled: boolean, canFullRaise = 
     button.type = "button";
     button.textContent = option.label;
     button.disabled = disabled;
+    button.setAttribute("aria-disabled", disabled ? "true" : "false");
+    button.tabIndex = disabled ? -1 : 0;
     button.addEventListener("click", () => {
+      if (disabled) return;
       setRaiseState({ value: option.value });
       // Tapping All in sends the all-in raise-to immediately on your turn.
-      if (option.allIn && !disabled && state?.isYourTurn) {
+      if (option.allIn && state?.isYourTurn) {
         emitWithAck("game:action", { type: "raise", raiseTo: allInTo });
       }
     });
@@ -1537,10 +1560,18 @@ function setRaiseState(next: Partial<RaiseState> | RaiseState) {
     );
   }
   raiseActionBtn.disabled = raiseControlsDisabled;
-  raiseMinus.disabled =
+  raiseActionBtn.setAttribute("aria-disabled", raiseControlsDisabled ? "true" : "false");
+  raiseActionBtn.tabIndex = raiseControlsDisabled ? -1 : 0;
+  const minusDisabled =
     raiseControlsDisabled ||
     (mergePassiveConfirm ? atPassiveDetent() : raiseState.value <= raiseState.min);
-  raisePlus.disabled = raiseControlsDisabled || raiseState.value >= raiseState.max;
+  const plusDisabled = raiseControlsDisabled || raiseState.value >= raiseState.max;
+  raiseMinus.disabled = minusDisabled;
+  raiseMinus.setAttribute("aria-disabled", minusDisabled ? "true" : "false");
+  raiseMinus.tabIndex = minusDisabled ? -1 : 0;
+  raisePlus.disabled = plusDisabled;
+  raisePlus.setAttribute("aria-disabled", plusDisabled ? "true" : "false");
+  raisePlus.tabIndex = plusDisabled ? -1 : 0;
   updateConfirmPassiveButton();
 }
 
@@ -1564,8 +1595,10 @@ function addConfirmPassiveButton(disabled = false) {
   const button = document.createElement("button");
   confirmActionBtn = button;
   button.disabled = disabled;
+  button.setAttribute("aria-disabled", disabled ? "true" : "false");
+  button.tabIndex = disabled ? -1 : 0;
   button.addEventListener("click", () => {
-    if (!state) return;
+    if (!state || disabled) return;
     if (atPassiveDetent()) {
       emitWithAck("game:action", { type: state.toCall > 0 ? "call" : "check" });
       return;
@@ -1639,7 +1672,12 @@ function addActionButton(label: string, payload: Record<string, unknown>, classN
         : "";
   setButtonLabel(button, label, shortcut);
   button.disabled = disabled;
-  button.addEventListener("click", () => emitWithAck("game:action", payload));
+  button.setAttribute("aria-disabled", disabled ? "true" : "false");
+  button.tabIndex = disabled ? -1 : 0;
+  button.addEventListener("click", () => {
+    if (disabled) return;
+    emitWithAck("game:action", payload);
+  });
   gameButtons.appendChild(button);
 }
 

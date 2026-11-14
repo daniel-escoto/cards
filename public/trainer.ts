@@ -737,11 +737,12 @@
       }
 
       function syncRaiseDisplay(): void {
-        if (!spot || spot.kind !== "facing" || spot.answered) {
-          // Drop the raise row after answer so the coach panel + seats both fit on mobile.
+        if (!spot || spot.kind !== "facing") {
           setBetControlsVisible(false);
           return;
         }
+        // Keep the raise shell mounted after answer (disabled) so panel height stays stable.
+        const answered = Boolean(spot.answered);
         const atDetent = atFacingCallDetent();
         const display =
           sizing && typeof sizing.displayRaiseAmount === "function"
@@ -757,17 +758,26 @@
         // Live table: Call/Raise merge hides the standalone Raise button.
         raiseActionBtn!.classList.add("hidden");
         raiseRowEl!.classList.add("merge-check-bet");
-        raiseMinusBtn!.disabled = atDetent;
-        raisePlusBtn!.disabled = spot.raiseTo >= spot.maxRaiseTo;
+        const minusDisabled = answered || atDetent;
+        const plusDisabled = answered || spot.raiseTo >= spot.maxRaiseTo;
+        raiseMinusBtn!.disabled = minusDisabled;
+        raisePlusBtn!.disabled = plusDisabled;
+        raiseMinusBtn!.setAttribute("aria-disabled", minusDisabled ? "true" : "false");
+        raisePlusBtn!.setAttribute("aria-disabled", plusDisabled ? "true" : "false");
+        raiseMinusBtn!.tabIndex = minusDisabled ? -1 : 0;
+        raisePlusBtn!.tabIndex = plusDisabled ? -1 : 0;
+        raiseActionBtn!.disabled = true;
+        raiseActionBtn!.setAttribute("aria-disabled", "true");
         renderFacingBetPresets();
         updateFacingConfirmButton();
       }
 
       function renderFacingBetPresets(): void {
-        if (!spot || spot.kind !== "facing" || spot.answered) {
+        if (!spot || spot.kind !== "facing") {
           betPresetsEl!.replaceChildren();
           return;
         }
+        const answered = Boolean(spot.answered);
         const bounds = facingRaiseBounds();
         const options: { label: string; value: number; allIn?: boolean }[] = [];
         if (sizing && typeof sizing.potPresetRaiseTo === "function") {
@@ -795,6 +805,9 @@
           const button = doc.createElement("button");
           button.type = "button";
           button.textContent = option.label;
+          button.disabled = answered;
+          button.setAttribute("aria-disabled", answered ? "true" : "false");
+          button.tabIndex = answered ? -1 : 0;
           button.addEventListener("click", () => {
             if (!spot || spot.kind !== "facing" || spot.answered) return;
             spot.raiseTo = option.value;
@@ -1303,6 +1316,7 @@
         }
 
         trainerView.classList.toggle("is-facing", spot.kind === "facing");
+        // Facing: keep raise shell after answer (disabled). RFI stays compact.
         syncRaiseDisplay();
         const showRetry = spot.kind === "facing" && spot.correct === false;
         // Max 2 buttons: Next hand (primary) + Chart (secondary). Retry is a text link.

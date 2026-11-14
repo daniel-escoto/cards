@@ -22,8 +22,13 @@ assert.match(
 );
 assert.match(
   tableSrc,
-  /!\(room\.canRaise \|\| room\.canShove\)/,
-  "raise UI must respect raise-not-reopened",
+  /!options\.ignoreRaiseOpen && !\(room\.canRaise \|\| room\.canShove\)/,
+  "raise UI must respect raise-not-reopened on your turn",
+);
+assert.match(
+  tableSrc,
+  /ignoreRaiseOpen:\s*disabled/,
+  "off-turn disabled shell ignores raiseEligible so the panel does not collapse",
 );
 assert.match(
   tableSrc,

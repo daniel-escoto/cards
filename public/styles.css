@@ -3781,6 +3781,23 @@ body.hand-review-open .control-panel > .bet-controls,
 body.hand-review-open .control-panel > .winner-list {
   display: none !important;
 }
+/* In-spot retry: show the live Fold/Call + raise shell (same footprint as the table). */
+body.hand-review-open.hand-review-retrying .control-panel > .hand-review-chrome {
+  grid-row: 3;
+  align-self: start;
+}
+body.hand-review-open.hand-review-retrying .hand-review-nav {
+  display: none;
+}
+body.hand-review-open.hand-review-retrying .control-panel > .turn-info {
+  display: block !important;
+}
+body.hand-review-open.hand-review-retrying .control-panel > .game-buttons {
+  display: flex !important;
+}
+body.hand-review-open.hand-review-retrying .control-panel > .bet-controls {
+  display: grid !important;
+}
 /* Reuse .modal-head + .icon-btn from the game menu sheet. */
 .hand-review-chrome-head {
   min-width: 0;
