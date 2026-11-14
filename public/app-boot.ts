@@ -48,6 +48,7 @@ var endGameBtn = document.querySelector("#endGameBtn") as HTMLButtonElement;
 var shareGameBtn = document.querySelector("#shareGameBtn") as HTMLButtonElement;
 var backToMenuBtn = document.querySelector("#backToMenuBtn") as HTMLButtonElement;
 var sitOutBtn = document.querySelector("#sitOutBtn") as HTMLButtonElement;
+var copyForAiBtn = document.querySelector("#copyForAiBtn") as HTMLButtonElement;
 var hostActionsPanel = document.querySelector("#hostActionsPanel") as HTMLElement;
 var menuRoomCode = document.querySelector("#menuRoomCode") as HTMLElement;
 var menuRoomEyebrow = document.querySelector("#menuRoomEyebrow") as HTMLElement | null;
@@ -892,6 +893,19 @@ function syncCashInControls() {
   }
 }
 
+function syncCopyForAiBtn() {
+  if (!copyForAiBtn) return;
+  // Practice / offline handoff: always on. Online + spectator: between hands only.
+  const allowed = isOfflineSession()
+    ? true
+    : typeof CopyForAi !== "undefined" && CopyForAi.copyForAiAllowed
+      ? CopyForAi.copyForAiAllowed(state)
+      : ["lobby", "complete", "gameover"].includes(state?.phase || "");
+  copyForAiBtn.disabled = !allowed;
+  copyForAiBtn.title = allowed ? "Copy a plain-text hand prompt" : "Available after the hand";
+  copyForAiBtn.setAttribute("aria-disabled", allowed ? "false" : "true");
+}
+
 function showGameMenu() {
   openPlayerSheetId = "";
   showMenuMainView();
@@ -900,6 +914,7 @@ function showGameMenu() {
   const hero = activeHero();
   sitOutBtn.classList.toggle("hidden", !hero || isSpectatorView() || state?.phase === "gameover");
   if (hero) sitOutBtn.textContent = hero.sittingOut ? "Sit in" : "Sit out";
+  syncCopyForAiBtn();
   moneyPanel.classList.toggle(
     "hidden",
     !state?.moneyMode || isSpectatorView() || isOfflineSession(),

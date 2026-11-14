@@ -202,6 +202,21 @@ sitOutBtn.addEventListener("click", () => {
 
 shareGameBtn.addEventListener("click", showSharePanel);
 copyShareBtn.addEventListener("click", () => copyText(shareLink.value, copyShareBtn));
+copyForAiBtn?.addEventListener("click", async () => {
+  if (!state || copyForAiBtn.disabled) return;
+  if (typeof CopyForAi === "undefined" || !CopyForAi.buildCopyForAiPrompt) {
+    showToast("Copy for AI unavailable");
+    return;
+  }
+  if (!CopyForAi.copyForAiAllowed(state)) {
+    syncCopyForAiBtn();
+    showToast("Available after the hand");
+    return;
+  }
+  const prompt = CopyForAi.buildCopyForAiPrompt(state);
+  if (!prompt) return;
+  await copyText(prompt, copyForAiBtn);
+});
 openSettingsBtn.addEventListener("click", showMenuSettingsView);
 closeSettingsBtn.addEventListener("click", showMenuMainView);
 closeSettingsMenuBtn.addEventListener("click", hideGameMenu);

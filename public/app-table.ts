@@ -139,6 +139,7 @@ function render() {
       !menuHero || isSpectatorView() || room?.phase === "gameover",
     );
     if (menuHero) sitOutBtn.textContent = menuHero.sittingOut ? "Sit back in" : "Sit out";
+    if (typeof syncCopyForAiBtn === "function") syncCopyForAiBtn();
   }
   requestAnimationFrame(() => restoreActionFeedScroll(feedScroll));
 }
@@ -612,12 +613,44 @@ function flashCopyIcon(root: HTMLElement | null = roomCodeBtn) {
   }, 1200);
 }
 
+async function writeClipboardText(text: string) {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall through to execCommand fallback (older browsers / insecure contexts).
+    }
+  }
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.top = "0";
+  area.style.left = "0";
+  area.style.opacity = "0";
+  document.body.appendChild(area);
+  area.focus();
+  area.select();
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    area.remove();
+  }
+}
+
 async function copyText(text: string, button: HTMLElement) {
   if (!text) return;
-  await navigator.clipboard.writeText(text);
+  const ok = await writeClipboardText(text);
+  if (!ok) {
+    showToast("Could not copy");
+    return;
+  }
   const original = button.textContent;
   button.textContent = "Copied";
-  showToast("Copied to clipboard");
+  showToast("Copied");
   setTimeout(() => {
     button.textContent = original;
   }, 1200);

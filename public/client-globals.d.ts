@@ -148,6 +148,19 @@ declare global {
 
   const PracticeSession: PracticeSessionAPI;
 
+  interface CopyForAiAPI {
+    isBettingPhase(phase: string | null | undefined): boolean;
+    isBetweenHands(phase: string | null | undefined): boolean;
+    handIsOver(phase: string | null | undefined): boolean;
+    copyForAiAllowed(room: ClientRoom | null | undefined): boolean;
+    formatCardPlain(card: PublicCard | null | undefined): string | null;
+    visibleCardsPlain(cards: Array<PublicCard | null | undefined> | null | undefined): string[];
+    positionByPlayerId(players: ClientPlayer[]): Map<string, string>;
+    buildCopyForAiPrompt(room: ClientRoom | null | undefined): string;
+  }
+
+  const CopyForAi: CopyForAiAPI;
+
   interface DeployHandoffAPI {
     ACTIVE_HAND_PHASES: Set<string>;
     isActiveHandPhase(phase: unknown): boolean;
@@ -424,6 +437,7 @@ declare global {
   var shareGameBtn: HTMLButtonElement;
   var backToMenuBtn: HTMLButtonElement;
   var sitOutBtn: HTMLButtonElement;
+  var copyForAiBtn: HTMLButtonElement;
   var hostActionsPanel: HTMLElement;
   var menuRoomCode: HTMLElement;
   var menuRoomEyebrow: HTMLElement | null;
@@ -713,5 +727,7 @@ declare global {
   function autoJoinInitialRoom(): void;
   function reportVisibility(): void;
   function flashCopyIcon(root?: HTMLElement | null): void;
+  function writeClipboardText(text: string): Promise<boolean>;
   function copyText(text: string, button: HTMLElement): Promise<void>;
+  function syncCopyForAiBtn(): void;
 }
