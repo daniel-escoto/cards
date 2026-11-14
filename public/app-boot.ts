@@ -52,9 +52,19 @@ var endGameBtn = document.querySelector("#endGameBtn") as HTMLButtonElement;
 var shareGameBtn = document.querySelector("#shareGameBtn") as HTMLButtonElement;
 var backToMenuBtn = document.querySelector("#backToMenuBtn") as HTMLButtonElement;
 var sitOutBtn = document.querySelector("#sitOutBtn") as HTMLButtonElement;
-var coachBtn = document.querySelector("#coachBtn") as HTMLButtonElement;
+var handReviewBtn = document.querySelector("#handReviewBtn") as HTMLButtonElement;
 var copyForAiBtn = document.querySelector("#copyForAiBtn") as HTMLButtonElement;
-var coachHint = document.querySelector("#coachHint") as HTMLElement;
+var handReviewChrome = document.querySelector("#handReviewChrome") as HTMLElement;
+var handReviewCloseBtn = document.querySelector("#handReviewCloseBtn") as HTMLButtonElement;
+var handReviewSummary = document.querySelector("#handReviewSummary") as HTMLElement;
+var handReviewVerdict = document.querySelector("#handReviewVerdict") as HTMLElement;
+var handReviewRetryBar = document.querySelector("#handReviewRetryBar") as HTMLElement;
+var handReviewTimeline = document.querySelector("#handReviewTimeline") as HTMLElement;
+var handReviewStepLabel = document.querySelector("#handReviewStepLabel") as HTMLElement;
+var handReviewStartBtn = document.querySelector("#handReviewStartBtn") as HTMLButtonElement;
+var handReviewPrevBtn = document.querySelector("#handReviewPrevBtn") as HTMLButtonElement;
+var handReviewNextBtn = document.querySelector("#handReviewNextBtn") as HTMLButtonElement;
+var handReviewEndBtn = document.querySelector("#handReviewEndBtn") as HTMLButtonElement;
 var hostActionsPanel = document.querySelector("#hostActionsPanel") as HTMLElement;
 var menuRoomCode = document.querySelector("#menuRoomCode") as HTMLElement;
 var menuRoomEyebrow = document.querySelector("#menuRoomEyebrow") as HTMLElement | null;
@@ -477,7 +487,14 @@ function applyRoomUpdate(room: ClientRoom) {
       state.handNumber !== room.handNumber ||
       state.phase !== room.phase);
   syncServerTimeOffset(room);
+  // While reviewing, keep the live room for later restore; don't yank the replay frame.
+  if (typeof handReviewActive !== "undefined" && handReviewActive) {
+    handReviewSavedState = room;
+    if (typeof recordHandReviewRoom === "function") recordHandReviewRoom(room);
+    return;
+  }
   state = room;
+  if (typeof recordHandReviewRoom === "function") recordHandReviewRoom(room);
   if (newTurn) tableSounds.turn();
   const self = state.players.find((player) => player.isYou && !player.isBot);
   if (self) {
@@ -924,46 +941,26 @@ function syncCashInControls() {
   }
 }
 
-var COACH_PREF_KEY = "holdem:coachEnabled";
-
-function coachPrefEnabled() {
-  try {
-    return localStorage.getItem(COACH_PREF_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function setCoachPrefEnabled(enabled: boolean) {
-  try {
-    localStorage.setItem(COACH_PREF_KEY, enabled ? "1" : "0");
-  } catch {
-    /* ignore quota / private mode */
-  }
-}
-
-function coachFeatureAvailable(room: ClientRoom | null | undefined = state) {
+/** Bot-only games: hero vs bots (same gate the live coach used). */
+function handReviewFeatureAvailable(room: ClientRoom | null | undefined = state) {
   if (!room || isSpectatorView(room)) return false;
   if (typeof room.coachAvailable === "boolean") return room.coachAvailable;
-  // Client-side fallback for older snapshots: seated human vs bots only.
   const hero = room.players?.find((player) => player.isYou);
   if (!hero || hero.isBot) return false;
   return (room.players || []).every((player) => player.isYou || player.isBot);
 }
 
-function syncCoachBtn() {
-  if (!coachBtn) return;
-  const available = coachFeatureAvailable();
-  const on = available && coachPrefEnabled();
-  coachBtn.disabled = !available;
-  coachBtn.textContent = on ? "Coach: On" : "Coach: Off";
-  coachBtn.setAttribute("aria-pressed", on ? "true" : "false");
-  coachBtn.title = available
-    ? on
-      ? "Hide coach hints on your turn"
-      : "Show equity and action hints on your turn (bot games only)"
-    : "Bot games only";
-  coachBtn.setAttribute("aria-disabled", available ? "false" : "true");
+function syncHandReviewBtn() {
+  if (!handReviewBtn) return;
+  const available =
+    handReviewFeatureAvailable() &&
+    typeof lastHandReplay !== "undefined" &&
+    lastHandReplay != null &&
+    lastHandReplay.steps.length > 0;
+  handReviewBtn.classList.toggle("hidden", !available);
+  handReviewBtn.disabled = !available;
+  handReviewBtn.setAttribute("aria-disabled", available ? "false" : "true");
+  handReviewBtn.title = available ? "Replay the last hand on the table" : "Bot games only";
 }
 
 function copyForAiFeatureAvailable(room: ClientRoom | null | undefined = state) {
@@ -991,7 +988,7 @@ function showGameMenu() {
   const hero = activeHero();
   sitOutBtn.classList.toggle("hidden", !hero || isSpectatorView() || state?.phase === "gameover");
   if (hero) sitOutBtn.textContent = hero.sittingOut ? "Sit in" : "Sit out";
-  syncCoachBtn();
+  syncHandReviewBtn();
   syncCopyForAiBtn();
   moneyPanel.classList.toggle(
     "hidden",
@@ -1231,6 +1228,22 @@ function nextToActSeat(
     if (seatCanActThisStreet(seat)) return seat;
   }
   return null;
+}
+
+/**
+ * Arrow on the acting row pointing toward the next-to-act row in visual list order.
+ * ▲ = next seat is above (including wraparound); ▼ = next seat is below.
+ */
+function nextActArrowGlyph(
+  visualSeats: Array<{ id: string }>,
+  actingId: string | null | undefined,
+  nextId: string | null | undefined,
+): "▲" | "▼" | "" {
+  if (!actingId || !nextId || actingId === nextId) return "";
+  const actingIdx = visualSeats.findIndex((seat) => seat.id === actingId);
+  const nextIdx = visualSeats.findIndex((seat) => seat.id === nextId);
+  if (actingIdx < 0 || nextIdx < 0) return "";
+  return nextIdx < actingIdx ? "▲" : "▼";
 }
 
 /** Live seat with no street action yet — blank used to look "resolved". */
@@ -1648,6 +1661,8 @@ function renderActionFeed(newEntryId = "") {
   const entries = streetActionEntries(room.actionLog, room.phase);
   const activePlayer = currentTurnPlayer();
   const nextPlayer = nextToActSeat(room.players, room.turn, room.phase);
+  const seats = seatedPlayers();
+  const nextArrow = nextActArrowGlyph(seats, activePlayer?.id, nextPlayer?.id);
   const latestByPlayer = new Map<string, ActionLogEntry>();
   entries.forEach((entry) => {
     // Blind posts aren't actions; the SB/BB chips mark those seats for the whole hand.
@@ -1655,11 +1670,10 @@ function renderActionFeed(newEntryId = "") {
     const player = playerForAction(entry);
     if (player) latestByPlayer.set(player.id, entry);
   });
-  const tableMarkup = seatedPlayers()
+  const tableMarkup = seats
     .map((player) => {
       const entry = latestByPlayer.get(player.id);
       const isActing = player.id === activePlayer?.id;
-      const isNext = Boolean(nextPlayer && player.id === nextPlayer.id && !isActing);
       const betweenHands = ["lobby", "complete"].includes(room.phase);
       const isAllIn = Boolean(player.allIn);
       const isOutOfAction = player.folded || isAllIn;
@@ -1674,11 +1688,9 @@ function renderActionFeed(newEntryId = "") {
         : playerTableStatus(player, isActing);
       let actionClass = showStreetAction ? actionTokenClass(entry, player) : "";
       if (!action && waiting) {
-        // Next seat prefers a muted "Next"; everyone else gets an em dash so blank ≠ resolved.
-        action = isNext ? "Next" : "—";
-        actionClass = isNext ? " is-next" : " is-waiting";
-      } else if (isNext && !isActing) {
-        actionClass = `${actionClass} is-next`;
+        // Waiting seats share a muted em dash — next-to-act is the arrow on the actor.
+        action = "—";
+        actionClass = " is-waiting";
       }
       const showTurnClock = isActing && actingSeatShowsClock(player);
       const showReadyClock = !showTurnClock && seatShowsReadyClock(player);
@@ -1720,11 +1732,15 @@ function renderActionFeed(newEntryId = "") {
         : showReadyClock
           ? ' data-ready-seat-clock="1"'
           : "";
+      const arrowMarkup =
+        isActing && nextArrow
+          ? `<span class="next-act-arrow" title="Next to act ${nextArrow === "▲" ? "above" : "below"}" aria-label="Next player ${nextArrow === "▲" ? "above" : "below"}">${nextArrow}</span>`
+          : "";
       return `
-      <article class="table-player-row ${isActing ? "turn" : ""} ${isNext ? "next-to-act" : ""} ${showClock ? "shot-clock" : ""} ${lowTime ? "low-time" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${seatClockAttr}${styleAttr}>
+      <article class="table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${lowTime ? "low-time" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${seatClockAttr}${styleAttr}>
         <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
         <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}</span>${seatChipMarkup(player)}</span>
-        <span class="player-action${actionClass}">${escapeHtml(action)}${clockMarkup}</span>
+        <span class="player-action${actionClass}">${escapeHtml(action)}${arrowMarkup}${clockMarkup}</span>
         <strong class="player-stack">${playerStackLabel(player)}</strong>
         ${barMarkup}
       </article>

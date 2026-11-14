@@ -77,7 +77,10 @@ window.HoldemFormat = {
     String(value).replace(/[&<>"']/g, (char) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char],
     ),
-  cardTemplate: (card) => `<div class="card">${card.rank}${card.suit}</div>`,
+  cardTemplate: (card) =>
+    card
+      ? `<div class="card">${card.rank}${card.suit}</div>`
+      : `<div class="card back"><span></span><span></span></div>`,
 };
 window.startOfflineHost = undefined;
 window.localStorage = {

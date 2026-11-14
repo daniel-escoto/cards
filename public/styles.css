@@ -221,23 +221,21 @@ button:disabled {
   display: none !important;
 }
 
-/* —— Landing / lobby (welcome) + offline Trainer —— */
-body:has(#welcome:not(.hidden)),
-body:has(#trainerView:not(.hidden)) {
+/* —— Landing / lobby (welcome) —— */
+body:has(#welcome:not(.hidden)) {
   background:
     radial-gradient(ellipse 70% 50% at 50% -12%, rgba(96, 165, 250, 0.22), transparent 55%),
     linear-gradient(145deg, #10171b 0%, var(--bg) 68%);
 }
 
-:root[data-theme="light"] body:has(#welcome:not(.hidden)),
-:root[data-theme="light"] body:has(#trainerView:not(.hidden)) {
+:root[data-theme="light"] body:has(#welcome:not(.hidden)) {
   background:
     radial-gradient(ellipse 70% 50% at 50% -10%, rgba(37, 99, 185, 0.12), transparent 55%),
     linear-gradient(145deg, #f8faf6 0%, var(--bg) 68%);
 }
 
-body:has(#welcome:not(.hidden)) .app,
-body:has(#trainerView:not(.hidden)) .app {
+/* Welcome stays narrow; Trainer uses the same .app width as Practice/table-view. */
+body:has(#welcome:not(.hidden)) .app {
   width: min(720px, 100%);
   padding: 16px;
 }
@@ -612,46 +610,6 @@ html.trainer-open-root {
   /* theme tokens live on :root */
 }
 
-.trainer-board {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-  justify-content: center;
-  min-height: 0;
-}
-
-.trainer-board .card {
-  width: clamp(72px, 8vw, 110px);
-}
-
-/* Keep seats packed above the action panel (not stranded under a void of felt). */
-.trainer-view .players {
-  justify-content: flex-end;
-}
-
-.trainer-view .players > :first-child {
-  margin-top: 0;
-}
-
-.trainer-board-label {
-  padding: 6px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
-  background: rgba(8, 16, 18, 0.28);
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-:root[data-theme="light"] .trainer-board-label {
-  border-color: rgba(24, 38, 33, 0.14);
-  background: rgba(255, 255, 255, 0.55);
-  color: color-mix(in srgb, var(--text) 72%, transparent);
-}
-
 #trainerAccuracy:empty,
 #trainerAccuracy.hidden {
   display: none;
@@ -950,32 +908,9 @@ html.trainer-open-root {
   }
 }
 
+/* Trainer uses the same .felt / .community / .players / .control-panel layout as Practice
+   at every breakpoint — no trainer-only desktop grid overrides. */
 @media (max-width: 779px) {
-  /* Phones keep hole cards in the action panel; community is just a PREFLOP badge. */
-  .trainer-view .felt {
-    position: relative;
-    grid-template-rows: auto minmax(0, 1fr) auto;
-  }
-
-  .trainer-view .trainer-board {
-    grid-row: 1;
-    min-height: 0;
-    padding: 0;
-  }
-
-  .trainer-view .trainer-board .card {
-    display: none;
-  }
-
-  .trainer-view .players {
-    grid-row: 2;
-    overflow-y: auto;
-  }
-
-  .trainer-view .control-panel {
-    grid-row: 3;
-  }
-
   .trainer-chart-panel {
     width: 100%;
     max-height: min(780px, calc(100dvh - 16px));
@@ -983,52 +918,6 @@ html.trainer-open-root {
 }
 
 @media (min-width: 780px) {
-  /*
-   * Match Practice: seats left, spotlight cards top-right, compact action panel bottom-right.
-   * Large hole cards fill the community slot so the felt isn't empty.
-   */
-  .trainer-view .felt {
-    overflow: hidden;
-  }
-
-  .trainer-view .trainer-board {
-    position: static;
-    grid-column: 2;
-    grid-row: 1;
-    align-self: center;
-    transform: none;
-    min-height: 160px;
-  }
-
-  .trainer-view .trainer-board-label {
-    position: absolute;
-    top: 14px;
-    left: 14px;
-    padding: 4px 10px;
-    font-size: 11px;
-  }
-
-  .trainer-view #trainerHeroHand {
-    display: none;
-  }
-
-  .trainer-view .players {
-    position: static;
-    grid-column: 1;
-    grid-row: 1 / 3;
-  }
-
-  .trainer-view .control-panel {
-    grid-column: 2;
-    grid-row: 2;
-    align-self: end;
-    justify-self: stretch;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    min-height: 0;
-  }
-
   .trainer-chart-panel {
     width: min(520px, 100%);
   }
@@ -2392,11 +2281,6 @@ button.menu-player-row:not(:disabled):hover {
   background: color-mix(in srgb, var(--accent) 16%, rgba(8, 16, 18, 0.45));
   box-shadow: inset 3px 0 0 var(--player-color, var(--accent));
 }
-/* Next-to-act: clearly weaker than .turn (no fill bump, thinner/fainter inset). */
-.table-player-row.next-to-act:not(.turn) {
-  border-color: color-mix(in srgb, var(--accent) 22%, rgba(255, 255, 255, 0.1));
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--player-color, var(--accent)) 32%, transparent);
-}
 .table-player-row.folded {
   opacity: 0.55;
 }
@@ -2506,10 +2390,20 @@ button.menu-player-row:not(:disabled):hover {
   white-space: nowrap;
   text-align: right;
 }
-.player-action.is-waiting,
-.player-action.is-next {
+.player-action.is-waiting {
   color: rgba(255, 255, 255, 0.38);
   font-weight: 550;
+}
+/* Direction toward the next-to-act seat — lives on the Acting row, not the next row. */
+.next-act-arrow {
+  display: inline-block;
+  margin-left: 0.35em;
+  color: color-mix(in srgb, var(--accent) 72%, rgba(255, 255, 255, 0.55));
+  font-size: 0.78em;
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: 0.08em;
+  letter-spacing: 0;
 }
 .player-stack {
   /* Same width on every row (each row is its own grid), so status and stack columns line up. */
@@ -3715,6 +3609,268 @@ kbd {
   grid-row: 3 / 6;
   align-self: center;
   text-align: center;
+}
+
+/* —— Hand review replay (lives inside .control-panel, below hero/pot) ——
+   Same felt / seat / board layout as a live hand — only the action-slot contents swap. */
+.control-panel > .hand-review-chrome {
+  grid-row: 3 / 6;
+  align-self: stretch;
+  min-height: 0;
+}
+.hand-review-chrome {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+.hand-review-chrome.hidden {
+  display: none;
+}
+/* Swap in review chrome the same way Ready/actions replace each other — no overlay,
+   and keep the live-game control-panel track sizes (do not retarget grid-template-rows). */
+body.hand-review-open .control-panel > .turn-info,
+body.hand-review-open .control-panel > .game-buttons,
+body.hand-review-open .control-panel > .bet-controls,
+body.hand-review-open .control-panel > .winner-list {
+  display: none !important;
+}
+.hand-review-chrome-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.hand-review-chrome-head .eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45em;
+  margin: 0;
+  min-width: 0;
+}
+.hand-review-summary {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.3;
+}
+.control-panel .hand-review-close {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  margin: 0;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1;
+  transform: none;
+}
+.control-panel .hand-review-close:hover,
+.control-panel .hand-review-close:active {
+  background: transparent;
+  color: var(--text);
+  transform: none;
+}
+.hand-review-verdict {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--text);
+}
+.hand-review-verdict.hidden {
+  display: none;
+}
+.hand-review-verdict-mark {
+  font-weight: 800;
+}
+.hand-review-verdict-why {
+  color: var(--muted);
+  font-weight: 650;
+}
+.hand-review-verdict.is-best .hand-review-verdict-mark {
+  color: color-mix(in srgb, #3d9a5f 90%, var(--text));
+}
+.hand-review-verdict.is-fine .hand-review-verdict-mark {
+  color: color-mix(in srgb, #c9a227 90%, var(--text));
+}
+.hand-review-verdict.is-mistake .hand-review-verdict-mark {
+  color: color-mix(in srgb, var(--danger) 92%, var(--text));
+}
+/* Neutral to-act prompt (Try again) — not the mistake/error look. */
+.hand-review-verdict.is-prompt {
+  color: var(--text);
+  font-weight: 700;
+}
+.hand-review-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+/* Keep nav squares compact even under .control-panel button { min-height: 48px }. */
+.control-panel .hand-review-nav > button {
+  flex: 0 0 auto;
+  width: 32px;
+  min-width: 32px;
+  max-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  max-height: 32px;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+}
+.hand-review-timeline-wrap {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+}
+.hand-review-timeline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 4px 2px;
+  scrollbar-width: none;
+}
+.hand-review-timeline::-webkit-scrollbar {
+  display: none;
+}
+/* Round dots — beat global / desktop button min-height so they stay circles, not ovals. */
+.control-panel .hand-review-dot,
+.hand-review-dot {
+  box-sizing: border-box;
+  flex: 0 0 12px;
+  width: 12px !important;
+  height: 12px !important;
+  min-width: 12px !important;
+  min-height: 12px !important;
+  max-width: 12px !important;
+  max-height: 12px !important;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--muted) 45%, var(--line));
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+  padding: 0 !important;
+  margin: 0;
+  line-height: 0;
+  font-size: 0;
+  cursor: pointer;
+  box-shadow: none;
+  transform: none;
+}
+.hand-review-dot:hover,
+.hand-review-dot:active {
+  transform: none;
+}
+.hand-review-dot.is-active {
+  /* Ring for the current step (outline can clip; dual box-shadow stays round). */
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+}
+.hand-review-dot.is-hero.is-best {
+  border-color: #3d9a5f;
+  background: color-mix(in srgb, #3d9a5f 70%, transparent);
+}
+.hand-review-dot.is-hero.is-fine {
+  border-color: #c9a227;
+  background: color-mix(in srgb, #c9a227 70%, transparent);
+}
+.hand-review-dot.is-hero.is-mistake {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 70%, transparent);
+}
+.hand-review-step-label {
+  flex: 0 1 auto;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 42%;
+}
+.hand-review-retry-bar {
+  display: grid;
+  gap: 6px;
+}
+.hand-review-retry-bar.hidden {
+  display: none;
+}
+.hand-review-retry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.hand-review-retry-actions > button {
+  flex: 1 1 28%;
+  min-height: 44px;
+}
+.hand-review-retry-feedback {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  min-height: 1.2em;
+}
+.hand-review-retry-feedback.is-correct {
+  color: color-mix(in srgb, #3d9a5f 90%, var(--text));
+}
+.hand-review-retry-feedback.is-wrong {
+  color: color-mix(in srgb, var(--danger) 90%, var(--text));
+}
+.control-panel .hand-review-continue {
+  justify-self: start;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transform: none;
+}
+.control-panel .hand-review-continue:hover,
+.control-panel .hand-review-continue:active {
+  background: transparent;
+  color: var(--text);
+  transform: none;
+}
+.control-panel .hand-review-continue[hidden] {
+  display: none !important;
 }
 .result-line {
   display: grid;

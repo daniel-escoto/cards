@@ -108,6 +108,55 @@
   }
 
   /**
+   * Initial raise-to when the bet panel opens.
+   * Facing a bet: always the minimum legal raise (never the Call detent / "0").
+   * Free check with merge: Check detent so confirm stays Check until sized.
+   */
+  function initialRaiseTo({
+    facingBet,
+    mergePassiveConfirm,
+    currentBet,
+    minRaiseTo,
+    maxRaiseTo,
+    preferredRaiseTo,
+  }: {
+    facingBet: boolean;
+    mergePassiveConfirm: boolean;
+    currentBet: unknown;
+    minRaiseTo: unknown;
+    maxRaiseTo: unknown;
+    preferredRaiseTo?: unknown;
+  }) {
+    const max = Math.max(0, Math.floor(Number(maxRaiseTo) || 0));
+    const minLegal = Math.min(max, Math.max(0, Math.floor(Number(minRaiseTo) || 0)));
+    if (mergePassiveConfirm && !facingBet) {
+      return Math.min(max, passiveDetentValue(currentBet));
+    }
+    const preferred = Math.floor(Number(preferredRaiseTo));
+    const target = Number.isFinite(preferred) ? preferred : minLegal;
+    return Math.max(minLegal, Math.min(max, target));
+  }
+
+  /**
+   * Chips shown in the RAISE TO / BET box.
+   * Check detent → 0. Call detent / real raises → the raise-to amount (never 0
+   * while facing a bet the hero can raise).
+   */
+  function displayRaiseAmount({
+    facingBet,
+    atDetent,
+    value,
+  }: {
+    facingBet: boolean;
+    atDetent: boolean;
+    value: unknown;
+  }) {
+    const chips = Math.max(0, Math.floor(Number(value) || 0));
+    if (atDetent && !facingBet) return 0;
+    return chips;
+  }
+
+  /**
    * One stepper/keyboard nudge. From the passive detent, the first up-step is a
    * real min raise (or all-in); from min raise, the first down-step returns to
    * the detent (Check or Call).
@@ -160,6 +209,8 @@
     callDetentValue,
     isCallDetent,
     usesPassiveDetent,
+    initialRaiseTo,
+    displayRaiseAmount,
     clampRaiseTo,
     nudgeRaiseTo,
   };

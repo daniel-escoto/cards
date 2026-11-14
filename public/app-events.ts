@@ -204,17 +204,49 @@ shareGameBtn.addEventListener("click", showSharePanel);
 copyShareBtn.addEventListener("click", () => copyText(shareLink.value, copyShareBtn));
 closeInviteBtn?.addEventListener("click", showMenuMainView);
 closeInviteMenuBtn?.addEventListener("click", hideGameMenu);
-coachBtn?.addEventListener("click", () => {
-  if (!coachFeatureAvailable()) {
-    syncCoachBtn();
-    showToast("Bot games only");
-    return;
-  }
-  setCoachPrefEnabled(!coachPrefEnabled());
-  syncCoachBtn();
-  if (typeof renderCoachHint === "function") renderCoachHint();
-  showToast(coachPrefEnabled() ? "Coach on" : "Coach off");
+handReviewBtn?.addEventListener("click", () => {
+  hideGameMenu();
+  if (typeof openHandReview === "function") openHandReview();
 });
+handReviewCloseBtn?.addEventListener("click", () => {
+  if (typeof hideHandReview === "function") hideHandReview();
+});
+handReviewStartBtn?.addEventListener("click", () => {
+  if (typeof paintHandReviewStep === "function") paintHandReviewStep(0);
+});
+handReviewPrevBtn?.addEventListener("click", () => {
+  if (typeof handReviewStepBy === "function") handReviewStepBy(-1);
+});
+handReviewNextBtn?.addEventListener("click", () => {
+  if (typeof handReviewStepBy === "function") handReviewStepBy(1);
+});
+handReviewEndBtn?.addEventListener("click", () => {
+  if (typeof lastHandReplay !== "undefined" && lastHandReplay && typeof paintHandReviewStep === "function") {
+    paintHandReviewStep(lastHandReplay.steps.length - 1);
+  }
+});
+// Swipe on the chrome / felt for prev/next on phones.
+let handReviewSwipeX = 0;
+document.addEventListener(
+  "touchstart",
+  (event) => {
+    if (typeof handReviewActive === "undefined" || !handReviewActive) return;
+    handReviewSwipeX = event.changedTouches[0]?.clientX || 0;
+  },
+  { passive: true },
+);
+document.addEventListener(
+  "touchend",
+  (event) => {
+    if (typeof handReviewActive === "undefined" || !handReviewActive) return;
+    if (typeof handReviewRetryItem !== "undefined" && handReviewRetryItem) return;
+    const x = event.changedTouches[0]?.clientX || 0;
+    const dx = x - handReviewSwipeX;
+    if (Math.abs(dx) < 48) return;
+    if (typeof handReviewStepBy === "function") handReviewStepBy(dx < 0 ? 1 : -1);
+  },
+  { passive: true },
+);
 copyForAiBtn?.addEventListener("click", async () => {
   if (!state || copyForAiBtn.disabled) return;
   if (typeof CopyForAi === "undefined" || !CopyForAi.buildCopyForAiPrompt) {
@@ -399,13 +431,29 @@ document.addEventListener("keydown", (event) => {
     revealRabbitBoard();
     return;
   }
+  if (event.key === "Escape" && typeof handReviewActive !== "undefined" && handReviewActive) {
+    if (typeof hideHandReview === "function") hideHandReview();
+    return;
+  }
   if (event.key === "Escape" && !gameMenuModal.classList.contains("hidden")) {
     hideGameMenu();
     return;
   }
   if (
+    typeof handReviewActive !== "undefined" &&
+    handReviewActive &&
+    (event.key === "ArrowLeft" || event.key === "ArrowRight")
+  ) {
+    event.preventDefault();
+    if (typeof handReviewStepBy === "function") {
+      handReviewStepBy(event.key === "ArrowLeft" ? -1 : 1);
+    }
+    return;
+  }
+  if (
     !state ||
     !gameMenuModal.classList.contains("hidden") ||
+    (typeof handReviewActive !== "undefined" && handReviewActive) ||
     event.metaKey ||
     event.ctrlKey ||
     event.altKey

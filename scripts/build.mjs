@@ -87,6 +87,30 @@ await esbuild.build({
   logLevel: "info",
 });
 
+// Node CJS hand review — keep for tests; browser IIFE overwrites .js.
+// coach-odds.js is already the browser IIFE by this point, so retarget the CJS
+// require at coach-odds.node.js for Node unit tests.
+{
+  const nodePath = path.join(dist, "shared/hand-review.node.js");
+  copyFile(path.join(dist, "shared/hand-review.js"), nodePath);
+  const nodeSrc = fs
+    .readFileSync(nodePath, "utf8")
+    .replace(/require\("\.\/coach-odds"\)/g, 'require("./coach-odds.node")');
+  fs.writeFileSync(nodePath, nodeSrc);
+}
+
+await esbuild.build({
+  absWorkingDir: root,
+  entryPoints: [path.join(root, "shared/hand-review.ts")],
+  outfile: path.join(dist, "shared/hand-review.js"),
+  bundle: true,
+  format: "iife",
+  globalName: "HandReview",
+  platform: "browser",
+  target: ["es2022"],
+  logLevel: "info",
+});
+
 copyFile(path.join(root, "shared/pokersolver.js"), path.join(dist, "shared/pokersolver.js"));
 
 const staticFiles = ["index.html", "styles.css", "icon.svg", "manifest.webmanifest"];

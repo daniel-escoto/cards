@@ -58,7 +58,29 @@ assert.doesNotMatch(trainer, /onPractice/);
 assert.match(css, /--trainer-chart-raise-bg/);
 assert.match(css, /--trainer-chart-fold-bg/);
 assert.match(css, /\.trainer-why/);
-assert.match(css, /\.trainer-view \.felt/);
 assert.match(css, /\.coach-hint/);
+// Trainer reuses Practice .felt / .community / .players / .control-panel — no desktop overrides.
+assert.match(
+  css,
+  /Trainer uses the same \.felt \/ \.community \/ \.players \/ \.control-panel layout as Practice/,
+);
+assert.doesNotMatch(css, /\.trainer-view \.felt\s*\{/);
+assert.doesNotMatch(css, /\.trainer-view \.players\s*\{/);
+assert.doesNotMatch(css, /\.trainer-view \.community\s*\{/);
+assert.doesNotMatch(css, /\.trainer-view \.control-panel\s*\{/);
+// Welcome stays 720px; Trainer must not inherit that narrow app width.
+assert.doesNotMatch(css, /body:has\(#trainerView:not\(\.hidden\)\)\s*\.app/);
+assert.match(html, /id="trainerCommunity" class="community"/);
+assert.match(html, /id="trainerControlPanel" class="control-panel/);
+assert.match(html, /id="trainerPlayers" class="players"/);
+// Community slot matches Practice preflop: five face-down .card.back, no Preflop pill.
+assert.match(
+  html,
+  /id="trainerCommunity" class="community"[^>]*>\s*(?:<div class="card back"><span><\/span><span><\/span><\/div>\s*){5}<\/div>/,
+);
+assert.doesNotMatch(html, /trainer-board-label/);
+assert.doesNotMatch(css, /\.trainer-board-label/);
+assert.match(trainer, /facedownBoardHtml/);
+assert.doesNotMatch(trainer, /trainer-board/);
 
 console.log("Trainer UI markup checks passed.");

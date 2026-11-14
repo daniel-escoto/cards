@@ -286,6 +286,19 @@ declare global {
       mergeCallRaise?: boolean;
       hardDetent?: boolean;
     }): boolean;
+    initialRaiseTo(options: {
+      facingBet: boolean;
+      mergePassiveConfirm: boolean;
+      currentBet: unknown;
+      minRaiseTo: unknown;
+      maxRaiseTo: unknown;
+      preferredRaiseTo?: unknown;
+    }): number;
+    displayRaiseAmount(options: {
+      facingBet: boolean;
+      atDetent: boolean;
+      value: unknown;
+    }): number;
     clampRaiseTo(rawValue: unknown, bounds?: RaiseBoundsInput): number;
     nudgeRaiseTo(rawValue: unknown, direction: number, bounds?: RaiseBoundsInput): number;
   }
@@ -622,10 +635,42 @@ declare global {
   var shareGameBtn: HTMLButtonElement;
   var backToMenuBtn: HTMLButtonElement;
   var sitOutBtn: HTMLButtonElement;
-  var coachBtn: HTMLButtonElement;
+  var handReviewBtn: HTMLButtonElement;
   var copyForAiBtn: HTMLButtonElement;
-  var coachHint: HTMLElement;
-  var COACH_PREF_KEY: string;
+  var handReviewChrome: HTMLElement;
+  var handReviewCloseBtn: HTMLButtonElement;
+  var handReviewSummary: HTMLElement;
+  var handReviewVerdict: HTMLElement;
+  var handReviewRetryBar: HTMLElement;
+  var handReviewTimeline: HTMLElement;
+  var handReviewStepLabel: HTMLElement;
+  var handReviewStartBtn: HTMLButtonElement;
+  var handReviewPrevBtn: HTMLButtonElement;
+  var handReviewNextBtn: HTMLButtonElement;
+  var handReviewEndBtn: HTMLButtonElement;
+  var handReviewActive: boolean;
+  var handReviewSavedState: ClientRoom | null;
+  var handReviewRetryItem: { verdict: string } | null;
+  var lastHandReplay: {
+    steps: Array<{
+      id: string;
+      index: number;
+      label: string;
+      decision: {
+        verdict: "best" | "fine" | "mistake";
+        badge: string;
+        reason: string;
+        taken: string;
+        raiseTo: number | null;
+      } | null;
+      isHeroDecision: boolean;
+    }>;
+    items: Array<{ verdict: string }>;
+    best: number;
+    fine: number;
+    mistake: number;
+    summary: string;
+  } | null;
   var hostActionsPanel: HTMLElement;
   var menuRoomCode: HTMLElement;
   var menuRoomEyebrow: HTMLElement | null;
@@ -820,6 +865,11 @@ declare global {
     turnId: string | null | undefined,
     phase: string | null | undefined,
   ): ClientPlayer | null;
+  function nextActArrowGlyph(
+    visualSeats: Array<{ id: string }>,
+    actingId: string | null | undefined,
+    nextId: string | null | undefined,
+  ): "▲" | "▼" | "";
   function seatWaitingForStreetAction(
     player: ClientPlayer,
     options: { hasStreetAction: boolean; isActing: boolean; phase: string | null | undefined },
@@ -918,11 +968,99 @@ declare global {
   function flashCopyIcon(root?: HTMLElement | null): void;
   function writeClipboardText(text: string): Promise<boolean>;
   function copyText(text: string, button: HTMLElement): Promise<void>;
-  function coachPrefEnabled(): boolean;
-  function setCoachPrefEnabled(enabled: boolean): void;
-  function coachFeatureAvailable(room?: ClientRoom | null): boolean;
-  function syncCoachBtn(): void;
+  function handReviewFeatureAvailable(room?: ClientRoom | null): boolean;
+  function syncHandReviewBtn(): void;
+  function openHandReview(): void;
+  function hideHandReview(): void;
+  function paintHandReviewStep(index: number): void;
+  function handReviewStepBy(delta: number): void;
+  function recordHandReviewRoom(room: ClientRoom): void;
   function copyForAiFeatureAvailable(room?: ClientRoom | null): boolean;
   function syncCopyForAiBtn(): void;
-  function renderCoachHint(): void;
+
+  interface HandReviewAPI {
+    legalRaiseTo(
+      rawValue: unknown,
+      bounds?: { minRaiseTo?: number; maxRaiseTo?: number; step?: number },
+    ): number;
+    recommendAction(input: Record<string, unknown>): {
+      action: string;
+      raiseTo: number | null;
+      advice: unknown;
+      potOdds: number;
+    };
+    gradeHandDecision(
+      decision: Record<string, unknown>,
+      options?: Record<string, unknown>,
+    ): {
+      id: string;
+      street: string;
+      boardCodes: string[];
+      heroCodes: [string, string];
+      pot: number;
+      toCall: number;
+      currentBet: number;
+      taken: string;
+      raiseTo: number | null;
+      equity: number;
+      potOdds: number;
+      recommended: string;
+      recommendedRaiseTo: number | null;
+      verdict: "best" | "fine" | "mistake";
+      badge: string;
+      reason: string;
+    };
+    buildHandReview(
+      decisions: readonly Record<string, unknown>[],
+      options?: { equityFor?: (decision: Record<string, unknown>) => number },
+    ): {
+      items: Array<{
+        verdict: "best" | "fine" | "mistake";
+        badge: string;
+        reason: string;
+      }>;
+      best: number;
+      fine: number;
+      mistake: number;
+      summary: string;
+    };
+    buildHandReplay(recording: Record<string, unknown>): {
+      steps: Array<{
+        id: string;
+        index: number;
+        label: string;
+        decision: {
+          verdict: "best" | "fine" | "mistake";
+          badge: string;
+          reason: string;
+          taken: string;
+          raiseTo: number | null;
+        } | null;
+        isHeroDecision: boolean;
+      }>;
+      items: Array<{ verdict: string }>;
+      best: number;
+      fine: number;
+      mistake: number;
+      summary: string;
+    };
+    gradeRetry(
+      item: { recommended: string; recommendedRaiseTo: number | null },
+      taken: string,
+    ): { correct: boolean; line: string };
+    formatDecisionHeadline(item: {
+      street: string;
+      taken: string;
+      raiseTo: number | null;
+    }): string;
+    formatVerdictBadge(item: { verdict: string; badge: string }): string;
+    formatVerdictWhy(item: { reason: string }): string;
+    formatVerdictLine(item: {
+      verdict: string;
+      badge: string;
+      reason: string;
+    }): string;
+  }
+
+  const HandReview: HandReviewAPI;
 }

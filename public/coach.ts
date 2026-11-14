@@ -8,11 +8,13 @@
     Coach?: CoachAPI;
     HoldemEngine?: HoldemEngineAPI;
     CoachOdds?: CoachOddsAPI;
+    RaiseSizing?: RaiseSizingAPI;
   },
   factory: (
     engine: HoldemEngineAPI | undefined,
     hand: { solve: (cards: string[]) => { descr?: string } } | undefined,
     odds: CoachOddsAPI | undefined,
+    sizing: RaiseSizingAPI | undefined,
   ) => CoachAPI,
 ) {
   if (typeof module === "object" && module.exports) {
@@ -32,17 +34,23 @@
         odds = undefined;
       }
     }
-    module.exports = factory(engine, undefined, odds);
+    let sizing: RaiseSizingAPI | undefined;
+    try {
+      sizing = require("./raise-sizing.js") as RaiseSizingAPI;
+    } catch {
+      sizing = undefined;
+    }
+    module.exports = factory(engine, undefined, odds, sizing);
   } else {
     const handGlobal =
       typeof Hand !== "undefined" && Hand && typeof Hand.solve === "function"
         ? { solve: (cards: string[]) => Hand.solve(cards) as { descr?: string } }
         : undefined;
-    root.Coach = factory(root.HoldemEngine, handGlobal, root.CoachOdds);
+    root.Coach = factory(root.HoldemEngine, handGlobal, root.CoachOdds, root.RaiseSizing);
   }
 })(
   typeof globalThis !== "undefined" ? globalThis : (this as typeof globalThis),
-  function (engine, handApi, oddsApi) {
+  function (engine, handApi, oddsApi, sizingApi) {
     "use strict";
 
     type SeatLike = { id: string; isYou?: boolean; isBot?: boolean };
@@ -124,14 +132,25 @@
     function pickRaiseTo(room: ClientRoom, hero: ClientPlayer, aggressive: boolean) {
       const pot = Math.max(0, Number(room.pot) || 0);
       const toCall = Math.max(0, Number(room.toCall) || 0);
-      const minRaiseTo = Math.max(0, Number(room.minRaiseTo) || room.currentBet + (room.minRaise || 0));
+      const currentBet = Math.max(0, Number(room.currentBet) || 0);
+      const minRaiseTo = Math.max(0, Number(room.minRaiseTo) || currentBet + (room.minRaise || 0));
+      const step = Math.max(1, Number(room.bigBlind) || Number(room.minRaise) || 1);
       const maxRaise = hero.bet + hero.stack;
-      if (maxRaise <= room.currentBet) return null;
-      const target = aggressive
-        ? Math.round(room.currentBet + Math.max(toCall, pot * 0.75))
-        : Math.round(Math.max(minRaiseTo, room.currentBet + Math.max(toCall, pot * 0.5)));
-      const clamped = Math.max(minRaiseTo, Math.min(maxRaise, target));
-      if (clamped <= room.currentBet) return maxRaise;
+      if (maxRaise <= currentBet) return null;
+      // Prefer pot-fraction sizing, then snap onto the same legal ladder as the raise box.
+      const raw = aggressive
+        ? Math.round(currentBet + Math.max(toCall, pot * 0.75))
+        : Math.round(Math.max(minRaiseTo, currentBet + Math.max(toCall, pot * 0.5)));
+      if (sizingApi && typeof sizingApi.legalRaiseTo === "function") {
+        return sizingApi.legalRaiseTo(raw, {
+          minRaiseTo: Math.min(maxRaise, minRaiseTo),
+          maxRaiseTo: maxRaise,
+          step,
+        });
+      }
+      const minLegal = Math.min(maxRaise, minRaiseTo);
+      const clamped = Math.max(minLegal, Math.min(maxRaise, raw));
+      if (clamped <= currentBet) return maxRaise;
       return clamped;
     }
 
