@@ -2932,13 +2932,14 @@ button.menu-player-row:not(:disabled):hover {
 }
 
 .control-panel {
+  --cp-pad: 16px;
   display: grid;
   /* Fixed tracks: hand · (spacer that keeps the old gap) · prompt · buttons · bet slot.
      Winner lines share the bet slot, so the panel is one height in every hand state. */
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 0 minmax(calc(15px * 1.35), auto) auto auto;
   gap: 12px;
-  padding: 16px;
+  padding: var(--cp-pad);
   border: 1px solid var(--surface-border);
   border-radius: 18px;
   background: var(--surface);
@@ -3778,22 +3779,27 @@ body.hand-review-open .hand-row .table-meta {
 
 /* —— Hand review replay (lives inside .control-panel, below hero/pot) ——
    Same felt / seat / board layout as a live hand — only the action-slot contents swap.
-   Panel height is constant across step / retry-live / answered / result: chrome owns the
-   prompt track; buttons + bet stay mounted (visible on retry, reserved otherwise). */
+   Panel height is constant: hand-row + prompt (head/verdict) + Fold/Call + raise shell.
+   Bottom zone is pinned to the panel bottom — live controls while retrying; nav
+   (+ Continue/Try again directly above) otherwise, over the reserved control tracks.
+   Slack is the reserved control area above the nav, not empty space under it. */
 .control-panel > .hand-review-chrome {
   grid-row: 3;
   align-self: stretch;
   min-height: 0;
+  width: 100%;
 }
 .hand-review-chrome {
   display: grid;
   align-content: start;
+  align-items: stretch;
   gap: 8px;
   min-width: 0;
-  /* Title · verdict (4 lines) · retry/continue · nav — same slots every state. */
-  grid-template-rows: auto minmax(calc(13px * 1.3 * 4 + 6px), auto) minmax(44px, auto) auto;
+  /* Title · verdict — continue/nav are absolutely pinned to the panel bottom. */
+  grid-template-rows: auto minmax(calc(13px * 1.3 * 4 + 6px), auto);
 }
 body.hand-review-open .control-panel {
+  position: relative;
   /* Never collapse to compact while reviewing — keep button + bet tracks. */
   grid-template-rows: auto 0 minmax(calc(15px * 1.35), auto) auto auto;
 }
@@ -3808,22 +3814,17 @@ body.hand-review-open .control-panel.is-compact .action-placeholder {
 body.hand-review-open .control-panel.is-compact > .bet-controls {
   display: grid !important;
 }
-body.hand-review-open .control-panel > .hand-review-chrome {
-  align-content: start;
-  align-items: stretch;
-  width: 100%;
-}
 .hand-review-chrome.hidden {
   display: none;
 }
-/* Turn prompt stays hidden (verdict owns status). Buttons/bet stay in-flow for height. */
+/* Turn prompt stays hidden (verdict owns status). */
 body.hand-review-open .control-panel > .turn-info,
 body.hand-review-open .control-panel > .winner-list {
   display: none !important;
 }
+/* Non-retry: reserve live-control footprint; pin bottom stack (continue + nav) over it. */
 body.hand-review-open:not(.hand-review-retrying) .control-panel > .game-buttons,
 body.hand-review-open:not(.hand-review-retrying) .control-panel > .bet-controls {
-  /* Reserve the live-controls footprint without painting over the chrome. */
   visibility: hidden;
   pointer-events: none;
 }
@@ -3837,15 +3838,26 @@ body.hand-review-open:not(.hand-review-retrying) .control-panel > .bet-controls 
 body.hand-review-open:not(.hand-review-retrying) .control-panel > .game-buttons .action-placeholder {
   visibility: hidden;
 }
-/* In-spot retry: reveal the live Fold/Call + raise shell in the reserved tracks. */
+/* Continue/Try again + nav: pinned to the panel bottom (same edge as live controls). */
+.hand-review-bottom {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+body.hand-review-open:not(.hand-review-retrying) .hand-review-bottom {
+  position: absolute;
+  left: var(--cp-pad);
+  right: var(--cp-pad);
+  bottom: var(--cp-pad-bottom, var(--cp-pad));
+  z-index: 2;
+  margin: 0;
+}
 body.hand-review-open.hand-review-retrying .control-panel > .hand-review-chrome {
   grid-row: 3;
   width: 100%;
 }
-body.hand-review-open.hand-review-retrying .hand-review-nav {
-  /* Keep the nav slot so chrome height matches step/answered (visibility only). */
-  visibility: hidden;
-  pointer-events: none;
+body.hand-review-open.hand-review-retrying .hand-review-bottom {
+  display: none !important;
 }
 body.hand-review-open.hand-review-retrying .control-panel > .turn-info {
   display: none !important;
@@ -4084,25 +4096,27 @@ body.hand-review-open .hand-review-verdict.is-idle {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Retry/continue row: always reserve Try-again button height (44px) — no jump. */
+/* Retry/continue row: sits directly above nav. Idle collapses — slack absorbs the gap. */
 .hand-review-retry-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  min-height: 0;
+}
+.hand-review-retry-bar:not(.hidden):not(.is-idle):has(> .hand-review-try-again) {
   min-height: 44px;
 }
 .hand-review-retry-bar.hidden,
 .hand-review-retry-bar.is-idle {
-  visibility: hidden;
+  display: none;
   pointer-events: none;
 }
 body.hand-review-open .hand-review-retry-bar.hidden,
 body.hand-review-open .hand-review-retry-bar.is-idle {
-  display: flex;
-  visibility: hidden;
-  min-height: 44px;
-  height: auto;
+  display: none;
+  min-height: 0;
+  height: 0;
   margin: 0;
   overflow: hidden;
   pointer-events: none;
@@ -4520,7 +4534,8 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
   }
 
   .control-panel {
-    padding: 20px;
+    --cp-pad: 20px;
+    padding: var(--cp-pad);
     gap: 16px;
   }
 
@@ -4937,9 +4952,11 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
   }
 
   .control-panel {
+    --cp-pad: 10px;
+    --cp-pad-bottom: max(10px, env(safe-area-inset-bottom));
     grid-row: 3;
     gap: 8px;
-    padding: 10px 10px max(10px, env(safe-area-inset-bottom));
+    padding: var(--cp-pad) var(--cp-pad) var(--cp-pad-bottom);
     border: 0;
     background: color-mix(in srgb, var(--panel) 96%, transparent);
   }

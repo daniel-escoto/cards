@@ -349,7 +349,10 @@ function table(overrides = {}) {
   assert.match(css, /\.hand-review-close/);
   assert.match(css, /aspect-ratio:\s*1/);
   assert.match(css, /\.hand-review-verdict[\s\S]*?min-height/);
-  assert.match(css, /\.hand-review-retry-bar[\s\S]*?min-height:\s*44px/);
+  assert.match(
+    css,
+    /\.hand-review-retry-bar:not\(\.hidden\):not\(\.is-idle\):has\(>\s*\.hand-review-try-again\)[\s\S]*?min-height:\s*44px/,
+  );
   assert.match(css, /\.hand-review-dot:focus-visible/);
   assert.match(css, /\.hand-review-show-answer/);
   assert.match(css, /\.hand-review-timeline-wrap\s*\{[^}]*grid-template-rows:\s*auto auto/s);

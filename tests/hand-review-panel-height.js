@@ -18,6 +18,10 @@ const html = fs.readFileSync(path.join(root, "public/index.html"), "utf8");
 
 assert.match(
   css,
+  /body\.hand-review-open:not\(\.hand-review-retrying\) \.hand-review-bottom\s*\{[^}]*position:\s*absolute/s,
+);
+assert.match(
+  css,
   /body\.hand-review-open:not\(\.hand-review-retrying\) \.control-panel > \.game-buttons,\s*\nbody\.hand-review-open:not\(\.hand-review-retrying\) \.control-panel > \.bet-controls\s*\{[^}]*visibility:\s*hidden/s,
 );
 assert.doesNotMatch(
@@ -26,12 +30,13 @@ assert.doesNotMatch(
 );
 assert.match(
   css,
-  /body\.hand-review-open\.hand-review-retrying \.hand-review-nav\s*\{[^}]*visibility:\s*hidden/s,
+  /body\.hand-review-open\.hand-review-retrying \.hand-review-bottom\s*\{[^}]*display:\s*none\s*!important/s,
 );
 assert.match(
   css,
   /\.hand-review-chrome\s*\{[^}]*grid-template-rows:\s*auto minmax\(calc\(13px \* 1\.3 \* 4/s,
 );
+assert.match(html, /hand-review-bottom[\s\S]*handReviewRetryBar[\s\S]*hand-review-nav/);
 assert.match(css, /\.hand-review-verdict\s*\{[^}]*min-height:\s*calc\(13px \* 1\.3 \* 4/s);
 assert.match(css, /\.hand-review-verdict-why\s*\{[^}]*overflow-wrap:\s*anywhere/s);
 assert.match(css, /\.hand-row \.hand-review-close\.icon-btn/);
@@ -46,7 +51,7 @@ assert.match(
 );
 assert.match(
   css,
-  /body\.hand-review-open \.hand-review-retry-bar\.is-idle\s*\{[^}]*min-height:\s*44px/s,
+  /body\.hand-review-open \.hand-review-retry-bar\.is-idle\s*\{[^}]*display:\s*none/s,
 );
 
 const chrome =
@@ -278,7 +283,7 @@ async function main() {
           const panelBox = () => {
             const el = document.querySelector(".control-panel");
             const r = el.getBoundingClientRect();
-            return { top: r.top, height: r.height };
+            return { top: r.top, height: r.height, bottom: r.bottom };
           };
           const paint = (mode) => {
             document.getElementById("welcome")?.classList.add("hidden");
@@ -305,7 +310,25 @@ async function main() {
             } else if (mode === "result") {
               paintHandReviewStep(1);
             }
-            return panelBox();
+            const panel = panelBox();
+            const betBottom =
+              document.querySelector("#betControls")?.getBoundingClientRect().bottom ?? 0;
+            const bottom = document.querySelector(".hand-review-bottom");
+            const nav = document.querySelector(".hand-review-nav");
+            const navBottom = nav?.getBoundingClientRect().bottom ?? 0;
+            const bottomVisible = Boolean(
+              bottom && getComputedStyle(bottom).display !== "none",
+            );
+            return {
+              ...panel,
+              // Bottom of the live controls (always laid out); nav must match this when shown.
+              controlsBottom: betBottom,
+              navBottom,
+              bottomZone: mode === "retry-live" ? betBottom : navBottom,
+              navAlignedToControls:
+                mode === "retry-live" ? true : Math.abs(navBottom - betBottom) <= 3,
+              bottomVisible,
+            };
           };
           const close = document.querySelector("#handReviewCloseBtn");
           const pot = document.querySelector(".hand-row .pot-chip");
@@ -339,7 +362,19 @@ async function main() {
           Math.abs(boxes.step.top - boxes[keys[i]].top) <= 3,
           `${label} top jumped: step=${boxes.step.top} ${keys[i]}=${boxes[keys[i]].top}`,
         );
+        assert.ok(
+          Math.abs(boxes.retryLive.bottomZone - boxes[keys[i]].bottomZone) <= 3,
+          `${label} bottom zone: retryLive=${boxes.retryLive.bottomZone} vs ${keys[i]}=${boxes[keys[i]].bottomZone}`,
+        );
       }
+      for (const key of ["step", "retryAnswered", "result"]) {
+        assert.equal(boxes[key].bottomVisible, true, `${label} ${key}: bottom stack visible`);
+        assert.ok(
+          boxes[key].navAlignedToControls,
+          `${label} ${key}: nav bottom ${boxes[key].navBottom} must equal controls bottom ${boxes[key].controlsBottom}`,
+        );
+      }
+      assert.equal(boxes.retryLive.bottomVisible, false, `${label} retry-live: bottom stack hidden`);
       assert.equal(boxes.closeInHandRow, true);
       assert.ok(
         Math.abs((boxes.closeTop || 0) - (boxes.handRowTop || 0)) <= 8,
@@ -349,7 +384,10 @@ async function main() {
         (boxes.closeLeft || 0) >= (boxes.potRight || 0) - 1,
         `${label}: close must sit to the right of the pot chip`,
       );
-      console.log(label, `panel height stable @ ${Math.round(boxes.step.height)}px`);
+      console.log(
+        label,
+        `panel height stable @ ${Math.round(boxes.step.height)}px; bottom zone @ ${Math.round(boxes.retryLive.bottomZone)}`,
+      );
       await page.close();
     }
   } finally {

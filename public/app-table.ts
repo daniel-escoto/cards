@@ -1198,10 +1198,25 @@ function actionPlaceholder(label: string) {
 }
 
 function reserveActionSpace() {
-  if (!gameButtons.children.length) gameButtons.appendChild(actionPlaceholder("Ready up"));
+  if (!gameButtons.children.length) {
+    // Hand review reserves a Fold + Call pair so the button row matches retry-live.
+    if (handReviewActive) {
+      gameButtons.append(actionPlaceholder("Fold"), actionPlaceholder("Call"));
+    } else {
+      gameButtons.appendChild(actionPlaceholder("Ready up"));
+    }
+  }
   const reserved = betControls.classList.contains("is-reserved");
   if (reserved && !betPresets.children.length) {
-    betPresets.appendChild(actionPlaceholder("All in"));
+    if (handReviewActive) {
+      betPresets.append(
+        actionPlaceholder("½ pot"),
+        actionPlaceholder("Pot"),
+        actionPlaceholder("All in"),
+      );
+    } else {
+      betPresets.appendChild(actionPlaceholder("All in"));
+    }
   }
   // Fill the reserved bet slot instead of leaving it blank: hand results get a centered
   // result block there (prompt + buttons drop below it); other button-less states (showdown,
@@ -1265,11 +1280,10 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
       }
       return;
     }
-    setBetControlsReserved(false);
-    betControls.classList.add("is-reserved");
-    betControls.setAttribute("aria-hidden", "true");
-    betControls.setAttribute("inert", "");
-    raiseActionBtn.classList.add("hidden");
+    // Keep the full Fold/Call + raise shell laid out (visibility only) so the
+    // reserved bottom zone matches retry-live height — nav pins to that edge.
+    setBetControlsReserved(true);
+    raiseActionBtn.classList.remove("hidden");
     return;
   }
 
