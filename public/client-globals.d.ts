@@ -342,6 +342,38 @@ declare global {
       handKey: string,
       chosen: "raise" | "fold",
     ): { correct: boolean; standard: "raise" | "fold"; handKey: string } | null;
+    classifyRfiHand?(
+      handKey: string,
+    ):
+      | "pair"
+      | "suited_ace"
+      | "suited_broadway"
+      | "offsuit_broadway"
+      | "suited_connector"
+      | "trash"
+      | null;
+    rfiPositionBand?(
+      tableSize: 6 | 9,
+      position: string,
+    ): "early" | "middle" | "late" | "blinds" | null;
+    rfiBorderline?(
+      tableSize: 6 | 9,
+      position: string,
+      handKey: string,
+    ): "inside" | "outside" | null;
+    explainRfiDecision?(
+      tableSize: 6 | 9,
+      position: string,
+      handKey: string,
+      chosen: "raise" | "fold",
+    ): {
+      verdict: "correct" | "mistake";
+      badge: "Best" | null;
+      reason: string;
+      borderline: "inside" | "outside" | null;
+      category: string;
+      band: string;
+    } | null;
     rfiChart(
       tableSize: 6 | 9,
       position: string,
