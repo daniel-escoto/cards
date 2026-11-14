@@ -87,6 +87,33 @@ function table(overrides = {}) {
   });
   assert.equal(callMistake.verdict, "mistake");
   assert.equal(callMistake.recommended, "raise");
+  // Raw formula yields 125; legalRaiseTo with BB step 20 snaps to 120.
+  assert.equal(
+    HandReview.legalRaiseTo(125, { minRaiseTo: 120, maxRaiseTo: 1000, step: 20 }),
+    120,
+  );
+  const snappedRaise = HandReview.gradeHandDecision({
+    id: "1c",
+    street: "flop",
+    boardCodes: ["8s", "4d", "3s"],
+    heroCodes: ["Ah", "8h"],
+    pot: 130,
+    toCall: 60,
+    currentBet: 60,
+    heroStack: 940,
+    opponentStacks: [880],
+    taken: "call",
+    equity: 0.62,
+    canRaise: true,
+    minRaiseTo: 120,
+    maxRaiseTo: 1000,
+    raiseStep: 20,
+  });
+  assert.equal(snappedRaise.recommendedRaiseTo, 120);
+  assert.match(snappedRaise.reason, /Raise to 120/);
+  assert.doesNotMatch(snappedRaise.reason, /Raise to 125/);
+  const retrySnap = HandReview.gradeRetry(snappedRaise, "fold");
+  assert.match(retrySnap.line, /Raise to 120/);
 }
 
 {
@@ -208,6 +235,7 @@ function table(overrides = {}) {
           canRaise: true,
           minRaiseTo: 120,
           maxRaiseTo: 1000,
+          raiseStep: 20,
         },
       },
       {
@@ -248,6 +276,7 @@ function table(overrides = {}) {
           canRaise: true,
           minRaiseTo: 90,
           maxRaiseTo: 1000,
+          raiseStep: 20,
         },
       },
       {
@@ -269,6 +298,8 @@ function table(overrides = {}) {
   assert.equal(replay.steps[0].isHeroDecision, false);
   assert.equal(replay.steps[1].isHeroDecision, true);
   assert.equal(replay.steps[1].decision.verdict, "mistake");
+  assert.equal(replay.steps[1].decision.recommendedRaiseTo, 120);
+  assert.match(replay.steps[1].decision.reason, /Raise to 120/);
   assert.equal(replay.steps[2].isHeroDecision, true);
   assert.ok(
     replay.steps[2].decision.verdict === "fine" || replay.steps[2].decision.verdict === "best",
@@ -299,14 +330,22 @@ function table(overrides = {}) {
   assert.match(css, /\.hand-review-chrome/);
   assert.match(css, /\.hand-review-timeline/);
   assert.match(css, /\.hand-review-dot/);
+  assert.match(css, /body\.hand-review-open \.control-panel/);
+  assert.match(css, /aspect-ratio:\s*1/);
+  assert.doesNotMatch(css, /position:\s*fixed[\s\S]{0,80}\.hand-review-chrome|\.hand-review-chrome[\s\S]{0,120}position:\s*fixed/);
 
   const tableSrc = fs.readFileSync(path.join(__dirname, "../public/app-table.ts"), "utf8");
   assert.match(tableSrc, /buildHandReplay/);
   assert.match(tableSrc, /paintHandReviewStep/);
   assert.match(tableSrc, /captureHandReviewDecision/);
+  assert.match(tableSrc, /raiseStep/);
   assert.match(tableSrc, /Try again/);
   assert.doesNotMatch(tableSrc, /renderHandReviewSheet/);
   assert.doesNotMatch(tableSrc, /renderCoachHint/);
+
+  const sharedSrc = fs.readFileSync(path.join(__dirname, "../shared/hand-review.ts"), "utf8");
+  assert.match(sharedSrc, /export function legalRaiseTo/);
+  assert.match(sharedSrc, /snap\(raw/);
 }
 
 console.log("Hand review checks passed.");

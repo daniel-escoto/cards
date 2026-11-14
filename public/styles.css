@@ -3606,33 +3606,34 @@ kbd {
   text-align: center;
 }
 
-/* —— Hand review replay chrome (bot games, post-hand) —— */
+/* —— Hand review replay (lives inside .control-panel, below hero/pot) —— */
+.control-panel > .hand-review-chrome {
+  grid-row: 3 / 6;
+  align-self: stretch;
+}
 .hand-review-chrome {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 40;
-  display: flex;
-  justify-content: center;
-  padding: 0 10px max(10px, env(safe-area-inset-bottom));
-  pointer-events: none;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
 }
 .hand-review-chrome.hidden {
   display: none;
 }
-.hand-review-chrome-bar {
-  pointer-events: auto;
-  width: min(720px, 100%);
-  display: grid;
-  gap: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--surface-border);
-  border-radius: 16px 16px 12px 12px;
-  background: var(--surface);
-  box-shadow: var(--surface-shadow);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+/* Swap in review chrome the same way Ready/actions replace each other — no overlay. */
+body.hand-review-open .control-panel > .turn-info,
+body.hand-review-open .control-panel > .game-buttons,
+body.hand-review-open .control-panel > .bet-controls,
+body.hand-review-open .control-panel > .winner-list {
+  display: none !important;
+}
+body.hand-review-open .control-panel {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+body.hand-review-open .control-panel > .hand-review-chrome {
+  grid-row: 2;
+  align-self: stretch;
+  min-height: 0;
+  overflow: auto;
 }
 .hand-review-chrome-head {
   display: flex;
@@ -3678,39 +3679,63 @@ kbd {
   gap: 6px;
   min-width: 0;
 }
-.hand-review-nav > button {
+/* Keep nav squares compact even under .control-panel button { min-height: 48px }. */
+.control-panel .hand-review-nav > button {
   flex: 0 0 auto;
-  min-width: 40px;
-  min-height: 40px;
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
   padding: 0;
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1;
 }
 .hand-review-timeline {
   flex: 1 1 auto;
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-evenly;
+  gap: 8px;
   min-width: 0;
   overflow-x: auto;
-  padding: 4px 2px;
+  padding: 6px 2px;
   scrollbar-width: none;
 }
 .hand-review-timeline::-webkit-scrollbar {
   display: none;
 }
+/* Round dots — beat global / desktop button min-height so they stay circles, not ovals. */
+.control-panel .hand-review-dot,
 .hand-review-dot {
-  flex: 0 0 auto;
-  width: 12px;
-  height: 12px;
+  box-sizing: border-box;
+  flex: 0 0 12px;
+  width: 12px !important;
+  height: 12px !important;
+  min-width: 12px !important;
+  min-height: 12px !important;
+  max-width: 12px !important;
+  max-height: 12px !important;
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
   border: 2px solid color-mix(in srgb, var(--muted) 45%, var(--line));
   background: color-mix(in srgb, var(--panel) 80%, transparent);
-  padding: 0;
+  padding: 0 !important;
+  margin: 0;
+  line-height: 0;
+  font-size: 0;
   cursor: pointer;
+  box-shadow: none;
+  transform: none;
+}
+.hand-review-dot:hover,
+.hand-review-dot:active {
+  transform: none;
 }
 .hand-review-dot.is-active {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  /* Ring for the current step (outline can clip; dual box-shadow stays round). */
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
 }
 .hand-review-dot.is-hero.is-best {
   border-color: #3d9a5f;
@@ -3758,19 +3783,6 @@ kbd {
 }
 .hand-review-retry-feedback.is-wrong {
   color: color-mix(in srgb, var(--danger) 90%, var(--text));
-}
-body.hand-review-open .control-panel {
-  padding-bottom: calc(12px + env(safe-area-inset-bottom));
-}
-@media (max-width: 779px) {
-  .hand-review-chrome-bar {
-    width: 100%;
-    border-radius: 14px 14px 0 0;
-  }
-  .hand-review-nav > button {
-    min-width: 36px;
-    min-height: 36px;
-  }
 }
 .result-line {
   display: grid;

@@ -212,6 +212,7 @@ type HandReviewDecisionLocal = {
   canRaise?: boolean;
   minRaiseTo?: number;
   maxRaiseTo?: number;
+  raiseStep?: number;
 };
 
 type HandReviewItemLocal = {
@@ -434,6 +435,7 @@ function captureHandReviewDecision(payload: Record<string, unknown>) {
     Number(state.minRaiseTo) || currentBet + (Number(state.minRaise) || 0),
   );
   const maxRaiseTo = hero.bet + hero.stack;
+  const raiseStep = Math.max(1, Math.floor(Number(state.bigBlind) || 1));
   let equity: number | undefined;
   if (typeof Coach !== "undefined" && Coach.buildCoachSuggestion) {
     const suggestion = Coach.buildCoachSuggestion(state, { iterations: 80 });
@@ -465,6 +467,7 @@ function captureHandReviewDecision(payload: Record<string, unknown>) {
       equity,
       minRaiseTo,
       maxRaiseTo,
+      raiseStep,
       canRaise: Boolean(state.canRaise || state.canShove) && maxRaiseTo > currentBet,
     },
   });

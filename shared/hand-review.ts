@@ -33,6 +33,8 @@ export type HandReviewDecision = {
   canRaise?: boolean;
   minRaiseTo?: number;
   maxRaiseTo?: number;
+  /** Raise ladder step (usually big blind). Used with legalRaiseTo snap. */
+  raiseStep?: number;
 };
 
 export type HandReviewItem = {
@@ -158,8 +160,36 @@ function actionLabel(action: ReviewAction, raiseTo: number | null): string {
 }
 
 /**
+ * Same ladder snap as public/raise-sizing.ts `legalRaiseTo` — keep review copy
+ * on legal sizes (e.g. 125 → 120 when min=120, step=20).
+ */
+export function legalRaiseTo(
+  rawValue: unknown,
+  {
+    minRaiseTo,
+    maxRaiseTo,
+    step,
+  }: { minRaiseTo?: number; maxRaiseTo?: number; step?: number } = {},
+): number {
+  const max = Math.max(0, Math.floor(Number(maxRaiseTo) || 0));
+  const requestedMin = Math.max(0, Math.floor(Number(minRaiseTo) || 0));
+  const min = Math.min(max, requestedMin);
+  const stride = Math.max(1, Math.floor(Number(step) || 1));
+  let target = Math.floor(Number(rawValue));
+  if (!Number.isFinite(target)) target = min;
+  if (min >= max) return max;
+  if (target <= min) return min;
+  if (target >= max) return max;
+  const snapped = min + Math.round((target - min) / stride) * stride;
+  if (snapped <= min) return min;
+  if (snapped >= max) return max;
+  return snapped;
+}
+
+/**
  * Pick the standard action from equity + pot odds (+ implied odds when short).
  * Check/bet when toCall is 0; fold/call/raise when facing a bet.
+ * Every suggested raise size is snapped with legalRaiseTo.
  */
 export function recommendAction(input: {
   equity: number;
@@ -173,19 +203,23 @@ export function recommendAction(input: {
   canRaise: boolean;
   minRaiseTo: number;
   maxRaiseTo: number;
+  raiseStep?: number;
 }): { action: ReviewAction; raiseTo: number | null; advice: CoachOddsAdvice | null; potOdds: number } {
   const toCall = Math.max(0, input.toCall);
   const pot = Math.max(0, input.pot);
   const potOdds = toCall > 0 ? toCall / Math.max(1, pot + toCall) : 0;
   const equity = Math.max(0, Math.min(1, input.equity));
   const effective = effectiveStackForCall(input.heroStack, input.opponentStacks);
+  const snap = (raw: number) =>
+    legalRaiseTo(raw, {
+      minRaiseTo: input.minRaiseTo,
+      maxRaiseTo: input.maxRaiseTo,
+      step: input.raiseStep,
+    });
 
   if (toCall <= 0) {
     if (equity >= 0.62 && input.canRaise) {
-      const raiseTo = Math.max(
-        input.minRaiseTo,
-        Math.min(input.maxRaiseTo, Math.round(input.currentBet + Math.max(pot * 0.5, 1))),
-      );
+      const raiseTo = snap(Math.round(input.currentBet + Math.max(pot * 0.5, 1)));
       return {
         action: input.currentBet > 0 ? "raise" : "bet",
         raiseTo,
@@ -194,7 +228,7 @@ export function recommendAction(input: {
       };
     }
     if (equity >= 0.52 && input.canRaise) {
-      const raiseTo = Math.max(input.minRaiseTo, Math.min(input.maxRaiseTo, input.minRaiseTo));
+      const raiseTo = snap(input.minRaiseTo);
       return {
         action: input.currentBet > 0 ? "raise" : "bet",
         raiseTo,
@@ -222,8 +256,7 @@ export function recommendAction(input: {
 
   if (equity >= potOdds + 0.12 && input.canRaise) {
     const raw = Math.round(input.currentBet + Math.max(toCall, pot * 0.5));
-    const raiseTo = Math.max(input.minRaiseTo, Math.min(input.maxRaiseTo, raw));
-    return { action: "raise", raiseTo, advice: null, potOdds };
+    return { action: "raise", raiseTo: snap(raw), advice: null, potOdds };
   }
 
   return { action: "call", raiseTo: null, advice: null, potOdds };
@@ -302,6 +335,10 @@ export function gradeHandDecision(
       : typeof decision.minRaiseTo === "number"
         ? decision.minRaiseTo
         : Math.max(decision.currentBet + decision.toCall, decision.currentBet * 2);
+  const raiseStep =
+    typeof decision.raiseStep === "number" && decision.raiseStep > 0
+      ? decision.raiseStep
+      : Math.max(1, minRaiseTo - decision.currentBet || 1);
   const canRaise =
     (typeof options.canRaise === "boolean"
       ? options.canRaise
@@ -321,6 +358,7 @@ export function gradeHandDecision(
     canRaise,
     minRaiseTo,
     maxRaiseTo,
+    raiseStep,
   });
 
   const match = sameAction(decision.taken, rec.action);

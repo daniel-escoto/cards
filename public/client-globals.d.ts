@@ -974,6 +974,10 @@ declare global {
   function syncCopyForAiBtn(): void;
 
   interface HandReviewAPI {
+    legalRaiseTo(
+      rawValue: unknown,
+      bounds?: { minRaiseTo?: number; maxRaiseTo?: number; step?: number },
+    ): number;
     recommendAction(input: Record<string, unknown>): {
       action: string;
       raiseTo: number | null;
