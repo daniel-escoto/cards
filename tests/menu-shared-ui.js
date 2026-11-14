@@ -52,10 +52,11 @@ assert.match(trainer, /trainer-stats-top/);
 assert.match(trainer, /menu-player-row static/);
 assert.doesNotMatch(trainer, /join\(" · "\)/);
 
-assert.match(html, /hand-review-chrome-head[\s\S]*class="ghost icon-btn hand-review-close"/);
+assert.match(html, /hand-row[\s\S]*class="ghost icon-btn hand-review-close"/);
 assert.match(html, /class="modal-head hand-review-chrome-head"/);
+assert.doesNotMatch(html, /hand-review-chrome-head[\s\S]*hand-review-close/);
 assert.doesNotMatch(css, /\.hand-review-retry-actions/);
-assert.doesNotMatch(css, /\.control-panel \.hand-review-close\.icon-btn[\s\S]{0,80}width:\s*44px/);
+assert.doesNotMatch(css, /\.hand-row \.hand-review-close\.icon-btn[\s\S]{0,80}width:\s*44px/);
 assert.doesNotMatch(css, /\.trainer-drill \.mode-option/);
 
 // Dark-mode appearance-choice: opaque panel-2 + readable text (not muted-on-transparent).

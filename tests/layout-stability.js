@@ -23,14 +23,30 @@ assert.match(
 assert.match(css, /\.hand-review-dot\.is-active\s*\{[^}]*box-shadow:\s*0 0 0 2px/s);
 assert.match(css, /\.hand-review-dot:focus-visible/);
 
-// Verdict + retry slots keep height when idle / empty.
+// Verdict keeps a reserved slot; idle retry bar collapses (slack + bottom-pinned nav).
 assert.match(css, /\.hand-review-verdict\s*\{[^}]*min-height:/s);
-assert.match(css, /\.hand-review-retry-bar\s*\{[^}]*min-height:\s*40px/s);
+assert.match(css, /\.hand-review-retry-bar:not\(\.hidden\):not\(\.is-idle\):has\(>\s*\.hand-review-try-again\)\s*\{[^}]*min-height:\s*44px/s);
 assert.match(css, /body\.hand-review-open \.hand-review-verdict\.is-idle/);
+assert.match(css, /body\.hand-review-open \.hand-review-retry-bar\.is-idle\s*\{[^}]*display:\s*none/s);
 
-// Close control is a real icon button (not a naked native square).
-assert.match(html, /hand-review-close[^>]*icon-btn|icon-btn[^>]*hand-review-close/);
-assert.match(css, /\.hand-review-close\.icon-btn/);
+// Close control is a real icon button in the hand-row (top-right with pot).
+assert.match(html, /hand-row[\s\S]*hand-review-close[^>]*icon-btn|hand-row[\s\S]*icon-btn[^>]*hand-review-close/);
+assert.match(css, /\.hand-row \.hand-review-close\.icon-btn/);
+assert.match(css, /\.hand-review-verdict\s*\{[^}]*min-height:\s*calc\(13px \* 1\.3 \* 4/s);
+assert.match(
+  css,
+  /body\.hand-review-open:not\(\.hand-review-retrying\) \.hand-review-bottom\s*\{[^}]*position:\s*absolute/s,
+  "non-retry bottom stack (continue + nav) pins to the panel bottom",
+);
+assert.match(
+  css,
+  /body\.hand-review-open:not\(\.hand-review-retrying\) \.control-panel > \.game-buttons[\s\S]*?visibility:\s*hidden/s,
+  "non-retry review must reserve button row (visibility, not display:none)",
+);
+assert.match(
+  css,
+  /body\.hand-review-open\.hand-review-retrying \.hand-review-bottom\s*\{[^}]*display:\s*none\s*!important/s,
+);
 
 // Between-hands action row shares width evenly (Ready / Review [/ Show hand]).
 assert.match(css, /\.control-panel\.is-result > \.game-buttons > button[\s\S]*?flex:\s*1 1 0/);
@@ -81,5 +97,14 @@ assert.doesNotMatch(bootSrc, /heroHand\.title\s*=/);
 // Hand Review retry reveals live controls without leaving the review shell.
 assert.match(css, /body\.hand-review-open\.hand-review-retrying[\s\S]*?\.game-buttons/);
 assert.match(tableSrc, /hand-review-retrying/);
+// Retry must keep #turnInfo hidden — showing it stacked "Call N" on HAND REVIEW.
+assert.match(
+  css,
+  /body\.hand-review-open\.hand-review-retrying \.control-panel > \.turn-info\s*\{[^}]*display:\s*none\s*!important/s,
+);
+assert.doesNotMatch(
+  css,
+  /body\.hand-review-open\.hand-review-retrying \.control-panel > \.turn-info\s*\{[^}]*display:\s*block\s*!important/s,
+);
 
 console.log("Layout stability static checks passed.");
