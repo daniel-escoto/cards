@@ -96,11 +96,13 @@
       return full === seat ? seat : `${seat} · ${full}`;
     }
 
+    type PositionStat = { correct: number; total: number; hinted: number };
+
     type TrainerStats = {
-      overall: { correct: number; total: number };
+      overall: { correct: number; total: number; hinted: number };
       streak: number;
       bestStreak: number;
-      byPosition: Record<string, { correct: number; total: number }>;
+      byPosition: Record<string, PositionStat>;
     };
 
     type SpotState = {
@@ -112,14 +114,27 @@
       answered: boolean;
       chosen: "raise" | "fold" | null;
       correct: boolean | null;
+      /** 0 = unused, 1 = concept shown, 2 = move revealed. */
+      hintStep: 0 | 1 | 2;
+      whyOpen: boolean;
     };
 
     function emptyStats(): TrainerStats {
       return {
-        overall: { correct: 0, total: 0 },
+        overall: { correct: 0, total: 0, hinted: 0 },
         streak: 0,
         bestStreak: 0,
         byPosition: {},
+      };
+    }
+
+    function normalizePositionStat(raw: unknown): PositionStat {
+      if (!raw || typeof raw !== "object") return { correct: 0, total: 0, hinted: 0 };
+      const row = raw as { correct?: unknown; total?: unknown; hinted?: unknown };
+      return {
+        correct: Math.max(0, Math.floor(Number(row.correct) || 0)),
+        total: Math.max(0, Math.floor(Number(row.total) || 0)),
+        hinted: Math.max(0, Math.floor(Number(row.hinted) || 0)),
       };
     }
 
@@ -137,15 +152,21 @@
         ) {
           return emptyStats();
         }
+        const byPosition: Record<string, PositionStat> = {};
+        if (parsed.byPosition && typeof parsed.byPosition === "object") {
+          for (const [key, value] of Object.entries(parsed.byPosition)) {
+            byPosition[key] = normalizePositionStat(value);
+          }
+        }
         return {
           overall: {
             correct: Math.max(0, Math.floor(parsed.overall.correct)),
             total: Math.max(0, Math.floor(parsed.overall.total)),
+            hinted: Math.max(0, Math.floor(Number(parsed.overall.hinted) || 0)),
           },
           streak: Math.max(0, Math.floor(Number(parsed.streak) || 0)),
           bestStreak: Math.max(0, Math.floor(Number(parsed.bestStreak) || 0)),
-          byPosition:
-            parsed.byPosition && typeof parsed.byPosition === "object" ? parsed.byPosition : {},
+          byPosition,
         };
       } catch {
         return emptyStats();
@@ -182,21 +203,28 @@
       return `${Math.round((100 * correct) / total)}%`;
     }
 
-    function recordResult(stats: TrainerStats, position: string, correct: boolean): TrainerStats {
+    function recordResult(
+      stats: TrainerStats,
+      position: string,
+      correct: boolean,
+      hinted: boolean,
+    ): TrainerStats {
       const streak = correct ? stats.streak + 1 : 0;
       const next: TrainerStats = {
         overall: {
           correct: stats.overall.correct + (correct ? 1 : 0),
           total: stats.overall.total + 1,
+          hinted: stats.overall.hinted + (hinted ? 1 : 0),
         },
         streak,
         bestStreak: Math.max(stats.bestStreak, streak),
         byPosition: { ...stats.byPosition },
       };
-      const prior = next.byPosition[position] || { correct: 0, total: 0 };
+      const prior = normalizePositionStat(next.byPosition[position]);
       next.byPosition[position] = {
         correct: prior.correct + (correct ? 1 : 0),
         total: prior.total + 1,
+        hinted: prior.hinted + (hinted ? 1 : 0),
       };
       return next;
     }
@@ -256,7 +284,6 @@
       const trainerViewEl = doc.querySelector("#trainerView");
       const tableView = doc.querySelector("#tableView") as HTMLElement | null;
       const scoreView = doc.querySelector("#scoreView") as HTMLElement | null;
-      const practiceBtn = doc.querySelector("#practiceBtn") as HTMLButtonElement | null;
       const trainerBtn = doc.querySelector("#trainerBtn") as HTMLButtonElement | null;
       if (
         !(welcomeEl instanceof HTMLElement) ||
@@ -275,6 +302,7 @@
       const heroHandEl = trainerView.querySelector("#trainerHeroHand") as HTMLElement | null;
       const communityEl = trainerView.querySelector("#trainerCommunity") as HTMLElement | null;
       const turnInfoEl = trainerView.querySelector("#trainerTurnInfo") as HTMLElement | null;
+      const coachEl = trainerView.querySelector("#trainerCoach") as HTMLElement | null;
       const actionsEl = trainerView.querySelector("#trainerActions") as HTMLElement | null;
       const playersEl = trainerView.querySelector("#trainerPlayers") as HTMLElement | null;
       const controlPanel = trainerView.querySelector(
@@ -294,7 +322,6 @@
       const chartEl = doc.querySelector("#trainerChart") as HTMLElement | null;
       const chartEyebrow = doc.querySelector("#trainerChartEyebrow") as HTMLElement | null;
       const seatPopover = trainerView.querySelector("#trainerSeatPopover") as HTMLElement | null;
-      const joinError = doc.querySelector("#joinError") as HTMLElement | null;
 
       if (
         !homeBtn ||
@@ -304,6 +331,7 @@
         !heroHandEl ||
         !communityEl ||
         !turnInfoEl ||
+        !coachEl ||
         !actionsEl ||
         !playersEl ||
         !controlPanel ||
@@ -423,13 +451,155 @@
           `Overall ${stats.overall.correct}/${stats.overall.total} (${overallPct})`,
           `Streak ${stats.streak}${stats.bestStreak ? ` (best ${stats.bestStreak})` : ""}`,
         ];
+        if (stats.overall.hinted > 0) {
+          parts.push(`Hinted ${stats.overall.hinted}`);
+        }
         const order = ranges!.positionsForTable(tableSize);
         for (const pos of order) {
           const row = stats.byPosition[pos];
           if (!row || row.total === 0) continue;
-          parts.push(`${pos} ${row.correct}/${row.total}`);
+          const hintMark = row.hinted > 0 ? ` · ${row.hinted}h` : "";
+          parts.push(`${pos} ${row.correct}/${row.total}${hintMark}`);
         }
         statsEl!.textContent = parts.join(" · ");
+      }
+
+      function hideCoach(): void {
+        coachEl!.classList.add("hidden");
+        coachEl!.replaceChildren();
+        coachEl!.removeAttribute("data-action");
+        coachEl!.removeAttribute("data-hint-step");
+      }
+
+      function renderHintCoach(): void {
+        if (!spot || spot.answered || spot.hintStep === 0) {
+          hideCoach();
+          return;
+        }
+        const hint =
+          typeof ranges!.rfiTeachingHint === "function"
+            ? ranges!.rfiTeachingHint(tableSize, spot.position, spot.handKey)
+            : null;
+        if (!hint) {
+          hideCoach();
+          return;
+        }
+        const head = doc.createElement("div");
+        head.className = "coach-hint-head";
+        const badge = doc.createElement("span");
+        badge.className = "coach-hint-badge";
+        badge.textContent = spot.hintStep === 1 ? "Hint" : "Hint · reveal";
+        const headline = doc.createElement("strong");
+        headline.className = "coach-hint-headline";
+        headline.textContent = spot.hintStep === 1 ? "Think about the seat" : hint.standard === "raise" ? "Raise" : "Fold";
+        head.append(badge, headline);
+
+        const reason = doc.createElement("p");
+        reason.className = "coach-hint-reason trainer-coach-reason-wrap";
+        reason.textContent = spot.hintStep === 1 ? hint.concept : hint.reveal;
+
+        coachEl!.replaceChildren(head, reason);
+        coachEl!.dataset.hintStep = String(spot.hintStep);
+        if (spot.hintStep === 2) {
+          coachEl!.dataset.action = hint.standard;
+        } else {
+          coachEl!.removeAttribute("data-action");
+        }
+        coachEl!.classList.remove("hidden");
+      }
+
+      function renderAnswerCoach(): void {
+        if (!spot || !spot.answered) {
+          hideCoach();
+          return;
+        }
+        const chosen = spot.chosen || "fold";
+        const explain =
+          typeof ranges!.explainRfiDecision === "function"
+            ? ranges!.explainRfiDecision(tableSize, spot.position, spot.handKey, chosen)
+            : null;
+        const correct = Boolean(spot.correct);
+        const badgeLabel = explain?.badge || (correct ? "Best" : "Mistake");
+        const reasonText = explain?.reason
+          ? explain.reason
+          : correct
+            ? "Nice — that matches the chart."
+            : "Check the chart for this seat.";
+
+        const head = doc.createElement("div");
+        head.className = "coach-hint-head";
+        const badge = doc.createElement("span");
+        badge.className = "coach-hint-badge";
+        badge.textContent = "Trainer";
+        const headline = doc.createElement("strong");
+        headline.className = "coach-hint-headline";
+        const icon = correct ? "✓" : "✗";
+        headline.textContent = `${icon} ${badgeLabel}`;
+        head.append(badge, headline);
+
+        const reason = doc.createElement("p");
+        reason.className = "coach-hint-reason trainer-coach-reason-wrap";
+        reason.textContent = reasonText;
+
+        const nodes: Node[] = [head, reason];
+        if (explain && explain.why.length > 0) {
+          const details = doc.createElement("details");
+          details.className = "trainer-why";
+          details.open = spot.whyOpen;
+          details.addEventListener("toggle", () => {
+            if (!spot) return;
+            spot.whyOpen = details.open;
+          });
+          const summary = doc.createElement("summary");
+          summary.textContent = "Why?";
+          const body = doc.createElement("div");
+          body.className = "trainer-why-body";
+          const list = doc.createElement("ul");
+          list.className = "trainer-why-list";
+          for (const line of explain.why) {
+            const item = doc.createElement("li");
+            item.textContent = line;
+            list.append(item);
+          }
+          body.append(list);
+          if (explain.ruleOfThumb) {
+            const rule = doc.createElement("p");
+            rule.className = "trainer-why-rule";
+            rule.textContent = `Remember: ${explain.ruleOfThumb}`;
+            body.append(rule);
+          }
+          details.append(summary, body);
+          nodes.push(details);
+        }
+
+        coachEl!.replaceChildren(...nodes);
+        if (badgeLabel === "Mistake") coachEl!.dataset.action = "fold";
+        else if (badgeLabel === "Best") coachEl!.dataset.action = "raise";
+        else coachEl!.dataset.action = "call";
+        coachEl!.removeAttribute("data-hint-step");
+        coachEl!.classList.remove("hidden");
+      }
+
+      function renderCoach(): void {
+        if (!spot) {
+          hideCoach();
+          return;
+        }
+        if (spot.answered) {
+          renderAnswerCoach();
+          return;
+        }
+        renderHintCoach();
+      }
+
+      function onHint(): void {
+        if (!spot || spot.answered) return;
+        if (spot.hintStep < 2) {
+          spot.hintStep = (spot.hintStep + 1) as 1 | 2;
+        }
+        renderCoach();
+        renderActions();
+        renderTurnInfo();
       }
 
       function renderSizeToggle(): void {
@@ -544,7 +714,12 @@
           return;
         }
         if (!spot.answered) {
+          const hintLabel =
+            spot.hintStep === 0 ? "Hint" : spot.hintStep === 1 ? "Hint again" : "Hinted";
           actionsEl!.innerHTML = `
+            <button id="trainerHintBtn" class="secondary" type="button" ${
+              spot.hintStep >= 2 ? "disabled" : ""
+            }>${hintLabel}</button>
             <button id="trainerFoldBtn" class="secondary has-shortcut" type="button">
               Fold <kbd>F</kbd>
             </button>
@@ -552,8 +727,10 @@
               Raise <kbd>R</kbd>
             </button>
           `;
+          const hintBtn = actionsEl!.querySelector("#trainerHintBtn") as HTMLButtonElement;
           const foldBtn = actionsEl!.querySelector("#trainerFoldBtn") as HTMLButtonElement;
           const raiseBtn = actionsEl!.querySelector("#trainerRaiseBtn") as HTMLButtonElement;
+          hintBtn.addEventListener("click", onHint);
           foldBtn.addEventListener("click", () => answer("fold"));
           raiseBtn.addEventListener("click", () => answer("raise"));
           return;
@@ -573,41 +750,20 @@
       function renderTurnInfo(): void {
         if (!spot) {
           turnInfoEl!.textContent = "";
-          turnInfoEl!.classList.remove("your-turn", "showdown-message", "trainer-coach");
+          turnInfoEl!.classList.remove("your-turn", "showdown-message");
           return;
         }
         if (!spot.answered) {
           turnInfoEl!.classList.add("your-turn");
-          turnInfoEl!.classList.remove("showdown-message", "trainer-coach");
+          turnInfoEl!.classList.remove("showdown-message");
           turnInfoEl!.innerHTML = `Folded to you · <span class="trainer-pos-label" title="${escapeHtml(
             positionFullName(spot.position),
           )}">${escapeHtml(positionLabel(spot.position))}</span>`;
           return;
         }
+        // Answer feedback lives in #trainerCoach (shared .coach-hint card).
         turnInfoEl!.classList.remove("your-turn", "showdown-message");
-        turnInfoEl!.classList.add("trainer-coach");
-        const chosen = spot.chosen || "fold";
-        const explain =
-          typeof ranges!.explainRfiDecision === "function"
-            ? ranges!.explainRfiDecision(tableSize, spot.position, spot.handKey, chosen)
-            : null;
-        const correct = Boolean(spot.correct);
-        const verdictText = correct ? "Correct" : "Mistake";
-        const verdictIcon = correct ? "✓" : "✗";
-        const badge =
-          explain?.badge && correct
-            ? `<span class="trainer-coach-badge">${escapeHtml(explain.badge)}</span>`
-            : "";
-        const reason = explain?.reason
-          ? explain.reason
-          : correct
-            ? "Nice — that matches the chart."
-            : "Check the chart for this seat.";
-        turnInfoEl!.innerHTML = `<span class="trainer-coach-verdict ${
-          correct ? "is-correct" : "is-wrong"
-        }"><span class="trainer-coach-icon" aria-hidden="true">${verdictIcon}</span>${verdictText}</span>${badge}<span class="trainer-coach-reason">${escapeHtml(
-          reason,
-        )}</span>`;
+        turnInfoEl!.textContent = "";
       }
 
       function dealNext(): void {
@@ -622,6 +778,8 @@
           answered: false,
           chosen: null,
           correct: null,
+          hintStep: 0,
+          whyOpen: false,
         };
         trainerView.classList.remove("is-answered");
         potEl!.textContent = String(POT);
@@ -631,8 +789,10 @@
         communityEl!.innerHTML =
           `<span class="trainer-board-label">Preflop</span>${holes}`;
         chartEl!.innerHTML = "";
+        hideCoach();
         renderPlayers();
         renderTurnInfo();
+        renderCoach();
         renderActions();
       }
 
@@ -640,15 +800,18 @@
         if (!spot || spot.answered) return;
         const graded = ranges!.gradeRfiAction(tableSize, spot.position, spot.handKey, chosen);
         if (!graded) return;
+        const hinted = spot.hintStep > 0;
         spot.answered = true;
         spot.chosen = chosen;
         spot.correct = graded.correct;
+        spot.whyOpen = false;
         trainerView.classList.add("is-answered");
         renderChart(spot.handKey);
         renderPlayers();
         renderTurnInfo();
+        renderCoach();
         renderActions();
-        stats = recordResult(stats, spot.position, graded.correct);
+        stats = recordResult(stats, spot.position, graded.correct, hinted);
         saveStats(stats);
         renderStats();
       }
@@ -703,6 +866,7 @@
         closeMenu();
         closeChart();
         closeSeatPopover();
+        hideCoach();
         trainerView.classList.add("hidden");
         trainerView.classList.remove("is-answered");
         welcome.classList.remove("hidden");
@@ -715,14 +879,6 @@
         } catch {
           /* ignore */
         }
-      }
-
-      function onPractice(): void {
-        if (typeof startOfflineHost === "function") {
-          startOfflineHost();
-          return;
-        }
-        if (joinError) joinError.textContent = "Practice is unavailable.";
       }
 
       function onSize(size: 6 | 9): void {
@@ -832,7 +988,6 @@
       };
 
       trainerBtn.addEventListener("click", onTrainerClick);
-      practiceBtn?.addEventListener("click", onPractice);
       homeBtn.addEventListener("click", onHome);
       menuBtn.addEventListener("click", openMenu);
       closeMenuBtn.addEventListener("click", closeMenu);
@@ -861,7 +1016,6 @@
         destroy() {
           active = false;
           trainerBtn.removeEventListener("click", onTrainerClick);
-          practiceBtn?.removeEventListener("click", onPractice);
           homeBtn.removeEventListener("click", onHome);
           menuBtn.removeEventListener("click", openMenu);
           closeMenuBtn.removeEventListener("click", closeMenu);

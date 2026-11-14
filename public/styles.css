@@ -690,66 +690,88 @@ html.trainer-open-root {
   line-height: 1.4;
 }
 
-.trainer-verdict.is-correct,
-.trainer-coach-verdict.is-correct {
-  color: var(--trainer-raise);
-}
-
-.trainer-verdict.is-wrong,
-.trainer-coach-verdict.is-wrong {
-  color: var(--danger);
-}
-
 .trainer-pos-label {
   white-space: nowrap;
 }
 
-.turn-info.trainer-coach {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 10px;
-  align-items: baseline;
-  min-height: 0;
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.35;
+/* Trainer reuses the game's .coach-hint card; keep teaching copy readable on phones. */
+.trainer-view .coach-hint-reason.trainer-coach-reason-wrap {
+  display: block;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
 }
 
-.trainer-coach-verdict {
-  display: inline-flex;
-  gap: 5px;
-  align-items: center;
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
+.trainer-why {
+  margin: 2px 0 0;
+  min-width: 0;
 }
 
-.trainer-coach-icon {
-  font-size: 14px;
-  line-height: 1;
-}
-
-.trainer-coach-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 20px;
-  padding: 0 7px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--trainer-raise) 18%, transparent);
-  color: var(--trainer-raise);
-  font-size: 11px;
+.trainer-why > summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.02em;
-  text-transform: uppercase;
+  list-style: none;
+  user-select: none;
 }
 
-.trainer-coach-reason {
+.trainer-why > summary::-webkit-details-marker {
+  display: none;
+}
+
+.trainer-why > summary::before {
+  content: "▸ ";
+}
+
+.trainer-why[open] > summary::before {
+  content: "▾ ";
+}
+
+.trainer-why-body {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.trainer-why-list {
+  margin: 0;
+  padding-left: 1.1em;
   color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 550;
   line-height: 1.35;
+}
+
+.trainer-why-list li + li {
+  margin-top: 4px;
+}
+
+.trainer-why-rule {
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+/* Hint + Fold + Raise stay one row so the coach card doesn't push mobile scroll. */
+.trainer-view:not(.is-answered) .game-buttons {
+  display: grid;
+  grid-template-columns: minmax(4.25rem, auto) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.trainer-view:not(.is-answered) .game-buttons > button {
+  flex: unset;
+  min-width: 0;
+  width: 100%;
+}
+
+.trainer-view .game-buttons > #trainerHintBtn {
+  padding-inline: 10px;
+  font-weight: 700;
 }
 
 .trainer-seat-row {
@@ -914,12 +936,16 @@ html.trainer-open-root {
     white-space: normal;
   }
 
-  .turn-info.trainer-coach {
-    gap: 4px 8px;
+  .trainer-view .coach-hint {
+    padding: 8px 10px;
+    gap: 2px;
   }
 
-  .trainer-coach-reason {
-    flex: 1 1 100%;
+  .trainer-view .coach-hint-headline {
+    font-size: 14px;
+  }
+
+  .trainer-view .coach-hint-reason.trainer-coach-reason-wrap {
     font-size: 12px;
   }
 }
@@ -1012,15 +1038,8 @@ html.trainer-open-root {
     grid-template-columns: 16px repeat(13, minmax(0, 1fr));
   }
 
-  .turn-info.trainer-coach {
-    flex-wrap: wrap;
-    white-space: normal;
-  }
-
-  .trainer-coach-reason {
-    overflow: visible;
-    text-overflow: unset;
-    white-space: normal;
+  .trainer-view .coach-hint-reason.trainer-coach-reason-wrap {
+    font-size: 13px;
   }
 }
 

@@ -58,7 +58,19 @@ window.RfiRanges = {
     borderline: null,
     category: "offsuit_broadway",
     band: "late",
+    positionName: "Cutoff",
+    playersBehind: 3,
+    categoryLabel: "offsuit broadway cards",
+    why: ["You're in the Cutoff with 3 players left to act.", "AKo is offsuit broadway."],
+    ruleOfThumb: "Late seats: steal more.",
   }),
+  rfiTeachingHint: () => ({
+    concept: "You're in the Cutoff with 3 players left behind you.",
+    reveal: "Raise — open wide late.",
+    standard: "raise",
+  }),
+  rfiPlayersBehind: () => 3,
+  rfiPositionName: (seat) => seat,
 };
 window.HoldemFormat = {
   escapeHtml: (value) =>

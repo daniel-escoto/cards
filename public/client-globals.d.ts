@@ -361,6 +361,18 @@ declare global {
       position: string,
       handKey: string,
     ): "inside" | "outside" | null;
+    rfiPlayersBehind?(tableSize: 6 | 9, position: string): number | null;
+    rfiPositionName?(position: string): string;
+    rfiCategoryLabel?(category: string): string;
+    rfiTeachingHint?(
+      tableSize: 6 | 9,
+      position: string,
+      handKey: string,
+    ): {
+      concept: string;
+      reveal: string;
+      standard: "raise" | "fold";
+    } | null;
     explainRfiDecision?(
       tableSize: 6 | 9,
       position: string,
@@ -368,11 +380,16 @@ declare global {
       chosen: "raise" | "fold",
     ): {
       verdict: "correct" | "mistake";
-      badge: "Best" | null;
+      badge: "Best" | "Borderline" | "Mistake";
       reason: string;
       borderline: "inside" | "outside" | null;
       category: string;
       band: string;
+      positionName: string;
+      playersBehind: number;
+      categoryLabel: string;
+      why: string[];
+      ruleOfThumb: string;
     } | null;
     rfiChart(
       tableSize: 6 | 9,
