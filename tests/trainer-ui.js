@@ -32,6 +32,7 @@ assert.match(html, /id="trainerDrillRfi"/);
 assert.match(html, /id="trainerDrillFacing"/);
 assert.match(html, /id="trainerDrillMix"/);
 assert.match(html, /id="trainerBetControls"/);
+assert.match(html, /id="trainerBetPresets" class="bet-presets"/);
 assert.match(html, /trainer\.js/);
 
 // Trainer lives inside the join card (same group) but stays type=button (no submit).
@@ -50,9 +51,6 @@ assert.match(trainer, /TABLE_SEATS/);
 assert.match(trainer, /Folded to you/);
 assert.match(trainer, /POSITION_FULL_NAME/);
 assert.match(trainer, /Under the gun/);
-assert.match(trainer, /trainerHintBtn/);
-assert.match(trainer, /rfiTeachingHint/);
-assert.match(trainer, /facingTeachingHint/);
 assert.match(trainer, /explainFacingDecision/);
 assert.match(trainer, /facingActionLine/);
 assert.match(trainer, /You're in the/);
@@ -60,21 +58,33 @@ assert.match(trainer, /is-facing/);
 assert.match(trainer, /legalRaiseTo/);
 assert.match(trainer, /trainer-why/);
 assert.match(trainer, /trainer-borderline-note/);
-assert.match(trainer, /hinted/);
 assert.match(trainer, /blind-chip/);
 assert.match(trainer, /table-player-row/);
 assert.match(trainer, /trainerFoldBtn/);
-assert.match(trainer, /trainerCallBtn/);
+assert.match(trainer, /trainerConfirmBtn/);
 assert.match(trainer, /trainerRetryBtn/);
 assert.match(trainer, /text-action-link/);
 assert.match(trainer, /action-links/);
 assert.match(trainer, /DRILL_KEY/);
+assert.match(trainer, /setButtonLabel/);
+assert.match(trainer, /class="danger"/);
+assert.match(trainer, /merge-check-bet/);
+assert.match(trainer, /nudgeRaiseTo/);
+assert.match(trainer, /initialRaiseTo/);
 assert.doesNotMatch(trainer, /onPractice/);
 assert.doesNotMatch(trainer, /\bany\b/);
-// Max 2 primary buttons: facing Fold|Call (Raise in bet-controls); Hint/Chart are links.
+// Hint removed entirely (no button, coach step, or keyboard path).
+assert.doesNotMatch(trainer, /trainerHintBtn/);
+assert.doesNotMatch(trainer, /function onHint/);
+assert.doesNotMatch(trainer, /renderHintCoach/);
+assert.doesNotMatch(trainer, /Hint again/);
+assert.doesNotMatch(html, /trainerHint/);
+// Max 2 primary buttons: facing Fold|Call/Raise confirm; Chart is a link after answer.
 assert.match(css, /\.trainer-view \.game-buttons\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\)/s);
 assert.doesNotMatch(css, /Facing: Hint \| Fold \| Call \| Raise/);
 assert.match(css, /button\.text-action-link/);
+// Live-table raise button is not forced visible on facing (Call/Raise merge hides it).
+assert.doesNotMatch(css, /\.trainer-view\.is-facing #trainerRaiseActionBtn/);
 
 assert.match(css, /--trainer-chart-raise-bg/);
 assert.match(css, /--trainer-chart-call-bg/);
@@ -89,10 +99,11 @@ assert.match(
   /Trainer uses the same \.felt \/ \.community \/ \.players \/ \.control-panel layout as Practice/,
 );
 assert.doesNotMatch(css, /\.trainer-view \.felt\s*\{/);
-// Mobile may loosen .players overflow so the full roster fits (no tiny inner scrollbar).
-assert.match(css, /\.trainer-view \.players\s*\{[^}]*overflow-y:\s*visible/s);
+// Mobile: seats stay clipped to the felt grid cell (auto-scroll) — never overlap the panel.
+assert.match(css, /\.trainer-view \.players\s*\{[^}]*overflow-y:\s*auto/s);
+assert.match(css, /\.trainer-view \.control-panel\s*\{[^}]*z-index:\s*5/s);
+assert.doesNotMatch(css, /\.trainer-view \.players\s*\{[^}]*overflow-y:\s*visible/s);
 assert.doesNotMatch(css, /\.trainer-view \.community\s*\{/);
-assert.doesNotMatch(css, /\.trainer-view \.control-panel\s*\{/);
 // Welcome stays 720px; Trainer must not inherit that narrow app width.
 assert.doesNotMatch(css, /body:has\(#trainerView:not\(\.hidden\)\)\s*\.app/);
 assert.match(html, /id="trainerCommunity" class="community"/);

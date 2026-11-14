@@ -437,6 +437,9 @@
       const raiseAmountEl = trainerView.querySelector(
         "#trainerRaiseAmount",
       ) as HTMLElement | null;
+      const raiseLabelEl = trainerView.querySelector(
+        "#trainerRaiseLabel",
+      ) as HTMLElement | null;
       const raiseMinusBtn = trainerView.querySelector(
         "#trainerRaiseMinus",
       ) as HTMLButtonElement | null;
@@ -446,6 +449,12 @@
       const raiseActionBtn = trainerView.querySelector(
         "#trainerRaiseActionBtn",
       ) as HTMLButtonElement | null;
+      const betPresetsEl = trainerView.querySelector(
+        "#trainerBetPresets",
+      ) as HTMLElement | null;
+      const raiseRowEl = trainerView.querySelector(
+        "#trainerBetControls .raise-row",
+      ) as HTMLElement | null;
 
       const menuModal = doc.querySelector("#trainerMenuModal") as HTMLElement | null;
       const closeMenuBtn = doc.querySelector("#trainerCloseMenuBtn") as HTMLButtonElement | null;
@@ -483,9 +492,12 @@
         !controlPanel ||
         !betControls ||
         !raiseAmountEl ||
+        !raiseLabelEl ||
         !raiseMinusBtn ||
         !raisePlusBtn ||
         !raiseActionBtn ||
+        !betPresetsEl ||
+        !raiseRowEl ||
         !menuModal ||
         !closeMenuBtn ||
         !size6Btn ||
@@ -625,23 +637,18 @@
           `Overall ${stats.overall.correct}/${stats.overall.total} (${overallPct})`,
           `Streak ${stats.streak}${stats.bestStreak ? ` (best ${stats.bestStreak})` : ""}`,
         ];
-        if (stats.overall.hinted > 0) {
-          parts.push(`Hinted ${stats.overall.hinted}`);
-        }
         const order = ranges!.positionsForTable(tableSize);
         for (const pos of order) {
           const row = stats.byPosition[pos];
           if (!row || row.total === 0) continue;
-          const hintMark = row.hinted > 0 ? ` · ${row.hinted}h` : "";
-          parts.push(`${pos} ${row.correct}/${row.total}${hintMark}`);
+          parts.push(`${pos} ${row.correct}/${row.total}`);
         }
         if (vsOpen) {
           for (const pos of vsOpen.facingHeroPositions(tableSize)) {
             if ((order as readonly string[]).includes(pos)) continue;
             const row = stats.byPosition[pos];
             if (!row || row.total === 0) continue;
-            const hintMark = row.hinted > 0 ? ` · ${row.hinted}h` : "";
-            parts.push(`${pos} ${row.correct}/${row.total}${hintMark}`);
+            parts.push(`${pos} ${row.correct}/${row.total}`);
           }
         }
         statsEl!.textContent = parts.join(" · ");
@@ -666,105 +673,149 @@
           betControls!.classList.add("is-reserved");
           betControls!.setAttribute("inert", "");
           betControls!.setAttribute("aria-hidden", "true");
+          betPresetsEl!.replaceChildren();
+          raiseRowEl!.classList.remove("merge-check-bet");
+          raiseActionBtn!.classList.remove("hidden", "has-shortcut");
         }
+      }
+
+      /** Same label + optional kbd badge markup the live table uses. */
+      function setButtonLabel(button: HTMLElement | null | undefined, label: string, shortcut = ""): void {
+        if (!button) return;
+        button.innerHTML = `<span>${escapeHtml(label)}</span>${
+          shortcut ? `<kbd aria-hidden="true">${escapeHtml(shortcut)}</kbd>` : ""
+        }`;
+        button.classList.toggle("has-shortcut", Boolean(shortcut));
+        button.setAttribute("aria-label", shortcut ? `${label} (${shortcut})` : label);
+      }
+
+      function facingRaiseBounds() {
+        if (!spot || spot.kind !== "facing") {
+          return {
+            minRaiseTo: BIG_BLIND * 2,
+            maxRaiseTo: STARTING_STACK,
+            step: BIG_BLIND,
+            currentBet: 0,
+            mergeCallRaise: true,
+          };
+        }
+        return {
+          minRaiseTo: spot.minRaiseTo,
+          maxRaiseTo: spot.maxRaiseTo,
+          step: BIG_BLIND,
+          currentBet: spot.openTo,
+          mergeCallRaise: true,
+        };
+      }
+
+      function atFacingCallDetent(): boolean {
+        if (!spot || spot.kind !== "facing") return true;
+        if (sizing && typeof sizing.isPassiveDetent === "function") {
+          return sizing.isPassiveDetent(spot.raiseTo, spot.openTo);
+        }
+        return spot.raiseTo <= spot.openTo;
       }
 
       function syncRaiseDisplay(): void {
         if (!spot || spot.kind !== "facing" || spot.answered) {
-          // Keep the raise slot reserved (not compact) so Fold/Call → answered doesn't jump.
-          if (spot?.kind === "facing") {
-            controlPanel!.classList.remove("is-compact");
-            betControls!.classList.add("is-reserved");
-            betControls!.setAttribute("inert", "");
-            betControls!.setAttribute("aria-hidden", "true");
-          } else {
-            setBetControlsVisible(false);
-          }
+          // Drop the raise row after answer so the coach panel + seats both fit on mobile.
+          setBetControlsVisible(false);
           return;
         }
-        raiseAmountEl!.textContent = String(spot.raiseTo);
+        const atDetent = atFacingCallDetent();
+        const display =
+          sizing && typeof sizing.displayRaiseAmount === "function"
+            ? sizing.displayRaiseAmount({
+                facingBet: true,
+                atDetent,
+                value: spot.raiseTo,
+              })
+            : spot.raiseTo;
+        raiseLabelEl!.textContent = "Raise to";
+        raiseAmountEl!.textContent = String(display);
         setBetControlsVisible(true);
-        // Raise lives with sizing in bet-controls (max 2 buttons in .game-buttons).
-        raiseActionBtn?.classList.remove("hidden");
+        // Live table: Call/Raise merge hides the standalone Raise button.
+        raiseActionBtn!.classList.add("hidden");
+        raiseRowEl!.classList.add("merge-check-bet");
+        raiseMinusBtn!.disabled = atDetent;
+        raisePlusBtn!.disabled = spot.raiseTo >= spot.maxRaiseTo;
+        renderFacingBetPresets();
+        updateFacingConfirmButton();
       }
 
-      function textActionLink(id: string, label: string, onClick: () => void, disabled = false): string {
-        return `<button id="${id}" class="text-action-link" type="button"${disabled ? " disabled" : ""}>${label}</button>`;
+      function renderFacingBetPresets(): void {
+        if (!spot || spot.kind !== "facing" || spot.answered) {
+          betPresetsEl!.replaceChildren();
+          return;
+        }
+        const bounds = facingRaiseBounds();
+        const options: { label: string; value: number; allIn?: boolean }[] = [];
+        if (sizing && typeof sizing.potPresetRaiseTo === "function") {
+          for (const preset of [
+            { label: "½ pot", fraction: 0.5 },
+            { label: "Pot", fraction: 1 },
+          ]) {
+            const raw = sizing.potPresetRaiseTo({
+              pot: spot.pot,
+              currentBet: spot.openTo,
+              bigBlind: BIG_BLIND,
+              fraction: preset.fraction,
+              toCall: spot.toCall,
+            });
+            const value =
+              typeof sizing.legalRaiseTo === "function"
+                ? sizing.legalRaiseTo(raw, bounds)
+                : snapRaiseTo(raw, spot.minRaiseTo, spot.maxRaiseTo);
+            if (value < spot.maxRaiseTo) options.push({ label: preset.label, value });
+          }
+        }
+        options.push({ label: "All in", value: spot.maxRaiseTo, allIn: true });
+        betPresetsEl!.replaceChildren();
+        for (const option of options) {
+          const button = doc.createElement("button");
+          button.type = "button";
+          button.textContent = option.label;
+          button.addEventListener("click", () => {
+            if (!spot || spot.kind !== "facing" || spot.answered) return;
+            spot.raiseTo = option.value;
+            if (option.allIn) {
+              answerFacing("raise");
+              return;
+            }
+            syncRaiseDisplay();
+          });
+          betPresetsEl!.appendChild(button);
+        }
       }
 
-      function renderHintCoach(): void {
-        if (!spot || spot.answered || spot.hintStep === 0) {
-          hideCoach();
+      function updateFacingConfirmButton(): void {
+        const confirmBtn = actionsEl!.querySelector("#trainerConfirmBtn") as HTMLButtonElement | null;
+        if (!confirmBtn || !spot || spot.kind !== "facing" || spot.answered) return;
+        if (atFacingCallDetent()) {
+          setButtonLabel(confirmBtn, `Call ${spot.toCall}`, "C");
           return;
         }
-        if (spot.kind === "facing") {
-          if (!vsOpen || typeof vsOpen.facingTeachingHint !== "function") {
-            hideCoach();
-            return;
-          }
-          const hint = vsOpen.facingTeachingHint(
-            tableSize,
-            spot.position,
-            spot.openerPosition,
-            spot.handKey,
-          );
-          if (!hint) {
-            hideCoach();
-            return;
-          }
-          const head = doc.createElement("div");
-          head.className = "coach-hint-head";
-          const badge = doc.createElement("span");
-          badge.className = "coach-hint-badge";
-          badge.textContent = spot.hintStep === 1 ? "Hint" : "Hint · reveal";
-          const headline = doc.createElement("strong");
-          headline.className = "coach-hint-headline";
-          headline.textContent =
-            spot.hintStep === 1
-              ? "Think about the spot"
-              : hint.standard === "raise"
-                ? "3-bet"
-                : hint.standard === "call"
-                  ? "Call"
-                  : "Fold";
-          head.append(badge, headline);
-          const reason = doc.createElement("p");
-          reason.className = "coach-hint-reason trainer-coach-reason-wrap";
-          reason.textContent = spot.hintStep === 1 ? hint.concept : hint.reveal;
-          coachEl!.replaceChildren(head, reason);
-          coachEl!.dataset.hintStep = String(spot.hintStep);
-          if (spot.hintStep === 2) coachEl!.dataset.action = hint.standard;
-          else coachEl!.removeAttribute("data-action");
-          coachEl!.classList.remove("hidden");
-          return;
-        }
+        setButtonLabel(confirmBtn, `Raise ${spot.raiseTo}`, "C");
+      }
 
-        const hint =
-          typeof ranges!.rfiTeachingHint === "function"
-            ? ranges!.rfiTeachingHint(tableSize, spot.position, spot.handKey)
-            : null;
-        if (!hint) {
-          hideCoach();
-          return;
+      function textActionLink(id: string, label: string): string {
+        return `<button id="${id}" class="text-action-link" type="button">${label}</button>`;
+      }
+
+      function nudgeFacingRaise(direction: number): void {
+        if (!spot || spot.kind !== "facing" || spot.answered) return;
+        if (sizing && typeof sizing.nudgeRaiseTo === "function") {
+          spot.raiseTo = sizing.nudgeRaiseTo(spot.raiseTo, direction, facingRaiseBounds());
+        } else {
+          spot.raiseTo = nudgeRaise(spot.raiseTo, direction, spot.minRaiseTo, spot.maxRaiseTo);
         }
-        const head = doc.createElement("div");
-        head.className = "coach-hint-head";
-        const badge = doc.createElement("span");
-        badge.className = "coach-hint-badge";
-        badge.textContent = spot.hintStep === 1 ? "Hint" : "Hint · reveal";
-        const headline = doc.createElement("strong");
-        headline.className = "coach-hint-headline";
-        headline.textContent =
-          spot.hintStep === 1 ? "Think about the seat" : hint.standard === "raise" ? "Raise" : "Fold";
-        head.append(badge, headline);
-        const reason = doc.createElement("p");
-        reason.className = "coach-hint-reason trainer-coach-reason-wrap";
-        reason.textContent = spot.hintStep === 1 ? hint.concept : hint.reveal;
-        coachEl!.replaceChildren(head, reason);
-        coachEl!.dataset.hintStep = String(spot.hintStep);
-        if (spot.hintStep === 2) coachEl!.dataset.action = hint.standard;
-        else coachEl!.removeAttribute("data-action");
-        coachEl!.classList.remove("hidden");
+        syncRaiseDisplay();
+      }
+
+      function confirmFacingAction(): void {
+        if (!spot || spot.kind !== "facing" || spot.answered) return;
+        if (atFacingCallDetent()) answerFacing("call");
+        else answerFacing("raise");
       }
 
       function appendWhyDetails(
@@ -904,25 +955,11 @@
       }
 
       function renderCoach(): void {
-        if (!spot) {
+        if (!spot || !spot.answered) {
           hideCoach();
           return;
         }
-        if (spot.answered) {
-          renderAnswerCoach();
-          return;
-        }
-        renderHintCoach();
-      }
-
-      function onHint(): void {
-        if (!spot || spot.answered) return;
-        if (spot.hintStep < 2) {
-          spot.hintStep = (spot.hintStep + 1) as 1 | 2;
-        }
-        renderCoach();
-        renderActions();
-        renderTurnInfo();
+        renderAnswerCoach();
       }
 
       function renderSizeToggle(): void {
@@ -1201,53 +1238,44 @@
         }
 
         if (!spot.answered) {
-          const hintLabel =
-            spot.hintStep === 0 ? "Hint" : spot.hintStep === 1 ? "Hint again" : "Hinted";
           if (spot.kind === "facing") {
             trainerView.classList.add("is-facing");
-            // Max 2 buttons: Fold | Call. Raise sits with sizing in bet-controls. Hint is a link.
+            // Same as live table: Fold (danger) + Call/Raise confirm; sizing in bet-controls.
             actionsEl!.innerHTML = `
-              <div class="action-links">${textActionLink(
-                "trainerHintBtn",
-                hintLabel,
-                () => {},
-                spot.hintStep >= 2,
-              )}</div>
-              <button id="trainerFoldBtn" class="secondary has-shortcut" type="button">
-                <span>Fold</span><kbd aria-hidden="true">F</kbd>
-              </button>
-              <button id="trainerCallBtn" class="secondary has-shortcut" type="button">
-                <span>Call ${spot.toCall}</span><kbd aria-hidden="true">C</kbd>
-              </button>
+              <button id="trainerFoldBtn" class="danger" type="button"></button>
+              <button id="trainerConfirmBtn" type="button"></button>
             `;
-            const hintBtn = actionsEl!.querySelector("#trainerHintBtn") as HTMLButtonElement;
             const foldBtn = actionsEl!.querySelector("#trainerFoldBtn") as HTMLButtonElement;
-            const callBtn = actionsEl!.querySelector("#trainerCallBtn") as HTMLButtonElement;
-            hintBtn.addEventListener("click", onHint);
+            const confirmBtn = actionsEl!.querySelector("#trainerConfirmBtn") as HTMLButtonElement;
+            setButtonLabel(foldBtn, "Fold", "F");
             foldBtn.addEventListener("click", () => answerFacing("fold"));
-            callBtn.addEventListener("click", () => answerFacing("call"));
+            confirmBtn.addEventListener("click", () => confirmFacingAction());
+            // Open on Call detent — first + / preset / R nudges to a real raise.
+            if (sizing && typeof sizing.initialRaiseTo === "function") {
+              spot.raiseTo = sizing.initialRaiseTo({
+                facingBet: true,
+                mergePassiveConfirm: true,
+                currentBet: spot.openTo,
+                minRaiseTo: spot.minRaiseTo,
+                maxRaiseTo: spot.maxRaiseTo,
+                preferredRaiseTo: spot.raiseTo,
+              });
+            } else {
+              spot.raiseTo = spot.openTo;
+            }
             syncRaiseDisplay();
             return;
           }
           trainerView.classList.remove("is-facing");
+          // RFI: Fold (danger) + Raise — same classes/badges as the live table.
           actionsEl!.innerHTML = `
-            <div class="action-links">${textActionLink(
-              "trainerHintBtn",
-              hintLabel,
-              () => {},
-              spot.hintStep >= 2,
-            )}</div>
-            <button id="trainerFoldBtn" class="secondary has-shortcut" type="button">
-              <span>Fold</span><kbd aria-hidden="true">F</kbd>
-            </button>
-            <button id="trainerRaiseBtn" class="has-shortcut" type="button">
-              <span>Raise</span><kbd aria-hidden="true">R</kbd>
-            </button>
+            <button id="trainerFoldBtn" class="danger" type="button"></button>
+            <button id="trainerRaiseBtn" type="button"></button>
           `;
-          const hintBtn = actionsEl!.querySelector("#trainerHintBtn") as HTMLButtonElement;
           const foldBtn = actionsEl!.querySelector("#trainerFoldBtn") as HTMLButtonElement;
           const raiseBtn = actionsEl!.querySelector("#trainerRaiseBtn") as HTMLButtonElement;
-          hintBtn.addEventListener("click", onHint);
+          setButtonLabel(foldBtn, "Fold", "F");
+          setButtonLabel(raiseBtn, "Raise", "R");
           foldBtn.addEventListener("click", () => answerRfi("fold"));
           raiseBtn.addEventListener("click", () => answerRfi("raise"));
           setBetControlsVisible(false);
@@ -1259,24 +1287,24 @@
         const showRetry = spot.kind === "facing" && spot.correct === false;
         // Max 2 buttons: Retry (secondary) + Next hand (primary). Chart is a link.
         actionsEl!.innerHTML = `
-          <div class="action-links">${textActionLink("trainerChartBtn", "Chart", () => {})}</div>
+          <div class="action-links">${textActionLink("trainerChartBtn", "Chart")}</div>
           ${
             showRetry
-              ? `<button id="trainerRetryBtn" class="secondary has-shortcut" type="button">
-                   <span>Retry</span><kbd aria-hidden="true">T</kbd>
-                 </button>`
+              ? `<button id="trainerRetryBtn" class="secondary" type="button"></button>`
               : `<button id="trainerRetryPlaceholder" class="action-placeholder" type="button" tabindex="-1" aria-hidden="true">Retry</button>`
           }
-          <button id="trainerNextBtn" class="has-shortcut" type="button">
-            <span>Next hand</span><kbd aria-hidden="true">N</kbd>
-          </button>
+          <button id="trainerNextBtn" type="button"></button>
         `;
         const chartBtn = actionsEl!.querySelector("#trainerChartBtn") as HTMLButtonElement;
         chartBtn.addEventListener("click", openChart);
         const nextBtn = actionsEl!.querySelector("#trainerNextBtn") as HTMLButtonElement;
+        setButtonLabel(nextBtn, "Next hand", "N");
         nextBtn.addEventListener("click", () => dealNext());
         const retryBtn = actionsEl!.querySelector("#trainerRetryBtn") as HTMLButtonElement | null;
-        if (retryBtn) retryBtn.addEventListener("click", retrySpot);
+        if (retryBtn) {
+          setButtonLabel(retryBtn, "Retry", "T");
+          retryBtn.addEventListener("click", retrySpot);
+        }
       }
 
       function facingActionLine(spotState: Extract<SpotState, { kind: "facing" }>): string {
@@ -1415,7 +1443,6 @@
         if (!spot || spot.kind !== "rfi" || spot.answered) return;
         const graded = ranges!.gradeRfiAction(tableSize, spot.position, spot.handKey, chosen);
         if (!graded) return;
-        const hinted = spot.hintStep > 0;
         spot.answered = true;
         spot.chosen = chosen;
         spot.correct = graded.correct;
@@ -1428,7 +1455,7 @@
         renderActions();
         if (!spot.scored) {
           spot.scored = true;
-          stats = recordResult(stats, spot.position, graded.correct, hinted);
+          stats = recordResult(stats, spot.position, graded.correct, false);
           saveStats(stats);
           renderStats();
         }
@@ -1444,7 +1471,6 @@
           chosen,
         );
         if (!graded) return;
-        const hinted = spot.hintStep > 0;
         spot.answered = true;
         spot.chosen = chosen;
         spot.correct = graded.correct;
@@ -1457,7 +1483,7 @@
         renderActions();
         if (!spot.scored) {
           spot.scored = true;
-          stats = recordResult(stats, spot.position, graded.correct, hinted);
+          stats = recordResult(stats, spot.position, graded.correct, false);
           saveStats(stats);
           renderStats();
         }
@@ -1582,14 +1608,25 @@
         const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
         if (!spot?.answered) {
           if (spot?.kind === "facing") {
+            // Match live table: arrows size the raise; R nudges off Call; C confirms; F folds.
+            if (
+              key === "ArrowUp" ||
+              key === "ArrowRight" ||
+              key === "ArrowDown" ||
+              key === "ArrowLeft"
+            ) {
+              event.preventDefault();
+              nudgeFacingRaise(key === "ArrowUp" || key === "ArrowRight" ? 1 : -1);
+              return;
+            }
             if (key === "r") {
               event.preventDefault();
-              answerFacing("raise");
+              nudgeFacingRaise(1);
               return;
             }
             if (key === "c") {
               event.preventDefault();
-              answerFacing("call");
+              confirmFacingAction();
               return;
             }
             if (key === "f") {
@@ -1672,19 +1709,13 @@
         if (target instanceof HTMLElement && target.closest(".trainer-seat-row")) return;
         closeSeatPopover();
       };
-      const onRaiseMinus = () => {
-        if (!spot || spot.kind !== "facing" || spot.answered) return;
-        spot.raiseTo = nudgeRaise(spot.raiseTo, -1, spot.minRaiseTo, spot.maxRaiseTo);
-        syncRaiseDisplay();
-      };
-      const onRaisePlus = () => {
-        if (!spot || spot.kind !== "facing" || spot.answered) return;
-        spot.raiseTo = nudgeRaise(spot.raiseTo, 1, spot.minRaiseTo, spot.maxRaiseTo);
-        syncRaiseDisplay();
-      };
+      const onRaiseMinus = () => nudgeFacingRaise(-1);
+      const onRaisePlus = () => nudgeFacingRaise(1);
       const onRaiseAction = () => {
         if (!spot || spot.kind !== "facing" || spot.answered) return;
-        answerFacing("raise");
+        // Standalone Raise is hidden while Call/Raise is merged; keep as a raise confirm.
+        if (atFacingCallDetent()) nudgeFacingRaise(1);
+        else answerFacing("raise");
       };
 
       trainerBtn.addEventListener("click", onTrainerClick);

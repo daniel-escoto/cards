@@ -53,4 +53,20 @@ assert.doesNotMatch(css, /#joinForm:focus-within/);
 assert.match(css, /body\.keyboard-open \.welcome/);
 assert.match(html, /id="trainerBtn"[\s\S]*?<\/form>/);
 
+// Trainer mobile (375×667 and SE): seat list must not paint over the feedback/control panel.
+// Felt is community | players | panel; players scroll inside their row; panel is opaque + above.
+assert.match(
+  css,
+  /@media \(max-width: 779px\)[\s\S]*?\.trainer-view \.players\s*\{[^}]*overflow-y:\s*auto[^}]*max-height:\s*100%/s,
+);
+assert.match(
+  css,
+  /@media \(max-width: 779px\)[\s\S]*?\.trainer-view \.control-panel\s*\{[^}]*z-index:\s*5[^}]*background:\s*var\(--panel\)/s,
+);
+assert.doesNotMatch(
+  css,
+  /\.trainer-view \.players\s*\{[^}]*overflow-y:\s*visible/s,
+  "visible overflow lets seat rows cover the Mistake panel on 375/SE",
+);
+
 console.log("Layout stability static checks passed.");
