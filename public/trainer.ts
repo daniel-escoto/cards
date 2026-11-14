@@ -43,6 +43,8 @@
 
     type TrainerStats = {
       overall: { correct: number; total: number };
+      streak: number;
+      bestStreak: number;
       byPosition: Record<string, { correct: number; total: number }>;
     };
 
@@ -55,8 +57,17 @@
       answered: boolean;
     };
 
+    /** Seat order clockwise from UTG for table diagrams (no BB — RFI only). */
+    const DIAGRAM_SEATS_6 = ["UTG", "HJ", "CO", "BTN", "SB"] as const;
+    const DIAGRAM_SEATS_9 = ["UTG", "UTG+1", "MP", "LJ", "HJ", "CO", "BTN", "SB"] as const;
+
     function emptyStats(): TrainerStats {
-      return { overall: { correct: 0, total: 0 }, byPosition: {} };
+      return {
+        overall: { correct: 0, total: 0 },
+        streak: 0,
+        bestStreak: 0,
+        byPosition: {},
+      };
     }
 
     function loadStats(): TrainerStats {
@@ -78,6 +89,8 @@
             correct: Math.max(0, Math.floor(parsed.overall.correct)),
             total: Math.max(0, Math.floor(parsed.overall.total)),
           },
+          streak: Math.max(0, Math.floor(Number(parsed.streak) || 0)),
+          bestStreak: Math.max(0, Math.floor(Number(parsed.bestStreak) || 0)),
           byPosition:
             parsed.byPosition && typeof parsed.byPosition === "object" ? parsed.byPosition : {},
         };
@@ -96,8 +109,7 @@
 
     function loadTableSize(): 6 | 9 {
       try {
-        const raw = localStorage.getItem(TABLE_KEY);
-        if (raw === "9") return 9;
+        if (localStorage.getItem(TABLE_KEY) === "9") return 9;
       } catch {
         /* ignore */
       }
@@ -118,11 +130,14 @@
     }
 
     function recordResult(stats: TrainerStats, position: string, correct: boolean): TrainerStats {
+      const streak = correct ? stats.streak + 1 : 0;
       const next: TrainerStats = {
         overall: {
           correct: stats.overall.correct + (correct ? 1 : 0),
           total: stats.overall.total + 1,
         },
+        streak,
+        bestStreak: Math.max(stats.bestStreak, streak),
         byPosition: { ...stats.byPosition },
       };
       const prior = next.byPosition[position] || { correct: 0, total: 0 };
@@ -152,26 +167,55 @@
       const welcome = welcomeEl;
       const trainerView = trainerViewEl;
 
-      const backBtn = trainerView.querySelector("#trainerBackBtn") as HTMLButtonElement;
-      const size6Btn = trainerView.querySelector("#trainerSize6") as HTMLButtonElement;
-      const size9Btn = trainerView.querySelector("#trainerSize9") as HTMLButtonElement;
-      const positionEl = trainerView.querySelector("#trainerPosition") as HTMLElement;
-      const cardsEl = trainerView.querySelector("#trainerCards") as HTMLElement;
-      const raiseBtn = trainerView.querySelector("#trainerRaiseBtn") as HTMLButtonElement;
-      const foldBtn = trainerView.querySelector("#trainerFoldBtn") as HTMLButtonElement;
-      const actionsEl = trainerView.querySelector("#trainerActions") as HTMLElement;
-      const feedbackEl = trainerView.querySelector("#trainerFeedback") as HTMLElement;
-      const feedbackTitle = trainerView.querySelector("#trainerFeedbackTitle") as HTMLElement;
-      const feedbackDetail = trainerView.querySelector("#trainerFeedbackDetail") as HTMLElement;
-      const chartEl = trainerView.querySelector("#trainerChart") as HTMLElement;
-      const nextBtn = trainerView.querySelector("#trainerNextBtn") as HTMLButtonElement;
-      const statsEl = trainerView.querySelector("#trainerStats") as HTMLElement;
-      const resetBtn = trainerView.querySelector("#trainerResetBtn") as HTMLButtonElement;
+      const backBtn = trainerView.querySelector("#trainerBackBtn") as HTMLButtonElement | null;
+      const size6Btn = trainerView.querySelector("#trainerSize6") as HTMLButtonElement | null;
+      const size9Btn = trainerView.querySelector("#trainerSize9") as HTMLButtonElement | null;
+      const accuracyEl = trainerView.querySelector("#trainerAccuracy") as HTMLElement | null;
+      const positionEl = trainerView.querySelector("#trainerPosition") as HTMLElement | null;
+      const diagramEl = trainerView.querySelector("#trainerTableDiagram") as HTMLElement | null;
+      const cardsEl = trainerView.querySelector("#trainerCards") as HTMLElement | null;
+      const raiseBtn = trainerView.querySelector("#trainerRaiseBtn") as HTMLButtonElement | null;
+      const foldBtn = trainerView.querySelector("#trainerFoldBtn") as HTMLButtonElement | null;
+      const actionsEl = trainerView.querySelector("#trainerActions") as HTMLElement | null;
+      const feedbackEl = trainerView.querySelector("#trainerFeedback") as HTMLElement | null;
+      const feedbackTitle = trainerView.querySelector("#trainerFeedbackTitle") as HTMLElement | null;
+      const feedbackDetail = trainerView.querySelector(
+        "#trainerFeedbackDetail",
+      ) as HTMLElement | null;
+      const chartEl = trainerView.querySelector("#trainerChart") as HTMLElement | null;
+      const nextBtn = trainerView.querySelector("#trainerNextBtn") as HTMLButtonElement | null;
+      const statsEl = trainerView.querySelector("#trainerStats") as HTMLElement | null;
+      const statsSummaryEl = trainerView.querySelector(
+        "#trainerStatsSummary",
+      ) as HTMLElement | null;
+      const resetBtn = trainerView.querySelector("#trainerResetBtn") as HTMLButtonElement | null;
       const joinError = doc.querySelector("#joinError") as HTMLElement | null;
+
+      if (
+        !backBtn ||
+        !size6Btn ||
+        !size9Btn ||
+        !accuracyEl ||
+        !positionEl ||
+        !cardsEl ||
+        !raiseBtn ||
+        !foldBtn ||
+        !actionsEl ||
+        !feedbackEl ||
+        !feedbackTitle ||
+        !feedbackDetail ||
+        !chartEl ||
+        !nextBtn ||
+        !statsEl ||
+        !resetBtn
+      ) {
+        return null;
+      }
 
       let tableSize: 6 | 9 = loadTableSize();
       let stats = loadStats();
       let spot: SpotState | null = null;
+      let active = false;
 
       function cardHtml(card: PublicCard): string {
         if (format && typeof format.cardTemplate === "function") {
@@ -185,11 +229,18 @@
       }
 
       function renderStats(): void {
+        const overallPct = pct(stats.overall.correct, stats.overall.total);
+        accuracyEl!.textContent =
+          stats.overall.total > 0 ? overallPct : "—";
+        if (statsSummaryEl) {
+          statsSummaryEl.textContent =
+            stats.overall.total > 0
+              ? `${overallPct} · streak ${stats.streak}`
+              : "Stats";
+        }
         const parts: string[] = [
-          `Overall ${stats.overall.correct}/${stats.overall.total} (${pct(
-            stats.overall.correct,
-            stats.overall.total,
-          )})`,
+          `Overall ${stats.overall.correct}/${stats.overall.total} (${overallPct})`,
+          `Streak ${stats.streak}${stats.bestStreak ? ` (best ${stats.bestStreak})` : ""}`,
         ];
         const order = ranges!.positionsForTable(tableSize);
         for (const pos of order) {
@@ -197,20 +248,44 @@
           if (!row || row.total === 0) continue;
           parts.push(`${pos} ${row.correct}/${row.total}`);
         }
-        statsEl.textContent = parts.join(" · ");
+        statsEl!.textContent = parts.join(" · ");
       }
 
       function renderSizeToggle(): void {
-        size6Btn.classList.toggle("selected", tableSize === 6);
-        size9Btn.classList.toggle("selected", tableSize === 9);
-        size6Btn.setAttribute("aria-pressed", tableSize === 6 ? "true" : "false");
-        size9Btn.setAttribute("aria-pressed", tableSize === 9 ? "true" : "false");
+        size6Btn!.classList.toggle("selected", tableSize === 6);
+        size9Btn!.classList.toggle("selected", tableSize === 9);
+        size6Btn!.setAttribute("aria-pressed", tableSize === 6 ? "true" : "false");
+        size9Btn!.setAttribute("aria-pressed", tableSize === 9 ? "true" : "false");
+      }
+
+      function renderDiagram(activePos: string): void {
+        if (!diagramEl) return;
+        const seats = tableSize === 6 ? DIAGRAM_SEATS_6 : DIAGRAM_SEATS_9;
+        let html = "";
+        for (const seat of seats) {
+          const on = seat === activePos ? " is-hero" : "";
+          html += `<span class="trainer-seat-dot${on}" title="${seat}"><span>${seat}</span></span>`;
+        }
+        diagramEl.innerHTML = html;
+        diagramEl.dataset.size = String(tableSize);
+      }
+
+      function renderPosition(position: string): void {
+        positionEl!.innerHTML = "";
+        const pill = doc.createElement("span");
+        pill.className = "trainer-pos-pill";
+        pill.textContent = position;
+        const note = doc.createElement("span");
+        note.className = "trainer-pos-note";
+        note.textContent = "folded to you";
+        positionEl!.append(pill, note);
+        renderDiagram(position);
       }
 
       function renderChart(highlightKey: string): void {
         const cells = ranges!.rfiChart(tableSize, spot!.position);
         if (!cells) {
-          chartEl.innerHTML = "";
+          chartEl!.innerHTML = "";
           return;
         }
         const ranks = ranges!.RANK_ORDER;
@@ -225,11 +300,12 @@
           for (let col = 0; col < 13; col += 1) {
             const cell = cells[row * 13 + col]!;
             const highlight = cell.key === highlightKey ? " is-hand" : "";
-            html += `<span class="trainer-chart-cell is-${cell.action}${highlight}" title="${cell.key}">${cell.key}</span>`;
+            const label = cell.key.length <= 3 ? cell.key : cell.key.slice(0, 2);
+            html += `<span class="trainer-chart-cell is-${cell.action}${highlight}" title="${cell.key}">${label}</span>`;
           }
         }
         html += "</div>";
-        chartEl.innerHTML = html;
+        chartEl!.innerHTML = html;
       }
 
       function dealNext(): void {
@@ -242,13 +318,16 @@
           standard: dealt.standard,
           answered: false,
         };
-        positionEl.textContent = `${dealt.position} · ${tableSize}-max`;
-        cardsEl.innerHTML = cardHtml(dealt.cards[0]) + cardHtml(dealt.cards[1]);
-        actionsEl.classList.remove("hidden");
-        feedbackEl.classList.add("hidden");
-        raiseBtn.disabled = false;
-        foldBtn.disabled = false;
-        chartEl.innerHTML = "";
+        trainerView.classList.remove("is-answered");
+        renderPosition(dealt.position);
+        cardsEl!.innerHTML = cardHtml(dealt.cards[0]) + cardHtml(dealt.cards[1]);
+        actionsEl!.classList.remove("hidden");
+        feedbackEl!.classList.add("hidden");
+        raiseBtn!.disabled = false;
+        foldBtn!.disabled = false;
+        chartEl!.innerHTML = "";
+        feedbackTitle!.textContent = "";
+        feedbackDetail!.textContent = "";
       }
 
       function answer(chosen: "raise" | "fold"): void {
@@ -256,15 +335,18 @@
         const graded = ranges!.gradeRfiAction(tableSize, spot.position, spot.handKey, chosen);
         if (!graded) return;
         spot.answered = true;
-        raiseBtn.disabled = true;
-        foldBtn.disabled = true;
-        actionsEl.classList.add("hidden");
-        feedbackEl.classList.remove("hidden");
-        feedbackTitle.textContent = graded.correct ? "Correct" : "Incorrect";
-        feedbackTitle.classList.toggle("is-correct", graded.correct);
-        feedbackTitle.classList.toggle("is-wrong", !graded.correct);
+        raiseBtn!.disabled = true;
+        foldBtn!.disabled = true;
+        actionsEl!.classList.add("hidden");
+        feedbackEl!.classList.remove("hidden");
+        trainerView.classList.add("is-answered");
+        feedbackTitle!.textContent = graded.correct ? "Correct" : "Incorrect";
+        feedbackTitle!.classList.toggle("is-correct", graded.correct);
+        feedbackTitle!.classList.toggle("is-wrong", !graded.correct);
         const label = graded.standard === "raise" ? "Raise" : "Fold";
-        feedbackDetail.textContent = `${spot.handKey} from ${spot.position}: standard action is ${label}.`;
+        feedbackDetail!.textContent = `${label} — ${spot.handKey} is ${
+          graded.standard === "raise" ? "an open" : "a fold"
+        } from ${spot.position}`;
         renderChart(spot.handKey);
         stats = recordResult(stats, spot.position, graded.correct);
         saveStats(stats);
@@ -276,16 +358,19 @@
         if (scoreView) scoreView.classList.add("hidden");
         welcome.classList.add("hidden");
         trainerView.classList.remove("hidden");
+        doc.documentElement.classList.add("trainer-open-root");
+        doc.body.classList.add("trainer-open");
         doc.documentElement.classList.remove("game-open-root");
         doc.body.classList.remove("game-open", "keyboard-open");
+        active = true;
         renderSizeToggle();
         renderStats();
         dealNext();
         try {
-          if (/^\/trainer\/?$/i.test(window.location.pathname)) {
-            /* already on /trainer */
-          } else if (window.location.pathname === "/" || window.location.pathname === "") {
-            window.history.replaceState({}, "", "/trainer");
+          if (!/^\/trainer\/?$/i.test(window.location.pathname)) {
+            if (window.location.pathname === "/" || window.location.pathname === "") {
+              window.history.replaceState({}, "", "/trainer");
+            }
           }
         } catch {
           /* ignore */
@@ -293,8 +378,12 @@
       }
 
       function hideTrainer(): void {
+        active = false;
         trainerView.classList.add("hidden");
+        trainerView.classList.remove("is-answered");
         welcome.classList.remove("hidden");
+        doc.documentElement.classList.remove("trainer-open-root");
+        doc.body.classList.remove("trainer-open");
         try {
           if (/^\/trainer\/?$/i.test(window.location.pathname)) {
             window.history.replaceState({}, "", "/");
@@ -321,6 +410,35 @@
         renderStats();
       }
 
+      function onKeydown(event: KeyboardEvent): void {
+        if (!active || event.metaKey || event.ctrlKey || event.altKey) return;
+        const target = event.target;
+        if (
+          target instanceof HTMLElement &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.isContentEditable)
+        ) {
+          return;
+        }
+        const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+        if (!spot?.answered) {
+          if (key === "r") {
+            event.preventDefault();
+            answer("raise");
+            return;
+          }
+          if (key === "f") {
+            event.preventDefault();
+            answer("fold");
+            return;
+          }
+        } else if (key === " " || key === "Enter" || key === "n") {
+          event.preventDefault();
+          dealNext();
+        }
+      }
+
       const onTrainerClick = () => showTrainer();
       const onBack = () => hideTrainer();
       const onRaise = () => answer("raise");
@@ -343,6 +461,7 @@
       resetBtn.addEventListener("click", onReset);
       size6Btn.addEventListener("click", onSize6);
       size9Btn.addEventListener("click", onSize9);
+      doc.addEventListener("keydown", onKeydown);
 
       try {
         if (/^\/trainer\/?$/i.test(window.location.pathname)) {
@@ -354,6 +473,7 @@
 
       return {
         destroy() {
+          active = false;
           trainerBtn.removeEventListener("click", onTrainerClick);
           practiceBtn?.removeEventListener("click", onPractice);
           backBtn.removeEventListener("click", onBack);
@@ -363,11 +483,11 @@
           resetBtn.removeEventListener("click", onReset);
           size6Btn.removeEventListener("click", onSize6);
           size9Btn.removeEventListener("click", onSize9);
+          doc.removeEventListener("keydown", onKeydown);
         },
       };
     }
 
-    // Auto-bind in the browser once the DOM is ready.
     if (typeof document !== "undefined") {
       if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", () => {

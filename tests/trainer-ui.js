@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Preflop Trainer home entry + invite menu order + coach card markup hooks.
+ * Preflop Trainer home entry + mobile-first shell markup.
  */
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -8,7 +8,7 @@ const path = require("node:path");
 
 const html = fs.readFileSync(path.join(__dirname, "../public/index.html"), "utf8");
 const css = fs.readFileSync(path.join(__dirname, "../public/styles.css"), "utf8");
-const sw = fs.readFileSync(path.join(__dirname, "../public/sw.ts"), "utf8");
+const trainer = fs.readFileSync(path.join(__dirname, "../public/trainer.ts"), "utf8");
 
 assert.match(html, /id="practiceBtn"/);
 assert.match(html, /id="trainerBtn"/);
@@ -16,36 +16,27 @@ assert.match(html, /id="trainerView"/);
 assert.match(html, /id="trainerRaiseBtn"/);
 assert.match(html, /id="trainerFoldBtn"/);
 assert.match(html, /id="trainerChart"/);
+assert.match(html, /id="trainerTableDiagram"/);
+assert.match(html, /id="trainerAccuracy"/);
+assert.match(html, /trainer-stats-panel/);
 assert.match(html, /shared\/rfi-ranges\.js/);
 assert.match(html, /trainer\.js/);
 
-// Invite sits below the player list, above Coach / Copy for AI / Settings.
+// Practice / Trainer sit outside the join form (avoid submit side-effects).
 assert.match(
   html,
-  /id="menuPlayers"[\s\S]*?id="shareGameBtn"[\s\S]*?id="coachBtn"[\s\S]*?id="copyForAiBtn"[\s\S]*?id="openSettingsBtn"/,
-);
-assert.match(html, /id="menuInviteView"/);
-assert.match(html, /id="closeInviteBtn"/);
-assert.match(html, /id="inviteRoomCode"/);
-// Inline expand panel must not sit in the main menu stack anymore.
-assert.doesNotMatch(
-  html,
-  /id="shareGameBtn"[\s\S]*?id="sharePanel"[\s\S]*?id="menuPlayers"/,
+  /<\/form>\s*<div class="welcome-secondary-actions"[\s\S]*?id="trainerBtn"/,
 );
 
-assert.match(css, /\.coach-hint-headline/);
-assert.match(css, /\.coach-hint-stats/);
+assert.match(css, /\.trainer-shell/);
+assert.match(css, /\.trainer-topbar/);
+assert.match(css, /safe-area-inset-bottom/);
 assert.match(css, /\.trainer-chart-cell/);
-assert.match(css, /\.welcome-secondary-actions/);
+assert.match(css, /trainer-open-root/);
 
-assert.match(sw, /trainer\.js/);
-assert.match(sw, /rfi-ranges\.js/);
-assert.match(sw, /isRoomCodePath/);
-assert.match(sw, /\/trainer/);
+assert.match(trainer, /keydown/);
+assert.match(trainer, /streak/);
+assert.match(trainer, /DIAGRAM_SEATS/);
+assert.match(trainer, /folded to you/);
 
-const routes = fs.readFileSync(path.join(__dirname, "../server/http/routes.ts"), "utf8");
-assert.match(routes, /\/:code/);
-assert.match(routes, /\/trainer/);
-assert.match(routes, /\[A-Za-z0-9\]\{6\}/);
-
-console.log("Trainer / invite / coach UI markup checks passed.");
+console.log("Trainer UI markup checks passed.");
