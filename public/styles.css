@@ -1775,11 +1775,12 @@ button.text-action-link:disabled {
 .leave-game-btn {
   color: var(--danger);
   border-color: color-mix(in srgb, var(--danger) 42%, var(--line));
-  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  /* Light pink pill in dark + light — transparent danger reads as a dark red patch on dark sheets. */
+  background: color-mix(in srgb, var(--danger) 7%, #fff);
 }
 
 .leave-game-btn:not(:disabled):hover {
-  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  background: color-mix(in srgb, var(--danger) 14%, #fff);
 }
 
 .menu-players {
@@ -2952,9 +2953,6 @@ button.menu-player-row:not(:disabled):hover {
 
 :root[data-theme="light"] .modal-panel {
   background: var(--surface);
-}
-:root[data-theme="light"] .leave-game-btn {
-  background: color-mix(in srgb, var(--danger) 7%, #fff);
 }
 :root[data-theme="light"] .menu-player,
 :root[data-theme="light"] .share-panel,

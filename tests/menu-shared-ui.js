@@ -27,6 +27,24 @@ assert.match(block, /appearance-choices shot-clock-choices/);
 assert.match(block, /class="appearance-choice/);
 assert.match(block, /secondary menu-row-btn/);
 assert.match(block, /leave-game-btn menu-row-btn/);
+// Trainer Leave must be the same shared control as the game menu Leave row.
+const trainerLeave = block.match(
+  /id="trainerLeaveBtn"[^>]*class="([^"]+)"/,
+);
+const gameLeave = html.match(/id="backToMenuBtn"[^>]*class="([^"]+)"/);
+assert.ok(trainerLeave && gameLeave, "Leave buttons present");
+assert.equal(
+  trainerLeave[1].split(/\s+/).sort().join(" "),
+  gameLeave[1].split(/\s+/).sort().join(" "),
+  "Trainer Leave and game Leave must share identical classes",
+);
+const leaveRule = css.match(/\.leave-game-btn\s*\{[^}]+\}/);
+assert.ok(leaveRule, "leave-game-btn rule");
+assert.match(
+  leaveRule[0],
+  /background:\s*color-mix\(in srgb, var\(--danger\) 7%, #fff\)/,
+  "Leave must be the light pink pill (not translucent dark-red wash)",
+);
 assert.doesNotMatch(block, /mode-option/);
 assert.doesNotMatch(block, /trainer-drill|trainer-size/);
 
