@@ -26,7 +26,7 @@ assert.match(css, /\.hand-review-dot:focus-visible/);
 
 // Verdict + retry slots keep height when idle / empty.
 assert.match(css, /\.hand-review-verdict\s*\{[^}]*min-height:/s);
-assert.match(css, /\.hand-review-retry-bar\s*\{[^}]*min-height:\s*44px/s);
+assert.match(css, /\.hand-review-retry-bar\s*\{[^}]*min-height:\s*40px/s);
 assert.match(css, /body\.hand-review-open \.hand-review-verdict\.is-idle/);
 
 // Close control is a real icon button (not a naked native square).
@@ -46,7 +46,7 @@ assert.match(css, /\.hand-review-timeline\s*\{[^}]*overflow-x:\s*auto/s);
 
 // Seat hole cards: reserved grid column + inline markup (no appended feed cards).
 assert.match(css, /\.seat-shown-hand\s*\{/);
-assert.match(css, /grid-template-columns:[^;]*48px/s);
+assert.match(css, /grid-template-columns:[^;]*56px/s);
 
 // Welcome: centered idle; keyboard-open only via body class (not focus-within jump).
 assert.match(css, /\.welcome\s*\{[^}]*align-content:\s*safe center/s);

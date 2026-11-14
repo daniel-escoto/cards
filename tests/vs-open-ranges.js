@@ -48,8 +48,18 @@ const explain = Vs.explainFacingDecision(6, "SB", "BTN", "72o", "call");
 assert.ok(explain);
 assert.equal(explain.verdict, "mistake");
 assert.equal(explain.badge, "Mistake");
-assert.match(explain.reason, /call|fold/i);
+assert.match(explain.reason, /Fold —/i);
+assert.match(explain.reason, /72 offsuit|too weak/i);
+assert.doesNotMatch(explain.reason, /chart says|misses —/i);
 assert.ok(explain.why.length >= 2);
+
+const j7 = Vs.explainFacingDecision(6, "BB", "UTG", "J7s", "call");
+assert.ok(j7);
+assert.equal(j7.verdict, "mistake");
+assert.match(j7.reason, /Fold —/i);
+assert.match(j7.reason, /J7 suited|Jack-7 suited|too weak/i);
+assert.match(j7.reason, /early-position/i);
+assert.doesNotMatch(j7.reason, /chart says/i);
 
 const best = Vs.explainFacingDecision(6, "BB", "UTG", "AA", "raise");
 assert.ok(best);

@@ -10,17 +10,53 @@
 })(typeof globalThis !== "undefined" ? globalThis : (this as typeof globalThis), function () {
   "use strict";
 
+  const SUIT_GLYPH: Record<string, string> = {
+    s: "♠",
+    h: "♥",
+    d: "♦",
+    c: "♣",
+    "♠": "♠",
+    "♥": "♥",
+    "♦": "♦",
+    "♣": "♣",
+  };
+
+  /** Always render French-suited glyphs — never a bare s/h/d/c letter. */
+  function normalizeSuitGlyph(suit: unknown, code?: string | null): string {
+    const raw = String(suit || "").trim();
+    if (SUIT_GLYPH[raw]) return SUIT_GLYPH[raw];
+    const fromCode = String(code || "")
+      .trim()
+      .slice(1, 2)
+      .toLowerCase();
+    if (SUIT_GLYPH[fromCode]) return SUIT_GLYPH[fromCode];
+    const lower = raw.toLowerCase();
+    if (SUIT_GLYPH[lower]) return SUIT_GLYPH[lower];
+    return raw;
+  }
+
+  function normalizePublicCard(card: PublicCard): PublicCard {
+    const suit = normalizeSuitGlyph(card.suit, card.code);
+    const red = suit === "♥" || suit === "♦";
+    return {
+      ...card,
+      suit,
+      color: card.color === "red" || card.color === "black" ? card.color : red ? "red" : "black",
+    };
+  }
+
   function cardTemplate(card: PublicCard | null | undefined, extraClass = "") {
     const className = extraClass ? ` ${extraClass}` : "";
     if (!card) return `<div class="card back${className}"><span></span><span></span></div>`;
-    const cardName = `${card.rank}${card.suit}`;
+    const face = normalizePublicCard(card);
+    const cardName = `${face.rank}${face.suit}`;
     return `
-    <div class="card ${card.color === "red" ? "red" : ""}${className}" aria-label="${escapeHtml(cardName)}">
+    <div class="card ${face.color === "red" ? "red" : ""}${className}" aria-label="${escapeHtml(cardName)}" data-code="${escapeHtml(face.code || "")}">
       <span class="card-corner card-corner-top">
-        <span class="card-rank">${card.rank}</span>
+        <span class="card-rank">${escapeHtml(face.rank)}</span>
       </span>
       <span class="card-corner card-corner-bottom">
-        <span class="card-corner-suit suit">${card.suit}</span>
+        <span class="card-corner-suit suit">${face.suit}</span>
       </span>
     </div>
   `;
@@ -85,6 +121,8 @@
     formatSignedMoney,
     formatAmount,
     playerStackLabel,
+    normalizeSuitGlyph,
+    normalizePublicCard,
     cardTemplate,
     playerColorStyle,
   };

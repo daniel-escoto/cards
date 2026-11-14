@@ -797,6 +797,30 @@ function renderMistakeRetryActions(item: HandReviewItemLocal, beforeTable: Repla
   handReviewRetryBar.classList.remove("is-idle", "hidden");
 }
 
+function formatHandReviewStepLabel(step: HandReplayLocal["steps"][number]): string {
+  const streetRaw = String(step.table?.street || "");
+  const street =
+    streetRaw === "preflop"
+      ? "Preflop"
+      : streetRaw === "flop"
+        ? "Flop"
+        : streetRaw === "turn"
+          ? "Turn"
+          : streetRaw === "river"
+            ? "River"
+            : streetRaw
+              ? streetRaw.charAt(0).toUpperCase() + streetRaw.slice(1)
+              : "";
+  const raw = String(step.label || "").trim();
+  if (!raw) return street || "Step";
+  // Already "River · You check" style.
+  if (street && raw.toLowerCase().startsWith(street.toLowerCase())) return raw;
+  if (step.kind === "street" || /^(preflop|flop|turn|river)$/i.test(raw)) {
+    return street || raw;
+  }
+  return street ? `${street} · ${raw}` : raw;
+}
+
 function renderHandReviewChrome(step: HandReplayLocal["steps"][number]) {
   if (handReviewStepLabel) {
     const steps = lastHandReplay?.steps || [];
@@ -809,7 +833,7 @@ function renderHandReviewChrome(step: HandReplayLocal["steps"][number]) {
       heroOrdinal >= 0
         ? `${heroOrdinal + 1}/${heroIndexes.length || 1}`
         : `${handReviewStepIndex + 1}/${steps.length || 1}`;
-    handReviewStepLabel.textContent = `${prefix} · ${step.label}`;
+    handReviewStepLabel.textContent = `${prefix} · ${formatHandReviewStepLabel(step)}`;
   }
 
   if (step.decision) {
@@ -1115,29 +1139,36 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
   }
   turnInfo.classList.remove("showdown-message");
 
-  if (room.canAddBot) {
-    addButton("Add bot", "room:addBot", "secondary lobby-add-bot");
-  }
-  if (room.canReady) {
-    const readyShortcut = room.isReady
-      ? keybindLabel(keybinds.ready)
-      : [keybinds.ready, keybinds.call].filter(Boolean).map(keybindLabel).join(" / ");
-    addButton(
-      room.isReady ? "Not ready" : "Ready up",
-      "game:ready",
-      room.isReady ? "secondary" : "",
-      readyShortcut,
-    );
-    maybeOfferHandReview(room);
-    addReviewHandButton();
-  }
-  // Show hand is for multi-human tables (muck / reveal). Hide vs bots — no audience.
-  if (showHandButtonAvailable(room)) {
-    addButton("Show hand", "game:showCards", "secondary", keybindLabel(keybinds.showHand));
+  // Never mix between-hands controls with in-hand actions — even if state is inconsistent.
+  const betweenHands = ["lobby", "complete", "gameover"].includes(room.phase);
+  const heroToAct =
+    Boolean(room.isYourTurn && hero) && isBettingPhase(room.phase) && !betweenHands;
+
+  if (!heroToAct) {
+    if (room.canAddBot && betweenHands) {
+      addButton("Add bot", "room:addBot", "secondary lobby-add-bot");
+    }
+    if (room.canReady && betweenHands) {
+      const readyShortcut = room.isReady
+        ? keybindLabel(keybinds.ready)
+        : [keybinds.ready, keybinds.call].filter(Boolean).map(keybindLabel).join(" / ");
+      addButton(
+        room.isReady ? "Not ready" : "Ready up",
+        "game:ready",
+        room.isReady ? "secondary" : "",
+        readyShortcut,
+      );
+      maybeOfferHandReview(room);
+      addReviewHandButton();
+    }
+    // Show hand is for multi-human tables (muck / reveal). Hide vs bots — no audience.
+    if (showHandButtonAvailable(room)) {
+      addButton("Show hand", "game:showCards", "secondary", keybindLabel(keybinds.showHand));
+    }
   }
 
-  if (!room.isYourTurn || !hero) {
-    if (["lobby", "complete"].includes(room.phase)) {
+  if (!heroToAct) {
+    if (betweenHands) {
       const humans = room.players.filter(
         (player) => !player.isBot && !player.sittingOut && player.stack > 0,
       );
@@ -1166,7 +1197,7 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
       ? `Call ${formatAmount(room.toCall, room.toCallCents)}`
       : "Check or bet";
   turnInfo.classList.add("your-turn");
-  renderHeroActionControls(hero, false);
+  renderHeroActionControls(hero!, false);
 }
 
 /** Every human is out of chips while CPUs play on: offer Rebuy / Restart instead of a dead table. */

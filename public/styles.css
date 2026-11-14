@@ -747,10 +747,24 @@ html.trainer-open-root {
   gap: 8px;
 }
 
+/* Facing: Hint | Fold | Call | Raise — same height row. */
+.trainer-view:not(.is-answered).is-facing .game-buttons {
+  grid-template-columns: minmax(4rem, auto) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+}
+
 .trainer-view:not(.is-answered) .game-buttons > button {
   flex: unset;
   min-width: 0;
   width: 100%;
+  min-height: 48px;
+}
+
+/* Facing raise: stepper only in bet-controls; Raise button is in .game-buttons. */
+.trainer-view.is-facing #trainerRaiseActionBtn {
+  display: none !important;
+}
+.trainer-view.is-facing .raise-row {
+  grid-template-columns: 1fr;
 }
 
 .trainer-view .game-buttons > #trainerHintBtn {
@@ -951,6 +965,22 @@ html.trainer-open-root {
   .trainer-chart-panel {
     width: 100%;
     max-height: min(780px, calc(100dvh - 16px));
+  }
+
+  /* Trainer seats: fit the full roster like live game — no tiny inner scrollbar box. */
+  .trainer-view .players {
+    overflow-y: visible;
+    max-height: none;
+    height: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .trainer-view .table-player-row {
+    min-height: 36px;
+    padding: 5px 8px;
+  }
+  .trainer-view .player-action {
+    font-size: 11px;
   }
 }
 
@@ -1807,26 +1837,39 @@ button.menu-player-row:not(:disabled):hover {
   font-size: 12px;
 }
 
-/* Inline seat hole cards — fixed 48px column in the row grid (see .table-player-row). */
+/* Inline seat hole cards — reserved column; legible mini faces with suit glyphs. */
 .seat-shown-hand {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 2px;
-  width: 48px;
-  min-width: 48px;
-  max-width: 48px;
-  height: 28px;
-  min-height: 28px;
-  overflow: hidden;
+  gap: 3px;
+  width: 56px;
+  min-width: 56px;
+  max-width: 56px;
+  height: 34px;
+  min-height: 34px;
+  overflow: visible;
   pointer-events: none;
 }
 .seat-shown-hand .card {
-  width: 22px;
-  min-width: 22px;
-  padding: 2px 3px;
-  font-size: 10px;
-  line-height: 1.1;
+  width: 26px;
+  min-width: 26px;
+  height: 34px;
+  padding: 3px 2px;
+  font-size: 11px;
+  line-height: 1.05;
+  box-shadow: none;
+}
+.seat-shown-hand .card-rank {
+  font-size: 11px;
+  font-weight: 800;
+}
+.seat-shown-hand .card-corner-suit {
+  font-size: 11px;
+}
+.seat-shown-hand .card-corner-top,
+.seat-shown-hand .card-corner-bottom {
+  padding: 0;
 }
 .shown-hand {
   display: flex;
@@ -2310,7 +2353,7 @@ button.menu-player-row:not(:disabled):hover {
   min-height: 42px;
   display: grid;
   /* Name | action | reserved hole-card slot | stack — card slot always present (no showdown shift). */
-  grid-template-columns: 14px minmax(10ch, 1.2fr) minmax(4rem, 0.85fr) 48px auto;
+  grid-template-columns: 14px minmax(9ch, 1.1fr) minmax(4.5rem, 0.95fr) 56px auto;
   align-items: center;
   gap: 8px;
   padding: 7px 10px;
@@ -3380,6 +3423,10 @@ kbd {
   font-size: 15px;
   font-weight: 750;
   letter-spacing: -0.01em;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  max-width: 100%;
 }
 
 .turn-info.showdown-message {
@@ -3676,8 +3723,13 @@ kbd {
 .hand-review-chrome {
   display: grid;
   align-content: start;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
+}
+/* Pack chrome to the top of the reserved action slot — no floating empty mid-band. */
+body.hand-review-open .control-panel > .hand-review-chrome {
+  align-content: start;
+  align-self: start;
 }
 .hand-review-chrome.hidden {
   display: none;
@@ -3775,7 +3827,7 @@ body.hand-review-open .control-panel > .winner-list {
     font-size: 20px;
   }
 }
-/* Fixed two-line slot so bot ↔ hero steps never change panel height. */
+/* Two-line slot only — badge + why. No oversized empty band between head and nav. */
 .hand-review-verdict {
   display: grid;
   align-content: start;
@@ -3787,9 +3839,11 @@ body.hand-review-open .control-panel > .winner-list {
   background: transparent;
   font-size: 13px;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.3;
   color: var(--text);
-  min-height: calc(13px * 1.35 * 2 + 2px);
+  min-height: calc(13px * 1.3 * 2 + 2px);
+  max-height: calc(13px * 1.3 * 2 + 2px);
+  overflow: hidden;
 }
 .hand-review-verdict.hidden,
 .hand-review-verdict.is-idle {
@@ -3950,23 +4004,31 @@ body.hand-review-open .hand-review-verdict.is-idle {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Reserved action row — idle steps keep the height so stepping never jumps. */
+/* Retry row: only reserve height on Mistake steps (is-idle collapses to zero). */
 .hand-review-retry-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  min-height: 44px;
+  min-height: 40px;
 }
 .hand-review-retry-bar.hidden,
 .hand-review-retry-bar.is-idle {
   visibility: hidden;
   pointer-events: none;
+  min-height: 0;
+  height: 0;
+  margin: 0;
+  overflow: hidden;
 }
 body.hand-review-open .hand-review-retry-bar.hidden,
 body.hand-review-open .hand-review-retry-bar.is-idle {
   display: flex;
   visibility: hidden;
+  min-height: 0;
+  height: 0;
+  margin: 0;
+  overflow: hidden;
 }
 .hand-review-retry-bar > .hand-review-try-again {
   flex: 1 1 auto;
@@ -4697,24 +4759,29 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
 
   .table-player-row {
     min-height: 40px;
-    /* Fixed status + hole-card slot on phones — reveal never shifts the stack column. */
-    grid-template-columns: 12px minmax(9ch, 1fr) 3.75rem 44px auto;
-    gap: 7px;
+    /* Status gets room; mini cards stay legible without overlapping Ready/Not ready. */
+    grid-template-columns: 12px minmax(8ch, 1fr) minmax(4.25rem, 0.9fr) 52px auto;
+    gap: 6px;
     padding: 7px 9px;
     border-radius: 11px;
   }
 
   .seat-shown-hand {
-    width: 44px;
-    min-width: 44px;
-    max-width: 44px;
-    height: 26px;
-    min-height: 26px;
+    width: 52px;
+    min-width: 52px;
+    max-width: 52px;
+    height: 32px;
+    min-height: 32px;
   }
   .seat-shown-hand .card {
-    width: 20px;
-    min-width: 20px;
-    font-size: 9px;
+    width: 24px;
+    min-width: 24px;
+    height: 32px;
+    font-size: 10px;
+  }
+  .seat-shown-hand .card-rank,
+  .seat-shown-hand .card-corner-suit {
+    font-size: 10px;
   }
 
   .seat-timer {

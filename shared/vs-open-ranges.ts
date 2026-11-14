@@ -395,6 +395,50 @@ function actionVerb(action: FacingAction): string {
   return "fold";
 }
 
+/** Plain hand phrase for coach copy — "J7 suited", "pocket aces", "Ace-King offsuit". */
+function plainFacingHand(handKey: string): string {
+  if (!handKey || handKey.length < 2) return "this hand";
+  const high = handKey[0]!;
+  const low = handKey[1]!;
+  const rankWord = (r: string) =>
+    ({ A: "Ace", K: "King", Q: "Queen", J: "Jack", T: "Ten" } as Record<string, string>)[r] || r;
+  if (handKey.length === 2 || high === low) {
+    const pairNames: Record<string, string> = {
+      A: "aces",
+      K: "kings",
+      Q: "queens",
+      J: "jacks",
+      T: "tens",
+    };
+    return `pocket ${pairNames[high] || `${high}s`}`;
+  }
+  const flag = handKey[2];
+  if (flag === "s") {
+    if (high === "A" || high === "K" || high === "Q" || high === "J" || high === "T") {
+      return `${rankWord(high)}-${rankWord(low)} suited`;
+    }
+    return `${high}${low} suited`;
+  }
+  if (flag === "o") {
+    if (high === "A" || high === "K" || high === "Q" || high === "J" || high === "T") {
+      return `${rankWord(high)}-${rankWord(low)} offsuit`;
+    }
+    return `${high}${low} offsuit`;
+  }
+  return handKey;
+}
+
+/** Opener strength band for plain Mistake lines. */
+function facingOpenerBand(opener: string): string {
+  if (opener === "UTG" || opener === "UTG+1" || opener === "MP") {
+    return "an early-position raise";
+  }
+  if (opener === "LJ" || opener === "HJ") return "a middle-position raise";
+  if (opener === "CO" || opener === "BTN") return "a late-position raise";
+  if (opener === "SB") return "a small-blind raise";
+  return "that raise";
+}
+
 export function explainFacingDecision(
   tableSize: RfiTableSize,
   hero: string,
@@ -416,15 +460,25 @@ export function explainFacingDecision(
   else if (borderline) badge = "Fine";
   else badge = "Best";
 
-  const standardLabel = actionVerb(graded.standard);
-  const chosenLabel = actionVerb(chosen);
+  const handPlain = plainFacingHand(handKey);
+  const openerBand = facingOpenerBand(opener);
   let reason: string;
   if (correct && badge === "Best") {
-    reason = `${standardLabel.charAt(0).toUpperCase()}${standardLabel.slice(1)} is the chart play vs ${opener} open.`;
+    if (graded.standard === "fold") {
+      reason = `Fold — ${handPlain} doesn't defend well here.`;
+    } else if (graded.standard === "call") {
+      reason = `Call — ${handPlain} plays fine vs that open.`;
+    } else {
+      reason = `Raise — ${handPlain} is strong enough to 3-bet.`;
+    }
   } else if (correct) {
-    reason = `${standardLabel.charAt(0).toUpperCase()}${standardLabel.slice(1)} is fine here — near the edge vs ${opener}.`;
+    reason = `${actionVerb(graded.standard).charAt(0).toUpperCase()}${actionVerb(graded.standard).slice(1)} is fine — ${handPlain} is near the edge here.`;
+  } else if (graded.standard === "fold") {
+    reason = `Fold — ${handPlain} is too weak to call ${openerBand}.`;
+  } else if (graded.standard === "call") {
+    reason = `Call — ${handPlain} should flat here, not ${actionVerb(chosen)}.`;
   } else {
-    reason = `${chosenLabel.charAt(0).toUpperCase()}${chosenLabel.slice(1)} misses — chart says ${standardLabel} vs ${opener}.`;
+    reason = `Raise — ${handPlain} is strong enough to 3-bet, not ${actionVerb(chosen)}.`;
   }
 
   const borderlineNote = borderline
@@ -433,16 +487,17 @@ export function explainFacingDecision(
       : "Borderline — a nearby hand would play; this one is just outside."
     : null;
 
+  const standardLabel = actionVerb(graded.standard);
   const why: string[] = [
     `You're in ${heroName} facing a raise from ${openerName}.`,
-    `With ${categoryLabel} (${handKey}), the chart's play is ${standardLabel}.`,
+    `With ${categoryLabel} (${handKey}), the play is ${standardLabel}.`,
   ];
   if (graded.standard === "raise") {
-    why.push("3-bet for value or as a polarized bluff; don't flat these.");
+    why.push("Raise for value or as a clear bluff — don't just call these.");
   } else if (graded.standard === "call") {
-    why.push("Flat keeps the pot smaller and plays well multiway or in position.");
+    why.push("Calling keeps the pot smaller and plays well multiway or in position.");
   } else {
-    why.push("This hand doesn't defend profitably against that open.");
+    why.push("This hand doesn't defend well against that open.");
   }
 
   let ruleOfThumb = "Defend wider in position; tighten up out of position.";

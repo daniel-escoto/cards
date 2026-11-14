@@ -54,6 +54,9 @@ assert.match(trainer, /trainerHintBtn/);
 assert.match(trainer, /rfiTeachingHint/);
 assert.match(trainer, /facingTeachingHint/);
 assert.match(trainer, /explainFacingDecision/);
+assert.match(trainer, /facingActionLine/);
+assert.match(trainer, /You're in the/);
+assert.match(trainer, /is-facing/);
 assert.match(trainer, /legalRaiseTo/);
 assert.match(trainer, /trainer-why/);
 assert.match(trainer, /trainer-borderline-note/);
@@ -80,7 +83,8 @@ assert.match(
   /Trainer uses the same \.felt \/ \.community \/ \.players \/ \.control-panel layout as Practice/,
 );
 assert.doesNotMatch(css, /\.trainer-view \.felt\s*\{/);
-assert.doesNotMatch(css, /\.trainer-view \.players\s*\{/);
+// Mobile may loosen .players overflow so the full roster fits (no tiny inner scrollbar).
+assert.match(css, /\.trainer-view \.players\s*\{[^}]*overflow-y:\s*visible/s);
 assert.doesNotMatch(css, /\.trainer-view \.community\s*\{/);
 assert.doesNotMatch(css, /\.trainer-view \.control-panel\s*\{/);
 // Welcome stays 720px; Trainer must not inherit that narrow app width.

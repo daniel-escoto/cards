@@ -587,10 +587,24 @@
           return format.cardTemplate(card);
         }
         if (!card) return `<div class="card back"><span></span><span></span></div>`;
-        const name = `${card.rank}${card.suit}`;
+        const suitMap: Record<string, string> = {
+          s: "♠",
+          h: "♥",
+          d: "♦",
+          c: "♣",
+          "♠": "♠",
+          "♥": "♥",
+          "♦": "♦",
+          "♣": "♣",
+        };
+        const suit =
+          suitMap[card.suit] ||
+          suitMap[String(card.code || "").slice(1, 2).toLowerCase()] ||
+          card.suit;
+        const name = `${card.rank}${suit}`;
         return `<div class="card ${card.color === "red" ? "red" : ""}" aria-label="${name}">
           <span class="card-corner card-corner-top"><span class="card-rank">${card.rank}</span></span>
-          <span class="card-corner card-corner-bottom"><span class="card-corner-suit suit">${card.suit}</span></span>
+          <span class="card-corner card-corner-bottom"><span class="card-corner-suit suit">${suit}</span></span>
         </div>`;
       }
 
@@ -662,6 +676,8 @@
         }
         raiseAmountEl!.textContent = String(spot.raiseTo);
         setBetControlsVisible(true);
+        // Raise confirm lives in .game-buttons (same height as Fold/Call); hide the duplicate.
+        raiseActionBtn?.classList.add("hidden");
       }
 
       function renderHintCoach(): void {
@@ -1167,6 +1183,7 @@
       function renderActions(): void {
         if (!spot) {
           actionsEl!.innerHTML = "";
+          trainerView.classList.remove("is-facing");
           setBetControlsVisible(false);
           return;
         }
@@ -1174,6 +1191,8 @@
           const hintLabel =
             spot.hintStep === 0 ? "Hint" : spot.hintStep === 1 ? "Hint again" : "Hinted";
           if (spot.kind === "facing") {
+            trainerView.classList.add("is-facing");
+            // Fold / Call / Raise share one row at the same height; stepper stays above.
             actionsEl!.innerHTML = `
               <button id="trainerHintBtn" class="secondary" type="button" ${
                 spot.hintStep >= 2 ? "disabled" : ""
@@ -1184,16 +1203,22 @@
               <button id="trainerCallBtn" class="secondary has-shortcut" type="button">
                 Call ${spot.toCall} <kbd>C</kbd>
               </button>
+              <button id="trainerRaiseBtn" class="has-shortcut" type="button">
+                Raise <kbd>R</kbd>
+              </button>
             `;
             const hintBtn = actionsEl!.querySelector("#trainerHintBtn") as HTMLButtonElement;
             const foldBtn = actionsEl!.querySelector("#trainerFoldBtn") as HTMLButtonElement;
             const callBtn = actionsEl!.querySelector("#trainerCallBtn") as HTMLButtonElement;
+            const raiseBtn = actionsEl!.querySelector("#trainerRaiseBtn") as HTMLButtonElement;
             hintBtn.addEventListener("click", onHint);
             foldBtn.addEventListener("click", () => answerFacing("fold"));
             callBtn.addEventListener("click", () => answerFacing("call"));
+            raiseBtn.addEventListener("click", () => answerFacing("raise"));
             syncRaiseDisplay();
             return;
           }
+          trainerView.classList.remove("is-facing");
           actionsEl!.innerHTML = `
             <button id="trainerHintBtn" class="secondary" type="button" ${
               spot.hintStep >= 2 ? "disabled" : ""
@@ -1215,6 +1240,7 @@
           return;
         }
 
+        trainerView.classList.toggle("is-facing", spot.kind === "facing");
         setBetControlsVisible(false);
         const showRetry = spot.kind === "facing" && spot.correct === false;
         actionsEl!.innerHTML = `
@@ -1236,6 +1262,17 @@
         if (retryBtn) retryBtn.addEventListener("click", retrySpot);
       }
 
+      function facingActionLine(spotState: Extract<SpotState, { kind: "facing" }>): string {
+        const openerName = positionFullName(spotState.openerPosition);
+        const heroName = positionFullName(spotState.position);
+        const callerNames = spotState.callers.map((c) => positionFullName(c));
+        let line = `${openerName} raised to ${spotState.openTo}`;
+        if (callerNames.length === 1) line += `, ${callerNames[0]} called`;
+        else if (callerNames.length > 1) line += `, ${callerNames.join(" and ")} called`;
+        line += `. You're in the ${heroName}.`;
+        return line;
+      }
+
       function renderTurnInfo(): void {
         if (!spot) {
           turnInfoEl!.textContent = "";
@@ -1246,16 +1283,7 @@
           turnInfoEl!.classList.add("your-turn");
           turnInfoEl!.classList.remove("showdown-message");
           if (spot.kind === "facing") {
-            const openerLabel = positionLabel(spot.openerPosition);
-            const callerNote =
-              spot.callers.length > 0
-                ? ` · ${spot.callers.map((c) => positionLabel(c)).join(", ")} call`
-                : "";
-            turnInfoEl!.innerHTML = `${escapeHtml(openerLabel)} raises to ${
-              spot.openTo
-            }${escapeHtml(callerNote)} · <span class="trainer-pos-label" title="${escapeHtml(
-              positionFullName(spot.position),
-            )}">${escapeHtml(positionLabel(spot.position))}</span>`;
+            turnInfoEl!.textContent = facingActionLine(spot);
             return;
           }
           turnInfoEl!.innerHTML = `Folded to you · <span class="trainer-pos-label" title="${escapeHtml(

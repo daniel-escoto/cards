@@ -584,6 +584,8 @@ declare global {
     formatSignedMoney(cents: unknown): string;
     formatAmount(chips: unknown, cents: unknown): string;
     playerStackLabel(player: ClientPlayer): string;
+    normalizeSuitGlyph(suit: unknown, code?: string | null): string;
+    normalizePublicCard(card: PublicCard): PublicCard;
     cardTemplate(card: PublicCard | null | undefined | false, extraClass?: string): string;
     playerColorStyle(player: ClientPlayer | null | undefined): string;
   }
