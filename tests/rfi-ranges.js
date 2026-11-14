@@ -59,5 +59,13 @@ assert.ok(!Rfi.expandRangeTokens(["77+"]).includes("66"));
 assert.ok(Rfi.expandRangeTokens(["ATs+"]).includes("AKs"));
 assert.ok(Rfi.expandRangeTokens(["ATs+"]).includes("ATs"));
 assert.ok(!Rfi.expandRangeTokens(["ATs+"]).includes("A9s"));
+assert.ok(Rfi.expandRangeTokens(["TT-55"]).includes("TT"));
+assert.ok(Rfi.expandRangeTokens(["TT-55"]).includes("55"));
+assert.ok(!Rfi.expandRangeTokens(["TT-55"]).includes("44"));
+assert.ok(Rfi.expandRangeTokens(["AJs-ATs"]).includes("AJs"));
+assert.ok(Rfi.expandRangeTokens(["AJs-ATs"]).includes("ATs"));
+assert.ok(!Rfi.expandRangeTokens(["AJs-ATs"]).includes("A9s"));
+assert.ok(Rfi.expandRangeTokens(["A5s-A2s"]).includes("A4s"));
+assert.ok(Rfi.expandRangeTokens(["ATo-A8o"]).includes("A9o"));
 
 console.log("RFI range checks passed.");

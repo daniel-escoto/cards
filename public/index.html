@@ -154,10 +154,10 @@
               <button id="watchBtn" class="secondary hidden" type="button">Watch</button>
             </div>
             <p id="joinError" class="error" role="alert"></p>
+            <div class="welcome-secondary-actions" role="group" aria-label="Offline play">
+              <button id="trainerBtn" class="secondary" type="button">Trainer</button>
+            </div>
           </form>
-          <div class="welcome-secondary-actions" role="group" aria-label="Offline play">
-            <button id="trainerBtn" class="secondary" type="button">Trainer</button>
-          </div>
         </div>
       </section>
 
@@ -242,14 +242,14 @@
               role="region"
               aria-label="Hand review"
             >
-              <div class="hand-review-chrome-head">
-                <p class="eyebrow">
-                  Hand review
-                  <span id="handReviewSummary" class="hand-review-summary" aria-live="polite"></span>
-                </p>
+              <div class="modal-head hand-review-chrome-head">
+                <div>
+                  <p class="eyebrow">Hand review</p>
+                  <p id="handReviewSummary" class="hand-review-summary" aria-live="polite"></p>
+                </div>
                 <button
                   id="handReviewCloseBtn"
-                  class="ghost hand-review-close"
+                  class="ghost icon-btn hand-review-close"
                   type="button"
                   aria-label="Close hand review"
                 >
@@ -259,21 +259,81 @@
               <p id="handReviewVerdict" class="hand-review-verdict hidden" aria-live="polite"></p>
               <div id="handReviewRetryBar" class="hand-review-retry-bar hidden" aria-live="polite"></div>
               <div class="hand-review-nav" aria-label="Replay controls">
-                <button id="handReviewStartBtn" type="button" class="secondary" aria-label="First step">
-                  ⏮
+                <button
+                  id="handReviewStartBtn"
+                  type="button"
+                  class="secondary"
+                  aria-label="First step (Home)"
+                  title="Home"
+                >
+                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+                    <path
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.75"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M3 3.5v9M13 3.5 7.5 8 13 12.5"
+                    />
+                  </svg>
                 </button>
-                <button id="handReviewPrevBtn" type="button" class="secondary" aria-label="Previous step">
-                  ◀
+                <button
+                  id="handReviewPrevBtn"
+                  type="button"
+                  class="secondary"
+                  aria-label="Previous step (←)"
+                  title="←"
+                >
+                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+                    <path
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.75"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M10.5 3.5 5 8l5.5 4.5"
+                    />
+                  </svg>
                 </button>
                 <div class="hand-review-timeline-wrap">
                   <div id="handReviewTimeline" class="hand-review-timeline" role="list"></div>
                   <p id="handReviewStepLabel" class="hand-review-step-label" aria-live="polite"></p>
                 </div>
-                <button id="handReviewNextBtn" type="button" class="secondary" aria-label="Next step">
-                  ▶
+                <button
+                  id="handReviewNextBtn"
+                  type="button"
+                  class="secondary"
+                  aria-label="Next step (→)"
+                  title="→"
+                >
+                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+                    <path
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.75"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M5.5 3.5 11 8 5.5 12.5"
+                    />
+                  </svg>
                 </button>
-                <button id="handReviewEndBtn" type="button" class="secondary" aria-label="Last step">
-                  ⏭
+                <button
+                  id="handReviewEndBtn"
+                  type="button"
+                  class="secondary"
+                  aria-label="Last step (End)"
+                  title="End"
+                >
+                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+                    <path
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.75"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M13 3.5v9M3 3.5 8.5 8 3 12.5"
+                    />
+                  </svg>
                 </button>
               </div>
             </div>
@@ -360,6 +420,39 @@
               aria-live="polite"
             ></div>
             <div id="trainerActions" class="game-buttons"></div>
+            <div
+              id="trainerBetControls"
+              class="bet-controls is-reserved"
+              aria-hidden="true"
+              inert
+            >
+              <div id="trainerBetPresets" class="bet-presets" aria-label="Quick bet amounts"></div>
+              <div class="raise-row">
+                <div class="raise-stepper" aria-label="Raise amount">
+                  <button
+                    id="trainerRaiseMinus"
+                    type="button"
+                    class="secondary"
+                    aria-label="Decrease raise"
+                  >
+                    -
+                  </button>
+                  <div class="raise-display">
+                    <span id="trainerRaiseLabel">Raise to</span>
+                    <strong id="trainerRaiseAmount">180</strong>
+                  </div>
+                  <button
+                    id="trainerRaisePlus"
+                    type="button"
+                    class="secondary"
+                    aria-label="Increase raise"
+                  >
+                    +
+                  </button>
+                </div>
+                <button id="trainerRaiseActionBtn" type="button" class="raise-action">Raise</button>
+              </div>
+            </div>
           </section>
           <div id="trainerPlayers" class="players" aria-live="polite"></div>
         </section>
@@ -381,7 +474,7 @@
         <div class="modal-panel menu-panel">
           <div class="modal-head">
             <div>
-              <p class="eyebrow">Preflop RFI</p>
+              <p class="eyebrow">Preflop drills</p>
               <h2 id="trainerMenuTitle" class="menu-title">Trainer</h2>
             </div>
             <button
@@ -394,15 +487,72 @@
             </button>
           </div>
           <div class="menu-stack">
-            <div class="trainer-size" role="group" aria-label="Table size">
-              <button id="trainerSize6" class="mode-option selected" type="button" aria-pressed="true">
-                6-max
-              </button>
-              <button id="trainerSize9" class="mode-option" type="button" aria-pressed="false">
-                9-max
-              </button>
+            <div class="host-block">
+              <p class="menu-subsection-title">Drill</p>
+              <div class="appearance-group">
+                <div
+                  class="appearance-choices shot-clock-choices"
+                  role="radiogroup"
+                  aria-label="Drill type"
+                >
+                  <button
+                    id="trainerDrillRfi"
+                    class="appearance-choice selected"
+                    type="button"
+                    aria-pressed="true"
+                  >
+                    Open first
+                  </button>
+                  <button
+                    id="trainerDrillFacing"
+                    class="appearance-choice"
+                    type="button"
+                    aria-pressed="false"
+                  >
+                    Facing a raise
+                  </button>
+                  <button
+                    id="trainerDrillMix"
+                    class="appearance-choice"
+                    type="button"
+                    aria-pressed="false"
+                  >
+                    Mix both
+                  </button>
+                </div>
+              </div>
             </div>
-            <p id="trainerStats" class="trainer-stats" aria-live="polite">Overall 0/0 (—)</p>
+            <div class="host-block">
+              <p class="menu-subsection-title">Table</p>
+              <div class="appearance-group">
+                <div
+                  class="appearance-choices shot-clock-choices"
+                  role="radiogroup"
+                  aria-label="Table size"
+                >
+                  <button
+                    id="trainerSize6"
+                    class="appearance-choice selected"
+                    type="button"
+                    aria-pressed="true"
+                  >
+                    6-max
+                  </button>
+                  <button
+                    id="trainerSize9"
+                    class="appearance-choice"
+                    type="button"
+                    aria-pressed="false"
+                  >
+                    9-max
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="host-block">
+              <p class="menu-subsection-title">Stats</p>
+              <div id="trainerStats" class="trainer-stats" aria-live="polite"></div>
+            </div>
             <button id="trainerResetBtn" class="secondary menu-row-btn" type="button">
               Reset stats
             </button>
@@ -435,8 +585,9 @@
               ×
             </button>
           </div>
-          <div class="trainer-chart-legend" aria-hidden="true">
+          <div id="trainerChartLegend" class="trainer-chart-legend" aria-hidden="true">
             <span class="trainer-legend-raise">Raise</span>
+            <span class="trainer-legend-call hidden">Call</span>
             <span class="trainer-legend-fold">Fold</span>
           </div>
           <div id="trainerChart" class="trainer-chart"></div>
@@ -483,9 +634,6 @@
             <div class="menu-stack">
               <div id="menuPlayers" class="menu-players"></div>
               <button id="shareGameBtn" type="button" class="secondary menu-row-btn">Invite</button>
-              <button id="handReviewBtn" type="button" class="secondary menu-row-btn hidden">
-                Review hand
-              </button>
               <button id="copyForAiBtn" type="button" class="secondary menu-row-btn">
                 Copy for AI
               </button>
@@ -494,7 +642,7 @@
                 class="secondary add-bot-btn menu-row-btn hidden"
                 type="button"
               >
-                + Add bot
+                Add bot
               </button>
               <button id="openSettingsBtn" type="button" class="secondary menu-row-btn">
                 Settings
@@ -705,6 +853,7 @@
     <script src="/shared/pokersolver.js"></script>
     <script src="/shared/engine.js"></script>
     <script src="/shared/rfi-ranges.js"></script>
+    <script src="/shared/vs-open-ranges.js"></script>
     <script src="/shared/coach-odds.js"></script>
     <script src="/practice.js"></script>
     <script src="/deploy-handoff.js"></script>

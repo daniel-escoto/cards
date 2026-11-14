@@ -53,13 +53,15 @@ syncBlindInputMode();
 updateTableActionLabel();
 
 joinForm.addEventListener("focusin", (event) => {
-  if ((event.target as HTMLElement).matches("input")) {
-    setKeyboardMode(true);
-    setTimeout(() => {
-      setViewportHeight();
+  if (!(event.target as HTMLElement).matches("input, select, textarea")) return;
+  // Re-measure after the keyboard animates; scroll only while typing so the
+  // focused field stays visible. Idle / unfocused home stays vertically centered.
+  setTimeout(() => {
+    setViewportHeight();
+    if (document.body.classList.contains("keyboard-open")) {
       (event.target as HTMLElement).scrollIntoView({ block: "center", behavior: "smooth" });
-    }, 250);
-  }
+    }
+  }, 280);
 });
 
 joinForm.addEventListener("focusout", () => {
@@ -204,26 +206,24 @@ shareGameBtn.addEventListener("click", showSharePanel);
 copyShareBtn.addEventListener("click", () => copyText(shareLink.value, copyShareBtn));
 closeInviteBtn?.addEventListener("click", showMenuMainView);
 closeInviteMenuBtn?.addEventListener("click", hideGameMenu);
-handReviewBtn?.addEventListener("click", () => {
-  hideGameMenu();
-  if (typeof openHandReview === "function") openHandReview();
-});
 handReviewCloseBtn?.addEventListener("click", () => {
   if (typeof hideHandReview === "function") hideHandReview();
 });
 handReviewStartBtn?.addEventListener("click", () => {
-  if (typeof paintHandReviewStep === "function") paintHandReviewStep(0);
+  if (handReviewStartBtn?.disabled) return;
+  if (typeof handReviewJumpToStart === "function") handReviewJumpToStart();
 });
 handReviewPrevBtn?.addEventListener("click", () => {
+  if (handReviewPrevBtn?.disabled) return;
   if (typeof handReviewStepBy === "function") handReviewStepBy(-1);
 });
 handReviewNextBtn?.addEventListener("click", () => {
+  if (handReviewNextBtn?.disabled) return;
   if (typeof handReviewStepBy === "function") handReviewStepBy(1);
 });
 handReviewEndBtn?.addEventListener("click", () => {
-  if (typeof lastHandReplay !== "undefined" && lastHandReplay && typeof paintHandReviewStep === "function") {
-    paintHandReviewStep(lastHandReplay.steps.length - 1);
-  }
+  if (handReviewEndBtn?.disabled) return;
+  if (typeof handReviewJumpToEnd === "function") handReviewJumpToEnd();
 });
 // Swipe on the chrome / felt for prev/next on phones.
 let handReviewSwipeX = 0;
@@ -431,6 +431,9 @@ document.addEventListener("keydown", (event) => {
     revealRabbitBoard();
     return;
   }
+  const typingTarget = (event.target as HTMLElement | null)?.matches?.(
+    "input, select, textarea, [contenteditable]",
+  );
   if (event.key === "Escape" && typeof handReviewActive !== "undefined" && handReviewActive) {
     if (typeof hideHandReview === "function") hideHandReview();
     return;
@@ -439,21 +442,87 @@ document.addEventListener("keydown", (event) => {
     hideGameMenu();
     return;
   }
-  if (
-    typeof handReviewActive !== "undefined" &&
-    handReviewActive &&
-    (event.key === "ArrowLeft" || event.key === "ArrowRight")
-  ) {
-    event.preventDefault();
-    if (typeof handReviewStepBy === "function") {
-      handReviewStepBy(event.key === "ArrowLeft" ? -1 : 1);
+  if (typeof handReviewActive !== "undefined" && handReviewActive) {
+    if (typingTarget || event.metaKey || event.ctrlKey || event.altKey) return;
+    // In-spot retry: reuse live Fold/Call/Raise keybinds (same as the table).
+    if (typeof handReviewRetryItem !== "undefined" && handReviewRetryItem && state?.isYourTurn) {
+      if (
+        (matchesKeybind(event, "raiseUp") || matchesKeybind(event, "raiseDown")) &&
+        !betControls.classList.contains("is-reserved")
+      ) {
+        event.preventDefault();
+        changeRaise(matchesKeybind(event, "raiseUp") ? 1 : -1);
+        return;
+      }
+      if (event.repeat) return;
+      if (matchesKeybind(event, "fold") && state.toCall > 0) {
+        event.preventDefault();
+        emitWithAck("game:action", { type: "fold" });
+        return;
+      }
+      if (matchesKeybind(event, "call")) {
+        event.preventDefault();
+        if (mergePassiveConfirm) {
+          if (atPassiveDetent()) {
+            emitWithAck("game:action", { type: state.toCall > 0 ? "call" : "check" });
+          } else {
+            emitWithAck("game:action", { type: "raise", raiseTo: raiseState.value });
+          }
+        } else {
+          emitWithAck("game:action", { type: state.toCall > 0 ? "call" : "check" });
+        }
+        return;
+      }
+      if (matchesKeybind(event, "raise") && !betControls.classList.contains("is-reserved")) {
+        event.preventDefault();
+        if (mergePassiveConfirm) changeRaise(1);
+        else raiseActionBtn.click();
+        return;
+      }
+    }
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      if (typeof handReviewStepBy === "function") {
+        handReviewStepBy(event.key === "ArrowLeft" ? -1 : 1);
+      }
+      return;
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      if (typeof handReviewJumpToStart === "function") handReviewJumpToStart();
+      return;
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      if (typeof handReviewJumpToEnd === "function") handReviewJumpToEnd();
+      return;
+    }
+    const reviewKey = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+    if (reviewKey === "t" && !event.repeat) {
+      const tryBtn = document.querySelector(
+        "#handReviewRetryBar .hand-review-try-again",
+      ) as HTMLButtonElement | null;
+      if (tryBtn && !tryBtn.disabled) {
+        event.preventDefault();
+        tryBtn.click();
+      }
+      return;
+    }
+    if (reviewKey === "a" && !event.repeat) {
+      const showBtn = document.querySelector(
+        "#handReviewRetryBar .hand-review-show-answer",
+      ) as HTMLButtonElement | null;
+      if (showBtn && !showBtn.disabled) {
+        event.preventDefault();
+        showBtn.click();
+      }
+      return;
     }
     return;
   }
   if (
     !state ||
     !gameMenuModal.classList.contains("hidden") ||
-    (typeof handReviewActive !== "undefined" && handReviewActive) ||
     event.metaKey ||
     event.ctrlKey ||
     event.altKey
@@ -474,7 +543,25 @@ document.addEventListener("keydown", (event) => {
     if (!event.repeat && !state.isReady) emitWithAck("game:ready", { ready: true });
     return;
   }
-  if (matchesKeybind(event, "showHand") && state.canShowHand) {
+  // Between hands only — never steals in-hand raise (R) or other bet keys.
+  // Menu no longer lists Review; V opens the post-hand button path only.
+  if (
+    matchesKeybind(event, "reviewHand") &&
+    state.canReady &&
+    !state.isYourTurn &&
+    typeof openHandReview === "function" &&
+    typeof hasReviewableCompletedHand === "function" &&
+    hasReviewableCompletedHand(state)
+  ) {
+    event.preventDefault();
+    if (!event.repeat) openHandReview();
+    return;
+  }
+  if (
+    matchesKeybind(event, "showHand") &&
+    state.canShowHand &&
+    (typeof showHandButtonAvailable !== "function" || showHandButtonAvailable(state))
+  ) {
     if (!event.repeat) emitWithAck("game:showCards", {});
     return;
   }

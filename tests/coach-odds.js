@@ -34,7 +34,9 @@ assert.equal(Odds.effectiveStackForCall(950, [200]), 200);
   assert.notEqual(advice.verdict, "fold", "deep 44 must not hard-fold");
   assert.equal(advice.action, "call");
   assert.ok(advice.verdict === "borderline" || advice.verdict === "call");
-  assert.match(advice.reason, /22%|33%/);
+  assert.match(advice.reason, /you win about \d+ in \d+/i);
+  assert.match(advice.reason, /calling needs \d+ in \d+/i);
+  assert.doesNotMatch(advice.reason, /%|equity|pot odds/i);
   assert.match(advice.reason, /small pairs|set/i);
   assert.match(advice.reason, /deep|Borderline|Calling is fine/i);
 }
@@ -68,10 +70,16 @@ assert.equal(Odds.effectiveStackForCall(950, [200]), 200);
   });
   assert.equal(advice.category, null);
   assert.equal(advice.verdict, "fold");
-  assert.match(advice.reason, /need to win 33%/i);
-  assert.match(advice.reason, /win about 22%/i);
+  assert.match(advice.reason, /you win about \d+ in \d+/i);
+  assert.match(advice.reason, /calling needs \d+ in \d+/i);
+  assert.doesNotMatch(advice.reason, /%|equity|pot odds/i);
   assert.match(advice.reason, /Fold\./);
 }
+
+assert.equal(Odds.formatWinIn(0.5), "1 in 2");
+assert.equal(Odds.formatWinIn(0.33), "1 in 3");
+assert.equal(Odds.formatWinIn(0.25), "1 in 4");
+assert.match(Odds.formatWinIn(0.62), /\d+ in \d+/);
 
 {
   // Clear call: equity covers pot odds.

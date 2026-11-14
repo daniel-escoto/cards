@@ -52,7 +52,8 @@ var endGameBtn = document.querySelector("#endGameBtn") as HTMLButtonElement;
 var shareGameBtn = document.querySelector("#shareGameBtn") as HTMLButtonElement;
 var backToMenuBtn = document.querySelector("#backToMenuBtn") as HTMLButtonElement;
 var sitOutBtn = document.querySelector("#sitOutBtn") as HTMLButtonElement;
-var handReviewBtn = document.querySelector("#handReviewBtn") as HTMLButtonElement;
+/** Menu no longer lists Review — post-hand button + V shortcut only. */
+var handReviewBtn = document.querySelector("#handReviewBtn") as HTMLButtonElement | null;
 var copyForAiBtn = document.querySelector("#copyForAiBtn") as HTMLButtonElement;
 var handReviewChrome = document.querySelector("#handReviewChrome") as HTMLElement;
 var handReviewCloseBtn = document.querySelector("#handReviewCloseBtn") as HTMLButtonElement;
@@ -383,14 +384,24 @@ function saveRoomCredentials(roomId: string, response: { playerId?: string; reco
 }
 
 function setViewportHeight() {
-  const height = window.visualViewport?.height || window.innerHeight;
+  const vv = window.visualViewport;
+  const height = vv?.height || window.innerHeight;
   const value = `${Math.floor(height)}px`;
   document.documentElement.style.setProperty("--viewport-height", value);
   document.documentElement.style.setProperty("--game-vh", value);
+  // On-screen keyboard: visual viewport shrinks vs layout viewport. Never flip
+  // layout from mere focus — only when the keyboard actually covers the page.
+  if (!welcome.classList.contains("hidden")) {
+    const layoutH = window.innerHeight;
+    const keyboardLikely = height < layoutH - 120;
+    document.body.classList.toggle("keyboard-open", keyboardLikely);
+  }
 }
 
 function setKeyboardMode(isOpen: boolean) {
-  document.body.classList.toggle("keyboard-open", isOpen && !welcome.classList.contains("hidden"));
+  if (!isOpen) {
+    document.body.classList.remove("keyboard-open");
+  }
   setViewportHeight();
 }
 
@@ -487,6 +498,14 @@ function applyRoomUpdate(room: ClientRoom) {
       state.handNumber !== room.handNumber ||
       state.phase !== room.phase);
   syncServerTimeOffset(room);
+  // New table: never carry Review / recording from a prior room.
+  if (state && state.id !== room.id) {
+    if (typeof lastHandReplay !== "undefined") lastHandReplay = null;
+    if (typeof handRecording !== "undefined") handRecording = null;
+    if (typeof handReviewLastLogId !== "undefined") handReviewLastLogId = "";
+    lastHeroSignature = "";
+    heroHand.innerHTML = "";
+  }
   // While reviewing, keep the live room for later restore; don't yank the replay frame.
   if (typeof handReviewActive !== "undefined" && handReviewActive) {
     handReviewSavedState = room;
@@ -632,7 +651,8 @@ function updateHeroCardVisibility() {
   heroHand.classList.toggle("cards-concealed", hasCards && heroCardsHidden);
   heroHand.setAttribute("aria-pressed", String(hasCards && heroCardsHidden));
   heroHand.setAttribute("aria-label", heroCardsHidden ? "Show your cards" : "Hide your cards");
-  heroHand.title = heroCardsHidden ? "Show your cards" : "Hide your cards";
+  // No native title tooltip — it overlaps ½ pot / raise controls on short panels.
+  heroHand.removeAttribute("title");
   heroHand.querySelectorAll(".card").forEach((card) => {
     card.classList.toggle("back", heroCardsHidden);
     card.setAttribute("aria-hidden", String(heroCardsHidden));
@@ -951,16 +971,11 @@ function handReviewFeatureAvailable(room: ClientRoom | null | undefined = state)
 }
 
 function syncHandReviewBtn() {
+  // Review was removed from the hamburger menu; keep a no-op for call sites.
   if (!handReviewBtn) return;
-  const available =
-    handReviewFeatureAvailable() &&
-    typeof lastHandReplay !== "undefined" &&
-    lastHandReplay != null &&
-    lastHandReplay.steps.length > 0;
-  handReviewBtn.classList.toggle("hidden", !available);
-  handReviewBtn.disabled = !available;
-  handReviewBtn.setAttribute("aria-disabled", available ? "false" : "true");
-  handReviewBtn.title = available ? "Replay the last hand on the table" : "Bot games only";
+  handReviewBtn.classList.add("hidden");
+  handReviewBtn.disabled = true;
+  handReviewBtn.setAttribute("aria-disabled", "true");
 }
 
 function copyForAiFeatureAvailable(room: ClientRoom | null | undefined = state) {
@@ -1027,6 +1042,12 @@ function showWelcome(status = "") {
   lastPhase = "";
   lastPot = null;
   leavingEndedRoom = false;
+  // Drop prior-room Review + hole cards so a fresh lobby never inherits them.
+  if (typeof lastHandReplay !== "undefined") lastHandReplay = null;
+  if (typeof handRecording !== "undefined") handRecording = null;
+  if (typeof handReviewLastLogId !== "undefined") handReviewLastLogId = "";
+  heroHand.innerHTML = "";
+  if (typeof syncHandReviewBtn === "function") syncHandReviewBtn();
   hideGameMenu();
   document.documentElement.classList.remove("game-open-root");
   document.body.classList.remove("game-open", "keyboard-open");
@@ -1270,15 +1291,31 @@ function playerForAction(entry: ActionLogEntry) {
   return byNameIndex >= 0 ? state.players[byNameIndex] : null;
 }
 
+/**
+ * Shown-hand feed cards only after betting is closed: all-in runout (`allInCardsExposed`)
+ * or showdown/complete. Never while someone still has to act (short shove facing).
+ */
+function seatHoleCardsMayReveal() {
+  if (!state) return false;
+  if (state.allInCardsExposed) return true;
+  return state.phase === "showdown" || state.phase === "complete";
+}
+
+/** Main-style appended showdown/muck/all-in reveal card below the seat list. */
 function renderShownHandCard(player: ClientPlayer) {
   if (!state) return "";
+  const cards = (player.cards || [])
+    .filter((card) => card && (card.code || card.rank))
+    .map((card) => cardTemplate(card))
+    .join("");
+  if (!cards) return "";
   return `
     <article class="action-feed-card shown-hand-card ${player.isYou ? "you" : ""}" ${playerColorStyle(player)}>
       <div class="action-card-head">
         <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
         <strong class="player-stack">${playerStackLabel(player)}</strong>
       </div>
-      <div class="shown-hand">${player.cards.map((card) => cardTemplate(card)).join("")}</div>
+      <div class="shown-hand">${cards}</div>
     </article>
   `;
 }
@@ -1748,13 +1785,16 @@ function renderActionFeed(newEntryId = "") {
     })
     .join("");
   // Revealed hands: showdown winners/mucks, voluntary shows, and all-in runout face-ups.
-  const shownHands = room.players
-    .filter(
-      (player) =>
-        player.showCards && player.cards?.some((card) => card && (card.code || card.rank)),
-    )
-    .map(renderShownHandCard)
-    .join("");
+  // Gate on seatHoleCardsMayReveal so a short all-in still facing action stays private.
+  const shownHands = seatHoleCardsMayReveal()
+    ? room.players
+        .filter(
+          (player) =>
+            player.showCards && player.cards?.some((card) => card && (card.code || card.rank)),
+        )
+        .map(renderShownHandCard)
+        .join("")
+    : "";
   return `${tableMarkup}${shownHands}`;
 }
 

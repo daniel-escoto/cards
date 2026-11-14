@@ -88,14 +88,23 @@ function render() {
   lastActionEntryId = latestEntryId;
 
   const hero = activeHero();
+  // Pre-deal / lobby / game-over: never paint hole cards (also clears stale DOM
+  // when lastHeroSignature was reset without wiping #heroHand).
   const showHeroCards =
     room.phase !== "lobby" && room.phase !== "gameover" && Boolean(hero?.cards?.length);
   const heroSignature = showHeroCards
     ? hero!.cards.map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`).join("|")
     : "";
-  if (heroSignature !== lastHeroSignature) {
+  if (!showHeroCards) {
+    if (lastHeroSignature !== "" || heroHand.children.length > 0) {
+      heroCardsHidden = false;
+      heroHand.innerHTML = "";
+      updateHeroCardVisibility();
+      lastHeroSignature = "";
+    }
+  } else if (heroSignature !== lastHeroSignature) {
     heroCardsHidden = false;
-    heroHand.innerHTML = showHeroCards ? hero!.cards.map((card) => cardTemplate(card)).join("") : "";
+    heroHand.innerHTML = hero!.cards.map((card) => cardTemplate(card)).join("");
     updateHeroCardVisibility();
     replayAnimation(heroHand, "cards-entering", 720);
     if (heroSignature && !document.hidden) tableSounds.deal(hero?.cards?.length || 1);
@@ -165,6 +174,8 @@ var handReviewActive = false;
 var handReviewSavedState: ClientRoom | null = null;
 var handReviewStepIndex = 0;
 var handReviewRetryItem: HandReviewItemLocal | null = null;
+/** Mistake steps whose answer has been revealed (retry or Show answer). */
+var handReviewRevealedSteps = new Set<number>();
 var handReviewTouchStartX = 0;
 
 type ReplaySeatLocal = {
@@ -468,7 +479,7 @@ function captureHandReviewDecision(payload: Record<string, unknown>) {
       minRaiseTo,
       maxRaiseTo,
       raiseStep,
-      canRaise: Boolean(state.canRaise || state.canShove) && maxRaiseTo > currentBet,
+      canRaise: heroCanRaiseMeaningfully(state, hero),
     },
   });
 }
@@ -482,9 +493,28 @@ function finalizeHandReplay() {
   if (typeof syncHandReviewBtn === "function") syncHandReviewBtn();
 }
 
+function hasReviewableCompletedHand(room: ClientRoom | null | undefined = state) {
+  if (!room) return false;
+  if (!lastHandReplay || lastHandReplay.steps.length === 0) return false;
+  // Fresh lobby before any deal must never inherit a prior room's replay.
+  const handNumber = Number(room.handNumber) || 0;
+  if (room.phase === "lobby" && handNumber <= 0 && !(room.winners?.length > 0)) {
+    return false;
+  }
+  return true;
+}
+
 function maybeOfferHandReview(room: ClientRoom) {
   if (typeof handReviewFeatureAvailable !== "function" || !handReviewFeatureAvailable(room)) {
     lastHandReplay = null;
+    handRecording = null;
+    if (typeof syncHandReviewBtn === "function") syncHandReviewBtn();
+    return;
+  }
+  const handNumber = Number(room.handNumber) || 0;
+  if (room.phase === "lobby" && handNumber <= 0 && !(room.winners?.length > 0)) {
+    lastHandReplay = null;
+    handRecording = null;
     if (typeof syncHandReviewBtn === "function") syncHandReviewBtn();
     return;
   }
@@ -498,14 +528,38 @@ function maybeOfferHandReview(room: ClientRoom) {
 }
 
 function addReviewHandButton() {
-  if (!lastHandReplay || lastHandReplay.steps.length === 0) return;
+  if (!hasReviewableCompletedHand()) return;
   if (typeof handReviewFeatureAvailable !== "function" || !handReviewFeatureAvailable()) return;
   const button = document.createElement("button");
   button.type = "button";
   button.className = "secondary";
-  button.textContent = "Review hand";
   button.addEventListener("click", () => openHandReview());
   gameButtons.appendChild(button);
+  setButtonLabel(button, "Review hand", keybindLabel(keybinds.reviewHand || "v"));
+}
+
+/**
+ * Optional "Show hand" after a fold-win / muck. Skip in bot-only games
+ * (offline practice or every other seated player is a bot) — there is no
+ * human left to show to. Multi-human rooms keep the button.
+ */
+function isHeroVsBotsOnly(room: ClientRoom): boolean {
+  if (typeof handReviewFeatureAvailable === "function" && handReviewFeatureAvailable(room)) {
+    return true;
+  }
+  if (room.offline) {
+    const hero = (room.players || []).find((player) => player.isYou && !player.isBot);
+    if (!hero) return Boolean(room.offline);
+    return (room.players || []).every((player) => player.isYou || player.isBot);
+  }
+  const hero = (room.players || []).find((player) => player.isYou && !player.isBot);
+  if (!hero) return false;
+  const others = (room.players || []).filter((player) => !player.isYou);
+  return others.length > 0 && others.every((player) => player.isBot);
+}
+
+function showHandButtonAvailable(room: ClientRoom): boolean {
+  return Boolean(room.canShowHand) && !isHeroVsBotsOnly(room);
 }
 
 function roomFromReplayTable(
@@ -596,29 +650,87 @@ function bustCardRenderCache() {
   lastCommunitySignature = null;
 }
 
+function isHandReviewLandableStep(step: HandReplayLocal["steps"][number] | null | undefined) {
+  if (!step) return false;
+  return Boolean(step.isHeroDecision || step.kind === "result");
+}
+
+/** Hero decisions + final result — the only frames Next/Back/dots/keys land on. */
+function handReviewLandableIndexes(): number[] {
+  const steps = lastHandReplay?.steps || [];
+  const indexes: number[] = [];
+  steps.forEach((step, idx) => {
+    if (isHandReviewLandableStep(step)) indexes.push(idx);
+  });
+  return indexes;
+}
+
+function syncHandReviewNavButtons() {
+  const landable = handReviewLandableIndexes();
+  const pos = landable.indexOf(handReviewStepIndex);
+  const atStart = landable.length === 0 || pos <= 0;
+  const atEnd = landable.length === 0 || pos < 0 || pos >= landable.length - 1;
+  for (const [btn, disabled] of [
+    [handReviewStartBtn, atStart],
+    [handReviewPrevBtn, atStart],
+    [handReviewNextBtn, atEnd],
+    [handReviewEndBtn, atEnd],
+  ] as const) {
+    if (!btn) continue;
+    btn.disabled = disabled;
+    btn.setAttribute("aria-disabled", disabled ? "true" : "false");
+    btn.tabIndex = disabled ? -1 : 0;
+  }
+}
+
+function handReviewJumpToStart() {
+  const landable = handReviewLandableIndexes();
+  if (!landable.length) return;
+  paintHandReviewStep(landable[0]!);
+}
+
+function handReviewJumpToEnd() {
+  const landable = handReviewLandableIndexes();
+  if (!landable.length) return;
+  paintHandReviewStep(landable[landable.length - 1]!);
+}
+
+function syncHandReviewRetryingClass() {
+  document.body.classList.toggle("hand-review-retrying", Boolean(handReviewActive && handReviewRetryItem));
+}
+
 function openHandReview() {
   if (!lastHandReplay || !lastHandReplay.steps.length || !state) return;
   if (handReviewActive) return;
   handReviewSavedState = state;
   handReviewActive = true;
   handReviewRetryItem = null;
-  handReviewStepIndex = 0;
+  handReviewRevealedSteps = new Set();
+  // Force the first landable paint (sentinel so paintHandReviewStep does not no-op).
+  handReviewStepIndex = -1;
   document.body.classList.add("hand-review-open");
+  syncHandReviewRetryingClass();
   handReviewChrome?.classList.remove("hidden");
   if (handReviewSummary) handReviewSummary.textContent = lastHandReplay.summary;
   bustCardRenderCache();
-  paintHandReviewStep(0);
+  handReviewJumpToStart();
 }
 
 function hideHandReview() {
   if (!handReviewActive) return;
   handReviewActive = false;
   handReviewRetryItem = null;
-  document.body.classList.remove("hand-review-open");
+  handReviewRevealedSteps = new Set();
+  document.body.classList.remove("hand-review-open", "hand-review-retrying");
   handReviewChrome?.classList.add("hidden");
   if (handReviewRetryBar) {
-    handReviewRetryBar.classList.add("hidden");
+    handReviewRetryBar.classList.add("is-idle");
+    handReviewRetryBar.classList.remove("hidden");
     handReviewRetryBar.replaceChildren();
+  }
+  if (handReviewVerdict) {
+    handReviewVerdict.className = "hand-review-verdict is-idle";
+    handReviewVerdict.replaceChildren();
   }
   if (handReviewSavedState) {
     state = handReviewSavedState;
@@ -631,91 +743,237 @@ function paintHandReviewStep(index: number) {
   if (!lastHandReplay || !handReviewSavedState) return;
   const steps = lastHandReplay.steps;
   if (!steps.length) return;
-  handReviewStepIndex = Math.max(0, Math.min(steps.length - 1, index));
+  const next = Math.max(0, Math.min(steps.length - 1, index));
+  // Already on this frame: do not re-render or re-animate cards (esp. at ends).
+  if (next === handReviewStepIndex) {
+    syncHandReviewNavButtons();
+    return;
+  }
+  handReviewStepIndex = next;
   const step = steps[handReviewStepIndex]!;
   handReviewRetryItem = null;
-  if (handReviewRetryBar) {
-    handReviewRetryBar.classList.add("hidden");
-    handReviewRetryBar.replaceChildren();
-  }
-  bustCardRenderCache();
+  // Keep lastHero/Community signatures so unchanged cards stay still between steps.
   state = roomFromReplayTable(step.table, handReviewSavedState);
   render();
   // Review chrome owns the control panel content.
   renderHandReviewChrome(step);
+  syncHandReviewNavButtons();
 }
 
-function paintHandReviewVerdict(item: HandReviewItemLocal | null, prompt?: string) {
-  if (!handReviewVerdict) return;
-  if (prompt) {
-    handReviewVerdict.textContent = prompt;
-    handReviewVerdict.className = "hand-review-verdict is-prompt";
-    handReviewVerdict.classList.remove("hidden");
-    return;
+function handReviewWhy(item: HandReviewItemLocal): string {
+  if (typeof HandReview !== "undefined" && HandReview.formatVerdictWhy) {
+    return HandReview.formatVerdictWhy(item);
   }
-  if (!item) {
-    handReviewVerdict.classList.add("hidden");
+  return item.reason;
+}
+
+function handReviewBadge(item: HandReviewItemLocal): string {
+  if (typeof HandReview !== "undefined" && HandReview.formatVerdictBadge) {
+    return HandReview.formatVerdictBadge(item);
+  }
+  // FE0E keeps ✓/✗ as text glyphs on iOS (avoids emoji presentation).
+  const mark =
+    item.verdict === "mistake" ? "✗\uFE0E" : item.verdict === "best" ? "✓\uFE0E" : "~";
+  return `${mark} ${item.badge}`;
+}
+
+function handReviewMistakeNudge(): string {
+  if (typeof HandReview !== "undefined" && HandReview.formatMistakeNudge) {
+    return HandReview.formatMistakeNudge();
+  }
+  return "There was a better play here.";
+}
+
+/**
+ * Always keeps the verdict slot visible (fixed height). Never toggles display:none —
+ * bot steps and idle states use muted/empty content so stepping doesn't jump.
+ */
+function paintHandReviewVerdict(opts: {
+  kind: "decision" | "spoiler" | "correct" | "context" | "prompt" | "idle";
+  item?: HandReviewItemLocal | null;
+  context?: string;
+  prompt?: string;
+}) {
+  if (!handReviewVerdict) return;
+  handReviewVerdict.classList.remove("hidden");
+  if (opts.kind === "idle") {
+    handReviewVerdict.className = "hand-review-verdict is-idle";
     handReviewVerdict.replaceChildren();
     return;
   }
-  const badge =
-    typeof HandReview !== "undefined" && HandReview.formatVerdictBadge
-      ? HandReview.formatVerdictBadge(item)
-      : `${item.verdict === "mistake" ? "✗" : item.verdict === "best" ? "✓" : "~"} ${item.badge}`;
-  const why =
-    typeof HandReview !== "undefined" && HandReview.formatVerdictWhy
-      ? HandReview.formatVerdictWhy(item)
-      : item.reason;
-  const mark = document.createElement("span");
-  mark.className = "hand-review-verdict-mark";
-  mark.textContent = badge;
-  const detail = document.createElement("span");
-  detail.className = "hand-review-verdict-why";
-  detail.textContent = why;
-  handReviewVerdict.replaceChildren(mark, detail);
-  handReviewVerdict.className = `hand-review-verdict is-${item.verdict}`;
-  handReviewVerdict.classList.remove("hidden");
+  if (opts.kind === "prompt" && opts.prompt) {
+    handReviewVerdict.textContent = opts.prompt;
+    handReviewVerdict.className = "hand-review-verdict is-prompt";
+    return;
+  }
+  if (opts.kind === "context") {
+    const detail = document.createElement("span");
+    detail.className = "hand-review-verdict-why";
+    detail.textContent = opts.context || "";
+    handReviewVerdict.replaceChildren(detail);
+    handReviewVerdict.className = "hand-review-verdict is-context";
+    return;
+  }
+  if (opts.kind === "spoiler" && opts.item) {
+    const mark = document.createElement("span");
+    mark.className = "hand-review-verdict-mark";
+    mark.textContent = "✗\uFE0E Mistake";
+    const detail = document.createElement("span");
+    detail.className = "hand-review-verdict-why";
+    detail.textContent = handReviewMistakeNudge();
+    handReviewVerdict.replaceChildren(mark, detail);
+    handReviewVerdict.className = "hand-review-verdict is-mistake is-spoiler";
+    return;
+  }
+  if (opts.kind === "correct" && opts.item) {
+    const mark = document.createElement("span");
+    mark.className = "hand-review-verdict-mark";
+    mark.textContent = "✓\uFE0E Correct";
+    const detail = document.createElement("span");
+    detail.className = "hand-review-verdict-why";
+    detail.textContent = handReviewWhy(opts.item);
+    handReviewVerdict.replaceChildren(mark, detail);
+    handReviewVerdict.className = "hand-review-verdict is-best";
+    return;
+  }
+  if (opts.item) {
+    const mark = document.createElement("span");
+    mark.className = "hand-review-verdict-mark";
+    mark.textContent = handReviewBadge(opts.item);
+    const detail = document.createElement("span");
+    detail.className = "hand-review-verdict-why";
+    detail.textContent = handReviewWhy(opts.item);
+    handReviewVerdict.replaceChildren(mark, detail);
+    handReviewVerdict.className = `hand-review-verdict is-${opts.item.verdict}`;
+    return;
+  }
+  handReviewVerdict.className = "hand-review-verdict is-idle";
+  handReviewVerdict.replaceChildren();
+}
+
+function setHandReviewRetryIdle() {
+  if (!handReviewRetryBar) return;
+  handReviewRetryBar.replaceChildren();
+  handReviewRetryBar.classList.add("is-idle");
+  handReviewRetryBar.classList.remove("hidden");
+}
+
+function renderMistakeRetryActions(item: HandReviewItemLocal, beforeTable: ReplayTableStateLocal) {
+  if (!handReviewRetryBar) return;
+  const heroStack =
+    beforeTable.seats.find((seat) => seat.isHero)?.stack ?? item.pot;
+  const tryBtn = document.createElement("button");
+  tryBtn.type = "button";
+  tryBtn.className = "hand-review-try-again has-shortcut";
+  tryBtn.innerHTML = `<span>Try again</span><kbd aria-hidden="true">T</kbd>`;
+  tryBtn.setAttribute("aria-label", "Try again (T)");
+  tryBtn.addEventListener("click", () => startHandReviewRetry(item, beforeTable, heroStack));
+
+  const showBtn = document.createElement("button");
+  showBtn.type = "button";
+  showBtn.className = "secondary hand-review-show-answer has-shortcut";
+  showBtn.innerHTML = `<span>Show answer</span><kbd aria-hidden="true">A</kbd>`;
+  showBtn.setAttribute("aria-label", "Show answer (A)");
+  showBtn.addEventListener("click", () => {
+    handReviewRevealedSteps.add(handReviewStepIndex);
+    paintHandReviewVerdict({ kind: "decision", item });
+    // Keep Try again available after revealing.
+    renderMistakeRetryActions(item, beforeTable);
+  });
+
+  handReviewRetryBar.replaceChildren(tryBtn, showBtn);
+  handReviewRetryBar.classList.remove("is-idle", "hidden");
+}
+
+function formatHandReviewStepLabel(step: HandReplayLocal["steps"][number]): string {
+  const streetRaw = String(step.table?.street || "");
+  const street =
+    streetRaw === "preflop"
+      ? "Preflop"
+      : streetRaw === "flop"
+        ? "Flop"
+        : streetRaw === "turn"
+          ? "Turn"
+          : streetRaw === "river"
+            ? "River"
+            : streetRaw
+              ? streetRaw.charAt(0).toUpperCase() + streetRaw.slice(1)
+              : "";
+  const raw = String(step.label || "").trim();
+  if (!raw) return street || "Step";
+  // Already "River · You check" style.
+  if (street && raw.toLowerCase().startsWith(street.toLowerCase())) return raw;
+  if (step.kind === "street" || /^(preflop|flop|turn|river)$/i.test(raw)) {
+    return street || raw;
+  }
+  return street ? `${street} · ${raw}` : raw;
 }
 
 function renderHandReviewChrome(step: HandReplayLocal["steps"][number]) {
   if (handReviewStepLabel) {
-    const total = lastHandReplay?.steps.length || 1;
-    handReviewStepLabel.textContent = `${handReviewStepIndex + 1}/${total} · ${step.label}`;
+    const landable = handReviewLandableIndexes();
+    const ordinal = landable.indexOf(handReviewStepIndex);
+    const prefix =
+      ordinal >= 0
+        ? `${ordinal + 1}/${landable.length || 1}`
+        : `${handReviewStepIndex + 1}/${(lastHandReplay?.steps || []).length || 1}`;
+    handReviewStepLabel.textContent = `${prefix} · ${formatHandReviewStepLabel(step)}`;
   }
+
   if (step.decision) {
-    paintHandReviewVerdict(step.decision);
+    const revealed = handReviewRevealedSteps.has(handReviewStepIndex);
+    if (step.decision.verdict === "mistake" && !revealed) {
+      paintHandReviewVerdict({ kind: "spoiler", item: step.decision });
+      renderMistakeRetryActions(step.decision, step.table);
+    } else {
+      paintHandReviewVerdict({ kind: "decision", item: step.decision });
+      if (step.decision.verdict === "mistake") {
+        renderMistakeRetryActions(step.decision, step.table);
+      } else {
+        setHandReviewRetryIdle();
+      }
+    }
   } else {
-    paintHandReviewVerdict(null);
+    // Result (and any non-decision landable): muted context keeps the slot height stable.
+    paintHandReviewVerdict({
+      kind: "context",
+      context: step.label || "Hand result",
+    });
+    setHandReviewRetryIdle();
   }
+
   if (handReviewTimeline && lastHandReplay) {
+    // Dots = hero decisions + final result (bot/street frames are never landed on).
     handReviewTimeline.replaceChildren();
-    lastHandReplay.steps.forEach((dotStep, idx) => {
+    const landable = handReviewLandableIndexes();
+    landable.forEach((idx, ordinal) => {
+      const dotStep = lastHandReplay!.steps[idx]!;
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "hand-review-dot";
-      if (dotStep.isHeroDecision && dotStep.decision) {
-        btn.classList.add("is-hero", `is-${dotStep.decision.verdict}`);
+      if (dotStep.isHeroDecision) {
+        btn.classList.add("is-hero");
+        if (dotStep.decision) btn.classList.add(`is-${dotStep.decision.verdict}`);
+      } else {
+        btn.classList.add("is-result");
       }
       if (idx === handReviewStepIndex) btn.classList.add("is-active");
       btn.setAttribute("role", "listitem");
-      btn.setAttribute("aria-label", `Step ${idx + 1}: ${dotStep.label}`);
+      const label =
+        dotStep.isHeroDecision
+          ? `Decision ${ordinal + 1}: ${dotStep.label}`
+          : `Result: ${dotStep.label}`;
+      btn.setAttribute("aria-label", label);
       btn.addEventListener("click", () => paintHandReviewStep(idx));
       handReviewTimeline.append(btn);
     });
+    // Keep the active dot in view without shifting layout of neighbors.
+    const activeEl = handReviewTimeline.querySelector(".hand-review-dot.is-active");
+    if (activeEl && typeof activeEl.scrollIntoView === "function") {
+      activeEl.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
   }
-  // Mistake: offer Try again under the verdict.
-  if (step.decision?.verdict === "mistake" && handReviewRetryBar) {
-    const tryBtn = document.createElement("button");
-    tryBtn.type = "button";
-    tryBtn.textContent = "Try again";
-    const heroStack =
-      step.table.seats.find((seat) => seat.isHero)?.stack ?? step.decision.pot;
-    tryBtn.addEventListener("click", () =>
-      startHandReviewRetry(step.decision!, step.table, heroStack),
-    );
-    handReviewRetryBar.replaceChildren(tryBtn);
-    handReviewRetryBar.classList.remove("hidden");
-  }
+
   gameButtons.innerHTML = "";
   turnInfo.textContent = step.decision
     ? `You ${step.decision.taken}${step.decision.raiseTo != null ? ` ${step.decision.raiseTo}` : ""}`
@@ -724,13 +982,55 @@ function renderHandReviewChrome(step: HandReplayLocal["steps"][number]) {
   setBetControlsReserved(false);
 }
 
+/**
+ * Grade a retry attempt from the shared Fold / Call-Raise controls (same path
+ * as live table + Trainer). Never paints a bespoke 3-button Fold|Call|Raise row.
+ */
+function submitHandReviewRetryAction(payload: Record<string, unknown>) {
+  if (!handReviewRetryItem) return;
+  if (typeof HandReview === "undefined" || typeof HandReview.gradeRetry !== "function") return;
+  const item = handReviewRetryItem;
+  const type = String(payload.type || "");
+  if (!["fold", "check", "call", "bet", "raise"].includes(type)) return;
+  const taken = type as "fold" | "check" | "call" | "bet" | "raise";
+  const result = HandReview.gradeRetry(item, taken);
+  handReviewRevealedSteps.add(handReviewStepIndex);
+  handReviewRetryItem = null;
+  syncHandReviewRetryingClass();
+  // Collapse live action controls; nav chrome stays below.
+  gameButtons.innerHTML = "";
+  setBetControlsReserved(true);
+  mergePassiveConfirm = false;
+  confirmActionBtn = null;
+  if (result.correct) {
+    paintHandReviewVerdict({ kind: "correct", item });
+  } else {
+    paintHandReviewVerdict({ kind: "decision", item });
+  }
+  if (handReviewRetryBar) {
+    handReviewRetryBar.replaceChildren();
+    const cont = document.createElement("button");
+    cont.type = "button";
+    cont.className = "ghost hand-review-continue";
+    cont.textContent = "Continue review";
+    cont.addEventListener("click", () => paintHandReviewStep(handReviewStepIndex));
+    handReviewRetryBar.append(cont);
+    handReviewRetryBar.classList.remove("is-idle", "hidden");
+  }
+  turnInfo.textContent = result.correct ? "Correct" : "Keep reviewing";
+  turnInfo.classList.remove("your-turn");
+  reserveActionSpace();
+  syncHandReviewNavButtons();
+}
+
 function startHandReviewRetry(
   item: HandReviewItemLocal,
   beforeTable: ReplayTableStateLocal,
   heroStack: number,
 ) {
-  if (!handReviewRetryBar || !handReviewSavedState) return;
+  if (!handReviewSavedState) return;
   handReviewRetryItem = item;
+  syncHandReviewRetryingClass();
   // Paint the decision's before-state on the table.
   const template = handReviewSavedState;
   const table: ReplayTableStateLocal = {
@@ -739,6 +1039,7 @@ function startHandReviewRetry(
     pot: item.pot,
     toCall: item.toCall,
     currentBet: item.currentBet,
+    minRaiseTo: Math.max(beforeTable.minRaiseTo || 0, item.currentBet + (template.bigBlind || 20)),
     boardCodes: item.boardCodes.slice(),
     actingSeatId: beforeTable.seats.find((seat) => seat.isHero)?.id || null,
     winners: [],
@@ -747,7 +1048,8 @@ function startHandReviewRetry(
       stack: seat.isHero ? heroStack : seat.stack,
       isTurn: seat.isHero,
       holeCodes: seat.isHero ? [item.heroCodes[0], item.heroCodes[1]] : null,
-      lastAction: null,
+      // Keep intervening bot last-action pills from the before-state.
+      lastAction: seat.isHero ? null : seat.lastAction,
     })),
   };
   bustCardRenderCache();
@@ -755,53 +1057,60 @@ function startHandReviewRetry(
   state.isYourTurn = true;
   state.toCall = item.toCall;
   state.currentBet = item.currentBet;
-  state.canRaise = true;
+  state.pot = item.pot;
+  state.minRaiseTo = table.minRaiseTo;
+  state.phase = item.street;
+  const hero = state.players.find((player) => player.isYou && !player.isBot);
+  if (hero) {
+    state.canRaise = heroCanRaiseMeaningfully(state, hero);
+    state.canShove = hero.bet + hero.stack > state.currentBet;
+  } else {
+    state.canRaise = true;
+    state.canShove = true;
+  }
+  // render() → renderControlsContent sees handReviewRetryItem and paints live Fold + Call/Raise.
   render();
 
-  handReviewRetryBar.replaceChildren();
-  const actions = document.createElement("div");
-  actions.className = "hand-review-retry-actions";
-  const choices: Array<"fold" | "check" | "call" | "raise"> =
-    item.toCall > 0 ? ["fold", "call", "raise"] : ["check", "raise"];
-  const feedback = document.createElement("p");
-  feedback.className = "hand-review-retry-feedback";
-  feedback.setAttribute("aria-live", "polite");
-  const cont = document.createElement("button");
-  cont.type = "button";
-  cont.className = "ghost hand-review-continue";
-  cont.textContent = "Continue review";
-  cont.hidden = true;
-  cont.addEventListener("click", () => paintHandReviewStep(handReviewStepIndex));
-  for (const choice of choices) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = choice === "fold" ? "danger" : "";
-    btn.textContent = choice.charAt(0).toUpperCase() + choice.slice(1);
-    btn.addEventListener("click", () => {
-      if (typeof HandReview === "undefined" || typeof HandReview.gradeRetry !== "function") return;
-      const result = HandReview.gradeRetry(item, choice);
-      feedback.textContent = result.line;
-      feedback.classList.toggle("is-correct", result.correct);
-      feedback.classList.toggle("is-wrong", !result.correct);
-      cont.hidden = false;
-    });
-    actions.append(btn);
+  // Keep spoiler verdict until they pick — don't leak the answer in the prompt.
+  paintHandReviewVerdict({
+    kind: "prompt",
+    prompt: `Your turn · Pot ${item.pot}${item.toCall > 0 ? ` · Call ${item.toCall}` : ""}`,
+  });
+  // No bespoke Fold|Call|Raise row in the retry bar — actions live in gameButtons.
+  if (handReviewRetryBar) {
+    handReviewRetryBar.replaceChildren();
+    handReviewRetryBar.classList.add("is-idle");
+    handReviewRetryBar.classList.remove("hidden");
   }
-  handReviewRetryBar.append(actions, feedback, cont);
-  handReviewRetryBar.classList.remove("hidden");
-  paintHandReviewVerdict(
-    null,
-    `Try again · Pot ${item.pot}${item.toCall > 0 ? ` · Call ${item.toCall}` : ""}`,
-  );
-  gameButtons.innerHTML = "";
-  turnInfo.textContent =
-    item.toCall > 0 ? `Call ${item.toCall}` : "Check or bet";
-  turnInfo.classList.add("your-turn");
+  syncHandReviewNavButtons();
 }
 
 function handReviewStepBy(delta: number) {
   if (!handReviewActive || handReviewRetryItem) return;
-  paintHandReviewStep(handReviewStepIndex + delta);
+  const landable = handReviewLandableIndexes();
+  if (!landable.length) return;
+  const pos = landable.indexOf(handReviewStepIndex);
+  if (pos < 0) {
+    // Rare: landed off-grid — snap to the next landable in the step direction.
+    if (delta > 0) {
+      const next = landable.find((idx) => idx > handReviewStepIndex);
+      if (next == null) return;
+      paintHandReviewStep(next);
+      return;
+    }
+    for (let i = landable.length - 1; i >= 0; i -= 1) {
+      const idx = landable[i]!;
+      if (idx < handReviewStepIndex) {
+        paintHandReviewStep(idx);
+        return;
+      }
+    }
+    return;
+  }
+  const nextPos = pos + (delta < 0 ? -1 : 1);
+  // At an end: no-op — do not re-paint or re-animate cards.
+  if (nextPos < 0 || nextPos >= landable.length) return;
+  paintHandReviewStep(landable[nextPos]!);
 }
 
 function captureActionFeedScroll() {
@@ -864,12 +1173,15 @@ function reserveActionSpace() {
   if (!panel) return;
   const hasResult = winnerList.children.length > 0;
   const hasButtons = Array.from(gameButtons.children).some(
-    (child) => !child.classList.contains("action-placeholder"),
+    (child) =>
+      !child.classList.contains("action-placeholder") &&
+      !child.classList.contains("action-links") &&
+      child.tagName === "BUTTON",
   );
-  // Before the first hand (lobby, waiting for players) there's nothing to keep stable against,
-  // so the panel drops the reserved bet space and just fits its content.
+  // Drop the reserved bet row when it would only leave empty space: pre-hand lobby, or
+  // Fold/Call-only turns (short all-in / no reopen) where Raise isn't offered.
   const handLive = Boolean(state && !["lobby", "complete", "gameover"].includes(state.phase));
-  const compact = reserved && !hasResult && !handLive;
+  const compact = reserved && !hasResult && (!handLive || hasButtons);
   panel.classList.toggle("is-compact", compact);
   panel.classList.toggle("is-result", reserved && hasResult);
   panel.classList.toggle("is-idle", reserved && !hasResult && !hasButtons && !compact);
@@ -897,8 +1209,23 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
   turnInfo.textContent = "";
   turnInfo.classList.remove("your-turn", "bust-message");
 
-  // Replay chrome owns the panel while open (paintHandReviewStep fills labels).
+  // Replay chrome owns the panel while open — except in-spot retry, which reuses
+  // the live Fold + Call/Raise controls (same component as the table / Trainer).
   if (handReviewActive) {
+    if (handReviewRetryItem) {
+      const reviewHero = activeHero();
+      if (reviewHero) {
+        renderHeroActionControls(reviewHero, false);
+        turnInfo.textContent =
+          (state.toCall || 0) > 0
+            ? `Call ${formatAmount(state.toCall, state.toCallCents)}`
+            : "Check or bet";
+        turnInfo.classList.add("your-turn");
+      } else {
+        setBetControlsReserved(true);
+      }
+      return;
+    }
     setBetControlsReserved(false);
     betControls.classList.add("is-reserved");
     betControls.setAttribute("aria-hidden", "true");
@@ -957,28 +1284,44 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
   }
   turnInfo.classList.remove("showdown-message");
 
-  if (room.canAddBot) {
-    addButton("+ Add bot", "room:addBot", "secondary lobby-add-bot");
-  }
-  if (room.canReady) {
-    const readyShortcut = room.isReady
-      ? keybindLabel(keybinds.ready)
-      : [keybinds.ready, keybinds.call].filter(Boolean).map(keybindLabel).join(" / ");
-    addButton(
-      room.isReady ? "Not ready" : "Ready up",
-      "game:ready",
-      room.isReady ? "secondary" : "",
-      readyShortcut,
-    );
-    maybeOfferHandReview(room);
-    addReviewHandButton();
-  }
-  if (room.canShowHand) {
-    addButton("Show hand", "game:showCards", "secondary", keybindLabel(keybinds.showHand));
+  // Never mix between-hands controls with in-hand actions — even if state is inconsistent.
+  const betweenHands = ["lobby", "complete", "gameover"].includes(room.phase);
+  const heroToAct =
+    Boolean(room.isYourTurn && hero) && isBettingPhase(room.phase) && !betweenHands;
+
+  if (!heroToAct) {
+    // Main order: + Add bot (dashed secondary), then Ready up. Max two buttons per row —
+    // Review follows when present (wraps to the next row). Show hand stays a text link.
+    if (room.canAddBot && betweenHands) {
+      addButton("+ Add bot", "room:addBot", "secondary lobby-add-bot");
+    }
+    if (room.canReady && betweenHands) {
+      const readyShortcut = room.isReady
+        ? keybindLabel(keybinds.ready)
+        : [keybinds.ready, keybinds.call].filter(Boolean).map(keybindLabel).join(" / ");
+      addButton(
+        room.isReady ? "Not ready" : "Ready up",
+        "game:ready",
+        room.isReady ? "secondary" : "",
+        readyShortcut,
+      );
+      maybeOfferHandReview(room);
+      addReviewHandButton();
+    }
+    // Show hand is for multi-human tables (muck / reveal). Hide vs bots — no audience.
+    if (showHandButtonAvailable(room)) {
+      const showShortcut = keybindLabel(keybinds.showHand);
+      appendActionLinks([
+        textActionLink(
+          showShortcut ? `Show hand (${showShortcut})` : "Show hand",
+          () => emitWithAck("game:showCards", {}),
+        ),
+      ]);
+    }
   }
 
-  if (!room.isYourTurn || !hero) {
-    if (["lobby", "complete"].includes(room.phase)) {
+  if (!heroToAct) {
+    if (betweenHands) {
       const humans = room.players.filter(
         (player) => !player.isBot && !player.sittingOut && player.stack > 0,
       );
@@ -995,6 +1338,8 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
     const currentIndex = findLastIndex(room.players, (player) => player.id === room.turn);
     const current = currentIndex >= 0 ? room.players[currentIndex] : null;
     turnInfo.textContent = current ? `${current.name} to act` : "Waiting for host";
+    // Keep Fold/Call + raise shell mounted (disabled) while still in the hand.
+    // Folded / all-in use the reserved idle slot instead (same height, no live buttons).
     if (hero && isBettingPhase(room.phase) && !hero.folded && !hero.allIn) {
       renderHeroActionControls(hero, true);
     }
@@ -1007,7 +1352,7 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
       ? `Call ${formatAmount(room.toCall, room.toCallCents)}`
       : "Check or bet";
   turnInfo.classList.add("your-turn");
-  renderHeroActionControls(hero, false);
+  renderHeroActionControls(hero!, false);
 }
 
 /** Every human is out of chips while CPUs play on: offer Rebuy / Restart instead of a dead table. */
@@ -1032,12 +1377,40 @@ function renderBustPanel(room: ClientRoom) {
   if (room.canRestartGame) addButton("Restart", "game:restart", "secondary");
 }
 
+/**
+ * True when a raise/shove is a legal, meaningful action for the hero.
+ * Short all-ins that did not reopen (canRaise/canShove false) must not show Raise.
+ * When every live opponent is already all-in, raising builds a dead side pot — Call only.
+ *
+ * `ignoreRaiseOpen`: off-turn disabled shell — raiseEligible clears after you act, but the
+ * raise row must stay mounted so the panel height does not jump between turns.
+ */
+function heroCanRaiseMeaningfully(
+  room: ClientRoom,
+  hero: ClientPlayer,
+  options: { ignoreRaiseOpen?: boolean } = {},
+): boolean {
+  const maxRaise = hero.bet + hero.stack;
+  if (maxRaise <= room.currentBet) return false;
+  if (!options.ignoreRaiseOpen && !(room.canRaise || room.canShove)) return false;
+  const liveVillains = (room.players || []).filter(
+    (player) => !player.isYou && !player.folded && player.id !== hero.id,
+  );
+  if (liveVillains.length === 0) return false;
+  // Nobody left who can put more chips in behind a raise.
+  if (liveVillains.every((player) => player.allIn || player.stack <= 0)) return false;
+  return true;
+}
+
 function renderHeroActionControls(hero: ClientPlayer, disabled: boolean) {
   if (!state) return;
   const maxRaise = hero.bet + hero.stack;
   const canBetMore = maxRaise > state.currentBet;
-  // Merge Check/Bet or Call/Raise into one confirm whenever the hero can put more in.
-  mergePassiveConfirm = canBetMore;
+  const canRaiseUi = heroCanRaiseMeaningfully(state, hero, {
+    ignoreRaiseOpen: disabled,
+  });
+  // Merge Check/Bet or Call/Raise only when a raise is actually available.
+  mergePassiveConfirm = canRaiseUi;
 
   // Fold only when facing a bet — free checks must not offer a fold misclick.
   if (state.toCall > 0) addActionButton("Fold", { type: "fold" }, "danger", disabled);
@@ -1053,9 +1426,13 @@ function renderHeroActionControls(hero: ClientPlayer, disabled: boolean) {
     );
   }
 
-  // All in (and the bet panel) must stay available whenever the hero can put more
-  // chips in — including a short all-in below min-raise. Do not gate on canRaise.
-  if (canBetMore) configureRaiseControls(hero, disabled);
+  // Bet panel only when raise/shove is legal. Facing a short all-in that did not
+  // reopen — or when every villain is all-in — Call/Check alone is the UI.
+  // Off-turn uses ignoreRaiseOpen so the raise shell stays for layout stability.
+  // reserveActionSpace() then collapses the empty raise slot (is-compact) only for
+  // true Call-only spots.
+  if (canRaiseUi && canBetMore) configureRaiseControls(hero, disabled);
+  else setBetControlsReserved(true);
 }
 
 function configureRaiseControls(hero: ClientPlayer, disabled = false) {
@@ -1073,8 +1450,8 @@ function configureRaiseControls(hero: ClientPlayer, disabled = false) {
   raiseControlsDisabled = disabled;
   raiseActionBtn.classList.toggle("hidden", mergePassiveConfirm);
   betControls.querySelector(".raise-row")?.classList.toggle("merge-check-bet", mergePassiveConfirm);
-  // Facing a bet: open on the minimum legal raise (never the Call detent / "0").
-  // Free check: keep the Check detent so confirm stays Check until the player sizes a bet.
+  // Merged Call/Raise: open on Call (or Check when free). First + / arrow / preset
+  // snaps to the min legal raise via legalRaiseTo — never open already raising.
   const facingBet = (state.toCall || 0) > 0;
   const initialValue = RaiseSizing.initialRaiseTo({
     facingBet,
@@ -1143,10 +1520,13 @@ function renderBetPresets(hero: ClientPlayer, disabled: boolean, canFullRaise = 
     button.type = "button";
     button.textContent = option.label;
     button.disabled = disabled;
+    button.setAttribute("aria-disabled", disabled ? "true" : "false");
+    button.tabIndex = disabled ? -1 : 0;
     button.addEventListener("click", () => {
+      if (disabled) return;
       setRaiseState({ value: option.value });
       // Tapping All in sends the all-in raise-to immediately on your turn.
-      if (option.allIn && !disabled && state?.isYourTurn) {
+      if (option.allIn && state?.isYourTurn) {
         emitWithAck("game:action", { type: "raise", raiseTo: allInTo });
       }
     });
@@ -1180,10 +1560,18 @@ function setRaiseState(next: Partial<RaiseState> | RaiseState) {
     );
   }
   raiseActionBtn.disabled = raiseControlsDisabled;
-  raiseMinus.disabled =
+  raiseActionBtn.setAttribute("aria-disabled", raiseControlsDisabled ? "true" : "false");
+  raiseActionBtn.tabIndex = raiseControlsDisabled ? -1 : 0;
+  const minusDisabled =
     raiseControlsDisabled ||
     (mergePassiveConfirm ? atPassiveDetent() : raiseState.value <= raiseState.min);
-  raisePlus.disabled = raiseControlsDisabled || raiseState.value >= raiseState.max;
+  const plusDisabled = raiseControlsDisabled || raiseState.value >= raiseState.max;
+  raiseMinus.disabled = minusDisabled;
+  raiseMinus.setAttribute("aria-disabled", minusDisabled ? "true" : "false");
+  raiseMinus.tabIndex = minusDisabled ? -1 : 0;
+  raisePlus.disabled = plusDisabled;
+  raisePlus.setAttribute("aria-disabled", plusDisabled ? "true" : "false");
+  raisePlus.tabIndex = plusDisabled ? -1 : 0;
   updateConfirmPassiveButton();
 }
 
@@ -1207,8 +1595,10 @@ function addConfirmPassiveButton(disabled = false) {
   const button = document.createElement("button");
   confirmActionBtn = button;
   button.disabled = disabled;
+  button.setAttribute("aria-disabled", disabled ? "true" : "false");
+  button.tabIndex = disabled ? -1 : 0;
   button.addEventListener("click", () => {
-    if (!state) return;
+    if (!state || disabled) return;
     if (atPassiveDetent()) {
       emitWithAck("game:action", { type: state.toCall > 0 ? "call" : "check" });
       return;
@@ -1253,6 +1643,24 @@ function addButton(label: string, eventName: string, className = "", shortcut = 
   return button;
 }
 
+/** Secondary action as a compact text link — never a third button in the row. */
+function textActionLink(label: string, onClick: () => void) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "text-action-link";
+  button.textContent = label;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function appendActionLinks(links: HTMLElement[]) {
+  if (!links.length) return;
+  const row = document.createElement("div");
+  row.className = "action-links";
+  row.replaceChildren(...links);
+  gameButtons.prepend(row);
+}
+
 function addActionButton(label: string, payload: Record<string, unknown>, className = "", disabled = false) {
   const button = document.createElement("button");
   if (className) button.className = className;
@@ -1264,7 +1672,12 @@ function addActionButton(label: string, payload: Record<string, unknown>, classN
         : "";
   setButtonLabel(button, label, shortcut);
   button.disabled = disabled;
-  button.addEventListener("click", () => emitWithAck("game:action", payload));
+  button.setAttribute("aria-disabled", disabled ? "true" : "false");
+  button.tabIndex = disabled ? -1 : 0;
+  button.addEventListener("click", () => {
+    if (disabled) return;
+    emitWithAck("game:action", payload);
+  });
   gameButtons.appendChild(button);
 }
 
@@ -1350,7 +1763,18 @@ function showSharePanel() {
   shareQr.src = `/qr.svg?text=${encodeURIComponent(link)}`;
 }
 
+function reportActionFailure(message: string) {
+  const text = message || "Action failed.";
+  joinError.textContent = text;
+  if (typeof showToast === "function") showToast(text);
+}
+
 function emitWithAck(eventName: string, payload?: Record<string, unknown>) {
+  // Hand Review in-spot retry: live Fold/Call/Raise controls grade locally.
+  if (handReviewActive && eventName === "game:action" && handReviewRetryItem && payload) {
+    submitHandReviewRetryAction(payload);
+    return;
+  }
   // Offline Practice: pause Ready/auto-deal while the replay chrome is open.
   if (handReviewActive && (eventName === "game:ready" || eventName === "game:action")) {
     return;
@@ -1361,12 +1785,12 @@ function emitWithAck(eventName: string, payload?: Record<string, unknown>) {
   if (practiceSession) {
     const response = practiceSession.handle(eventName, payload || {});
     if (!response?.ok) {
-      joinError.textContent = response?.error || "Action failed.";
+      reportActionFailure(response?.error || "Action failed.");
     }
     return;
   }
   if (!socket) {
-    joinError.textContent = "Connecting...";
+    reportActionFailure("Connecting...");
     return;
   }
   socket.timeout(4000).emit(
@@ -1374,13 +1798,13 @@ function emitWithAck(eventName: string, payload?: Record<string, unknown>) {
     payload,
     ((error: Error | null, response?: OkAck | ErrAck) => {
       if (error) {
-        joinError.textContent = "Reconnecting to the table...";
+        reportActionFailure("Reconnecting to the table...");
         lastAutoRejoinKey = "";
         attemptAutoRejoin();
         return;
       }
       if (!response?.ok) {
-        joinError.textContent = response?.error || "Action failed.";
+        reportActionFailure(response?.error || "Action failed.");
         return;
       }
     }) satisfies SocketTimeoutAck<OkAck | ErrAck>,

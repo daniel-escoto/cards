@@ -7,6 +7,7 @@
 import {
   adviseFacingBet,
   effectiveStackForCall,
+  formatWinIn,
   type CoachOddsAdvice,
 } from "./coach-odds";
 
@@ -136,10 +137,6 @@ export type HandReplay = {
   mistake: number;
   summary: string;
 };
-
-function pct(value: number): string {
-  return `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`;
-}
 
 function streetLabel(street: ReviewStreet): string {
   if (street === "preflop") return "Preflop";
@@ -288,28 +285,30 @@ function buildReason(args: {
     if (args.match) {
       return args.recommended === "check"
         ? "No bet to call — checking is fine."
-        : "Strong enough equity to take the lead.";
+        : "Strong enough to take the lead.";
     }
     return `Better to ${actionLabel(args.recommended, args.recommendedRaiseTo).toLowerCase()} here.`;
   }
+  const win = formatWinIn(args.equity);
+  const need = formatWinIn(args.potOdds);
   if (args.match) {
     if (args.recommended === "fold") {
-      return `You need to win ${pct(args.potOdds)} to call; you win about ${pct(args.equity)}. Fold.`;
+      return `You win about ${win}, calling needs ${need}. Fold.`;
     }
     if (args.recommended === "raise" || args.recommended === "bet") {
-      return `Well ahead of the price (${pct(args.equity)} vs ${pct(args.potOdds)} needed). Raise.`;
+      return `You win about ${win}, calling only needs ${need}. Raise.`;
     }
-    return `You need to win ${pct(args.potOdds)} to call; you win about ${pct(args.equity)}. Call.`;
+    return `You win about ${win}, calling only needs ${need}. Call.`;
   }
   // Compact chess.com-style why line for mistakes.
   if (args.recommended === "raise" || args.recommended === "bet") {
-    return `${actionLabel(args.recommended, args.recommendedRaiseTo)} — you have ${pct(args.equity)} equity, only need ${pct(args.potOdds)}`;
+    return `${actionLabel(args.recommended, args.recommendedRaiseTo)} — you win about ${win}, calling only needs ${need}.`;
   }
   if (args.recommended === "fold") {
-    return `Fold — you have ${pct(args.equity)} equity, need ${pct(args.potOdds)}`;
+    return `Fold — you win about ${win}, calling needs ${need}.`;
   }
   if (args.recommended === "call") {
-    return `Call — you have ${pct(args.equity)} equity, need ${pct(args.potOdds)}`;
+    return `Call — you win about ${win}, calling only needs ${need}.`;
   }
   return `${actionLabel(args.recommended, args.recommendedRaiseTo)} was better.`;
 }
@@ -349,12 +348,16 @@ export function gradeHandDecision(
     typeof decision.raiseStep === "number" && decision.raiseStep > 0
       ? decision.raiseStep
       : Math.max(1, minRaiseTo - decision.currentBet || 1);
+  // Nobody left who can put more chips in → raising is not a real option; grade as Call/Fold only.
+  const opponentsCanRespond = decision.opponentStacks.some((stack) => stack > 0);
   const canRaise =
     (typeof options.canRaise === "boolean"
       ? options.canRaise
       : typeof decision.canRaise === "boolean"
         ? decision.canRaise
-        : true) && maxRaiseTo > decision.currentBet;
+        : true) &&
+    maxRaiseTo > decision.currentBet &&
+    opponentsCanRespond;
 
   const rec = recommendAction({
     equity,
@@ -497,22 +500,28 @@ export function gradeRetry(
   if (correct) {
     return {
       correct: true,
-      line: `✓ Now Best — ${actionLabel(item.recommended, item.recommendedRaiseTo)}.`,
+      line: `✓\uFE0E Correct — ${actionLabel(item.recommended, item.recommendedRaiseTo)}.`,
     };
   }
   return {
     correct: false,
-    line: `✗ Still off — ${actionLabel(item.recommended, item.recommendedRaiseTo)} was the play.`,
+    line: `✗\uFE0E Still off — ${actionLabel(item.recommended, item.recommendedRaiseTo)} was the play.`,
   };
+}
+
+/** Non-spoiling nudge on a Mistake before Show answer / retry. */
+export function formatMistakeNudge(): string {
+  return "There was a better play here.";
 }
 
 export function formatDecisionHeadline(item: HandReviewItem): string {
   return `${streetLabel(item.street)} · ${actionLabel(item.taken, item.raiseTo)}`;
 }
 
-/** Badge fragment only — e.g. "✗ Mistake" (UI colors the mark). */
+/** Badge fragment only — e.g. "✗ Mistake" (UI colors the mark). FE0E = text, not emoji. */
 export function formatVerdictBadge(item: HandReviewItem): string {
-  const mark = item.verdict === "best" ? "✓" : item.verdict === "mistake" ? "✗" : "~";
+  const mark =
+    item.verdict === "best" ? "✓\uFE0E" : item.verdict === "mistake" ? "✗\uFE0E" : "~";
   return `${mark} ${item.badge}`;
 }
 

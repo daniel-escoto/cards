@@ -79,8 +79,11 @@
       return (room.community || []).map(cardCode).filter((code): code is string => Boolean(code));
     }
 
-    function pct(value: number) {
-      return `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`;
+    function winIn(value: number): string {
+      if (oddsApi && typeof oddsApi.formatWinIn === "function") {
+        return oddsApi.formatWinIn(value);
+      }
+      return `${Math.round(Math.max(0, Math.min(1, value)) * 100)} in 100`;
     }
 
     function handLabel(heroCodes: string[], board: string[]) {
@@ -226,7 +229,7 @@
           action = room.currentBet > 0 ? "raise" : "bet";
           verdict = action;
           raiseTo = pickRaiseTo(room, hero, true);
-          reason = "Strong equity — take the lead.";
+          reason = "Strong hand — take the lead.";
         } else if (equity >= 0.4 && canRaise && maxRaise > room.currentBet && equity >= 0.52) {
           action = room.currentBet > 0 ? "raise" : "bet";
           verdict = action;
@@ -247,20 +250,20 @@
         } else {
           action = "fold";
           verdict = "fold";
-          reason = `You need to win ${pct(potOdds)} to call; you win about ${pct(equity)}. Fold.`;
+          reason = `You win about ${winIn(equity)}, calling needs ${winIn(potOdds)}. Fold.`;
         }
       } else if (equity >= potOdds + 0.12 && canRaise && maxRaise > room.currentBet) {
         action = "raise";
         verdict = "raise";
         raiseTo = pickRaiseTo(room, hero, equity >= 0.65);
-        reason = `Well ahead of the price (${pct(equity)} vs ${pct(potOdds)} needed). Raise.`;
+        reason = `You win about ${winIn(equity)}, calling only needs ${winIn(potOdds)}. Raise.`;
       } else {
         action = "call";
         verdict = "call";
         reason =
           equity >= potOdds
-            ? `You need to win ${pct(potOdds)} to call; you win about ${pct(equity)}. Call.`
-            : `Close with pot odds (${pct(equity)} vs ${pct(potOdds)}). Call.`;
+            ? `You win about ${winIn(equity)}, calling only needs ${winIn(potOdds)}. Call.`
+            : `Close call — you win about ${winIn(equity)}, calling needs ${winIn(potOdds)}.`;
       }
 
       const actionLabel =
@@ -280,8 +283,8 @@
         verdict,
         raiseTo,
         reason,
-        summary: `${label} · ${pct(equity)} equity vs ${Math.max(1, opponents)} · ${
-          toCall > 0 ? `pot odds ${pct(potOdds)} (call ${toCall})` : "no bet to call"
+        summary: `${label} · win about ${winIn(equity)} vs ${Math.max(1, opponents)} · ${
+          toCall > 0 ? `call needs ${winIn(potOdds)} (call ${toCall})` : "no bet to call"
         } · ${actionLabel} — ${reason}`,
       };
     }
@@ -309,8 +312,8 @@
         action: suggestion.verdict,
         headline: actionHeadline(suggestion),
         reason: suggestion.reason,
-        equity: pct(suggestion.equity),
-        potOdds: suggestion.toCall > 0 ? pct(suggestion.potOdds) : "—",
+        equity: winIn(suggestion.equity),
+        potOdds: suggestion.toCall > 0 ? winIn(suggestion.potOdds) : "—",
         toCall: formatToCall(suggestion, room),
       };
     }
@@ -318,7 +321,7 @@
     /** Plain-text fallback for tests / copy. */
     function formatCoachHint(suggestion: CoachSuggestion, room: ClientRoom) {
       const model = formatCoachHintModel(suggestion, room);
-      return `${model.headline} — ${model.reason}\nEquity ${model.equity} · Pot odds ${model.potOdds} · To call ${model.toCall}`;
+      return `${model.headline} — ${model.reason}\nYou win about ${model.equity} · Call needs ${model.potOdds} · To call ${model.toCall}`;
     }
 
     return {

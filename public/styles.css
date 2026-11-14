@@ -30,6 +30,8 @@
   --trainer-raise: #4caf82;
   --trainer-chart-raise-bg: #1f4d3c;
   --trainer-chart-raise-fg: #e4f5ec;
+  --trainer-chart-call-bg: #3a4550;
+  --trainer-chart-call-fg: #d7e0e6;
   --trainer-chart-fold-bg: #1a2226;
   --trainer-chart-fold-fg: #9aa6ab;
   --trainer-chart-pair-raise-bg: #245744;
@@ -61,6 +63,8 @@
   --trainer-raise: #2f8f6a;
   --trainer-chart-raise-bg: #c8e6d7;
   --trainer-chart-raise-fg: #123528;
+  --trainer-chart-call-bg: #d5dde4;
+  --trainer-chart-call-fg: #243039;
   --trainer-chart-fold-bg: #e6e9e4;
   --trainer-chart-fold-fg: #4f5b55;
   --trainer-chart-pair-raise-bg: #b7dcc9;
@@ -252,10 +256,14 @@ body:has(#welcome:not(.hidden)) .app {
   --welcome-font: var(--ui-font);
   position: relative;
   isolation: isolate;
+  box-sizing: border-box;
   min-height: calc(100vh - 32px);
   min-height: calc(100dvh - 32px);
+  min-height: calc(var(--viewport-height, 100dvh) - 32px);
   display: grid;
   place-items: center;
+  align-content: safe center;
+  padding-block: 12px;
   font-family: var(--welcome-font);
 }
 
@@ -563,14 +571,17 @@ label {
   background: rgba(24, 38, 33, 0.05);
 }
 
-.welcome-secondary-actions {
+/* Trainer sits inside the join card — same width/spacing as Host/Join controls. */
+.join-panel .welcome-secondary-actions {
   display: flex;
   gap: 10px;
-  margin-top: 12px;
+  margin: 4px 0 0;
+  padding-top: 14px;
   width: 100%;
+  border-top: 1px solid var(--welcome-panel-border);
 }
 
-.welcome-secondary-actions > button {
+.join-panel .welcome-secondary-actions > button {
   flex: 1 1 0;
   min-width: 0;
   min-height: 48px;
@@ -583,15 +594,15 @@ label {
   font-weight: 700;
 }
 
-:root[data-theme="light"] .welcome-secondary-actions > button {
+:root[data-theme="light"] .join-panel .welcome-secondary-actions > button {
   background: rgba(24, 38, 33, 0.05);
 }
 
-.welcome-secondary-actions > button:not(:disabled):hover {
+.join-panel .welcome-secondary-actions > button:not(:disabled):hover {
   background: rgba(255, 255, 255, 0.12);
 }
 
-:root[data-theme="light"] .welcome-secondary-actions > button:not(:disabled):hover {
+:root[data-theme="light"] .join-panel .welcome-secondary-actions > button:not(:disabled):hover {
   background: rgba(24, 38, 33, 0.1);
 }
 
@@ -615,37 +626,56 @@ html.trainer-open-root {
   display: none;
 }
 
-.trainer-size {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  overflow: hidden;
-  background: color-mix(in srgb, var(--panel) 88%, transparent);
+/* Trainer menu: same host-block + appearance-choices as Settings (shot clock / On-Off). */
+#trainerMenuModal .host-block + .host-block {
+  padding-top: 10px;
 }
 
-.trainer-size .mode-option {
-  min-height: 44px;
-  border: 0;
-  border-radius: 0;
-  color: var(--muted);
-  background: transparent;
-  font-weight: 700;
-}
-
-.trainer-size .mode-option.selected {
-  color: var(--text);
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
+#trainerMenuModal .appearance-choices.shot-clock-choices {
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
 }
 
 .trainer-stats {
+  display: grid;
+  gap: 6px;
   margin: 0;
-  padding: 4px 2px;
-  color: var(--muted);
+  min-width: 0;
+}
+
+.trainer-stats-top {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.trainer-stats-top .appearance-choice {
+  cursor: default;
+  pointer-events: none;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.trainer-stats-top .appearance-choice strong {
+  display: block;
+  color: var(--text);
   font-size: 13px;
-  font-weight: 600;
-  line-height: 1.4;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.trainer-stats-top .appearance-choice span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+}
+
+.trainer-pos-stats {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 
 .trainer-pos-label {
@@ -714,22 +744,31 @@ html.trainer-open-root {
   line-height: 1.35;
 }
 
-/* Hint + Fold + Raise stay one row so the coach card doesn't push mobile scroll. */
-.trainer-view:not(.is-answered) .game-buttons {
+.trainer-borderline-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+/* Max 2 action buttons per row; Hint/Chart live in .action-links above. */
+.trainer-view .game-buttons {
   display: grid;
-  grid-template-columns: minmax(4.25rem, auto) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
 }
 
-.trainer-view:not(.is-answered) .game-buttons > button {
+.trainer-view .game-buttons > button {
   flex: unset;
   min-width: 0;
   width: 100%;
-}
-
-.trainer-view .game-buttons > #trainerHintBtn {
-  padding-inline: 10px;
-  font-weight: 700;
+  height: 48px;
+  min-height: 48px;
+  max-height: 48px;
+  padding-block: 0;
+  white-space: nowrap;
+  box-shadow: none;
 }
 
 .trainer-seat-row {
@@ -794,6 +833,7 @@ html.trainer-open-root {
 }
 
 .trainer-legend-raise::before,
+.trainer-legend-call::before,
 .trainer-legend-fold::before {
   content: "";
   display: inline-block;
@@ -807,6 +847,11 @@ html.trainer-open-root {
 .trainer-legend-raise::before {
   background: var(--trainer-chart-raise-bg);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--trainer-chart-raise-fg) 18%, transparent);
+}
+
+.trainer-legend-call::before {
+  background: var(--trainer-chart-call-bg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--trainer-chart-call-fg) 18%, transparent);
 }
 
 .trainer-legend-fold::before {
@@ -864,6 +909,11 @@ html.trainer-open-root {
   font-weight: 800;
 }
 
+.trainer-chart-cell.is-call {
+  background: var(--trainer-chart-call-bg);
+  color: var(--trainer-chart-call-fg);
+}
+
 .trainer-chart-cell.is-fold {
   background: var(--trainer-chart-fold-bg);
   color: var(--trainer-chart-fold-fg);
@@ -914,6 +964,27 @@ html.trainer-open-root {
   .trainer-chart-panel {
     width: 100%;
     max-height: min(780px, calc(100dvh - 16px));
+  }
+
+  /* Seats stay in felt grid row 2 (overflow scroll if needed) — never paint over the panel. */
+  .trainer-view .players {
+    overflow-y: auto;
+    max-height: 100%;
+    height: 100%;
+    min-height: 0;
+  }
+  .trainer-view .control-panel {
+    position: relative;
+    z-index: 5;
+    /* Opaque so seat rows can never show through the feedback panel. */
+    background: var(--panel);
+  }
+  .trainer-view .table-player-row {
+    min-height: 36px;
+    padding: 5px 8px;
+  }
+  .trainer-view .player-action {
+    font-size: 11px;
   }
 }
 
@@ -968,6 +1039,26 @@ html.trainer-open-root {
   50% {
     opacity: 0.5;
     transform: scale(1.06);
+  }
+}
+
+/* Short desktop / landscape phone: keep the card balanced, never pinned to the top. */
+@media (max-height: 720px) {
+  .welcome {
+    min-height: calc(var(--viewport-height, 100dvh) - 24px);
+    place-items: center;
+    align-content: safe center;
+    padding-block: 10px;
+  }
+  .welcome-stage {
+    gap: clamp(10px, 2.2vh, 18px);
+  }
+  .join-panel {
+    gap: 12px;
+    padding: 14px;
+  }
+  .brand .tagline {
+    font-size: 14px;
   }
 }
 
@@ -1149,6 +1240,51 @@ select:focus {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+/* App-wide: secondary actions as compact text links (never a 3rd button in the row). */
+.action-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  width: 100%;
+  min-height: 1.25rem;
+}
+.game-buttons > .action-links {
+  flex: 1 0 100%;
+  order: -1;
+}
+.trainer-view .game-buttons > .action-links {
+  grid-column: 1 / -1;
+}
+button.text-action-link,
+.text-action-link {
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transform: none;
+}
+button.text-action-link:not(:disabled):hover,
+button.text-action-link:not(:disabled):active,
+.text-action-link:not(:disabled):hover {
+  background: transparent;
+  color: var(--text);
+  transform: none;
+}
+button.text-action-link:disabled {
+  opacity: 0.48;
+  text-decoration: none;
 }
 
 .actions-row > button {
@@ -1639,11 +1775,12 @@ select:focus {
 .leave-game-btn {
   color: var(--danger);
   border-color: color-mix(in srgb, var(--danger) 42%, var(--line));
-  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  /* Light pink pill in dark + light — transparent danger reads as a dark red patch on dark sheets. */
+  background: color-mix(in srgb, var(--danger) 7%, #fff);
 }
 
 .leave-game-btn:not(:disabled):hover {
-  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  background: color-mix(in srgb, var(--danger) 14%, #fff);
 }
 
 .menu-players {
@@ -1754,33 +1891,6 @@ button.menu-player-row:not(:disabled):hover {
   display: flex;
   gap: 5px;
 }
-
-.shown-hand-card {
-  border-color: rgba(255, 255, 255, 0.12);
-  border-left-width: 3px;
-  border-radius: 12px;
-  background: rgba(8, 16, 18, 0.42);
-}
-
-.shown-hand-card .action-card-stats {
-  display: none;
-}
-
-:root[data-theme="light"] .action-feed-card.shown-hand-card {
-  background: rgba(8, 16, 18, 0.42);
-}
-
-.shown-hand-card .seat-name,
-:root[data-theme="light"] .shown-hand-card .seat-name,
-.shown-hand-card .action-card-stats strong {
-  color: #fff;
-}
-
-.shown-hand-card .action-card-stats,
-.shown-hand-card .action-card-stats em {
-  color: rgba(255, 255, 255, 0.76);
-}
-
 .shown-hand .card {
   width: 34px;
   padding: 5px;
@@ -2086,23 +2196,9 @@ button.menu-player-row:not(:disabled):hover {
   cursor: progress;
 }
 
+/* No stray "tap"/"reveal" label under rabbit slots — the face-down card is enough. */
 .card.rabbit-hint::after {
-  content: "tap";
-  position: absolute;
-  left: 0;
-  top: calc(100% + 4px);
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .card.rabbit-hint::after {
-    content: "reveal";
-  }
+  content: none;
 }
 
 .card.rabbit-first::after {
@@ -2427,8 +2523,10 @@ button.menu-player-row:not(:disabled):hover {
 .shot-clock-choices .appearance-choice {
   min-height: 40px;
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 800;
   border-radius: 9px;
+  line-height: 1.2;
+  text-wrap: balance;
 }
 
 .round-roster {
@@ -2694,6 +2792,10 @@ button.menu-player-row:not(:disabled):hover {
   color: #55d485;
 }
 
+.action-token-call {
+  color: #7eb6d9;
+}
+
 .stack-chip {
   width: var(--feed-stack);
   justify-self: end;
@@ -2852,9 +2954,6 @@ button.menu-player-row:not(:disabled):hover {
 :root[data-theme="light"] .modal-panel {
   background: var(--surface);
 }
-:root[data-theme="light"] .leave-game-btn {
-  background: color-mix(in srgb, var(--danger) 7%, #fff);
-}
 :root[data-theme="light"] .menu-player,
 :root[data-theme="light"] .share-panel,
 :root[data-theme="light"] .money-panel,
@@ -2973,19 +3072,44 @@ kbd {
   font-weight: 900;
   line-height: 1;
   text-transform: uppercase;
+  text-decoration: none;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
-.game-buttons button.has-shortcut,
+/* One shared shortcut layout everywhere: label, then ~8px, then badge — vertically centered. */
+button.has-shortcut,
 .raise-action.has-shortcut {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
 }
-.game-buttons button.has-shortcut kbd,
-.raise-action kbd {
+button.has-shortcut > span,
+.raise-action.has-shortcut > span {
+  min-width: 0;
+}
+button.has-shortcut > kbd,
+.raise-action.has-shortcut > kbd {
+  flex: 0 0 auto;
+  align-self: center;
+  text-decoration: none;
+  pointer-events: none;
+}
+/* Colored primary buttons (Ready, Fold/danger, Call/Raise, Try again): translucent badge
+   matching main — light border + white letter on the button color (game + Trainer). */
+.game-buttons > button.has-shortcut:not(.secondary):not(.ghost) > kbd,
+.hand-review-retry-bar > .hand-review-try-again.has-shortcut > kbd,
+.raise-action.has-shortcut > kbd {
   border-color: rgba(255, 255, 255, 0.3);
   color: rgba(255, 255, 255, 0.82);
   background: rgba(0, 0, 0, 0.14);
+}
+/* Secondary buttons (Review hand, Chart, Show answer): keep token kbd so it reads in light + dark. */
+.game-buttons > button.has-shortcut.secondary > kbd,
+.hand-review-retry-bar > .hand-review-show-answer.has-shortcut > kbd {
+  border-color: color-mix(in srgb, var(--line) 72%, var(--muted));
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel-2) 74%, transparent);
 }
 @keyframes keybind-pulse {
   50% {
@@ -3026,18 +3150,31 @@ kbd {
   gap: 3px;
   padding: 6px 3px;
   border: 1px solid var(--line);
-  color: var(--muted);
-  background: color-mix(in srgb, var(--panel) 72%, transparent);
+  /* Opaque panel-2 — translucent panel-over-felt washed out long labels in dark mode. */
+  color: color-mix(in srgb, var(--text) 82%, var(--muted));
+  background: var(--panel-2);
   font-size: 9px;
+  font-weight: 750;
 }
 .appearance-choice:not(:disabled):hover {
   color: var(--text);
-  background: var(--panel-2);
+  background: color-mix(in srgb, var(--panel-2) 88%, #ffffff);
 }
 .appearance-choice.selected {
   border-color: var(--accent);
   color: var(--text);
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel-2));
   box-shadow: inset 0 0 0 1px var(--accent);
+}
+:root[data-theme="light"] .appearance-choice {
+  color: color-mix(in srgb, var(--text) 78%, var(--muted));
+  background: var(--panel-2);
+}
+:root[data-theme="light"] .appearance-choice:not(:disabled):hover {
+  background: color-mix(in srgb, var(--panel-2) 88%, var(--text));
+}
+:root[data-theme="light"] .appearance-choice.selected {
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
 }
 .felt-choice i {
   width: 24px;
@@ -3325,6 +3462,10 @@ kbd {
   font-size: 15px;
   font-weight: 750;
   letter-spacing: -0.01em;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  max-width: 100%;
 }
 
 .turn-info.showdown-message {
@@ -3621,8 +3762,13 @@ kbd {
 .hand-review-chrome {
   display: grid;
   align-content: start;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
+}
+/* Pack chrome to the top of the reserved action slot — no floating empty mid-band. */
+body.hand-review-open .control-panel > .hand-review-chrome {
+  align-content: start;
+  align-self: start;
 }
 .hand-review-chrome.hidden {
   display: none;
@@ -3635,56 +3781,54 @@ body.hand-review-open .control-panel > .bet-controls,
 body.hand-review-open .control-panel > .winner-list {
   display: none !important;
 }
-.hand-review-chrome-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
+/* In-spot retry: show the live Fold/Call + raise shell (same footprint as the table). */
+body.hand-review-open.hand-review-retrying .control-panel > .hand-review-chrome {
+  grid-row: 3;
+  align-self: start;
 }
-.hand-review-chrome-head .eyebrow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.45em;
-  margin: 0;
+body.hand-review-open.hand-review-retrying .hand-review-nav {
+  display: none;
+}
+body.hand-review-open.hand-review-retrying .control-panel > .turn-info {
+  display: block !important;
+}
+body.hand-review-open.hand-review-retrying .control-panel > .game-buttons {
+  display: flex !important;
+}
+body.hand-review-open.hand-review-retrying .control-panel > .bet-controls {
+  display: grid !important;
+}
+/* Reuse .modal-head + .icon-btn from the game menu sheet. */
+.hand-review-chrome-head {
   min-width: 0;
+  align-items: flex-start;
+}
+.hand-review-chrome-head > div {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 .hand-review-summary {
+  margin: 0;
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0;
   text-transform: none;
-  line-height: 1.3;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 100%;
 }
-.control-panel .hand-review-close {
+/* Same .ghost.icon-btn as menu close — only beat control-panel button defaults. */
+.control-panel .hand-review-close.icon-btn {
   flex: 0 0 auto;
-  width: auto;
-  min-width: 0;
-  height: auto;
-  min-height: 0;
-  max-height: none;
-  margin: 0;
-  padding: 0 2px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--muted);
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 1;
+  align-self: flex-start;
   transform: none;
 }
-.control-panel .hand-review-close:hover,
-.control-panel .hand-review-close:active {
-  background: transparent;
-  color: var(--text);
-  transform: none;
-}
+/* Two-line slot only — badge + why. No oversized empty band between head and nav. */
 .hand-review-verdict {
   display: grid;
+  align-content: start;
   gap: 2px;
   margin: 0;
   padding: 0;
@@ -3693,11 +3837,21 @@ body.hand-review-open .control-panel > .winner-list {
   background: transparent;
   font-size: 13px;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.3;
   color: var(--text);
+  min-height: calc(13px * 1.3 * 2 + 2px);
+  max-height: calc(13px * 1.3 * 2 + 2px);
+  overflow: hidden;
 }
-.hand-review-verdict.hidden {
-  display: none;
+.hand-review-verdict.hidden,
+.hand-review-verdict.is-idle {
+  /* Keep the box; never collapse with display:none while review is open. */
+  visibility: hidden;
+}
+body.hand-review-open .hand-review-verdict.hidden,
+body.hand-review-open .hand-review-verdict.is-idle {
+  display: grid;
+  visibility: hidden;
 }
 .hand-review-verdict-mark {
   font-weight: 800;
@@ -3715,10 +3869,15 @@ body.hand-review-open .control-panel > .winner-list {
 .hand-review-verdict.is-mistake .hand-review-verdict-mark {
   color: color-mix(in srgb, var(--danger) 92%, var(--text));
 }
-/* Neutral to-act prompt (Try again) — not the mistake/error look. */
+.hand-review-verdict.is-context {
+  color: var(--muted);
+  font-weight: 650;
+}
+/* Neutral to-act prompt (retry) — not the mistake/error look. */
 .hand-review-verdict.is-prompt {
   color: var(--text);
   font-weight: 700;
+  visibility: visible;
 }
 .hand-review-nav {
   display: flex;
@@ -3729,6 +3888,8 @@ body.hand-review-open .control-panel > .winner-list {
 /* Keep nav squares compact even under .control-panel button { min-height: 48px }. */
 .control-panel .hand-review-nav > button {
   flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
   width: 32px;
   min-width: 32px;
   max-width: 32px;
@@ -3738,24 +3899,53 @@ body.hand-review-open .control-panel > .winner-list {
   padding: 0;
   font-size: 12px;
   line-height: 1;
+  color: var(--text);
 }
+.control-panel .hand-review-nav > button > svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+.control-panel .hand-review-nav > button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.control-panel .hand-review-nav > button:disabled:focus,
+.control-panel .hand-review-nav > button:disabled:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.hand-review-dot.is-result {
+  background: color-mix(in srgb, var(--muted) 55%, transparent);
+}
+/* Dots on their own row; step label below — label width must never shove dots. */
 .hand-review-timeline-wrap {
   flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  justify-items: stretch;
+  align-content: center;
+  gap: 2px;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 .hand-review-timeline {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
+  justify-content: safe center;
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   overflow-x: auto;
-  padding: 4px 2px;
+  overflow-y: hidden;
+  /* Padding so the active / focus ring is not clipped by the scroll box. */
+  padding: 8px 6px;
   scrollbar-width: none;
+  overscroll-behavior-x: contain;
 }
 .hand-review-timeline::-webkit-scrollbar {
   display: none;
@@ -3780,15 +3970,28 @@ body.hand-review-open .control-panel > .winner-list {
   line-height: 0;
   font-size: 0;
   cursor: pointer;
-  box-shadow: none;
+  /* Transparent ring reserves the same box as .is-active — no layout shift. */
+  box-shadow: 0 0 0 2px transparent, 0 0 0 4px transparent;
   transform: none;
+  outline: none;
 }
 .hand-review-dot:hover,
 .hand-review-dot:active {
   transform: none;
 }
+.hand-review-dot:focus {
+  outline: none;
+}
+/* Keyboard only — concentric ring; never the default browser focus outline. */
+.hand-review-dot:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+}
 .hand-review-dot.is-active {
-  /* Ring for the current step (outline can clip; dual box-shadow stays round). */
+  /* Paint only — same shadow footprint as idle transparent ring. */
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+}
+.hand-review-dot.is-active:focus-visible {
   box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
 }
 .hand-review-dot.is-hero.is-best {
@@ -3804,33 +4007,74 @@ body.hand-review-open .control-panel > .winner-list {
   background: color-mix(in srgb, var(--danger) 70%, transparent);
 }
 .hand-review-step-label {
-  flex: 0 1 auto;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   margin: 0;
+  padding: 0 4px;
   color: var(--muted);
   font-size: 11px;
   font-weight: 700;
   line-height: 1.2;
-  text-align: left;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 42%;
 }
+/* Retry row: only reserve height on Mistake steps (is-idle collapses to zero). */
 .hand-review-retry-bar {
-  display: grid;
-  gap: 6px;
-}
-.hand-review-retry-bar.hidden {
-  display: none;
-}
-.hand-review-retry-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+  min-height: 40px;
 }
-.hand-review-retry-actions > button {
-  flex: 1 1 28%;
+.hand-review-retry-bar.hidden,
+.hand-review-retry-bar.is-idle {
+  visibility: hidden;
+  pointer-events: none;
+  min-height: 0;
+  height: 0;
+  margin: 0;
+  overflow: hidden;
+}
+body.hand-review-open .hand-review-retry-bar.hidden,
+body.hand-review-open .hand-review-retry-bar.is-idle {
+  display: flex;
+  visibility: hidden;
+  min-height: 0;
+  height: 0;
+  margin: 0;
+  overflow: hidden;
+}
+.hand-review-retry-bar > .hand-review-try-again {
+  flex: 1 1 auto;
   min-height: 44px;
+}
+/* Show answer: clean secondary (same badge spacing as Review hand) — never underline the kbd. */
+.hand-review-retry-bar > .hand-review-show-answer {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding-inline: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: none;
+}
+.hand-review-retry-bar > .hand-review-continue {
+  flex: 1 1 auto;
+  min-height: 40px;
+}
+/* Hand-complete between hands: Ready + Review (+ optional Show hand) share the row evenly. */
+.control-panel.is-result > .game-buttons {
+  display: flex;
+  gap: 10px;
+}
+.control-panel.is-result > .game-buttons > button {
+  flex: 1 1 0;
+  min-width: 0;
 }
 .hand-review-retry-feedback {
   margin: 0;
@@ -4287,12 +4531,14 @@ body.hand-review-open .control-panel > .winner-list {
 
   .welcome {
     min-height: calc(100dvh - 24px);
-    align-content: center;
+    min-height: calc(var(--viewport-height, 100dvh) - 24px);
+    place-items: center;
+    align-content: safe center;
     justify-items: center;
   }
 
   .welcome-stage {
-    gap: clamp(18px, 4vh, 28px);
+    gap: clamp(14px, 3vh, 24px);
   }
 
   .score-view {
@@ -4320,24 +4566,23 @@ body.hand-review-open .control-panel > .winner-list {
     padding: 16px;
   }
 
-  body.keyboard-open,
-  body:has(.welcome:not(.hidden) #joinForm:focus-within) {
+  /* Keyboard open only — driven by visualViewport shrink, never by mere focus. */
+  body.keyboard-open {
     height: var(--viewport-height);
     min-height: 0;
     overflow: hidden;
   }
 
-  body.keyboard-open .app,
-  body:has(.welcome:not(.hidden) #joinForm:focus-within) .app {
+  body.keyboard-open .app {
     height: var(--viewport-height);
     min-height: 0;
     overflow: hidden;
   }
 
-  body.keyboard-open .welcome,
-  .welcome:not(.hidden):has(#joinForm:focus-within) {
+  body.keyboard-open .welcome {
     height: calc(var(--viewport-height) - 20px);
     min-height: auto;
+    place-items: center start;
     align-content: start;
     padding-top: max(8px, env(safe-area-inset-top));
     padding-bottom: max(8px, env(safe-area-inset-bottom));
@@ -4348,35 +4593,27 @@ body.hand-review-open .control-panel > .winner-list {
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Only collapse the brand when a join-form field is focused — not Practice/Trainer. */
-  body.keyboard-open .brand,
-  .welcome:not(.hidden):has(#joinForm:focus-within) .brand {
+  body.keyboard-open .brand {
     display: none;
   }
 
-  body.keyboard-open .welcome-atmosphere,
-  .welcome:not(.hidden):has(#joinForm:focus-within) .welcome-atmosphere {
+  body.keyboard-open .welcome-atmosphere {
     opacity: 0.35;
   }
 
-  body.keyboard-open .join-panel,
-  .welcome:not(.hidden):has(#joinForm:focus-within) .join-panel {
+  body.keyboard-open .join-panel {
     gap: 9px;
     padding: 12px;
     animation: none;
   }
 
-  body.keyboard-open label,
-  .welcome:not(.hidden):has(#joinForm:focus-within) label {
+  body.keyboard-open label {
     gap: 5px;
   }
 
   body.keyboard-open input,
   body.keyboard-open select,
-  body.keyboard-open button,
-  .welcome:not(.hidden):has(#joinForm:focus-within) input,
-  .welcome:not(.hidden):has(#joinForm:focus-within) select,
-  .welcome:not(.hidden):has(#joinForm:focus-within) button {
+  body.keyboard-open button {
     min-height: 42px;
   }
 
@@ -4566,17 +4803,6 @@ body.hand-review-open .control-panel > .winner-list {
     min-width: 5ch;
     font-size: 12px;
     white-space: nowrap;
-  }
-
-  .shown-hand-card {
-    padding: 9px 10px;
-  }
-
-  .shown-hand-card .action-card-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
   }
 
   .action-feed-card:not(.action-history-card) {

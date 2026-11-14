@@ -27,13 +27,18 @@ assert.match(html, /id="trainerSeatPopover"/);
 assert.match(html, /class="table-view trainer-view/);
 assert.match(html, /id="trainerActions" class="game-buttons"/);
 assert.match(html, /shared\/rfi-ranges\.js/);
+assert.match(html, /shared\/vs-open-ranges\.js/);
+assert.match(html, /id="trainerDrillRfi"/);
+assert.match(html, /id="trainerDrillFacing"/);
+assert.match(html, /id="trainerDrillMix"/);
+assert.match(html, /id="trainerBetControls"/);
+assert.match(html, /id="trainerBetPresets" class="bet-presets"/);
 assert.match(html, /trainer\.js/);
 
-// Trainer sits outside the join form (avoid submit side-effects). Offline vs-bots
-// remains available via Host table (chip mode → startOfflineHost).
+// Trainer lives inside the join card (same group) but stays type=button (no submit).
 assert.match(
   html,
-  /<\/form>\s*<div class="welcome-secondary-actions"[\s\S]*?id="trainerBtn"/,
+  /id="joinForm"[\s\S]*id="trainerBtn"[^>]*type="button"[\s\S]*?<\/form>/,
 );
 
 assert.match(css, /\.trainer-chart-cell/);
@@ -46,28 +51,98 @@ assert.match(trainer, /TABLE_SEATS/);
 assert.match(trainer, /Folded to you/);
 assert.match(trainer, /POSITION_FULL_NAME/);
 assert.match(trainer, /Under the gun/);
-assert.match(trainer, /trainerHintBtn/);
-assert.match(trainer, /rfiTeachingHint/);
+assert.match(trainer, /explainFacingDecision/);
+assert.match(trainer, /facingActionLine/);
+assert.match(trainer, /You're in the/);
+assert.match(trainer, /is-facing/);
+assert.match(trainer, /legalRaiseTo/);
 assert.match(trainer, /trainer-why/);
-assert.match(trainer, /hinted/);
+assert.match(trainer, /trainer-borderline-note/);
 assert.match(trainer, /blind-chip/);
 assert.match(trainer, /table-player-row/);
 assert.match(trainer, /trainerFoldBtn/);
+assert.match(trainer, /trainerConfirmBtn/);
+assert.match(trainer, /trainerRetryBtn/);
+assert.match(trainer, /trainerChartBtn/);
+assert.match(trainer, /text-action-link/);
+assert.match(trainer, /DRILL_KEY/);
+assert.match(trainer, /setButtonLabel/);
+assert.match(trainer, /class="danger"/);
+assert.match(trainer, /merge-check-bet/);
+assert.match(trainer, /nudgeRaiseTo/);
+assert.match(trainer, /initialRaiseTo/);
 assert.doesNotMatch(trainer, /onPractice/);
+assert.doesNotMatch(trainer, /\bany\b/);
+// Hint removed entirely (no button, coach step, or keyboard path).
+assert.doesNotMatch(trainer, /trainerHintBtn/);
+assert.doesNotMatch(trainer, /function onHint/);
+assert.doesNotMatch(trainer, /renderHintCoach/);
+assert.doesNotMatch(trainer, /Hint again/);
+assert.doesNotMatch(html, /trainerHint/);
+// Max 2 primary buttons: facing Fold|Call/Raise; answered Next|Chart (Retry is a text link).
+assert.match(css, /\.trainer-view \.game-buttons\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\)/s);
+assert.match(
+  trainer,
+  /trainerNextBtn[\s\S]*trainerChartBtn[\s\S]*class="secondary"/,
+  "answered row is Next hand (primary) + Chart (secondary)",
+);
+assert.doesNotMatch(
+  trainer,
+  /action-links">\$\{textActionLink\("trainerChartBtn"/,
+  "Chart must be a real button, not an underlined link",
+);
+assert.doesNotMatch(trainer, /trainerRetryPlaceholder/);
+assert.doesNotMatch(css, /Facing: Hint \| Fold \| Call \| Raise/);
+assert.match(css, /button\.text-action-link/);
+// Fold (danger) and Call/Raise share the same translucent kbd badge as the live table.
+assert.match(
+  css,
+  /\.game-buttons > button\.has-shortcut:not\(\.secondary\):not\(\.ghost\) > kbd/,
+);
+assert.doesNotMatch(
+  css,
+  /\.game-buttons > button\.has-shortcut:not\(\.secondary\):not\(\.danger\):not\(\.ghost\) > kbd/,
+  "danger/Fold must use the same light badge as Call/Raise",
+);
+// Live-table raise button is not forced visible on facing (Call/Raise merge hides it).
+assert.doesNotMatch(css, /\.trainer-view\.is-facing #trainerRaiseActionBtn/);
 
 assert.match(css, /--trainer-chart-raise-bg/);
+assert.match(css, /--trainer-chart-call-bg/);
 assert.match(css, /--trainer-chart-fold-bg/);
 assert.match(css, /\.trainer-why/);
+assert.match(css, /\.trainer-borderline-note/);
 assert.match(css, /\.coach-hint/);
+// Trainer menu reuses Settings sheet pieces (not bespoke mode-option segments).
+assert.match(html, /id="trainerMenuModal"[\s\S]*class="modal-panel menu-panel"/);
+assert.match(html, /id="trainerCloseMenuBtn"[\s\S]*class="ghost icon-btn"/);
+assert.match(html, /id="trainerDrillRfi"[\s\S]*class="appearance-choice/);
+assert.match(html, /id="trainerSize6"[\s\S]*class="appearance-choice/);
+assert.match(html, /menu-subsection-title">Drill/);
+assert.match(html, /menu-subsection-title">Table/);
+assert.match(html, /menu-subsection-title">Stats/);
+assert.match(html, /id="trainerResetBtn"[\s\S]*class="secondary menu-row-btn"/);
+assert.match(html, /id="trainerLeaveBtn"[\s\S]*class="secondary leave-game-btn menu-row-btn"/);
+assert.match(html, /appearance-choices shot-clock-choices/);
+assert.doesNotMatch(html, /class="trainer-drill"/);
+assert.doesNotMatch(html, /class="trainer-size"/);
+assert.doesNotMatch(html, /trainerDrillRfi" class="mode-option/);
+assert.match(trainer, /trainer-stats-top/);
+assert.match(trainer, /menu-player-row static/);
+assert.doesNotMatch(trainer, /parts\.join\(" · "\)/);
+assert.doesNotMatch(css, /\.trainer-drill \.mode-option/);
+assert.doesNotMatch(css, /\.trainer-size \.mode-option/);
 // Trainer reuses Practice .felt / .community / .players / .control-panel — no desktop overrides.
 assert.match(
   css,
   /Trainer uses the same \.felt \/ \.community \/ \.players \/ \.control-panel layout as Practice/,
 );
 assert.doesNotMatch(css, /\.trainer-view \.felt\s*\{/);
-assert.doesNotMatch(css, /\.trainer-view \.players\s*\{/);
+// Mobile: seats stay clipped to the felt grid cell (auto-scroll) — never overlap the panel.
+assert.match(css, /\.trainer-view \.players\s*\{[^}]*overflow-y:\s*auto/s);
+assert.match(css, /\.trainer-view \.control-panel\s*\{[^}]*z-index:\s*5/s);
+assert.doesNotMatch(css, /\.trainer-view \.players\s*\{[^}]*overflow-y:\s*visible/s);
 assert.doesNotMatch(css, /\.trainer-view \.community\s*\{/);
-assert.doesNotMatch(css, /\.trainer-view \.control-panel\s*\{/);
 // Welcome stays 720px; Trainer must not inherit that narrow app width.
 assert.doesNotMatch(css, /body:has\(#trainerView:not\(\.hidden\)\)\s*\.app/);
 assert.match(html, /id="trainerCommunity" class="community"/);
