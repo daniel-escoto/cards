@@ -3765,10 +3765,14 @@ button.has-shortcut > kbd,
   gap: 8px;
   min-width: 0;
 }
-/* Pack chrome to the top of the reserved action slot — no floating empty mid-band. */
+/* Pack chrome to the top of the reserved action slot — no floating empty mid-band.
+   Height follows content so the × in the head stays top-right (not mid-panel). */
 body.hand-review-open .control-panel > .hand-review-chrome {
   align-content: start;
+  align-items: stretch;
   align-self: start;
+  height: auto;
+  max-height: 100%;
 }
 .hand-review-chrome.hidden {
   display: none;
@@ -3798,10 +3802,13 @@ body.hand-review-open.hand-review-retrying .control-panel > .game-buttons {
 body.hand-review-open.hand-review-retrying .control-panel > .bet-controls {
   display: grid !important;
 }
-/* Reuse .modal-head + .icon-btn from the game menu sheet. */
+/* Reuse .modal-head + .icon-btn from the game menu sheet.
+   Close stays top-right of the head (never mid-panel); sizes match shared .icon-btn. */
 .hand-review-chrome-head {
   min-width: 0;
+  width: 100%;
   align-items: flex-start;
+  flex-shrink: 0;
 }
 .hand-review-chrome-head > div {
   min-width: 0;
@@ -3819,10 +3826,20 @@ body.hand-review-open.hand-review-retrying .control-panel > .bet-controls {
   overflow-wrap: anywhere;
   max-width: 100%;
 }
-/* Same .ghost.icon-btn as menu close — only beat control-panel button defaults. */
+/* Beat `.control-panel button { min-height: 48px }` so × matches menu .icon-btn and
+   stays pinned to the head’s top-right (no mid-panel float / layout shift). */
 .control-panel .hand-review-close.icon-btn {
   flex: 0 0 auto;
   align-self: flex-start;
+  width: 42px;
+  min-width: 42px;
+  max-width: 42px;
+  height: 42px;
+  min-height: 42px;
+  max-height: 42px;
+  padding: 0;
+  font-size: 24px;
+  line-height: 1;
   transform: none;
 }
 /* Two-line slot only — badge + why. No oversized empty band between head and nav. */
@@ -4709,6 +4726,16 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
   .icon-btn {
     width: 36px;
     min-height: 36px;
+  }
+
+  .control-panel .hand-review-close.icon-btn {
+    width: 36px;
+    min-width: 36px;
+    max-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    max-height: 36px;
+    font-size: 22px;
   }
 
   .felt {
