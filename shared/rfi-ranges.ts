@@ -805,7 +805,7 @@ function buildWhyLines(
 
 function borderlineTone(band: RfiPositionBand, standard: RfiAction): string | null {
   if (standard === "raise" && (band === "late" || band === "blinds")) {
-    return "With few players left, speculative hands realize equity more often.";
+    return "With few players left, speculative hands get there more often.";
   }
   if (standard === "fold" && band === "early") {
     return "Many players still to act means someone likely wakes up with a stronger hand.";

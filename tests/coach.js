@@ -123,9 +123,10 @@ function seat(id, overrides = {}) {
   const model = Coach.formatCoachHintModel(suggestion, room);
   assert.ok(model.headline);
   assert.ok(model.reason);
-  assert.match(model.equity, /%$/);
+  assert.match(model.equity, /\d+ in \d+/);
+  assert.doesNotMatch(model.equity, /%/);
   assert.equal(model.action, suggestion.action);
-  assert.doesNotMatch(model.headline + model.reason, /Coach ·/);
+  assert.doesNotMatch(model.headline + model.reason, /Coach ·|equity|pot odds|%/i);
 }
 
 {
@@ -162,7 +163,8 @@ function seat(id, overrides = {}) {
   assert.ok(suggestion.equity + 0.03 < suggestion.potOdds, "air vs huge bet is behind");
   assert.equal(suggestion.action, "fold");
   assert.equal(suggestion.verdict, "fold");
-  assert.match(suggestion.reason, /need to win|Fold/i);
+  assert.match(suggestion.reason, /you win about|Fold/i);
+  assert.doesNotMatch(suggestion.reason, /%|equity|pot odds/i);
 }
 
 {
@@ -216,8 +218,9 @@ function seat(id, overrides = {}) {
     model.headline.startsWith(label.split(" ")[0]),
   ));
   assert.match(model.reason, /\./);
-  assert.match(model.equity, /%$/);
-  assert.match(model.potOdds, /%/);
+  assert.match(model.equity, /\d+ in \d+/);
+  assert.match(model.potOdds, /\d+ in \d+/);
+  assert.doesNotMatch(model.reason + model.equity + model.potOdds, /%|equity|pot odds/i);
   assert.equal(model.toCall, "40");
 }
 

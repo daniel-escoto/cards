@@ -165,6 +165,8 @@ var handReviewActive = false;
 var handReviewSavedState: ClientRoom | null = null;
 var handReviewStepIndex = 0;
 var handReviewRetryItem: HandReviewItemLocal | null = null;
+/** Mistake steps whose answer has been revealed (retry or Show answer). */
+var handReviewRevealedSteps = new Set<number>();
 var handReviewTouchStartX = 0;
 
 type ReplaySeatLocal = {
@@ -503,9 +505,33 @@ function addReviewHandButton() {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "secondary";
-  button.textContent = "Review hand";
   button.addEventListener("click", () => openHandReview());
   gameButtons.appendChild(button);
+  setButtonLabel(button, "Review hand", keybindLabel(keybinds.reviewHand || "v"));
+}
+
+/**
+ * Optional "Show hand" after a fold-win / muck. Skip in bot-only games
+ * (offline practice or every other seated player is a bot) — there is no
+ * human left to show to. Multi-human rooms keep the button.
+ */
+function isHeroVsBotsOnly(room: ClientRoom): boolean {
+  if (typeof handReviewFeatureAvailable === "function" && handReviewFeatureAvailable(room)) {
+    return true;
+  }
+  if (room.offline) {
+    const hero = (room.players || []).find((player) => player.isYou && !player.isBot);
+    if (!hero) return Boolean(room.offline);
+    return (room.players || []).every((player) => player.isYou || player.isBot);
+  }
+  const hero = (room.players || []).find((player) => player.isYou && !player.isBot);
+  if (!hero) return false;
+  const others = (room.players || []).filter((player) => !player.isYou);
+  return others.length > 0 && others.every((player) => player.isBot);
+}
+
+function showHandButtonAvailable(room: ClientRoom): boolean {
+  return Boolean(room.canShowHand) && !isHeroVsBotsOnly(room);
 }
 
 function roomFromReplayTable(
@@ -602,6 +628,7 @@ function openHandReview() {
   handReviewSavedState = state;
   handReviewActive = true;
   handReviewRetryItem = null;
+  handReviewRevealedSteps = new Set();
   handReviewStepIndex = 0;
   document.body.classList.add("hand-review-open");
   handReviewChrome?.classList.remove("hidden");
@@ -614,11 +641,17 @@ function hideHandReview() {
   if (!handReviewActive) return;
   handReviewActive = false;
   handReviewRetryItem = null;
+  handReviewRevealedSteps = new Set();
   document.body.classList.remove("hand-review-open");
   handReviewChrome?.classList.add("hidden");
   if (handReviewRetryBar) {
-    handReviewRetryBar.classList.add("hidden");
+    handReviewRetryBar.classList.add("is-idle");
+    handReviewRetryBar.classList.remove("hidden");
     handReviewRetryBar.replaceChildren();
+  }
+  if (handReviewVerdict) {
+    handReviewVerdict.className = "hand-review-verdict is-idle";
+    handReviewVerdict.replaceChildren();
   }
   if (handReviewSavedState) {
     state = handReviewSavedState;
@@ -634,10 +667,6 @@ function paintHandReviewStep(index: number) {
   handReviewStepIndex = Math.max(0, Math.min(steps.length - 1, index));
   const step = steps[handReviewStepIndex]!;
   handReviewRetryItem = null;
-  if (handReviewRetryBar) {
-    handReviewRetryBar.classList.add("hidden");
-    handReviewRetryBar.replaceChildren();
-  }
   bustCardRenderCache();
   state = roomFromReplayTable(step.table, handReviewSavedState);
   render();
@@ -645,36 +674,127 @@ function paintHandReviewStep(index: number) {
   renderHandReviewChrome(step);
 }
 
-function paintHandReviewVerdict(item: HandReviewItemLocal | null, prompt?: string) {
-  if (!handReviewVerdict) return;
-  if (prompt) {
-    handReviewVerdict.textContent = prompt;
-    handReviewVerdict.className = "hand-review-verdict is-prompt";
-    handReviewVerdict.classList.remove("hidden");
-    return;
+function handReviewWhy(item: HandReviewItemLocal): string {
+  if (typeof HandReview !== "undefined" && HandReview.formatVerdictWhy) {
+    return HandReview.formatVerdictWhy(item);
   }
-  if (!item) {
-    handReviewVerdict.classList.add("hidden");
+  return item.reason;
+}
+
+function handReviewBadge(item: HandReviewItemLocal): string {
+  if (typeof HandReview !== "undefined" && HandReview.formatVerdictBadge) {
+    return HandReview.formatVerdictBadge(item);
+  }
+  const mark = item.verdict === "mistake" ? "✗" : item.verdict === "best" ? "✓" : "~";
+  return `${mark} ${item.badge}`;
+}
+
+function handReviewMistakeNudge(): string {
+  if (typeof HandReview !== "undefined" && HandReview.formatMistakeNudge) {
+    return HandReview.formatMistakeNudge();
+  }
+  return "There was a better play here.";
+}
+
+/**
+ * Always keeps the verdict slot visible (fixed height). Never toggles display:none —
+ * bot steps and idle states use muted/empty content so stepping doesn't jump.
+ */
+function paintHandReviewVerdict(opts: {
+  kind: "decision" | "spoiler" | "correct" | "context" | "prompt" | "idle";
+  item?: HandReviewItemLocal | null;
+  context?: string;
+  prompt?: string;
+}) {
+  if (!handReviewVerdict) return;
+  handReviewVerdict.classList.remove("hidden");
+  if (opts.kind === "idle") {
+    handReviewVerdict.className = "hand-review-verdict is-idle";
     handReviewVerdict.replaceChildren();
     return;
   }
-  const badge =
-    typeof HandReview !== "undefined" && HandReview.formatVerdictBadge
-      ? HandReview.formatVerdictBadge(item)
-      : `${item.verdict === "mistake" ? "✗" : item.verdict === "best" ? "✓" : "~"} ${item.badge}`;
-  const why =
-    typeof HandReview !== "undefined" && HandReview.formatVerdictWhy
-      ? HandReview.formatVerdictWhy(item)
-      : item.reason;
-  const mark = document.createElement("span");
-  mark.className = "hand-review-verdict-mark";
-  mark.textContent = badge;
-  const detail = document.createElement("span");
-  detail.className = "hand-review-verdict-why";
-  detail.textContent = why;
-  handReviewVerdict.replaceChildren(mark, detail);
-  handReviewVerdict.className = `hand-review-verdict is-${item.verdict}`;
-  handReviewVerdict.classList.remove("hidden");
+  if (opts.kind === "prompt" && opts.prompt) {
+    handReviewVerdict.textContent = opts.prompt;
+    handReviewVerdict.className = "hand-review-verdict is-prompt";
+    return;
+  }
+  if (opts.kind === "context") {
+    const detail = document.createElement("span");
+    detail.className = "hand-review-verdict-why";
+    detail.textContent = opts.context || "";
+    handReviewVerdict.replaceChildren(detail);
+    handReviewVerdict.className = "hand-review-verdict is-context";
+    return;
+  }
+  if (opts.kind === "spoiler" && opts.item) {
+    const mark = document.createElement("span");
+    mark.className = "hand-review-verdict-mark";
+    mark.textContent = "✗ Mistake";
+    const detail = document.createElement("span");
+    detail.className = "hand-review-verdict-why";
+    detail.textContent = handReviewMistakeNudge();
+    handReviewVerdict.replaceChildren(mark, detail);
+    handReviewVerdict.className = "hand-review-verdict is-mistake is-spoiler";
+    return;
+  }
+  if (opts.kind === "correct" && opts.item) {
+    const mark = document.createElement("span");
+    mark.className = "hand-review-verdict-mark";
+    mark.textContent = "✓ Correct";
+    const detail = document.createElement("span");
+    detail.className = "hand-review-verdict-why";
+    detail.textContent = handReviewWhy(opts.item);
+    handReviewVerdict.replaceChildren(mark, detail);
+    handReviewVerdict.className = "hand-review-verdict is-best";
+    return;
+  }
+  if (opts.item) {
+    const mark = document.createElement("span");
+    mark.className = "hand-review-verdict-mark";
+    mark.textContent = handReviewBadge(opts.item);
+    const detail = document.createElement("span");
+    detail.className = "hand-review-verdict-why";
+    detail.textContent = handReviewWhy(opts.item);
+    handReviewVerdict.replaceChildren(mark, detail);
+    handReviewVerdict.className = `hand-review-verdict is-${opts.item.verdict}`;
+    return;
+  }
+  handReviewVerdict.className = "hand-review-verdict is-idle";
+  handReviewVerdict.replaceChildren();
+}
+
+function setHandReviewRetryIdle() {
+  if (!handReviewRetryBar) return;
+  handReviewRetryBar.replaceChildren();
+  handReviewRetryBar.classList.add("is-idle");
+  handReviewRetryBar.classList.remove("hidden");
+}
+
+function renderMistakeRetryActions(item: HandReviewItemLocal, beforeTable: ReplayTableStateLocal) {
+  if (!handReviewRetryBar) return;
+  const heroStack =
+    beforeTable.seats.find((seat) => seat.isHero)?.stack ?? item.pot;
+  const tryBtn = document.createElement("button");
+  tryBtn.type = "button";
+  tryBtn.className = "hand-review-try-again has-shortcut";
+  tryBtn.innerHTML = `<span>Try again</span><kbd aria-hidden="true">T</kbd>`;
+  tryBtn.setAttribute("aria-label", "Try again (T)");
+  tryBtn.addEventListener("click", () => startHandReviewRetry(item, beforeTable, heroStack));
+
+  const showBtn = document.createElement("button");
+  showBtn.type = "button";
+  showBtn.className = "ghost hand-review-show-answer has-shortcut";
+  showBtn.innerHTML = `<span>Show answer</span><kbd aria-hidden="true">A</kbd>`;
+  showBtn.setAttribute("aria-label", "Show answer (A)");
+  showBtn.addEventListener("click", () => {
+    handReviewRevealedSteps.add(handReviewStepIndex);
+    paintHandReviewVerdict({ kind: "decision", item });
+    // Keep Try again available after revealing.
+    renderMistakeRetryActions(item, beforeTable);
+  });
+
+  handReviewRetryBar.replaceChildren(tryBtn, showBtn);
+  handReviewRetryBar.classList.remove("is-idle", "hidden");
 }
 
 function renderHandReviewChrome(step: HandReplayLocal["steps"][number]) {
@@ -682,11 +802,29 @@ function renderHandReviewChrome(step: HandReplayLocal["steps"][number]) {
     const total = lastHandReplay?.steps.length || 1;
     handReviewStepLabel.textContent = `${handReviewStepIndex + 1}/${total} · ${step.label}`;
   }
+
   if (step.decision) {
-    paintHandReviewVerdict(step.decision);
+    const revealed = handReviewRevealedSteps.has(handReviewStepIndex);
+    if (step.decision.verdict === "mistake" && !revealed) {
+      paintHandReviewVerdict({ kind: "spoiler", item: step.decision });
+      renderMistakeRetryActions(step.decision, step.table);
+    } else {
+      paintHandReviewVerdict({ kind: "decision", item: step.decision });
+      if (step.decision.verdict === "mistake") {
+        renderMistakeRetryActions(step.decision, step.table);
+      } else {
+        setHandReviewRetryIdle();
+      }
+    }
   } else {
-    paintHandReviewVerdict(null);
+    // Bot / board / result steps: muted context keeps the slot height stable.
+    paintHandReviewVerdict({
+      kind: "context",
+      context: step.label || "Table action",
+    });
+    setHandReviewRetryIdle();
   }
+
   if (handReviewTimeline && lastHandReplay) {
     handReviewTimeline.replaceChildren();
     lastHandReplay.steps.forEach((dotStep, idx) => {
@@ -703,19 +841,7 @@ function renderHandReviewChrome(step: HandReplayLocal["steps"][number]) {
       handReviewTimeline.append(btn);
     });
   }
-  // Mistake: offer Try again under the verdict.
-  if (step.decision?.verdict === "mistake" && handReviewRetryBar) {
-    const tryBtn = document.createElement("button");
-    tryBtn.type = "button";
-    tryBtn.textContent = "Try again";
-    const heroStack =
-      step.table.seats.find((seat) => seat.isHero)?.stack ?? step.decision.pot;
-    tryBtn.addEventListener("click", () =>
-      startHandReviewRetry(step.decision!, step.table, heroStack),
-    );
-    handReviewRetryBar.replaceChildren(tryBtn);
-    handReviewRetryBar.classList.remove("hidden");
-  }
+
   gameButtons.innerHTML = "";
   turnInfo.textContent = step.decision
     ? `You ${step.decision.taken}${step.decision.raiseTo != null ? ` ${step.decision.raiseTo}` : ""}`
@@ -758,14 +884,17 @@ function startHandReviewRetry(
   state.canRaise = true;
   render();
 
+  // Keep spoiler verdict until they pick — don't leak the answer in the prompt.
+  paintHandReviewVerdict({
+    kind: "prompt",
+    prompt: `Your turn · Pot ${item.pot}${item.toCall > 0 ? ` · Call ${item.toCall}` : ""}`,
+  });
+
   handReviewRetryBar.replaceChildren();
   const actions = document.createElement("div");
   actions.className = "hand-review-retry-actions";
   const choices: Array<"fold" | "check" | "call" | "raise"> =
     item.toCall > 0 ? ["fold", "call", "raise"] : ["check", "raise"];
-  const feedback = document.createElement("p");
-  feedback.className = "hand-review-retry-feedback";
-  feedback.setAttribute("aria-live", "polite");
   const cont = document.createElement("button");
   cont.type = "button";
   cont.className = "ghost hand-review-continue";
@@ -780,19 +909,21 @@ function startHandReviewRetry(
     btn.addEventListener("click", () => {
       if (typeof HandReview === "undefined" || typeof HandReview.gradeRetry !== "function") return;
       const result = HandReview.gradeRetry(item, choice);
-      feedback.textContent = result.line;
-      feedback.classList.toggle("is-correct", result.correct);
-      feedback.classList.toggle("is-wrong", !result.correct);
+      handReviewRevealedSteps.add(handReviewStepIndex);
+      if (result.correct) {
+        paintHandReviewVerdict({ kind: "correct", item });
+      } else {
+        paintHandReviewVerdict({ kind: "decision", item });
+      }
+      actions.replaceChildren();
       cont.hidden = false;
+      handReviewRetryBar!.replaceChildren(cont);
+      handReviewRetryBar!.classList.remove("is-idle", "hidden");
     });
     actions.append(btn);
   }
-  handReviewRetryBar.append(actions, feedback, cont);
-  handReviewRetryBar.classList.remove("hidden");
-  paintHandReviewVerdict(
-    null,
-    `Try again · Pot ${item.pot}${item.toCall > 0 ? ` · Call ${item.toCall}` : ""}`,
-  );
+  handReviewRetryBar.append(actions);
+  handReviewRetryBar.classList.remove("is-idle", "hidden");
   gameButtons.innerHTML = "";
   turnInfo.textContent =
     item.toCall > 0 ? `Call ${item.toCall}` : "Check or bet";
@@ -958,7 +1089,7 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
   turnInfo.classList.remove("showdown-message");
 
   if (room.canAddBot) {
-    addButton("+ Add bot", "room:addBot", "secondary lobby-add-bot");
+    addButton("Add bot", "room:addBot", "secondary lobby-add-bot");
   }
   if (room.canReady) {
     const readyShortcut = room.isReady
@@ -973,7 +1104,8 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
     maybeOfferHandReview(room);
     addReviewHandButton();
   }
-  if (room.canShowHand) {
+  // Show hand is for multi-human tables (muck / reveal). Hide vs bots — no audience.
+  if (showHandButtonAvailable(room)) {
     addButton("Show hand", "game:showCards", "secondary", keybindLabel(keybinds.showHand));
   }
 
@@ -1073,8 +1205,8 @@ function configureRaiseControls(hero: ClientPlayer, disabled = false) {
   raiseControlsDisabled = disabled;
   raiseActionBtn.classList.toggle("hidden", mergePassiveConfirm);
   betControls.querySelector(".raise-row")?.classList.toggle("merge-check-bet", mergePassiveConfirm);
-  // Facing a bet: open on the minimum legal raise (never the Call detent / "0").
-  // Free check: keep the Check detent so confirm stays Check until the player sizes a bet.
+  // Merged Call/Raise: open on Call (or Check when free). First + / arrow / preset
+  // snaps to the min legal raise via legalRaiseTo — never open already raising.
   const facingBet = (state.toCall || 0) > 0;
   const initialValue = RaiseSizing.initialRaiseTo({
     facingBet,

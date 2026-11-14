@@ -109,8 +109,10 @@
 
   /**
    * Initial raise-to when the bet panel opens.
-   * Facing a bet: always the minimum legal raise (never the Call detent / "0").
-   * Free check with merge: Check detent so confirm stays Check until sized.
+   * Merged Call/Raise or Check/Bet: open on the passive detent (Call / Check).
+   * The first + / arrow / preset moves to the min legal raise (via nudgeRaiseTo /
+   * legalRaiseTo) — never open already raising.
+   * Separate Raise button (no merge): still open on preferred / min legal raise.
    */
   function initialRaiseTo({
     facingBet,
@@ -129,9 +131,11 @@
   }) {
     const max = Math.max(0, Math.floor(Number(maxRaiseTo) || 0));
     const minLegal = Math.min(max, Math.max(0, Math.floor(Number(minRaiseTo) || 0)));
-    if (mergePassiveConfirm && !facingBet) {
+    if (mergePassiveConfirm) {
+      // Facing a bet → Call detent (currentBet). Free check → Check detent (0).
       return Math.min(max, passiveDetentValue(currentBet));
     }
+    void facingBet;
     const preferred = Math.floor(Number(preferredRaiseTo));
     const target = Number.isFinite(preferred) ? preferred : minLegal;
     return Math.max(minLegal, Math.min(max, target));

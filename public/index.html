@@ -249,7 +249,7 @@
                 </p>
                 <button
                   id="handReviewCloseBtn"
-                  class="ghost hand-review-close"
+                  class="ghost icon-btn hand-review-close"
                   type="button"
                   aria-label="Close hand review"
                 >
@@ -259,20 +259,44 @@
               <p id="handReviewVerdict" class="hand-review-verdict hidden" aria-live="polite"></p>
               <div id="handReviewRetryBar" class="hand-review-retry-bar hidden" aria-live="polite"></div>
               <div class="hand-review-nav" aria-label="Replay controls">
-                <button id="handReviewStartBtn" type="button" class="secondary" aria-label="First step">
+                <button
+                  id="handReviewStartBtn"
+                  type="button"
+                  class="secondary"
+                  aria-label="First step (Home)"
+                  title="Home"
+                >
                   ⏮
                 </button>
-                <button id="handReviewPrevBtn" type="button" class="secondary" aria-label="Previous step">
+                <button
+                  id="handReviewPrevBtn"
+                  type="button"
+                  class="secondary"
+                  aria-label="Previous step (←)"
+                  title="←"
+                >
                   ◀
                 </button>
                 <div class="hand-review-timeline-wrap">
                   <div id="handReviewTimeline" class="hand-review-timeline" role="list"></div>
                   <p id="handReviewStepLabel" class="hand-review-step-label" aria-live="polite"></p>
                 </div>
-                <button id="handReviewNextBtn" type="button" class="secondary" aria-label="Next step">
+                <button
+                  id="handReviewNextBtn"
+                  type="button"
+                  class="secondary"
+                  aria-label="Next step (→)"
+                  title="→"
+                >
                   ▶
                 </button>
-                <button id="handReviewEndBtn" type="button" class="secondary" aria-label="Last step">
+                <button
+                  id="handReviewEndBtn"
+                  type="button"
+                  class="secondary"
+                  aria-label="Last step (End)"
+                  title="End"
+                >
                   ⏭
                 </button>
               </div>
@@ -430,13 +454,13 @@
           <div class="menu-stack">
             <div class="trainer-drill" role="group" aria-label="Drill type">
               <button id="trainerDrillRfi" class="mode-option selected" type="button" aria-pressed="true">
-                RFI
+                Open first
               </button>
               <button id="trainerDrillFacing" class="mode-option" type="button" aria-pressed="false">
-                Facing raise
+                Facing a raise
               </button>
               <button id="trainerDrillMix" class="mode-option" type="button" aria-pressed="false">
-                Mix
+                Mix both
               </button>
             </div>
             <div class="trainer-size" role="group" aria-label="Table size">
@@ -540,7 +564,7 @@
                 class="secondary add-bot-btn menu-row-btn hidden"
                 type="button"
               >
-                + Add bot
+                Add bot
               </button>
               <button id="openSettingsBtn" type="button" class="secondary menu-row-btn">
                 Settings

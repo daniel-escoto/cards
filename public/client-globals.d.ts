@@ -196,6 +196,7 @@ declare global {
     classifySpeculativeHand(heroCodes: readonly string[]): "small_pair" | "suited_connector" | "suited_ace" | null;
     speculativeDepthThreshold(category: "small_pair" | "suited_connector" | "suited_ace" | null): number | null;
     effectiveStackForCall(heroStack: number, opponentStacks: readonly number[]): number;
+    formatWinIn?(probability: number): string;
     adviseFacingBet(input: {
       equity: number;
       potOdds: number;
@@ -1144,6 +1145,7 @@ declare global {
     }): string;
     formatVerdictBadge(item: { verdict: string; badge: string }): string;
     formatVerdictWhy(item: { reason: string }): string;
+    formatMistakeNudge?(): string;
     formatVerdictLine(item: {
       verdict: string;
       badge: string;

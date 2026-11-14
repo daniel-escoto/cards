@@ -67,7 +67,9 @@ function table(overrides = {}) {
   assert.equal(raiseSpot.recommended, "raise");
   assert.equal(raiseSpot.verdict, "best");
   assert.equal(raiseSpot.badge, "Best");
-  assert.match(raiseSpot.reason, /Well ahead of the price/);
+  assert.match(raiseSpot.reason, /you win about \d+ in \d+/i);
+  assert.match(raiseSpot.reason, /calling only needs \d+ in \d+/i);
+  assert.doesNotMatch(raiseSpot.reason, /%|equity|pot odds/i);
 
   const callMistake = HandReview.gradeHandDecision({
     id: "1b",
@@ -111,8 +113,9 @@ function table(overrides = {}) {
   });
   assert.equal(snappedRaise.recommendedRaiseTo, 120);
   assert.match(snappedRaise.reason, /Raise to 120/);
-  assert.match(snappedRaise.reason, /62% equity/);
-  assert.match(snappedRaise.reason, /only need 32%/);
+  assert.match(snappedRaise.reason, /you win about \d+ in \d+/i);
+  assert.match(snappedRaise.reason, /calling only needs \d+ in \d+/i);
+  assert.doesNotMatch(snappedRaise.reason, /%|equity|pot odds/i);
   assert.doesNotMatch(snappedRaise.reason, /Raise to 125/);
   assert.match(HandReview.formatVerdictBadge(snappedRaise), /✗ Mistake/);
   assert.match(HandReview.formatVerdictWhy(snappedRaise), /Raise to 120/);
@@ -304,7 +307,8 @@ function table(overrides = {}) {
   assert.equal(replay.steps[1].decision.verdict, "mistake");
   assert.equal(replay.steps[1].decision.recommendedRaiseTo, 120);
   assert.match(replay.steps[1].decision.reason, /Raise to 120/);
-  assert.match(replay.steps[1].decision.reason, /you have 62% equity/);
+  assert.match(replay.steps[1].decision.reason, /you win about \d+ in \d+/i);
+  assert.doesNotMatch(replay.steps[1].decision.reason, /%|equity|pot odds/i);
   assert.equal(replay.steps[2].isHeroDecision, true);
   assert.ok(
     replay.steps[2].decision.verdict === "fine" || replay.steps[2].decision.verdict === "best",
@@ -315,11 +319,13 @@ function table(overrides = {}) {
 
   const retryOk = HandReview.gradeRetry(replay.steps[1].decision, "raise");
   assert.equal(retryOk.correct, true);
-  assert.match(retryOk.line, /Now Best/);
+  assert.match(retryOk.line, /Correct/);
 
   const retryBad = HandReview.gradeRetry(replay.steps[1].decision, "fold");
   assert.equal(retryBad.correct, false);
   assert.match(retryBad.line, /Still off/);
+
+  assert.equal(HandReview.formatMistakeNudge(), "There was a better play here.");
 }
 
 {
@@ -341,6 +347,12 @@ function table(overrides = {}) {
   assert.match(css, /\.hand-review-verdict\.is-prompt/);
   assert.match(css, /\.hand-review-close/);
   assert.match(css, /aspect-ratio:\s*1/);
+  assert.match(css, /\.hand-review-verdict[\s\S]*?min-height/);
+  assert.match(css, /\.hand-review-retry-bar[\s\S]*?min-height:\s*44px/);
+  assert.match(css, /\.hand-review-dot:focus-visible/);
+  assert.match(css, /\.hand-review-show-answer/);
+  assert.match(css, /\.hand-review-timeline-wrap\s*\{[^}]*grid-template-rows:\s*auto auto/s);
+  assert.match(css, /\.hand-review-close\.icon-btn/);
   assert.doesNotMatch(css, /position:\s*fixed[\s\S]{0,80}\.hand-review-chrome|\.hand-review-chrome[\s\S]{0,120}position:\s*fixed/);
   assert.doesNotMatch(
     css,
@@ -354,7 +366,11 @@ function table(overrides = {}) {
   assert.match(tableSrc, /captureHandReviewDecision/);
   assert.match(tableSrc, /raiseStep/);
   assert.match(tableSrc, /Try again/);
+  assert.match(tableSrc, /Show answer/);
   assert.match(tableSrc, /hand-review-continue/);
+  assert.match(tableSrc, /is-spoiler|kind: \"spoiler\"/);
+  assert.match(tableSrc, /showHandButtonAvailable/);
+  assert.match(tableSrc, /isHeroVsBotsOnly/);
   assert.doesNotMatch(tableSrc, /renderHandReviewSheet/);
   assert.doesNotMatch(tableSrc, /renderCoachHint/);
 

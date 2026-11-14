@@ -431,6 +431,9 @@ document.addEventListener("keydown", (event) => {
     revealRabbitBoard();
     return;
   }
+  const typingTarget = (event.target as HTMLElement | null)?.matches?.(
+    "input, select, textarea, [contenteditable]",
+  );
   if (event.key === "Escape" && typeof handReviewActive !== "undefined" && handReviewActive) {
     if (typeof hideHandReview === "function") hideHandReview();
     return;
@@ -439,21 +442,54 @@ document.addEventListener("keydown", (event) => {
     hideGameMenu();
     return;
   }
-  if (
-    typeof handReviewActive !== "undefined" &&
-    handReviewActive &&
-    (event.key === "ArrowLeft" || event.key === "ArrowRight")
-  ) {
-    event.preventDefault();
-    if (typeof handReviewStepBy === "function") {
-      handReviewStepBy(event.key === "ArrowLeft" ? -1 : 1);
+  if (typeof handReviewActive !== "undefined" && handReviewActive) {
+    if (typingTarget || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      if (typeof handReviewStepBy === "function") {
+        handReviewStepBy(event.key === "ArrowLeft" ? -1 : 1);
+      }
+      return;
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      if (typeof paintHandReviewStep === "function") paintHandReviewStep(0);
+      return;
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      if (typeof paintHandReviewStep === "function" && typeof lastHandReplay !== "undefined") {
+        const last = Math.max(0, (lastHandReplay?.steps?.length || 1) - 1);
+        paintHandReviewStep(last);
+      }
+      return;
+    }
+    const reviewKey = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+    if (reviewKey === "t" && !event.repeat) {
+      const tryBtn = document.querySelector(
+        "#handReviewRetryBar .hand-review-try-again",
+      ) as HTMLButtonElement | null;
+      if (tryBtn && !tryBtn.disabled) {
+        event.preventDefault();
+        tryBtn.click();
+      }
+      return;
+    }
+    if (reviewKey === "a" && !event.repeat) {
+      const showBtn = document.querySelector(
+        "#handReviewRetryBar .hand-review-show-answer",
+      ) as HTMLButtonElement | null;
+      if (showBtn && !showBtn.disabled) {
+        event.preventDefault();
+        showBtn.click();
+      }
+      return;
     }
     return;
   }
   if (
     !state ||
     !gameMenuModal.classList.contains("hidden") ||
-    (typeof handReviewActive !== "undefined" && handReviewActive) ||
     event.metaKey ||
     event.ctrlKey ||
     event.altKey
@@ -474,7 +510,27 @@ document.addEventListener("keydown", (event) => {
     if (!event.repeat && !state.isReady) emitWithAck("game:ready", { ready: true });
     return;
   }
-  if (matchesKeybind(event, "showHand") && state.canShowHand) {
+  // Between hands only — never steals in-hand raise (R) or other bet keys.
+  if (
+    matchesKeybind(event, "reviewHand") &&
+    state.canReady &&
+    !state.isYourTurn &&
+    typeof openHandReview === "function" &&
+    typeof lastHandReplay !== "undefined" &&
+    lastHandReplay &&
+    lastHandReplay.steps.length > 0 &&
+    typeof handReviewFeatureAvailable === "function" &&
+    handReviewFeatureAvailable(state)
+  ) {
+    event.preventDefault();
+    if (!event.repeat) openHandReview();
+    return;
+  }
+  if (
+    matchesKeybind(event, "showHand") &&
+    state.canShowHand &&
+    (typeof showHandButtonAvailable !== "function" || showHandButtonAvailable(state))
+  ) {
     if (!event.repeat) emitWithAck("game:showCards", {});
     return;
   }
