@@ -38,9 +38,13 @@ var gameMenuModal = document.querySelector("#gameMenuModal") as HTMLElement;
 var closeMenuBtn = document.querySelector("#closeMenuBtn") as HTMLButtonElement;
 var menuMainView = document.querySelector("#menuMainView") as HTMLElement;
 var menuSettingsView = document.querySelector("#menuSettingsView") as HTMLElement;
+var menuInviteView = document.querySelector("#menuInviteView") as HTMLElement;
 var openSettingsBtn = document.querySelector("#openSettingsBtn") as HTMLButtonElement;
 var closeSettingsBtn = document.querySelector("#closeSettingsBtn") as HTMLButtonElement;
 var closeSettingsMenuBtn = document.querySelector("#closeSettingsMenuBtn") as HTMLButtonElement;
+var closeInviteBtn = document.querySelector("#closeInviteBtn") as HTMLButtonElement;
+var closeInviteMenuBtn = document.querySelector("#closeInviteMenuBtn") as HTMLButtonElement;
+var inviteRoomCode = document.querySelector("#inviteRoomCode") as HTMLElement;
 var settingsTableSection = document.querySelector("#settingsTableSection") as HTMLElement;
 var addBotBtn = document.querySelector("#addBotBtn") as HTMLButtonElement;
 var restartGameBtn = document.querySelector("#restartGameBtn") as HTMLButtonElement;
@@ -251,13 +255,22 @@ var lastWinnerSignature = "";
 var lastPhase = "";
 var lastPot: number | null = null;
 var params = new URLSearchParams(window.location.search);
-var initialRoomParam = (params.get("room") || "").toUpperCase();
+var initialRoomFromPath =
+  typeof InviteUrl !== "undefined" && InviteUrl.roomCodeFromPath
+    ? InviteUrl.roomCodeFromPath(window.location.pathname)
+    : "";
+var initialRoomParam = (params.get("room") || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 var initialRoomId = (
+  initialRoomFromPath ||
   initialRoomParam ||
   localStorage.getItem("holdem:lastRoom") ||
   ""
 ).toUpperCase();
 if (initialRoomId) roomInput.value = initialRoomId;
+// Legacy ?room=CODE → /{CODE}; path codes already use the short form.
+if (initialRoomFromPath || initialRoomParam) {
+  setRoomUrl(initialRoomId);
+}
 nameInput.value = localStorage.getItem("holdem:name") || "";
 var joinPending = false;
 var watchOfferPending = false;
@@ -616,6 +629,7 @@ function showTable(room: ClientRoom) {
   document.body.classList.remove("keyboard-open");
   welcome.classList.add("hidden");
   scoreView.classList.add("hidden");
+  document.querySelector("#trainerView")?.classList.add("hidden");
   tableView.classList.remove("hidden");
   if (room?.offline) clearRoomUrl();
   else setRoomUrl(room.id);
@@ -623,20 +637,35 @@ function showTable(room: ClientRoom) {
 
 function showMenuMainView() {
   menuSettingsView.classList.add("hidden");
+  menuInviteView?.classList.add("hidden");
   menuMainView.classList.remove("hidden");
 }
 
 function showMenuSettingsView() {
   menuMainView.classList.add("hidden");
+  menuInviteView?.classList.add("hidden");
   menuSettingsView.classList.remove("hidden");
   syncMenuNameForm();
   syncHostMenuSection();
   closeSettingsBtn.focus({ preventScroll: true });
 }
 
+function showMenuInviteView() {
+  const link = inviteUrl();
+  if (!link || !menuInviteView) return;
+  shareLink.value = link;
+  shareQr.src = `/qr.svg?text=${encodeURIComponent(link)}`;
+  if (inviteRoomCode) {
+    inviteRoomCode.textContent = state?.id ? `Room ${state.id}` : "";
+  }
+  menuMainView.classList.add("hidden");
+  menuSettingsView.classList.add("hidden");
+  menuInviteView.classList.remove("hidden");
+  closeInviteBtn?.focus({ preventScroll: true });
+}
+
 function hideGameMenu() {
   gameMenuModal.classList.add("hidden");
-  sharePanel.classList.add("hidden");
   showMenuMainView();
   openPlayerSheetId = "";
   if (menuTimer != null) clearInterval(menuTimer);
@@ -970,7 +999,6 @@ function showGameMenu() {
   );
   const offline = isOfflineSession();
   shareGameBtn.classList.toggle("hidden", offline);
-  sharePanel.classList.add("hidden");
   // Hide first so syncHostMenuSection refills the blind inputs with current values on open.
   blindPanel.classList.add("hidden");
   renderShotClockChoices();
@@ -987,6 +1015,7 @@ function showGameMenu() {
 
 function showWelcome(status = "") {
   disposePracticeSession();
+  document.querySelector("#trainerView")?.classList.add("hidden");
   state = null;
   watchOfferPending = false;
   acceptedMoneyTerms = null;
@@ -1084,11 +1113,16 @@ function replayAnimation(element: Element | null | undefined, className: string,
 
 function setRoomUrl(roomId: string) {
   if (!roomId) return;
-  const normalized = String(roomId).toUpperCase();
+  const normalized = String(roomId)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+  if (!normalized) return;
   localStorage.setItem("holdem:lastRoom", normalized);
   roomInput.value = normalized;
   const url = new URL(window.location.href);
-  url.searchParams.set("room", normalized);
+  url.pathname = `/${normalized}`;
+  url.search = "";
+  url.hash = "";
   window.history.replaceState({}, "", url);
 }
 
@@ -1101,9 +1135,10 @@ function canonicalInviteUrl(roomId: string) {
   if (typeof InviteUrl !== "undefined" && InviteUrl.canonicalInviteUrl) {
     return InviteUrl.canonicalInviteUrl(roomId);
   }
-  const url = new URL(window.location.origin + window.location.pathname);
-  url.searchParams.set("room", roomId);
-  return url.toString();
+  const origin = window.location.origin.replace(/\/$/, "");
+  return `${origin}/${String(roomId || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")}`;
 }
 
 function clearRoomUrl() {
@@ -1112,7 +1147,9 @@ function clearRoomUrl() {
   tableMode = "host";
   updateTableActionLabel();
   const url = new URL(window.location.href);
-  url.searchParams.delete("room");
+  url.pathname = "/";
+  url.search = "";
+  url.hash = "";
   window.history.replaceState({}, "", url);
 }
 

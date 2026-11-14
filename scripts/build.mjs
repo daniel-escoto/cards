@@ -38,7 +38,9 @@ run(process.execPath, [path.join(root, "node_modules/typescript/bin/tsc"), "-p",
 // Node CJS engine (export=) — keep for tests / practice require
 copyFile(path.join(dist, "shared/engine.js"), path.join(dist, "shared/engine.node.js"));
 
-// Browser IIFE served at /shared/engine.js (script tag + SW precache)
+// Browser IIFE served at /shared/engine.js (script tag + SW precache).
+// engine-browser uses `export default`; unwrap so window.HoldemEngine is the API
+// object (createPracticeRoom, …) rather than `{ default: api }`.
 await esbuild.build({
   absWorkingDir: root,
   entryPoints: [path.join(root, "shared/engine-browser.ts")],
@@ -46,6 +48,25 @@ await esbuild.build({
   bundle: true,
   format: "iife",
   globalName: "HoldemEngine",
+  platform: "browser",
+  target: ["es2022"],
+  logLevel: "info",
+  footer: {
+    js: "if (typeof HoldemEngine !== 'undefined' && HoldemEngine && HoldemEngine.default) HoldemEngine = HoldemEngine.default;",
+  },
+});
+
+// Node CJS RFI ranges — keep for tests / Coach reuse; browser IIFE overwrites .js
+copyFile(path.join(dist, "shared/rfi-ranges.js"), path.join(dist, "shared/rfi-ranges.node.js"));
+
+// Browser IIFE served at /shared/rfi-ranges.js (Trainer + future Coach)
+await esbuild.build({
+  absWorkingDir: root,
+  entryPoints: [path.join(root, "shared/rfi-ranges.ts")],
+  outfile: path.join(dist, "shared/rfi-ranges.js"),
+  bundle: true,
+  format: "iife",
+  globalName: "RfiRanges",
   platform: "browser",
   target: ["es2022"],
   logLevel: "info",

@@ -106,7 +106,7 @@ async function readyUp(players) {
     deviceId: alice.deviceId,
   });
   const qrResponse = await fetch(
-    `${SMOKE_URL}/qr.svg?text=${encodeURIComponent(`${SMOKE_URL}/?room=${created.roomId}`)}`,
+    `${SMOKE_URL}/qr.svg?text=${encodeURIComponent(`${SMOKE_URL}/${created.roomId}`)}`,
   );
   if (!qrResponse.ok || !(await qrResponse.text()).includes("<svg")) {
     throw new Error("Expected QR endpoint to return SVG");
