@@ -256,10 +256,14 @@ body:has(#welcome:not(.hidden)) .app {
   --welcome-font: var(--ui-font);
   position: relative;
   isolation: isolate;
+  box-sizing: border-box;
   min-height: calc(100vh - 32px);
   min-height: calc(100dvh - 32px);
+  min-height: calc(var(--viewport-height, 100dvh) - 32px);
   display: grid;
   place-items: center;
+  align-content: safe center;
+  padding-block: 12px;
   font-family: var(--welcome-font);
 }
 
@@ -567,14 +571,17 @@ label {
   background: rgba(24, 38, 33, 0.05);
 }
 
-.welcome-secondary-actions {
+/* Trainer sits inside the join card — same width/spacing as Host/Join controls. */
+.join-panel .welcome-secondary-actions {
   display: flex;
   gap: 10px;
-  margin-top: 12px;
+  margin: 4px 0 0;
+  padding-top: 14px;
   width: 100%;
+  border-top: 1px solid var(--welcome-panel-border);
 }
 
-.welcome-secondary-actions > button {
+.join-panel .welcome-secondary-actions > button {
   flex: 1 1 0;
   min-width: 0;
   min-height: 48px;
@@ -587,15 +594,15 @@ label {
   font-weight: 700;
 }
 
-:root[data-theme="light"] .welcome-secondary-actions > button {
+:root[data-theme="light"] .join-panel .welcome-secondary-actions > button {
   background: rgba(24, 38, 33, 0.05);
 }
 
-.welcome-secondary-actions > button:not(:disabled):hover {
+.join-panel .welcome-secondary-actions > button:not(:disabled):hover {
   background: rgba(255, 255, 255, 0.12);
 }
 
-:root[data-theme="light"] .welcome-secondary-actions > button:not(:disabled):hover {
+:root[data-theme="light"] .join-panel .welcome-secondary-actions > button:not(:disabled):hover {
   background: rgba(24, 38, 33, 0.1);
 }
 
@@ -998,6 +1005,26 @@ html.trainer-open-root {
   50% {
     opacity: 0.5;
     transform: scale(1.06);
+  }
+}
+
+/* Short desktop / landscape phone: keep the card balanced, never pinned to the top. */
+@media (max-height: 720px) {
+  .welcome {
+    min-height: calc(var(--viewport-height, 100dvh) - 24px);
+    place-items: center;
+    align-content: safe center;
+    padding-block: 10px;
+  }
+  .welcome-stage {
+    gap: clamp(10px, 2.2vh, 18px);
+  }
+  .join-panel {
+    gap: 12px;
+    padding: 14px;
+  }
+  .brand .tagline {
+    font-size: 14px;
   }
 }
 
@@ -1780,37 +1807,31 @@ button.menu-player-row:not(:disabled):hover {
   font-size: 12px;
 }
 
+/* Inline seat hole cards — fixed 48px column in the row grid (see .table-player-row). */
+.seat-shown-hand {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  width: 48px;
+  min-width: 48px;
+  max-width: 48px;
+  height: 28px;
+  min-height: 28px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.seat-shown-hand .card {
+  width: 22px;
+  min-width: 22px;
+  padding: 2px 3px;
+  font-size: 10px;
+  line-height: 1.1;
+}
 .shown-hand {
   display: flex;
   gap: 5px;
 }
-
-.shown-hand-card {
-  border-color: rgba(255, 255, 255, 0.12);
-  border-left-width: 3px;
-  border-radius: 12px;
-  background: rgba(8, 16, 18, 0.42);
-}
-
-.shown-hand-card .action-card-stats {
-  display: none;
-}
-
-:root[data-theme="light"] .action-feed-card.shown-hand-card {
-  background: rgba(8, 16, 18, 0.42);
-}
-
-.shown-hand-card .seat-name,
-:root[data-theme="light"] .shown-hand-card .seat-name,
-.shown-hand-card .action-card-stats strong {
-  color: #fff;
-}
-
-.shown-hand-card .action-card-stats,
-.shown-hand-card .action-card-stats em {
-  color: rgba(255, 255, 255, 0.76);
-}
-
 .shown-hand .card {
   width: 34px;
   padding: 5px;
@@ -2288,8 +2309,8 @@ button.menu-player-row:not(:disabled):hover {
   position: relative;
   min-height: 42px;
   display: grid;
-  /* Name column keeps enough room for ~12–18 character display names. */
-  grid-template-columns: 14px minmax(12ch, 1.35fr) minmax(4.5rem, 0.9fr) auto;
+  /* Name | action | reserved hole-card slot | stack — card slot always present (no showdown shift). */
+  grid-template-columns: 14px minmax(10ch, 1.2fr) minmax(4rem, 0.85fr) 48px auto;
   align-items: center;
   gap: 8px;
   padding: 7px 10px;
@@ -3831,25 +3852,27 @@ body.hand-review-open .hand-review-verdict.is-idle {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto;
-  justify-items: center;
+  justify-items: stretch;
   align-content: center;
   gap: 2px;
   min-width: 0;
-  overflow: visible;
+  max-width: 100%;
+  overflow: hidden;
 }
 .hand-review-timeline {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: max-content;
+  justify-content: safe center;
+  gap: 6px;
+  width: 100%;
   max-width: 100%;
   min-width: 0;
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: hidden;
   /* Padding so the active / focus ring is not clipped by the scroll box. */
   padding: 8px 6px;
   scrollbar-width: none;
+  overscroll-behavior-x: contain;
 }
 .hand-review-timeline::-webkit-scrollbar {
   display: none;
@@ -4440,12 +4463,14 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
 
   .welcome {
     min-height: calc(100dvh - 24px);
-    align-content: center;
+    min-height: calc(var(--viewport-height, 100dvh) - 24px);
+    place-items: center;
+    align-content: safe center;
     justify-items: center;
   }
 
   .welcome-stage {
-    gap: clamp(18px, 4vh, 28px);
+    gap: clamp(14px, 3vh, 24px);
   }
 
   .score-view {
@@ -4473,24 +4498,23 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
     padding: 16px;
   }
 
-  body.keyboard-open,
-  body:has(.welcome:not(.hidden) #joinForm:focus-within) {
+  /* Keyboard open only — driven by visualViewport shrink, never by mere focus. */
+  body.keyboard-open {
     height: var(--viewport-height);
     min-height: 0;
     overflow: hidden;
   }
 
-  body.keyboard-open .app,
-  body:has(.welcome:not(.hidden) #joinForm:focus-within) .app {
+  body.keyboard-open .app {
     height: var(--viewport-height);
     min-height: 0;
     overflow: hidden;
   }
 
-  body.keyboard-open .welcome,
-  .welcome:not(.hidden):has(#joinForm:focus-within) {
+  body.keyboard-open .welcome {
     height: calc(var(--viewport-height) - 20px);
     min-height: auto;
+    place-items: center start;
     align-content: start;
     padding-top: max(8px, env(safe-area-inset-top));
     padding-bottom: max(8px, env(safe-area-inset-bottom));
@@ -4501,35 +4525,27 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Only collapse the brand when a join-form field is focused — not Practice/Trainer. */
-  body.keyboard-open .brand,
-  .welcome:not(.hidden):has(#joinForm:focus-within) .brand {
+  body.keyboard-open .brand {
     display: none;
   }
 
-  body.keyboard-open .welcome-atmosphere,
-  .welcome:not(.hidden):has(#joinForm:focus-within) .welcome-atmosphere {
+  body.keyboard-open .welcome-atmosphere {
     opacity: 0.35;
   }
 
-  body.keyboard-open .join-panel,
-  .welcome:not(.hidden):has(#joinForm:focus-within) .join-panel {
+  body.keyboard-open .join-panel {
     gap: 9px;
     padding: 12px;
     animation: none;
   }
 
-  body.keyboard-open label,
-  .welcome:not(.hidden):has(#joinForm:focus-within) label {
+  body.keyboard-open label {
     gap: 5px;
   }
 
   body.keyboard-open input,
   body.keyboard-open select,
-  body.keyboard-open button,
-  .welcome:not(.hidden):has(#joinForm:focus-within) input,
-  .welcome:not(.hidden):has(#joinForm:focus-within) select,
-  .welcome:not(.hidden):has(#joinForm:focus-within) button {
+  body.keyboard-open button {
     min-height: 42px;
   }
 
@@ -4681,11 +4697,24 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
 
   .table-player-row {
     min-height: 40px;
-    /* Fixed status width on phones: the name column gets the rest instead of a roomy status. */
-    grid-template-columns: 12px minmax(10ch, 1fr) 4.25rem auto;
+    /* Fixed status + hole-card slot on phones — reveal never shifts the stack column. */
+    grid-template-columns: 12px minmax(9ch, 1fr) 3.75rem 44px auto;
     gap: 7px;
     padding: 7px 9px;
     border-radius: 11px;
+  }
+
+  .seat-shown-hand {
+    width: 44px;
+    min-width: 44px;
+    max-width: 44px;
+    height: 26px;
+    min-height: 26px;
+  }
+  .seat-shown-hand .card {
+    width: 20px;
+    min-width: 20px;
+    font-size: 9px;
   }
 
   .seat-timer {
@@ -4719,17 +4748,6 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
     min-width: 5ch;
     font-size: 12px;
     white-space: nowrap;
-  }
-
-  .shown-hand-card {
-    padding: 9px 10px;
-  }
-
-  .shown-hand-card .action-card-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
   }
 
   .action-feed-card:not(.action-history-card) {

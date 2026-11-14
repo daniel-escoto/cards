@@ -383,14 +383,24 @@ function saveRoomCredentials(roomId: string, response: { playerId?: string; reco
 }
 
 function setViewportHeight() {
-  const height = window.visualViewport?.height || window.innerHeight;
+  const vv = window.visualViewport;
+  const height = vv?.height || window.innerHeight;
   const value = `${Math.floor(height)}px`;
   document.documentElement.style.setProperty("--viewport-height", value);
   document.documentElement.style.setProperty("--game-vh", value);
+  // On-screen keyboard: visual viewport shrinks vs layout viewport. Never flip
+  // layout from mere focus — only when the keyboard actually covers the page.
+  if (!welcome.classList.contains("hidden")) {
+    const layoutH = window.innerHeight;
+    const keyboardLikely = height < layoutH - 120;
+    document.body.classList.toggle("keyboard-open", keyboardLikely);
+  }
 }
 
 function setKeyboardMode(isOpen: boolean) {
-  document.body.classList.toggle("keyboard-open", isOpen && !welcome.classList.contains("hidden"));
+  if (!isOpen) {
+    document.body.classList.remove("keyboard-open");
+  }
   setViewportHeight();
 }
 
@@ -1270,17 +1280,20 @@ function playerForAction(entry: ActionLogEntry) {
   return byNameIndex >= 0 ? state.players[byNameIndex] : null;
 }
 
-function renderShownHandCard(player: ClientPlayer) {
-  if (!state) return "";
-  return `
-    <article class="action-feed-card shown-hand-card ${player.isYou ? "you" : ""}" ${playerColorStyle(player)}>
-      <div class="action-card-head">
-        <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
-        <strong class="player-stack">${playerStackLabel(player)}</strong>
-      </div>
-      <div class="shown-hand">${player.cards.map((card) => cardTemplate(card)).join("")}</div>
-    </article>
-  `;
+/** Mini hole cards inline in the seat row — reserved slot so reveal never shifts layout. */
+function seatShownHandMarkup(player: ClientPlayer) {
+  const visible =
+    Boolean(player.showCards) &&
+    Array.isArray(player.cards) &&
+    player.cards.some((card) => card && (card.code || card.rank));
+  const cards = visible
+    ? player.cards!
+        .filter((card) => card && (card.code || card.rank))
+        .slice(0, 2)
+        .map((card) => cardTemplate(card))
+        .join("")
+    : "";
+  return `<span class="seat-shown-hand${visible ? " is-visible" : ""}" aria-hidden="${visible ? "false" : "true"}">${cards}</span>`;
 }
 
 function currentTurnPlayer() {
@@ -1741,21 +1754,14 @@ function renderActionFeed(newEntryId = "") {
         <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
         <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}</span>${seatChipMarkup(player)}</span>
         <span class="player-action${actionClass}">${escapeHtml(action)}${arrowMarkup}${clockMarkup}</span>
+        ${seatShownHandMarkup(player)}
         <strong class="player-stack">${playerStackLabel(player)}</strong>
         ${barMarkup}
       </article>
     `;
     })
     .join("");
-  // Revealed hands: showdown winners/mucks, voluntary shows, and all-in runout face-ups.
-  const shownHands = room.players
-    .filter(
-      (player) =>
-        player.showCards && player.cards?.some((card) => card && (card.code || card.rank)),
-    )
-    .map(renderShownHandCard)
-    .join("");
-  return `${tableMarkup}${shownHands}`;
+  return tableMarkup;
 }
 
 function isEndedGameReturn(previous: ClientRoom | null | undefined, next: ClientRoom | null | undefined) {

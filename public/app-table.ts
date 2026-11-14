@@ -470,7 +470,7 @@ function captureHandReviewDecision(payload: Record<string, unknown>) {
       minRaiseTo,
       maxRaiseTo,
       raiseStep,
-      canRaise: Boolean(state.canRaise || state.canShove) && maxRaiseTo > currentBet,
+      canRaise: heroCanRaiseMeaningfully(state, hero),
     },
   });
 }
@@ -799,8 +799,17 @@ function renderMistakeRetryActions(item: HandReviewItemLocal, beforeTable: Repla
 
 function renderHandReviewChrome(step: HandReplayLocal["steps"][number]) {
   if (handReviewStepLabel) {
-    const total = lastHandReplay?.steps.length || 1;
-    handReviewStepLabel.textContent = `${handReviewStepIndex + 1}/${total} · ${step.label}`;
+    const steps = lastHandReplay?.steps || [];
+    const heroIndexes = steps
+      .map((s, idx) => (s.isHeroDecision ? idx : -1))
+      .filter((idx) => idx >= 0);
+    const heroOrdinal = heroIndexes.indexOf(handReviewStepIndex);
+    // Prefer compact hero-decision numbering so long hands don't truncate to "31/31 · …".
+    const prefix =
+      heroOrdinal >= 0
+        ? `${heroOrdinal + 1}/${heroIndexes.length || 1}`
+        : `${handReviewStepIndex + 1}/${steps.length || 1}`;
+    handReviewStepLabel.textContent = `${prefix} · ${step.label}`;
   }
 
   if (step.decision) {
@@ -826,20 +835,38 @@ function renderHandReviewChrome(step: HandReplayLocal["steps"][number]) {
   }
 
   if (handReviewTimeline && lastHandReplay) {
+    // Long hands: only hero decision dots (bot/street frames stay reachable via ←/→).
+    // Keeps the strip from overflowing while preserving fixed dot x-positions.
     handReviewTimeline.replaceChildren();
-    lastHandReplay.steps.forEach((dotStep, idx) => {
+    const heroIndexes = lastHandReplay.steps
+      .map((dotStep, idx) => (dotStep.isHeroDecision ? idx : -1))
+      .filter((idx) => idx >= 0);
+    const activeHeroIdx = (() => {
+      if (heroIndexes.includes(handReviewStepIndex)) return handReviewStepIndex;
+      // On a bot/street frame, light up the nearest prior hero decision.
+      for (let i = heroIndexes.length - 1; i >= 0; i -= 1) {
+        const idx = heroIndexes[i]!;
+        if (idx <= handReviewStepIndex) return idx;
+      }
+      return heroIndexes[0] ?? -1;
+    })();
+    heroIndexes.forEach((idx) => {
+      const dotStep = lastHandReplay!.steps[idx]!;
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "hand-review-dot";
-      if (dotStep.isHeroDecision && dotStep.decision) {
-        btn.classList.add("is-hero", `is-${dotStep.decision.verdict}`);
-      }
-      if (idx === handReviewStepIndex) btn.classList.add("is-active");
+      btn.className = "hand-review-dot is-hero";
+      if (dotStep.decision) btn.classList.add(`is-${dotStep.decision.verdict}`);
+      if (idx === activeHeroIdx) btn.classList.add("is-active");
       btn.setAttribute("role", "listitem");
-      btn.setAttribute("aria-label", `Step ${idx + 1}: ${dotStep.label}`);
+      btn.setAttribute("aria-label", `Decision ${heroIndexes.indexOf(idx) + 1}: ${dotStep.label}`);
       btn.addEventListener("click", () => paintHandReviewStep(idx));
       handReviewTimeline.append(btn);
     });
+    // Keep the active dot in view without shifting layout of neighbors.
+    const activeEl = handReviewTimeline.querySelector(".hand-review-dot.is-active");
+    if (activeEl && typeof activeEl.scrollIntoView === "function") {
+      activeEl.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
   }
 
   gameButtons.innerHTML = "";
@@ -1164,12 +1191,31 @@ function renderBustPanel(room: ClientRoom) {
   if (room.canRestartGame) addButton("Restart", "game:restart", "secondary");
 }
 
+/**
+ * True when a raise/shove is a legal, meaningful action for the hero.
+ * Short all-ins that did not reopen (canRaise/canShove false) must not show Raise.
+ * When every live opponent is already all-in, raising builds a dead side pot — Call only.
+ */
+function heroCanRaiseMeaningfully(room: ClientRoom, hero: ClientPlayer): boolean {
+  const maxRaise = hero.bet + hero.stack;
+  if (maxRaise <= room.currentBet) return false;
+  if (!(room.canRaise || room.canShove)) return false;
+  const liveVillains = (room.players || []).filter(
+    (player) => !player.isYou && !player.folded && player.id !== hero.id,
+  );
+  if (liveVillains.length === 0) return false;
+  // Nobody left who can put more chips in behind a raise.
+  if (liveVillains.every((player) => player.allIn || player.stack <= 0)) return false;
+  return true;
+}
+
 function renderHeroActionControls(hero: ClientPlayer, disabled: boolean) {
   if (!state) return;
   const maxRaise = hero.bet + hero.stack;
   const canBetMore = maxRaise > state.currentBet;
-  // Merge Check/Bet or Call/Raise into one confirm whenever the hero can put more in.
-  mergePassiveConfirm = canBetMore;
+  const canRaiseUi = heroCanRaiseMeaningfully(state, hero);
+  // Merge Check/Bet or Call/Raise only when a raise is actually available.
+  mergePassiveConfirm = canRaiseUi;
 
   // Fold only when facing a bet — free checks must not offer a fold misclick.
   if (state.toCall > 0) addActionButton("Fold", { type: "fold" }, "danger", disabled);
@@ -1185,9 +1231,10 @@ function renderHeroActionControls(hero: ClientPlayer, disabled: boolean) {
     );
   }
 
-  // All in (and the bet panel) must stay available whenever the hero can put more
-  // chips in — including a short all-in below min-raise. Do not gate on canRaise.
-  if (canBetMore) configureRaiseControls(hero, disabled);
+  // Bet panel only when raise/shove is legal. Facing a short all-in that did not
+  // reopen — or when every villain is all-in — Call/Check alone is the UI.
+  if (canRaiseUi && canBetMore) configureRaiseControls(hero, disabled);
+  else setBetControlsReserved(true);
 }
 
 function configureRaiseControls(hero: ClientPlayer, disabled = false) {
@@ -1482,6 +1529,12 @@ function showSharePanel() {
   shareQr.src = `/qr.svg?text=${encodeURIComponent(link)}`;
 }
 
+function reportActionFailure(message: string) {
+  const text = message || "Action failed.";
+  joinError.textContent = text;
+  if (typeof showToast === "function") showToast(text);
+}
+
 function emitWithAck(eventName: string, payload?: Record<string, unknown>) {
   // Offline Practice: pause Ready/auto-deal while the replay chrome is open.
   if (handReviewActive && (eventName === "game:ready" || eventName === "game:action")) {
@@ -1493,12 +1546,12 @@ function emitWithAck(eventName: string, payload?: Record<string, unknown>) {
   if (practiceSession) {
     const response = practiceSession.handle(eventName, payload || {});
     if (!response?.ok) {
-      joinError.textContent = response?.error || "Action failed.";
+      reportActionFailure(response?.error || "Action failed.");
     }
     return;
   }
   if (!socket) {
-    joinError.textContent = "Connecting...";
+    reportActionFailure("Connecting...");
     return;
   }
   socket.timeout(4000).emit(
@@ -1506,13 +1559,13 @@ function emitWithAck(eventName: string, payload?: Record<string, unknown>) {
     payload,
     ((error: Error | null, response?: OkAck | ErrAck) => {
       if (error) {
-        joinError.textContent = "Reconnecting to the table...";
+        reportActionFailure("Reconnecting to the table...");
         lastAutoRejoinKey = "";
         attemptAutoRejoin();
         return;
       }
       if (!response?.ok) {
-        joinError.textContent = response?.error || "Action failed.";
+        reportActionFailure(response?.error || "Action failed.");
         return;
       }
     }) satisfies SocketTimeoutAck<OkAck | ErrAck>,

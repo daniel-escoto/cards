@@ -34,11 +34,10 @@ assert.match(html, /id="trainerDrillMix"/);
 assert.match(html, /id="trainerBetControls"/);
 assert.match(html, /trainer\.js/);
 
-// Trainer sits outside the join form (avoid submit side-effects). Offline vs-bots
-// remains available via Host table (chip mode → startOfflineHost).
+// Trainer lives inside the join card (same group) but stays type=button (no submit).
 assert.match(
   html,
-  /<\/form>\s*<div class="welcome-secondary-actions"[\s\S]*?id="trainerBtn"/,
+  /id="joinForm"[\s\S]*id="trainerBtn"[^>]*type="button"[\s\S]*?<\/form>/,
 );
 
 assert.match(css, /\.trainer-chart-cell/);

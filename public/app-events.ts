@@ -53,13 +53,15 @@ syncBlindInputMode();
 updateTableActionLabel();
 
 joinForm.addEventListener("focusin", (event) => {
-  if ((event.target as HTMLElement).matches("input")) {
-    setKeyboardMode(true);
-    setTimeout(() => {
-      setViewportHeight();
+  if (!(event.target as HTMLElement).matches("input, select, textarea")) return;
+  // Re-measure after the keyboard animates; scroll only while typing so the
+  // focused field stays visible. Idle / unfocused home stays vertically centered.
+  setTimeout(() => {
+    setViewportHeight();
+    if (document.body.classList.contains("keyboard-open")) {
       (event.target as HTMLElement).scrollIntoView({ block: "center", behavior: "smooth" });
-    }, 250);
-  }
+    }
+  }, 280);
 });
 
 joinForm.addEventListener("focusout", () => {

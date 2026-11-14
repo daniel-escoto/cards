@@ -348,12 +348,16 @@ export function gradeHandDecision(
     typeof decision.raiseStep === "number" && decision.raiseStep > 0
       ? decision.raiseStep
       : Math.max(1, minRaiseTo - decision.currentBet || 1);
+  // Nobody left who can put more chips in → raising is not a real option; grade as Call/Fold only.
+  const opponentsCanRespond = decision.opponentStacks.some((stack) => stack > 0);
   const canRaise =
     (typeof options.canRaise === "boolean"
       ? options.canRaise
       : typeof decision.canRaise === "boolean"
         ? decision.canRaise
-        : true) && maxRaiseTo > decision.currentBet;
+        : true) &&
+    maxRaiseTo > decision.currentBet &&
+    opponentsCanRespond;
 
   const rec = recommendAction({
     equity,

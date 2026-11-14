@@ -40,4 +40,18 @@ assert.match(css, /\.control-panel\.is-result > \.game-buttons > button[\s\S]*?f
 assert.match(tableSrc, /kind: \"spoiler\"/);
 assert.match(tableSrc, /There was a better play here|formatMistakeNudge/);
 
+// Timeline: hero-decision dots only (long hands must not overflow).
+assert.match(tableSrc, /only hero decision dots|heroIndexes/);
+assert.match(css, /\.hand-review-timeline\s*\{[^}]*overflow-x:\s*auto/s);
+
+// Seat hole cards: reserved grid column + inline markup (no appended feed cards).
+assert.match(css, /\.seat-shown-hand\s*\{/);
+assert.match(css, /grid-template-columns:[^;]*48px/s);
+
+// Welcome: centered idle; keyboard-open only via body class (not focus-within jump).
+assert.match(css, /\.welcome\s*\{[^}]*align-content:\s*safe center/s);
+assert.doesNotMatch(css, /#joinForm:focus-within/);
+assert.match(css, /body\.keyboard-open \.welcome/);
+assert.match(html, /id="trainerBtn"[\s\S]*?<\/form>/);
+
 console.log("Layout stability static checks passed.");
