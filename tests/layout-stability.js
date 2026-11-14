@@ -25,12 +25,22 @@ assert.match(css, /\.hand-review-dot:focus-visible/);
 
 // Verdict + retry slots keep height when idle / empty.
 assert.match(css, /\.hand-review-verdict\s*\{[^}]*min-height:/s);
-assert.match(css, /\.hand-review-retry-bar\s*\{[^}]*min-height:\s*40px/s);
+assert.match(css, /\.hand-review-retry-bar\s*\{[^}]*min-height:\s*44px/s);
 assert.match(css, /body\.hand-review-open \.hand-review-verdict\.is-idle/);
 
-// Close control is a real icon button (not a naked native square).
-assert.match(html, /hand-review-close[^>]*icon-btn|icon-btn[^>]*hand-review-close/);
-assert.match(css, /\.hand-review-close\.icon-btn/);
+// Close control is a real icon button in the hand-row (top-right with pot).
+assert.match(html, /hand-row[\s\S]*hand-review-close[^>]*icon-btn|hand-row[\s\S]*icon-btn[^>]*hand-review-close/);
+assert.match(css, /\.hand-row \.hand-review-close\.icon-btn/);
+assert.match(css, /\.hand-review-verdict\s*\{[^}]*min-height:\s*calc\(13px \* 1\.3 \* 4/s);
+assert.match(
+  css,
+  /body\.hand-review-open:not\(\.hand-review-retrying\) \.control-panel > \.game-buttons[\s\S]*?visibility:\s*hidden/s,
+  "non-retry review must reserve button row (visibility, not display:none)",
+);
+assert.match(
+  css,
+  /body\.hand-review-open\.hand-review-retrying \.hand-review-nav\s*\{[^}]*visibility:\s*hidden/s,
+);
 
 // Between-hands action row shares width evenly (Ready / Review [/ Show hand]).
 assert.match(css, /\.control-panel\.is-result > \.game-buttons > button[\s\S]*?flex:\s*1 1 0/);

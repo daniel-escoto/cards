@@ -19,7 +19,7 @@ const html = fs.readFileSync(path.join(root, "public/index.html"), "utf8");
 assert.match(tableSrc, /function continueHandReview/);
 assert.match(
   tableSrc,
-  /cont\.addEventListener\("click", \(\) => continueHandReview\(\)\)/,
+  /textActionLink\("Continue review", \(\) => continueHandReview\(\)\)/,
 );
 assert.doesNotMatch(
   tableSrc,
@@ -39,16 +39,11 @@ assert.match(
 assert.match(eventsSrc, /hand-review-continue/);
 assert.match(eventsSrc, /event\.key === "Enter"/);
 
-// Close stays top-right; sized like shared icon-btn (beats control-panel button min-height).
-assert.match(
-  css,
-  /\.control-panel \.hand-review-close\.icon-btn\s*\{[^}]*align-self:\s*flex-start/s,
-);
-assert.match(
-  css,
-  /\.control-panel \.hand-review-close\.icon-btn\s*\{[^}]*min-height:\s*42px/s,
-);
-assert.match(css, /\.hand-review-chrome-head\s*\{[^}]*align-items:\s*flex-start/s);
+// Close lives in the hand-row (top-right with pot), sized like shared icon-btn.
+assert.match(css, /\.hand-row \.hand-review-close\.icon-btn\s*\{[^}]*min-height:\s*42px/s);
+assert.match(html, /hand-row[\s\S]*id="handReviewCloseBtn"/);
+assert.match(tableSrc, /handReviewCloseBtn\.hidden = false/);
+assert.match(tableSrc, /textActionLink\("Continue review"/);
 
 // Built JS must exist (npm test runs build first).
 const tableJs = fs.readFileSync(path.join(root, "dist/public/app-table.js"), "utf8");
@@ -274,6 +269,7 @@ vm.runInNewContext(
     grab("paintHandReviewStep"),
     grab("continueHandReview"),
     grab("paintHandReviewVerdict"),
+    grab("textActionLink"),
     grab("submitHandReviewRetryAction"),
   ].join("\n") +
     `\nthis.isHandReviewLandableStep = isHandReviewLandableStep;` +
@@ -281,6 +277,7 @@ vm.runInNewContext(
     `\nthis.paintHandReviewStep = paintHandReviewStep;` +
     `\nthis.continueHandReview = continueHandReview;` +
     `\nthis.paintHandReviewVerdict = paintHandReviewVerdict;` +
+    `\nthis.textActionLink = textActionLink;` +
     `\nthis.submitHandReviewRetryAction = submitHandReviewRetryAction;`,
   context,
 );

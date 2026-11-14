@@ -720,6 +720,7 @@ function openHandReview() {
   document.body.classList.add("hand-review-open");
   syncHandReviewRetryingClass();
   handReviewChrome?.classList.remove("hidden");
+  if (handReviewCloseBtn) handReviewCloseBtn.hidden = false;
   if (handReviewSummary) handReviewSummary.textContent = lastHandReplay.summary;
   bustCardRenderCache();
   handReviewJumpToStart();
@@ -732,6 +733,7 @@ function hideHandReview() {
   handReviewRevealedSteps = new Set();
   document.body.classList.remove("hand-review-open", "hand-review-retrying");
   handReviewChrome?.classList.add("hidden");
+  if (handReviewCloseBtn) handReviewCloseBtn.hidden = true;
   if (handReviewRetryBar) {
     handReviewRetryBar.classList.add("is-idle");
     handReviewRetryBar.classList.remove("hidden");
@@ -1004,12 +1006,16 @@ function renderHandReviewChrome(step: HandReplayLocal["steps"][number]) {
     }
   }
 
-  gameButtons.innerHTML = "";
+  // Do not clear #gameButtons here — render()/reserveActionSpace keeps a reserved
+  // Fold/Call + raise shell so panel height matches retry-live (no jump).
   turnInfo.textContent = step.decision
     ? `You ${step.decision.taken}${step.decision.raiseTo != null ? ` ${step.decision.raiseTo}` : ""}`
     : step.label;
   turnInfo.classList.toggle("your-turn", Boolean(step.decision));
-  setBetControlsReserved(false);
+  if (!handReviewRetryItem) {
+    setBetControlsReserved(true);
+    reserveActionSpace();
+  }
 }
 
 /**
@@ -1039,13 +1045,13 @@ function submitHandReviewRetryAction(payload: Record<string, unknown>) {
   }
   if (handReviewRetryBar) {
     handReviewRetryBar.replaceChildren();
-    const cont = document.createElement("button");
-    cont.type = "button";
-    cont.className = "ghost hand-review-continue";
-    cont.textContent = "Continue review";
+    const links = document.createElement("div");
+    links.className = "action-links";
+    const cont = textActionLink("Continue review", () => continueHandReview());
+    cont.classList.add("hand-review-continue");
     cont.setAttribute("aria-label", "Continue review (Enter)");
-    cont.addEventListener("click", () => continueHandReview());
-    handReviewRetryBar.append(cont);
+    links.append(cont);
+    handReviewRetryBar.append(links);
     handReviewRetryBar.classList.remove("is-idle", "hidden");
   }
   turnInfo.textContent = result.correct ? "Correct" : "Keep reviewing";
@@ -1212,10 +1218,15 @@ function reserveActionSpace() {
   // Drop the reserved bet row when it would only leave empty space: pre-hand lobby, or
   // Fold/Call-only turns (short all-in / no reopen) where Raise isn't offered.
   const handLive = Boolean(state && !["lobby", "complete", "gameover"].includes(state.phase));
-  const compact = reserved && !hasResult && (!handLive || hasButtons);
+  // Hand review always keeps the button + bet tracks (same footprint as retry-live).
+  const compact =
+    !handReviewActive && reserved && !hasResult && (!handLive || hasButtons);
   panel.classList.toggle("is-compact", compact);
-  panel.classList.toggle("is-result", reserved && hasResult);
-  panel.classList.toggle("is-idle", reserved && !hasResult && !hasButtons && !compact);
+  panel.classList.toggle("is-result", reserved && hasResult && !handReviewActive);
+  panel.classList.toggle(
+    "is-idle",
+    !handReviewActive && reserved && !hasResult && !hasButtons && !compact,
+  );
 }
 
 /** Second line of a result: "Everyone folded" for fold-wins, otherwise the made hand. */

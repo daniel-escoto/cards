@@ -353,7 +353,8 @@ function table(overrides = {}) {
   assert.match(css, /\.hand-review-dot:focus-visible/);
   assert.match(css, /\.hand-review-show-answer/);
   assert.match(css, /\.hand-review-timeline-wrap\s*\{[^}]*grid-template-rows:\s*auto auto/s);
-  assert.match(css, /\.hand-review-close\.icon-btn/);
+  assert.match(css, /\.hand-row \.hand-review-close\.icon-btn/);
+  assert.match(css, /hand-review-continue\.text-action-link/);
   assert.doesNotMatch(css, /position:\s*fixed[\s\S]{0,80}\.hand-review-chrome|\.hand-review-chrome[\s\S]{0,120}position:\s*fixed/);
   assert.doesNotMatch(
     css,

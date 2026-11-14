@@ -117,14 +117,17 @@ assert.equal(
   "header and verdict prompt must not overlap",
 );
 
-// Close sits in the head band (same top), not mid-panel below the verdict.
-const closeRect = closeBtn.getBoundingClientRect();
-const headRect = head.getBoundingClientRect();
-assert.ok(
-  Math.abs(closeRect.top - headRect.top) < 1,
-  "close × must share the header top edge (not float mid-panel)",
+// Close lives in the hand-row (top-right with pot), above the chrome head/verdict.
+assert.equal(
+  closeBtn.closest(".hand-row") != null,
+  true,
+  "close × must live in the hand-row (panel top-right), not the chrome head",
 );
-assert.ok(closeRect.bottom <= verdict.getBoundingClientRect().top + 1, "close must not sit in the verdict band");
+assert.doesNotMatch(
+  String(head?.innerHTML || ""),
+  /handReviewCloseBtn|hand-review-close/,
+  "chrome head must not contain the close button",
+);
 
 // Guard: the old overlapping Call-20 box WOULD collide with the header.
 assert.equal(
