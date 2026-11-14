@@ -611,6 +611,16 @@ declare global {
   function isBlindPost(entry: ActionLogEntry): boolean;
   function actionTokenClass(entry: ActionLogEntry, player: ClientPlayer | null | undefined): string;
   function playerTableStatus(player: ClientPlayer, isActiveTurn?: boolean): string;
+  function seatCanActThisStreet(player: ClientPlayer | null | undefined): boolean;
+  function nextToActSeat(
+    players: ClientPlayer[] | null | undefined,
+    turnId: string | null | undefined,
+    phase: string | null | undefined,
+  ): ClientPlayer | null;
+  function seatWaitingForStreetAction(
+    player: ClientPlayer,
+    options: { hasStreetAction: boolean; isActing: boolean; phase: string | null | undefined },
+  ): boolean;
   function playerForAction(entry: ActionLogEntry): ClientPlayer | null | undefined;
   function renderShownHandCard(player: ClientPlayer): string;
   function currentTurnPlayer(): ClientPlayer | null | undefined;

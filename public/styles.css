@@ -1883,6 +1883,11 @@ button.menu-player-row:not(:disabled):hover {
   background: color-mix(in srgb, var(--accent) 16%, rgba(8, 16, 18, 0.45));
   box-shadow: inset 3px 0 0 var(--player-color, var(--accent));
 }
+/* Next-to-act: clearly weaker than .turn (no fill bump, thinner/fainter inset). */
+.table-player-row.next-to-act:not(.turn) {
+  border-color: color-mix(in srgb, var(--accent) 22%, rgba(255, 255, 255, 0.1));
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--player-color, var(--accent)) 32%, transparent);
+}
 .table-player-row.folded {
   opacity: 0.55;
 }
@@ -1991,6 +1996,11 @@ button.menu-player-row:not(:disabled):hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: right;
+}
+.player-action.is-waiting,
+.player-action.is-next {
+  color: rgba(255, 255, 255, 0.38);
+  font-weight: 550;
 }
 .player-stack {
   /* Same width on every row (each row is its own grid), so status and stack columns line up. */

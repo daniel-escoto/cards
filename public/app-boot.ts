@@ -1102,8 +1102,46 @@ function playerTableStatus(player: ClientPlayer, isActiveTurn = player.isTurn) {
   if (player.folded) return "Fold";
   if (player.allIn) return "All in";
   if (isActiveTurn) return "Acting";
-  // Default "in hand" status is silent — last-action pills carry the story.
+  // Default "in hand" status is silent — last-action pills / waiting placeholder carry the story.
   return player.connected ? "" : "Away";
+}
+
+/** Same eligibility the engine uses when advancing the turn (skip folded / all-in). */
+function seatCanActThisStreet(player: ClientPlayer | null | undefined) {
+  return Boolean(player && !player.folded && !player.allIn && player.stack > 0 && !player.sittingOut);
+}
+
+/**
+ * Seat after the current actor in table order among players who can still act.
+ * Hidden when betting isn't live or only the actor remains (street/hand about to close).
+ */
+function nextToActSeat(
+  players: ClientPlayer[] | null | undefined,
+  turnId: string | null | undefined,
+  phase: string | null | undefined,
+) {
+  if (!turnId || !isBettingPhase(phase)) return null;
+  const seats = players || [];
+  if (seats.filter(seatCanActThisStreet).length <= 1) return null;
+  const from = seats.findIndex((player) => player.id === turnId);
+  if (from < 0) return null;
+  for (let offset = 1; offset < seats.length; offset += 1) {
+    const seat = seats[(from + offset) % seats.length];
+    if (seatCanActThisStreet(seat)) return seat;
+  }
+  return null;
+}
+
+/** Live seat with no street action yet — blank used to look "resolved". */
+function seatWaitingForStreetAction(
+  player: ClientPlayer,
+  options: { hasStreetAction: boolean; isActing: boolean; phase: string | null | undefined },
+) {
+  if (!isBettingPhase(options.phase)) return false;
+  if (options.isActing || options.hasStreetAction) return false;
+  if (!seatCanActThisStreet(player)) return false;
+  if (player.waitingForNextHand) return false;
+  return true;
 }
 
 function playerForAction(entry: ActionLogEntry) {
@@ -1508,6 +1546,7 @@ function renderActionFeed(newEntryId = "") {
   const room = state;
   const entries = streetActionEntries(room.actionLog, room.phase);
   const activePlayer = currentTurnPlayer();
+  const nextPlayer = nextToActSeat(room.players, room.turn, room.phase);
   const latestByPlayer = new Map<string, ActionLogEntry>();
   entries.forEach((entry) => {
     // Blind posts aren't actions; the SB/BB chips mark those seats for the whole hand.
@@ -1519,13 +1558,27 @@ function renderActionFeed(newEntryId = "") {
     .map((player) => {
       const entry = latestByPlayer.get(player.id);
       const isActing = player.id === activePlayer?.id;
+      const isNext = Boolean(nextPlayer && player.id === nextPlayer.id && !isActing);
       const betweenHands = ["lobby", "complete"].includes(room.phase);
       const isAllIn = Boolean(player.allIn);
       const isOutOfAction = player.folded || isAllIn;
       const showStreetAction = !betweenHands && entry && !isOutOfAction;
-      const action = showStreetAction
+      const waiting = seatWaitingForStreetAction(player, {
+        hasStreetAction: Boolean(showStreetAction),
+        isActing,
+        phase: room.phase,
+      });
+      let action = showStreetAction
         ? compactPlayerAction(entry, player)
         : playerTableStatus(player, isActing);
+      let actionClass = showStreetAction ? actionTokenClass(entry, player) : "";
+      if (!action && waiting) {
+        // Next seat prefers a muted "Next"; everyone else gets an em dash so blank ≠ resolved.
+        action = isNext ? "Next" : "—";
+        actionClass = isNext ? " is-next" : " is-waiting";
+      } else if (isNext && !isActing) {
+        actionClass = `${actionClass} is-next`;
+      }
       const showTurnClock = isActing && actingSeatShowsClock(player);
       const showReadyClock = !showTurnClock && seatShowsReadyClock(player);
       const showClock = showTurnClock || showReadyClock;
@@ -1567,10 +1620,10 @@ function renderActionFeed(newEntryId = "") {
           ? ' data-ready-seat-clock="1"'
           : "";
       return `
-      <article class="table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${lowTime ? "low-time" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${seatClockAttr}${styleAttr}>
+      <article class="table-player-row ${isActing ? "turn" : ""} ${isNext ? "next-to-act" : ""} ${showClock ? "shot-clock" : ""} ${lowTime ? "low-time" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${seatClockAttr}${styleAttr}>
         <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
         <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}</span>${seatChipMarkup(player)}</span>
-        <span class="player-action${showStreetAction ? actionTokenClass(entry, player) : ""}">${escapeHtml(action)}${clockMarkup}</span>
+        <span class="player-action${actionClass}">${escapeHtml(action)}${clockMarkup}</span>
         <strong class="player-stack">${playerStackLabel(player)}</strong>
         ${barMarkup}
       </article>
