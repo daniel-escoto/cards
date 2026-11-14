@@ -81,5 +81,14 @@ assert.doesNotMatch(bootSrc, /heroHand\.title\s*=/);
 // Hand Review retry reveals live controls without leaving the review shell.
 assert.match(css, /body\.hand-review-open\.hand-review-retrying[\s\S]*?\.game-buttons/);
 assert.match(tableSrc, /hand-review-retrying/);
+// Retry must keep #turnInfo hidden — showing it stacked "Call N" on HAND REVIEW.
+assert.match(
+  css,
+  /body\.hand-review-open\.hand-review-retrying \.control-panel > \.turn-info\s*\{[^}]*display:\s*none\s*!important/s,
+);
+assert.doesNotMatch(
+  css,
+  /body\.hand-review-open\.hand-review-retrying \.control-panel > \.turn-info\s*\{[^}]*display:\s*block\s*!important/s,
+);
 
 console.log("Layout stability static checks passed.");

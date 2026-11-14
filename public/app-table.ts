@@ -1242,16 +1242,13 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
 
   // Replay chrome owns the panel while open — except in-spot retry, which reuses
   // the live Fold + Call/Raise controls (same component as the table / Trainer).
+  // Never paint a second "Call N" into #turnInfo during retry: that label shares
+  // grid row 3 with the chrome head and stacks on top of HAND REVIEW.
   if (handReviewActive) {
     if (handReviewRetryItem) {
       const reviewHero = activeHero();
       if (reviewHero) {
         renderHeroActionControls(reviewHero, false);
-        turnInfo.textContent =
-          (state.toCall || 0) > 0
-            ? `Call ${formatAmount(state.toCall, state.toCallCents)}`
-            : "Check or bet";
-        turnInfo.classList.add("your-turn");
       } else {
         setBetControlsReserved(true);
       }

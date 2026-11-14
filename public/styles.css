@@ -3785,16 +3785,21 @@ body.hand-review-open .control-panel > .bet-controls,
 body.hand-review-open .control-panel > .winner-list {
   display: none !important;
 }
-/* In-spot retry: show the live Fold/Call + raise shell (same footprint as the table). */
+/* In-spot retry: show the live Fold/Call + raise shell (same footprint as the table).
+   Keep .turn-info hidden — the verdict prompt owns "Your turn · Pot · Call"; showing
+   turn-info on the same grid row stacked "Call 20" on top of HAND REVIEW. */
 body.hand-review-open.hand-review-retrying .control-panel > .hand-review-chrome {
   grid-row: 3;
   align-self: start;
+  /* Fill the prompt track so the × stays top-right of this slot (not mid-panel). */
+  width: 100%;
+  position: relative;
 }
 body.hand-review-open.hand-review-retrying .hand-review-nav {
   display: none;
 }
 body.hand-review-open.hand-review-retrying .control-panel > .turn-info {
-  display: block !important;
+  display: none !important;
 }
 body.hand-review-open.hand-review-retrying .control-panel > .game-buttons {
   display: flex !important;
@@ -3827,7 +3832,8 @@ body.hand-review-open.hand-review-retrying .control-panel > .bet-controls {
   max-width: 100%;
 }
 /* Beat `.control-panel button { min-height: 48px }` so × matches menu .icon-btn and
-   stays pinned to the head’s top-right (no mid-panel float / layout shift). */
+   stays pinned to the head’s top-right (no mid-panel float / layout shift) —
+   including the in-spot retry state where live Fold/Call/Raise sit below. */
 .control-panel .hand-review-close.icon-btn {
   flex: 0 0 auto;
   align-self: flex-start;
@@ -3841,6 +3847,11 @@ body.hand-review-open.hand-review-retrying .control-panel > .bet-controls {
   font-size: 24px;
   line-height: 1;
   transform: none;
+  position: relative;
+  z-index: 2;
+}
+body.hand-review-open .hand-review-chrome-head {
+  position: relative;
 }
 /* Two-line slot only — badge + why. No oversized empty band between head and nav. */
 .hand-review-verdict {
