@@ -1082,7 +1082,7 @@ function handReviewStepBy(delta: number) {
   if (!handReviewActive || handReviewRetryItem) return;
   const landable = handReviewLandableIndexes();
   if (!landable.length) return;
-  let pos = landable.indexOf(handReviewStepIndex);
+  const pos = landable.indexOf(handReviewStepIndex);
   if (pos < 0) {
     // Rare: landed off-grid — snap to the next landable in the step direction.
     if (delta > 0) {

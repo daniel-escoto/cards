@@ -87,7 +87,6 @@ const context = {
   handReviewJumpToStart: () => calls.push("jump:start"),
   handReviewJumpToEnd: () => calls.push("jump:end"),
   paintHandReviewStep: (index) => calls.push(`paint:${index}`),
-  handReviewRetryItem: null,
   state: null,
   betControls: { classList: { contains: () => true } },
   mergePassiveConfirm: false,
