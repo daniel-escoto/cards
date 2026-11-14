@@ -1,12 +1,18 @@
 /**
  * Offline AI coach for bot-only tables. Uses hero cards + board only (never
  * opponent holes). Equity via the shared engine's Monte Carlo helpers.
+ * Implied-odds upgrades for speculative hands live in shared/coach-odds.
  */
 (function (
-  root: typeof globalThis & { Coach?: CoachAPI; HoldemEngine?: HoldemEngineAPI },
+  root: typeof globalThis & {
+    Coach?: CoachAPI;
+    HoldemEngine?: HoldemEngineAPI;
+    CoachOdds?: CoachOddsAPI;
+  },
   factory: (
     engine: HoldemEngineAPI | undefined,
     hand: { solve: (cards: string[]) => { descr?: string } } | undefined,
+    odds: CoachOddsAPI | undefined,
   ) => CoachAPI,
 ) {
   if (typeof module === "object" && module.exports) {
@@ -16,17 +22,27 @@
     } catch {
       engine = undefined;
     }
-    module.exports = factory(engine, undefined);
+    let odds: CoachOddsAPI | undefined;
+    try {
+      odds = require("../shared/coach-odds.node.js") as CoachOddsAPI;
+    } catch {
+      try {
+        odds = require("../shared/coach-odds.js") as CoachOddsAPI;
+      } catch {
+        odds = undefined;
+      }
+    }
+    module.exports = factory(engine, undefined, odds);
   } else {
     const handGlobal =
       typeof Hand !== "undefined" && Hand && typeof Hand.solve === "function"
         ? { solve: (cards: string[]) => Hand.solve(cards) as { descr?: string } }
         : undefined;
-    root.Coach = factory(root.HoldemEngine, handGlobal);
+    root.Coach = factory(root.HoldemEngine, handGlobal, root.CoachOdds);
   }
 })(
   typeof globalThis !== "undefined" ? globalThis : (this as typeof globalThis),
-  function (engine, handApi) {
+  function (engine, handApi, oddsApi) {
     "use strict";
 
     type SeatLike = { id: string; isYou?: boolean; isBot?: boolean };
@@ -119,6 +135,30 @@
       return clamped;
     }
 
+    function applyImpliedOdds(
+      heroCodes: [string, string],
+      boardLength: number,
+      equity: number,
+      potOdds: number,
+      toCall: number,
+      effectiveStack: number,
+    ): { action: "fold" | "call"; verdict: CoachVerdict; reason: string } | null {
+      if (!oddsApi || typeof oddsApi.adviseFacingBet !== "function") return null;
+      const advice = oddsApi.adviseFacingBet({
+        equity,
+        potOdds,
+        toCall,
+        effectiveStack,
+        heroCodes,
+        boardLength,
+      });
+      return {
+        action: advice.action,
+        verdict: advice.verdict,
+        reason: advice.reason,
+      };
+    }
+
     function buildCoachSuggestion(
       room: ClientRoom | null | undefined,
       options: { random?: () => number; iterations?: number } = {},
@@ -134,9 +174,11 @@
       if (heroCodes.length !== 2) return null;
 
       // Fairness: ignore every other seat's cards entirely (even if somehow present).
-      const opponents = (room.players || []).filter(
-        (player) => !player.isYou && !player.folded && (player.stack > 0 || player.allIn || player.invested > 0),
-      ).length;
+      const liveOpponents = (room.players || []).filter(
+        (player) =>
+          !player.isYou && !player.folded && (player.stack > 0 || player.allIn || player.invested > 0),
+      );
+      const opponents = liveOpponents.length;
       const board = boardCodes(room);
       const toCall = Math.max(0, Number(room.toCall) || 0);
       const pot = Math.max(0, Number(room.pot) || 0);
@@ -145,45 +187,69 @@
       const iterations = Math.max(40, Math.min(240, Math.floor(Number(options.iterations) || 120)));
       const equity = estimateEquity(heroCodes, board, Math.max(1, opponents), toCall, random, iterations);
       const label = handLabel(heroCodes, board);
+      const effectiveStack =
+        oddsApi && typeof oddsApi.effectiveStackForCall === "function"
+          ? oddsApi.effectiveStackForCall(
+              hero.stack,
+              liveOpponents.map((player) => player.stack),
+            )
+          : hero.stack;
 
       const canRaise = Boolean(room.canRaise || room.canShove);
       const maxRaise = hero.bet + hero.stack;
       let action: CoachSuggestion["action"];
+      let verdict: CoachVerdict;
       let raiseTo: number | null = null;
       let reason: string;
 
       if (toCall <= 0) {
         if (equity >= 0.62 && canRaise && maxRaise > room.currentBet) {
           action = room.currentBet > 0 ? "raise" : "bet";
+          verdict = action;
           raiseTo = pickRaiseTo(room, hero, true);
-          reason = "Strong equity — take the lead";
+          reason = "Strong equity — take the lead.";
         } else if (equity >= 0.4 && canRaise && maxRaise > room.currentBet && equity >= 0.52) {
           action = room.currentBet > 0 ? "raise" : "bet";
+          verdict = action;
           raiseTo = pickRaiseTo(room, hero, false);
-          reason = "Slight edge — small value bet";
+          reason = "Slight edge — small value bet.";
         } else {
           action = "check";
-          reason = equity < 0.35 ? "Weak — keep the pot small" : "No price to call — check";
+          verdict = "check";
+          reason = equity < 0.35 ? "Weak — keep the pot small." : "No price to call — check.";
         }
       } else if (equity + 0.03 < potOdds) {
-        action = "fold";
-        reason = `Behind pot odds (${pct(equity)} < ${pct(potOdds)})`;
+        const codes: [string, string] = [heroCodes[0]!, heroCodes[1]!];
+        const implied = applyImpliedOdds(codes, board.length, equity, potOdds, toCall, effectiveStack);
+        if (implied) {
+          action = implied.action;
+          verdict = implied.verdict;
+          reason = implied.reason;
+        } else {
+          action = "fold";
+          verdict = "fold";
+          reason = `You need to win ${pct(potOdds)} to call; you win about ${pct(equity)}. Fold.`;
+        }
       } else if (equity >= potOdds + 0.12 && canRaise && maxRaise > room.currentBet) {
         action = "raise";
+        verdict = "raise";
         raiseTo = pickRaiseTo(room, hero, equity >= 0.65);
-        reason = "Well ahead of pot odds — raise";
+        reason = `Well ahead of the price (${pct(equity)} vs ${pct(potOdds)} needed). Raise.`;
       } else {
         action = "call";
+        verdict = "call";
         reason =
           equity >= potOdds
-            ? `Getting the right price (${pct(equity)} ≥ ${pct(potOdds)})`
-            : "Close with pot odds — call";
+            ? `You need to win ${pct(potOdds)} to call; you win about ${pct(equity)}. Call.`
+            : `Close with pot odds (${pct(equity)} vs ${pct(potOdds)}). Call.`;
       }
 
       const actionLabel =
-        action === "raise" || action === "bet"
-          ? `${action === "bet" ? "Bet" : "Raise"} ${raiseTo ?? ""}`.trim()
-          : action.charAt(0).toUpperCase() + action.slice(1);
+        verdict === "borderline"
+          ? "Borderline"
+          : action === "raise" || action === "bet"
+            ? `${action === "bet" ? "Bet" : "Raise"} ${raiseTo ?? ""}`.trim()
+            : action.charAt(0).toUpperCase() + action.slice(1);
 
       return {
         equity,
@@ -192,6 +258,7 @@
         opponents: Math.max(1, opponents),
         handLabel: label,
         action,
+        verdict,
         raiseTo,
         reason,
         summary: `${label} · ${pct(equity)} equity vs ${Math.max(1, opponents)} · ${
@@ -201,6 +268,7 @@
     }
 
     function actionHeadline(suggestion: CoachSuggestion): string {
+      if (suggestion.verdict === "borderline") return "Borderline";
       if (suggestion.action === "raise" || suggestion.action === "bet") {
         const verb = suggestion.action === "bet" ? "Bet" : "Raise to";
         return suggestion.raiseTo != null ? `${verb} ${suggestion.raiseTo}` : verb;
@@ -219,7 +287,7 @@
     /** Structured coach card copy (headline / reason / stats). */
     function formatCoachHintModel(suggestion: CoachSuggestion, room: ClientRoom): CoachHintModel {
       return {
-        action: suggestion.action,
+        action: suggestion.verdict,
         headline: actionHeadline(suggestion),
         reason: suggestion.reason,
         equity: pct(suggestion.equity),

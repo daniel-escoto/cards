@@ -161,7 +161,64 @@ function seat(id, overrides = {}) {
   assert.ok(suggestion);
   assert.ok(suggestion.equity + 0.03 < suggestion.potOdds, "air vs huge bet is behind");
   assert.equal(suggestion.action, "fold");
-  assert.match(suggestion.reason, /pot odds/i);
+  assert.equal(suggestion.verdict, "fold");
+  assert.match(suggestion.reason, /need to win|Fold/i);
+}
+
+{
+  // Daniel's 44 SB spot: pot 80, to call 40 (odds 33%), ~950 deep — not a hard Fold.
+  const Odds = require("../dist/shared/coach-odds.node");
+  const room = {
+    coachAvailable: true,
+    isYourTurn: true,
+    phase: "preflop",
+    pot: 80,
+    toCall: 40,
+    currentBet: 50,
+    minRaiseTo: 90,
+    canRaise: true,
+    canShove: true,
+    moneyMode: false,
+    community: [],
+    players: [
+      seat("hero", {
+        isYou: true,
+        cards: [card("4c"), card("4s")],
+        bet: 10,
+        stack: 950,
+        invested: 10,
+      }),
+      seat("bot", { isBot: true, bet: 50, stack: 950, invested: 50 }),
+    ],
+  };
+  // Force the reported equity/odds path through the pure advisor (MC varies).
+  const advice = Odds.adviseFacingBet({
+    equity: 0.22,
+    potOdds: 40 / 120,
+    toCall: 40,
+    effectiveStack: Odds.effectiveStackForCall(950, [950]),
+    heroCodes: ["4c", "4s"],
+    boardLength: 0,
+  });
+  assert.notEqual(advice.verdict, "fold");
+  assert.equal(advice.action, "call");
+
+  let seed = 11;
+  const random = () => {
+    seed = (seed * 16807) % 2147483647;
+    return (seed - 1) / 2147483646;
+  };
+  const suggestion = Coach.buildCoachSuggestion(room, { random, iterations: 100 });
+  assert.ok(suggestion);
+  assert.ok(suggestion.verdict, "verdict present");
+  const model = Coach.formatCoachHintModel(suggestion, room);
+  assert.ok(["Fold", "Call", "Raise", "Borderline", "Raise to"].some((label) =>
+    model.headline.startsWith(label.split(" ")[0]),
+  ));
+  assert.match(model.reason, /\./);
+  assert.match(model.equity, /%$/);
+  assert.match(model.potOdds, /%/);
+  assert.equal(model.toCall, "40");
 }
 
 {
@@ -175,6 +232,9 @@ function seat(id, overrides = {}) {
   assert.match(css, /\.blind-chip\.dealer\s*\{[^}]*#f5f5f4/);
   assert.match(css, /\.coach-hint-headline/);
   assert.match(css, /coach-hint\[data-action="fold"\]/);
+  assert.match(css, /coach-hint\[data-action="borderline"\]/);
+  assert.match(css, /-webkit-line-clamp:\s*3/);
+  assert.match(html, /shared\/coach-odds\.js/);
 }
 
 console.log("Coach checks passed.");

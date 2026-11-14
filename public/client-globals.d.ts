@@ -167,6 +167,8 @@ declare global {
 
   const PracticeSession: PracticeSessionAPI;
 
+  type CoachVerdict = "fold" | "check" | "call" | "bet" | "raise" | "borderline";
+
   interface CoachSuggestion {
     equity: number;
     potOdds: number;
@@ -174,19 +176,44 @@ declare global {
     opponents: number;
     handLabel: string;
     action: "fold" | "check" | "call" | "bet" | "raise";
+    /** Display verdict; Borderline is a soft call with implied odds. */
+    verdict: CoachVerdict;
     raiseTo: number | null;
     reason: string;
     summary: string;
   }
 
   interface CoachHintModel {
-    action: CoachSuggestion["action"];
+    action: CoachVerdict;
     headline: string;
     reason: string;
     equity: string;
     potOdds: string;
     toCall: string;
   }
+
+  interface CoachOddsAPI {
+    classifySpeculativeHand(heroCodes: readonly string[]): "small_pair" | "suited_connector" | "suited_ace" | null;
+    speculativeDepthThreshold(category: "small_pair" | "suited_connector" | "suited_ace" | null): number | null;
+    effectiveStackForCall(heroStack: number, opponentStacks: readonly number[]): number;
+    adviseFacingBet(input: {
+      equity: number;
+      potOdds: number;
+      toCall: number;
+      effectiveStack: number;
+      heroCodes: [string, string];
+      boardLength: number;
+    }): {
+      verdict: "fold" | "call" | "borderline" | "raise";
+      action: "fold" | "call";
+      category: "small_pair" | "suited_connector" | "suited_ace" | null;
+      stackToCallRatio: number;
+      depthThreshold: number | null;
+      reason: string;
+    };
+  }
+
+  const CoachOdds: CoachOddsAPI;
 
   interface CoachAPI {
     coachAvailableForPlayers(

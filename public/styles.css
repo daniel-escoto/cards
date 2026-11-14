@@ -3482,9 +3482,16 @@ kbd {
 .coach-hint[data-action="check"] .coach-hint-headline {
   color: var(--accent);
 }
+.coach-hint[data-action="borderline"] .coach-hint-headline {
+  color: var(--trainer-chart-hand-ring);
+}
 .coach-hint[data-action="raise"] .coach-hint-headline,
 .coach-hint[data-action="bet"] .coach-hint-headline {
   color: #3dba7a;
+}
+:root[data-theme="light"] .coach-hint[data-action="raise"] .coach-hint-headline,
+:root[data-theme="light"] .coach-hint[data-action="bet"] .coach-hint-headline {
+  color: var(--trainer-raise);
 }
 .coach-hint-reason {
   margin: 0;
@@ -3493,8 +3500,10 @@ kbd {
   font-weight: 550;
   line-height: 1.35;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow-wrap: anywhere;
 }
 .coach-hint-stats {
   display: flex;
@@ -3530,7 +3539,9 @@ kbd {
     font-size: 14px;
   }
   .coach-hint-reason {
-    display: none;
+    display: -webkit-box;
+    font-size: 11px;
+    -webkit-line-clamp: 3;
   }
 }
 
