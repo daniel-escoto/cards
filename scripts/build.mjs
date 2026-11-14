@@ -72,6 +72,21 @@ await esbuild.build({
   logLevel: "info",
 });
 
+// Node CJS coach odds — keep for tests; browser IIFE overwrites .js
+copyFile(path.join(dist, "shared/coach-odds.js"), path.join(dist, "shared/coach-odds.node.js"));
+
+await esbuild.build({
+  absWorkingDir: root,
+  entryPoints: [path.join(root, "shared/coach-odds.ts")],
+  outfile: path.join(dist, "shared/coach-odds.js"),
+  bundle: true,
+  format: "iife",
+  globalName: "CoachOdds",
+  platform: "browser",
+  target: ["es2022"],
+  logLevel: "info",
+});
+
 copyFile(path.join(root, "shared/pokersolver.js"), path.join(dist, "shared/pokersolver.js"));
 
 const staticFiles = ["index.html", "styles.css", "icon.svg", "manifest.webmanifest"];

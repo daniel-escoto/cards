@@ -46,7 +46,7 @@ const sw = swSelf;
 
 const CACHE_VERSION = "__BUILD_ID__";
 /** Bump when the app-shell file set changes so clients drop stale precaches. */
-const SHELL_REVISION = "4";
+const SHELL_REVISION = "5";
 const CACHE_NAME = `holdem-nyc-shell-${CACHE_VERSION}-${SHELL_REVISION}`;
 const APP_SHELL = [
   "/",
@@ -72,6 +72,7 @@ const APP_SHELL = [
   "/shared/pokersolver.js",
   "/shared/engine.js",
   "/shared/rfi-ranges.js",
+  "/shared/coach-odds.js",
 ];
 
 sw.addEventListener("install", (event) => {
