@@ -156,7 +156,6 @@
             <p id="joinError" class="error" role="alert"></p>
           </form>
           <div class="welcome-secondary-actions" role="group" aria-label="Offline play">
-            <button id="practiceBtn" class="secondary" type="button">Practice</button>
             <button id="trainerBtn" class="secondary" type="button">Trainer</button>
           </div>
         </div>
@@ -310,10 +309,22 @@
               </div>
             </div>
             <div id="trainerTurnInfo" class="turn-info your-turn" aria-live="polite"></div>
+            <div
+              id="trainerCoach"
+              class="coach-hint hidden"
+              role="status"
+              aria-live="polite"
+            ></div>
             <div id="trainerActions" class="game-buttons"></div>
           </section>
           <div id="trainerPlayers" class="players" aria-live="polite"></div>
         </section>
+        <div
+          id="trainerSeatPopover"
+          class="trainer-seat-popover hidden"
+          role="tooltip"
+          aria-hidden="true"
+        ></div>
       </section>
 
       <div

@@ -415,15 +415,96 @@ export type RfiHandCategory =
 /** Seat bands for RFI advice. */
 export type RfiPositionBand = "early" | "middle" | "late" | "blinds";
 
+/** Chess.com-style badge for the punchy verdict line. */
+export type RfiCoachBadge = "Best" | "Borderline" | "Mistake";
+
 export type RfiCoachExplain = {
   verdict: "correct" | "mistake";
-  /** Optional chess.com-style badge when the play matches best. */
-  badge: "Best" | null;
+  /** Chess.com-style badge: Best, Borderline (edge of range), or Mistake. */
+  badge: RfiCoachBadge;
   reason: string;
   borderline: "inside" | "outside" | null;
   category: RfiHandCategory;
   band: RfiPositionBand;
+  /** Full seat name, e.g. "Cutoff". */
+  positionName: string;
+  /** Seats still to act after this one (including blinds). */
+  playersBehind: number;
+  /** Plain-language hand-category label. */
+  categoryLabel: string;
+  /** 2–3 short teaching sentences for the Why? expander. */
+  why: string[];
+  /** One-line rule of thumb to remember. */
+  ruleOfThumb: string;
 };
+
+/** Pre-answer hint: concept first, then the move + why. */
+export type RfiTeachingHint = {
+  concept: string;
+  reveal: string;
+  standard: RfiAction;
+};
+
+/** Full table order including BB (for counting players left to act). */
+const TABLE_ORDER_6 = ["UTG", "HJ", "CO", "BTN", "SB", "BB"] as const;
+const TABLE_ORDER_9 = [
+  "UTG",
+  "UTG+1",
+  "MP",
+  "LJ",
+  "HJ",
+  "CO",
+  "BTN",
+  "SB",
+  "BB",
+] as const;
+
+const POSITION_FULL_NAME: Record<string, string> = {
+  UTG: "Under the gun",
+  "UTG+1": "Under the gun +1",
+  MP: "Middle position",
+  LJ: "Lojack",
+  HJ: "Hijack",
+  CO: "Cutoff",
+  BTN: "Button",
+  SB: "Small blind",
+  BB: "Big blind",
+};
+
+/** Spell out a seat acronym for coach copy. */
+export function rfiPositionName(position: string): string {
+  return POSITION_FULL_NAME[position] || position;
+}
+
+/** How many seats act after this one (blinds count as left to act). */
+export function rfiPlayersBehind(tableSize: RfiTableSize, position: string): number | null {
+  const order = tableSize === 6 ? TABLE_ORDER_6 : TABLE_ORDER_9;
+  const idx = (order as readonly string[]).indexOf(position);
+  if (idx < 0) return null;
+  return order.length - idx - 1;
+}
+
+/** Plain-language hand category for teaching copy. */
+export function rfiCategoryLabel(category: RfiHandCategory): string {
+  switch (category) {
+    case "pair":
+      return "a pocket pair";
+    case "suited_ace":
+      return "a suited ace (ace with a same-suit kicker)";
+    case "suited_broadway":
+      return "suited broadway cards (ten or higher, same suit)";
+    case "offsuit_broadway":
+      return "offsuit broadway cards (ten or higher, different suits)";
+    case "suited_connector":
+      return "suited connectors (close ranks, same suit)";
+    case "trash":
+      return "a weak speculative hand";
+    default: {
+      const _exhaustive: never = category;
+      return _exhaustive;
+    }
+  }
+}
 
 const BROADWAY = new Set(["A", "K", "Q", "J", "T"]);
 
@@ -588,8 +669,147 @@ function trimWords(text: string, maxWords: number): string {
   return `${words.slice(0, maxWords).join(" ")}.`;
 }
 
+function bandAdvice(band: RfiPositionBand): string {
+  if (band === "early") return "open a tight range";
+  if (band === "middle") return "open a medium range";
+  if (band === "late") return "open fairly wide";
+  return "decide carefully out of position";
+}
+
+function playabilityLine(category: RfiHandCategory, handKey: string): string | null {
+  const parsed = parseHandKey(handKey);
+  if (!parsed) return null;
+  if (category === "suited_ace" || category === "suited_broadway" || category === "suited_connector") {
+    return "Same-suit cards make flushes and strong draws more often.";
+  }
+  if (category === "offsuit_broadway") {
+    return `${handKey} looks strong but often loses to better kickers when an ace or king hits.`;
+  }
+  if (category === "pair") {
+    if (pairRankLabel(parsed.high) === "big") {
+      return "Big pairs want to build a pot right away.";
+    }
+    return "Smaller pairs play best as a set-mining open, not a bluff.";
+  }
+  if (category === "trash") {
+    return "Weak offsuit hands rarely flop well enough to continue.";
+  }
+  return null;
+}
+
+function buildWhyLines(
+  tableSize: RfiTableSize,
+  position: string,
+  handKey: string,
+  category: RfiHandCategory,
+  band: RfiPositionBand,
+  standard: RfiAction,
+): { why: string[]; ruleOfThumb: string; playersBehind: number; positionName: string; categoryLabel: string } {
+  const positionName = rfiPositionName(position);
+  const playersBehind = rfiPlayersBehind(tableSize, position) ?? 0;
+  const categoryLabel = rfiCategoryLabel(category);
+  const behindPhrase =
+    playersBehind === 0
+      ? "no one left to act"
+      : playersBehind === 1
+        ? "1 player left to act"
+        : `${playersBehind} players left to act`;
+  const why: string[] = [
+    `You're in the ${positionName} (${position}) with ${behindPhrase}, so ${bandAdvice(band)}.`,
+    `${handKey} is ${categoryLabel}.`,
+  ];
+  const play = playabilityLine(category, handKey);
+  const fallback = play ? null : borderlineTone(band, standard);
+  if (play) why.push(play);
+  else if (fallback) why.push(fallback);
+
+  let ruleOfThumb: string;
+  if (band === "early") {
+    ruleOfThumb =
+      standard === "raise"
+        ? "Early seats: only open hands that stay strong against many callers."
+        : "Early seats: fold hands that need few players behind.";
+  } else if (band === "late") {
+    ruleOfThumb =
+      standard === "raise"
+        ? "Late seats: steal more — suited and connected hands play well."
+        : "Even late, fold junk that cannot flop strong.";
+  } else if (band === "blinds") {
+    ruleOfThumb =
+      standard === "raise"
+        ? "From the small blind, open hands that play okay out of position."
+        : "From the small blind, fold hands that hate playing out of position.";
+  } else {
+    ruleOfThumb =
+      standard === "raise"
+        ? "Middle seats: open a balanced mix — not too tight, not button-wide."
+        : "Middle seats: stay selective when several players remain.";
+  }
+  return { why: why.slice(0, 3), ruleOfThumb, playersBehind, positionName, categoryLabel };
+}
+
+function borderlineTone(band: RfiPositionBand, standard: RfiAction): string | null {
+  if (standard === "raise" && (band === "late" || band === "blinds")) {
+    return "With few players left, speculative hands realize equity more often.";
+  }
+  if (standard === "fold" && band === "early") {
+    return "Many players still to act means someone likely wakes up with a stronger hand.";
+  }
+  return null;
+}
+
+function buildTeachingHint(
+  tableSize: RfiTableSize,
+  position: string,
+  handKey: string,
+  category: RfiHandCategory,
+  band: RfiPositionBand,
+  standard: RfiAction,
+): RfiTeachingHint {
+  const positionName = rfiPositionName(position);
+  const playersBehind = rfiPlayersBehind(tableSize, position) ?? 0;
+  const behindPhrase =
+    playersBehind === 1 ? "1 player left behind you" : `${playersBehind} players left behind you`;
+  let concept: string;
+  if (category === "suited_connector") {
+    concept = `You're in the ${positionName} with ${behindPhrase}, so you can ${bandAdvice(band)}. Suited connectors play well here.`;
+  } else if (category === "suited_ace") {
+    concept = `You're in the ${positionName} with ${behindPhrase}. Suited aces keep playability even when the kicker is weak.`;
+  } else if (category === "pair") {
+    concept = `You're in the ${positionName} with ${behindPhrase}. Pocket pairs are straightforward — think about how many players can still wake up.`;
+  } else if (category === "offsuit_broadway") {
+    concept = `You're in the ${positionName} with ${behindPhrase}. Offsuit broadway can look pretty and still be dominated.`;
+  } else if (category === "suited_broadway") {
+    concept = `You're in the ${positionName} with ${behindPhrase}. Suited broadway has both high-card strength and flush potential.`;
+  } else {
+    concept = `You're in the ${positionName} with ${behindPhrase}, so ${bandAdvice(band)}. Ask whether this hand flops well often enough.`;
+  }
+
+  const move = standard === "raise" ? "Raise" : "Fold";
+  const whyBit = trimWords(reasonFor(category, band, standard, handKey), 14);
+  const reveal = `${move} — ${whyBit.replace(/\.$/, "")}.`;
+  return { concept: trimWords(concept, 28), reveal: trimWords(reveal, 18), standard };
+}
+
 /**
- * Chess.com-style one-liner: why the standard raise/fold is right for this spot.
+ * Two-step pre-answer hint: a concept nudge, then the chart move + why.
+ * Does not require the player's choice yet.
+ */
+export function rfiTeachingHint(
+  tableSize: RfiTableSize,
+  position: string,
+  handKey: string,
+): RfiTeachingHint | null {
+  if (!isRfiPosition(tableSize, position)) return null;
+  const category = classifyRfiHand(handKey);
+  const band = rfiPositionBand(tableSize, position);
+  const standard = standardRfiAction(tableSize, position, handKey);
+  if (!category || !band || !standard) return null;
+  return buildTeachingHint(tableSize, position, handKey, category, band, standard);
+}
+
+/**
+ * Chess.com-style one-liner plus a Why? teaching block for this spot.
  * Optional borderline note when the hand sits on the range edge.
  */
 export function explainRfiDecision(
@@ -619,12 +839,24 @@ export function explainRfiDecision(
     else if (band === "late") reason = `Open this from ${position}.`;
   }
   reason = trimWords(reason, 12);
+
+  let badge: RfiCoachBadge;
+  if (!graded.correct) badge = "Mistake";
+  else if (borderline) badge = "Borderline";
+  else badge = "Best";
+
+  const teach = buildWhyLines(tableSize, position, handKey, category, band, graded.standard);
   return {
     verdict: graded.correct ? "correct" : "mistake",
-    badge: graded.correct ? "Best" : null,
+    badge,
     reason,
     borderline,
     category,
     band,
+    positionName: teach.positionName,
+    playersBehind: teach.playersBehind,
+    categoryLabel: teach.categoryLabel,
+    why: teach.why,
+    ruleOfThumb: teach.ruleOfThumb,
   };
 }
