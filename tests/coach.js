@@ -222,6 +222,69 @@ function seat(id, overrides = {}) {
 }
 
 {
+  // Flop raise-facing spot: coach size must be a legal raise-to (min 120), not raw 125.
+  const room = {
+    coachAvailable: true,
+    isYourTurn: true,
+    phase: "flop",
+    pot: 130,
+    toCall: 60,
+    currentBet: 60,
+    minRaise: 60,
+    minRaiseTo: 120,
+    bigBlind: 20,
+    canRaise: true,
+    canShove: true,
+    moneyMode: false,
+    community: [card("8s"), card("4d"), card("3s")],
+    players: [
+      seat("hero", {
+        isYou: true,
+        cards: [card("Ah"), card("8h")],
+        bet: 0,
+        stack: 940,
+      }),
+      seat("bot", { isBot: true, bet: 60, stack: 890, invested: 100 }),
+    ],
+  };
+  let seed = 42;
+  const random = () => {
+    seed = (seed * 16807) % 2147483647;
+    return (seed - 1) / 2147483646;
+  };
+  const RaiseSizing = require("../dist/public/raise-sizing.js");
+  // Raw coach formula before snap: currentBet + max(toCall, pot*0.5) = 60 + 65 = 125.
+  const rawTarget = Math.round(60 + Math.max(60, 130 * 0.5));
+  assert.equal(rawTarget, 125);
+  const legal = RaiseSizing.legalRaiseTo(rawTarget, {
+    minRaiseTo: 120,
+    maxRaiseTo: 940,
+    step: 20,
+  });
+  assert.equal(legal, 120, "coach sizes must snap onto the raise ladder");
+
+  const suggestion = Coach.buildCoachSuggestion(room, { random, iterations: 160 });
+  assert.ok(suggestion);
+  assert.ok(suggestion.equity > 0.45, `top pair should be strong (got ${suggestion.equity})`);
+  if (suggestion.action === "raise" || suggestion.action === "bet") {
+    assert.ok(suggestion.raiseTo != null);
+    assert.ok(suggestion.raiseTo >= 120, `raiseTo ${suggestion.raiseTo} below minRaiseTo`);
+    assert.equal(
+      suggestion.raiseTo,
+      RaiseSizing.legalRaiseTo(suggestion.raiseTo, {
+        minRaiseTo: 120,
+        maxRaiseTo: 940,
+        step: 20,
+      }),
+    );
+    assert.notEqual(suggestion.raiseTo, 125);
+    const model = Coach.formatCoachHintModel(suggestion, room);
+    assert.match(model.headline, /Raise to \d+/);
+    assert.doesNotMatch(model.headline, /Raise to 125/);
+  }
+}
+
+{
   const html = fs.readFileSync(path.join(__dirname, "../public/index.html"), "utf8");
   assert.match(
     html,
@@ -234,7 +297,11 @@ function seat(id, overrides = {}) {
   assert.match(css, /coach-hint\[data-action="fold"\]/);
   assert.match(css, /coach-hint\[data-action="borderline"\]/);
   assert.match(css, /-webkit-line-clamp:\s*3/);
+  assert.match(css, /\.coach-hint-use/);
   assert.match(html, /shared\/coach-odds\.js/);
+  const tableSrc = fs.readFileSync(path.join(__dirname, "../public/app-table.ts"), "utf8");
+  assert.match(tableSrc, /coach-hint-use/);
+  assert.match(tableSrc, /setRaiseState\(\{\s*value: suggestion\.raiseTo/);
 }
 
 console.log("Coach checks passed.");
