@@ -11,6 +11,10 @@ function blindFlags(view) {
   );
 }
 
+function dealerFlags(view) {
+  return Object.fromEntries(view.players.map((player) => [player.id, Boolean(player.dealer)]));
+}
+
 function postedBlinds(room) {
   return {
     small: room.players.find((player) => player.bet === engine.currentBlinds(room).smallBlind)?.id,
@@ -33,13 +37,23 @@ function postedBlinds(room) {
   assert.equal(room.bigBlindPlayerId, posted.big);
   assert.notEqual(room.smallBlindPlayerId, room.bigBlindPlayerId);
 
-  const flags = blindFlags(engine.serializeRoom(room, room.hostId));
+  const view = engine.serializeRoom(room, room.hostId);
+  const flags = blindFlags(view);
   assert.deepEqual(flags[posted.small], [true, false]);
   assert.deepEqual(flags[posted.big], [false, true]);
   assert.equal(Object.values(flags).filter(([sb, bb]) => sb || bb).length, 2, "exactly two chips");
   const dealerId = room.players[room.dealer].id;
   assert.notEqual(dealerId, room.bigBlindPlayerId, "with 3+ players the dealer is never the BB");
   assert.notEqual(dealerId, room.smallBlindPlayerId, "with 3+ players the dealer is not the SB");
+  const dealers = dealerFlags(view);
+  assert.equal(dealers[dealerId], true, "dealer seat is flagged for the D chip");
+  assert.equal(
+    Object.values(dealers).filter(Boolean).length,
+    1,
+    "exactly one dealer chip among 3+ players",
+  );
+  assert.equal(dealers[posted.small], false);
+  assert.equal(dealers[posted.big], false);
 
   // Chips move with the button on the next hand.
   const firstBig = room.bigBlindPlayerId;
@@ -47,14 +61,24 @@ function postedBlinds(room) {
   engine.startNextHand(room);
   assert.equal(room.smallBlindPlayerId, firstBig, "last hand's big blind becomes the small blind");
   assert.equal(room.bigBlindPlayerId, postedBlinds(room).big);
+  const nextView = engine.serializeRoom(room, room.hostId);
+  assert.equal(dealerFlags(nextView)[room.players[room.dealer].id], true);
 }
 
-// Heads-up: the dealer posts the small blind.
+// Heads-up: the dealer posts the small blind — D and SB land on the same row.
 {
   const room = engine.createPracticeRoom({ botCount: 1 });
   engine.startHand(room);
   assert.equal(room.smallBlindPlayerId, room.players[room.dealer].id);
   assert.notEqual(room.bigBlindPlayerId, room.smallBlindPlayerId);
+  const view = engine.serializeRoom(room, room.hostId);
+  const dealer = view.players.find((player) => player.dealer);
+  const big = view.players.find((player) => player.isBigBlind);
+  assert.ok(dealer, "dealer chip seat present");
+  assert.equal(dealer.isSmallBlind, true, "heads-up dealer is also SB");
+  assert.equal(dealer.isBigBlind, false);
+  assert.equal(big?.dealer, false, "heads-up BB is not the dealer");
+  assert.equal(view.players.filter((player) => player.dealer).length, 1);
 }
 
 // Busted and sitting-out players are skipped.

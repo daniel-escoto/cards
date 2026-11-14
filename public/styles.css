@@ -2178,7 +2178,7 @@ button.menu-player-row:not(:disabled):hover {
   gap: 6px;
   min-width: 0;
 }
-/* Name, then its SB/BB badge right after it; the name truncates first so the badge stays. */
+/* Name, then D / SB / BB badges right after it; the name truncates first so the badges stay. */
 .seat-name-text {
   flex: 0 1 auto;
   min-width: 0;
