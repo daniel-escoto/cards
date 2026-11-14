@@ -1105,7 +1105,8 @@ declare global {
   var handReviewLastLogId: string;
   function openHandReview(): void;
   function hideHandReview(): void;
-  function paintHandReviewStep(index: number): void;
+  function paintHandReviewStep(index: number, options?: { force?: boolean }): void;
+  function continueHandReview(): void;
   function handReviewStepBy(delta: number): void;
   function handReviewLandableIndexes(): number[];
   function handReviewJumpToStart(): void;
@@ -1194,6 +1195,12 @@ declare global {
     formatVerdictBadge(item: { verdict: string; badge: string }): string;
     formatVerdictWhy(item: { reason: string }): string;
     formatMistakeNudge?(): string;
+    formatReviewSummary?(
+      decisions: number,
+      best: number,
+      fine: number,
+      mistake: number,
+    ): string;
     formatVerdictLine(item: {
       verdict: string;
       badge: string;

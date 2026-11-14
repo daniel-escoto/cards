@@ -71,6 +71,8 @@ assert.match(
 
 // Retry uses live Fold + Call/Raise — never a bespoke 3-button row.
 assert.match(tableSrc, /function submitHandReviewRetryAction/);
+assert.match(tableSrc, /function continueHandReview/);
+assert.match(tableSrc, /appendHandReviewResultStep/);
 assert.match(tableSrc, /renderHeroActionControls\(reviewHero/);
 assert.doesNotMatch(tableSrc, /hand-review-retry-actions/);
 assert.doesNotMatch(

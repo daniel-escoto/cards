@@ -434,16 +434,12 @@ export function buildHandReview(
   const best = items.filter((item) => item.verdict === "best").length;
   const fine = items.filter((item) => item.verdict === "fine").length;
   const mistake = items.filter((item) => item.verdict === "mistake").length;
-  const parts = [`${items.length} decision${items.length === 1 ? "" : "s"}`];
-  if (best) parts.push(`${best} Best`);
-  if (fine) parts.push(`${fine} Fine`);
-  if (mistake) parts.push(`${mistake} Mistake${mistake === 1 ? "" : "s"}`);
   return {
     items,
     best,
     fine,
     mistake,
-    summary: parts.join(" · "),
+    summary: formatReviewSummary(items.length, best, fine, mistake),
   };
 }
 
@@ -476,10 +472,6 @@ export function buildHandReplay(recording: HandRecording): HandReplay {
   const best = items.filter((item) => item.verdict === "best").length;
   const fine = items.filter((item) => item.verdict === "fine").length;
   const mistake = items.filter((item) => item.verdict === "mistake").length;
-  const parts = [`${items.length} decision${items.length === 1 ? "" : "s"}`];
-  if (best) parts.push(`${best} Best`);
-  if (fine) parts.push(`${fine} Fine`);
-  if (mistake) parts.push(`${mistake} Mistake${mistake === 1 ? "" : "s"}`);
 
   return {
     steps,
@@ -487,8 +479,22 @@ export function buildHandReplay(recording: HandRecording): HandReplay {
     best,
     fine,
     mistake,
-    summary: parts.join(" · ") || `${steps.length} steps`,
+    summary: formatReviewSummary(items.length, best, fine, mistake) || `${steps.length} steps`,
   };
+}
+
+/** Header summary: original decision counts (lowercase badges — not the retry). */
+export function formatReviewSummary(
+  decisions: number,
+  best: number,
+  fine: number,
+  mistake: number,
+): string {
+  const parts = [`${decisions} decision${decisions === 1 ? "" : "s"}`];
+  if (best) parts.push(`${best} best`);
+  if (fine) parts.push(`${fine} fine`);
+  if (mistake) parts.push(`${mistake} mistake${mistake === 1 ? "" : "s"}`);
+  return parts.join(" · ");
 }
 
 /** Grade a retry attempt against the original review item. */
@@ -500,12 +506,12 @@ export function gradeRetry(
   if (correct) {
     return {
       correct: true,
-      line: `✓\uFE0E Correct — ${actionLabel(item.recommended, item.recommendedRaiseTo)}.`,
+      line: `Your retry: Correct — ${actionLabel(item.recommended, item.recommendedRaiseTo)}.`,
     };
   }
   return {
     correct: false,
-    line: `✗\uFE0E Still off — ${actionLabel(item.recommended, item.recommendedRaiseTo)} was the play.`,
+    line: `Your retry: Still off — ${actionLabel(item.recommended, item.recommendedRaiseTo)} was the play.`,
   };
 }
 

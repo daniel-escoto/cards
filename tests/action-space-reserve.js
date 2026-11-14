@@ -49,6 +49,7 @@ const context = {
   betPresets: document.querySelector("#betPresets"),
   winnerList: document.querySelector("#winnerList"),
   state: { phase: "flop" },
+  handReviewActive: false,
 };
 const panel = document.querySelector("#tableView .control-panel");
 assert.ok(panel, "live table control panel exists");

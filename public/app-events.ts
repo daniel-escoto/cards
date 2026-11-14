@@ -518,6 +518,17 @@ document.addEventListener("keydown", (event) => {
       }
       return;
     }
+    // Continue review after a retry answer (Enter) — same path as the link click.
+    if (event.key === "Enter" && !event.repeat) {
+      const contBtn = document.querySelector(
+        "#handReviewRetryBar:not(.is-idle) .hand-review-continue",
+      ) as HTMLButtonElement | null;
+      if (contBtn && !contBtn.disabled) {
+        event.preventDefault();
+        contBtn.click();
+      }
+      return;
+    }
     return;
   }
   if (

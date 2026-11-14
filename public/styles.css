@@ -2839,13 +2839,14 @@ button.menu-player-row:not(:disabled):hover {
 }
 
 .control-panel {
+  --cp-pad: var(--space-16);
   display: grid;
   /* Fixed tracks: hand · (spacer that keeps the old gap) · prompt · buttons · bet slot.
      Winner lines share the bet slot, so the panel is one height in every hand state. */
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 0 minmax(calc(15px * 1.35), auto) auto auto;
   gap: var(--space-12);
-  padding: var(--space-16);
+  padding: var(--cp-pad);
   border: 1px solid var(--surface-border);
   border-radius: var(--radius-18);
   background: var(--surface);
@@ -3534,6 +3535,30 @@ button.has-shortcut > kbd,
   pointer-events: none;
 }
 
+/* Review close lives in the hand row (top-right with pot) — same corner as modal closes. */
+.hand-row .hand-review-close.icon-btn {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  pointer-events: auto;
+  width: 42px;
+  min-width: 42px;
+  max-width: 42px;
+  height: 42px;
+  min-height: 42px;
+  max-height: 42px;
+  padding: 0;
+  font-size: 24px;
+  line-height: 1;
+  transform: none;
+}
+.hand-row .hand-review-close[hidden] {
+  display: none !important;
+}
+body.hand-review-open .hand-row .table-meta {
+  margin-left: auto;
+  margin-right: 0;
+}
+
 .hand-row .table-meta .pot-chip,
 .hand-row .table-meta div {
   height: auto;
@@ -3660,55 +3685,106 @@ button.has-shortcut > kbd,
 }
 
 /* —— Hand review replay (lives inside .control-panel, below hero/pot) ——
-   Same felt / seat / board layout as a live hand — only the action-slot contents swap. */
+   Same felt / seat / board layout as a live hand — only the action-slot contents swap.
+   Panel height is constant: hand-row + prompt (head/verdict) + Fold/Call + raise shell.
+   Bottom zone is pinned to the panel bottom — live controls while retrying; nav
+   (+ Continue/Try again directly above) otherwise, over the reserved control tracks.
+   Slack is the reserved control area above the nav, not empty space under it. */
 .control-panel > .hand-review-chrome {
-  grid-row: 3 / 6;
+  grid-row: 3;
   align-self: stretch;
   min-height: 0;
+  width: 100%;
 }
 .hand-review-chrome {
   display: grid;
   align-content: start;
+  align-items: stretch;
   gap: var(--space-8);
   min-width: 0;
+  /* Title · verdict — continue/nav are absolutely pinned to the panel bottom. */
+  grid-template-rows: auto minmax(calc(13px * 1.3 * 4 + 6px), auto);
 }
-/* Pack chrome to the top of the reserved action slot — no floating empty mid-band. */
-body.hand-review-open .control-panel > .hand-review-chrome {
-  align-content: start;
-  align-self: start;
+body.hand-review-open .control-panel {
+  position: relative;
+  /* Never collapse to compact while reviewing — keep button + bet tracks. */
+  grid-template-rows: auto 0 minmax(calc(15px * 1.35), auto) auto auto;
+}
+body.hand-review-open .control-panel.is-compact {
+  grid-template-rows: auto 0 minmax(calc(15px * 1.35), auto) auto auto;
+}
+body.hand-review-open .control-panel.is-compact > .bet-controls,
+body.hand-review-open .control-panel.is-compact .action-placeholder {
+  /* Keep reserved bet footprint even if is-compact was toggled. */
+  display: revert;
+}
+body.hand-review-open .control-panel.is-compact > .bet-controls {
+  display: grid !important;
 }
 .hand-review-chrome.hidden {
   display: none;
 }
-/* Swap in review chrome the same way Ready/actions replace each other — no overlay,
-   and keep the live-game control-panel track sizes (do not retarget grid-template-rows). */
+/* Turn prompt stays hidden (verdict owns status). */
 body.hand-review-open .control-panel > .turn-info,
-body.hand-review-open .control-panel > .game-buttons,
-body.hand-review-open .control-panel > .bet-controls,
 body.hand-review-open .control-panel > .winner-list {
   display: none !important;
 }
-/* In-spot retry: show the live Fold/Call + raise shell (same footprint as the table). */
+/* Non-retry: reserve live-control footprint; pin bottom stack (continue + nav) over it. */
+body.hand-review-open:not(.hand-review-retrying) .control-panel > .game-buttons,
+body.hand-review-open:not(.hand-review-retrying) .control-panel > .bet-controls {
+  visibility: hidden;
+  pointer-events: none;
+}
+body.hand-review-open:not(.hand-review-retrying) .control-panel > .bet-controls {
+  display: grid !important;
+}
+body.hand-review-open:not(.hand-review-retrying) .control-panel > .game-buttons {
+  display: flex !important;
+}
+body.hand-review-open:not(.hand-review-retrying) .control-panel > .bet-controls .action-placeholder,
+body.hand-review-open:not(.hand-review-retrying) .control-panel > .game-buttons .action-placeholder {
+  visibility: hidden;
+}
+/* Continue/Try again + nav: pinned to the panel bottom (same edge as live controls). */
+.hand-review-bottom {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+body.hand-review-open:not(.hand-review-retrying) .hand-review-bottom {
+  position: absolute;
+  left: var(--cp-pad);
+  right: var(--cp-pad);
+  bottom: var(--cp-pad-bottom, var(--cp-pad));
+  z-index: 2;
+  margin: 0;
+}
 body.hand-review-open.hand-review-retrying .control-panel > .hand-review-chrome {
   grid-row: 3;
-  align-self: start;
+  width: 100%;
 }
-body.hand-review-open.hand-review-retrying .hand-review-nav {
-  display: none;
+body.hand-review-open.hand-review-retrying .hand-review-bottom {
+  display: none !important;
 }
 body.hand-review-open.hand-review-retrying .control-panel > .turn-info {
-  display: block !important;
+  display: none !important;
 }
 body.hand-review-open.hand-review-retrying .control-panel > .game-buttons {
   display: flex !important;
+  visibility: visible;
+  pointer-events: auto;
 }
 body.hand-review-open.hand-review-retrying .control-panel > .bet-controls {
   display: grid !important;
+  visibility: visible;
+  pointer-events: auto;
 }
-/* Reuse .modal-head + .icon-btn from the game menu sheet. */
+/* Title row only — close moved to .hand-row (top-right with pot). */
 .hand-review-chrome-head {
   min-width: 0;
+  width: 100%;
   align-items: flex-start;
+  flex-shrink: 0;
 }
 .hand-review-chrome-head > div {
   min-width: 0;
@@ -3726,13 +3802,7 @@ body.hand-review-open.hand-review-retrying .control-panel > .bet-controls {
   overflow-wrap: anywhere;
   max-width: 100%;
 }
-/* Same .ghost.icon-btn as menu close — only beat control-panel button defaults. */
-.control-panel .hand-review-close.icon-btn {
-  flex: 0 0 auto;
-  align-self: flex-start;
-  transform: none;
-}
-/* Two-line slot only — badge + why. No oversized empty band between head and nav. */
+/* Four-line verdict slot — badge + wrapping why; never clip mid-sentence on 375. */
 .hand-review-verdict {
   display: grid;
   align-content: start;
@@ -3746,8 +3816,8 @@ body.hand-review-open.hand-review-retrying .control-panel > .bet-controls {
   font-weight: 700;
   line-height: 1.3;
   color: var(--text);
-  min-height: calc(13px * 1.3 * 2 + 2px);
-  max-height: calc(13px * 1.3 * 2 + 2px);
+  min-height: calc(13px * 1.3 * 4 + 6px);
+  max-height: calc(13px * 1.3 * 4 + 6px);
   overflow: hidden;
 }
 .hand-review-verdict.hidden,
@@ -3766,6 +3836,9 @@ body.hand-review-open .hand-review-verdict.is-idle {
 .hand-review-verdict-why {
   color: var(--muted);
   font-weight: 650;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .hand-review-verdict.is-best .hand-review-verdict-mark {
   color: color-mix(in srgb, var(--color-raw-143) 90%, var(--text));
@@ -3930,31 +4003,30 @@ body.hand-review-open .hand-review-verdict.is-idle {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Retry row: only reserve height on Mistake steps (is-idle collapses to zero). */
+/* Retry/continue row: sits directly above nav. Idle collapses — slack absorbs the gap. */
 .hand-review-retry-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-8);
-  min-height: 40px;
+  min-height: 0;
+}
+.hand-review-retry-bar:not(.hidden):not(.is-idle):has(> .hand-review-try-again) {
+  min-height: 44px;
 }
 .hand-review-retry-bar.hidden,
 .hand-review-retry-bar.is-idle {
-  visibility: hidden;
+  display: none;
   pointer-events: none;
-  min-height: 0;
-  height: 0;
-  margin: 0;
-  overflow: hidden;
 }
 body.hand-review-open .hand-review-retry-bar.hidden,
 body.hand-review-open .hand-review-retry-bar.is-idle {
-  display: flex;
-  visibility: hidden;
+  display: none;
   min-height: 0;
   height: 0;
   margin: 0;
   overflow: hidden;
+  pointer-events: none;
 }
 .hand-review-retry-bar > .hand-review-try-again {
   flex: 1 1 auto;
@@ -3970,9 +4042,47 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
   text-decoration: none;
   box-shadow: none;
 }
-.hand-review-retry-bar > .hand-review-continue {
-  flex: 1 1 auto;
-  min-height: 40px;
+/* Continue uses shared .text-action-link — no ghost/button chrome or focus box. */
+.hand-review-retry-bar > .action-links {
+  flex: 0 0 auto;
+  width: auto;
+  min-height: 0;
+}
+.hand-review-retry-bar .hand-review-continue.text-action-link,
+.control-panel .hand-review-continue.text-action-link {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transform: none;
+}
+.control-panel .hand-review-continue.text-action-link:focus {
+  outline: none;
+  box-shadow: none;
+  border: 0;
+  background: transparent;
+}
+.control-panel .hand-review-continue.text-action-link:focus-visible {
+  outline: 3px solid var(--color-raw-6);
+  outline-offset: 2px;
+}
+.control-panel .hand-review-continue.text-action-link:hover,
+.control-panel .hand-review-continue.text-action-link:active {
+  background: transparent !important;
+  color: var(--text);
+  transform: none;
 }
 /* Hand-complete between hands: Ready + Review (+ optional Show hand) share the row evenly. */
 .control-panel.is-result > .game-buttons {
@@ -3994,34 +4104,6 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
 }
 .hand-review-retry-feedback.is-wrong {
   color: color-mix(in srgb, var(--danger) 90%, var(--text));
-}
-.control-panel .hand-review-continue {
-  justify-self: start;
-  width: auto;
-  min-width: 0;
-  min-height: 0;
-  height: auto;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--muted);
-  font-size: var(--font-size-12);
-  font-weight: 700;
-  line-height: 1.3;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  transform: none;
-}
-.control-panel .hand-review-continue:hover,
-.control-panel .hand-review-continue:active {
-  background: transparent;
-  color: var(--text);
-  transform: none;
-}
-.control-panel .hand-review-continue[hidden] {
-  display: none !important;
 }
 .result-line {
   display: grid;
@@ -4359,7 +4441,8 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
   }
 
   .control-panel {
-    padding: var(--space-20);
+    --cp-pad: var(--space-20);
+    padding: var(--cp-pad);
     gap: var(--space-16);
   }
 
@@ -4618,6 +4701,17 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
     min-height: 36px;
   }
 
+  .hand-row .hand-review-close.icon-btn,
+  .control-panel .hand-review-close.icon-btn {
+    width: 36px;
+    min-width: 36px;
+    max-width: 36px;
+    height: 36px;
+    min-height: 36px;
+    max-height: 36px;
+    font-size: 22px;
+  }
+
   .felt {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto;
@@ -4765,9 +4859,11 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
   }
 
   .control-panel {
+    --cp-pad: var(--space-10);
+    --cp-pad-bottom: max(var(--space-10), env(safe-area-inset-bottom));
     grid-row: 3;
     gap: var(--space-8);
-    padding: var(--space-10) var(--space-10) max(var(--space-10), env(safe-area-inset-bottom));
+    padding: var(--cp-pad) var(--cp-pad) var(--cp-pad-bottom);
     border: 0;
     background: color-mix(in srgb, var(--panel) 96%, transparent);
   }

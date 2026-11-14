@@ -50,6 +50,8 @@ assert.match(eventsSrc, /Home/);
 assert.match(eventsSrc, /End/);
 assert.match(eventsSrc, /hand-review-try-again/);
 assert.match(eventsSrc, /hand-review-show-answer/);
+assert.match(eventsSrc, /hand-review-continue/);
+assert.match(eventsSrc, /event\.key === "Enter"/);
 assert.match(eventsSrc, /hideHandReview/);
 
 // Exercise the keydown listener with Hand Review stubs.

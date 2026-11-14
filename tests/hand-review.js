@@ -314,16 +314,17 @@ function table(overrides = {}) {
     replay.steps[2].decision.verdict === "fine" || replay.steps[2].decision.verdict === "best",
   );
   assert.equal(replay.mistake, 1);
-  assert.match(replay.summary, /Mistake/);
+  assert.match(replay.summary, /1 mistake/);
+  assert.doesNotMatch(replay.summary, /Mistake/);
   assert.match(HandReview.formatVerdictLine(replay.steps[1].decision), /Mistake/);
 
   const retryOk = HandReview.gradeRetry(replay.steps[1].decision, "raise");
   assert.equal(retryOk.correct, true);
-  assert.match(retryOk.line, /Correct/);
+  assert.match(retryOk.line, /Your retry: Correct/);
 
   const retryBad = HandReview.gradeRetry(replay.steps[1].decision, "fold");
   assert.equal(retryBad.correct, false);
-  assert.match(retryBad.line, /Still off/);
+  assert.match(retryBad.line, /Your retry: Still off/);
 
   assert.equal(HandReview.formatMistakeNudge(), "There was a better play here.");
 }
@@ -348,11 +349,15 @@ function table(overrides = {}) {
   assert.match(css, /\.hand-review-close/);
   assert.match(css, /aspect-ratio:\s*1/);
   assert.match(css, /\.hand-review-verdict[\s\S]*?min-height/);
-  assert.match(css, /\.hand-review-retry-bar[\s\S]*?min-height:\s*44px/);
+  assert.match(
+    css,
+    /\.hand-review-retry-bar:not\(\.hidden\):not\(\.is-idle\):has\(>\s*\.hand-review-try-again\)[\s\S]*?min-height:\s*44px/,
+  );
   assert.match(css, /\.hand-review-dot:focus-visible/);
   assert.match(css, /\.hand-review-show-answer/);
   assert.match(css, /\.hand-review-timeline-wrap\s*\{[^}]*grid-template-rows:\s*auto auto/s);
-  assert.match(css, /\.hand-review-close\.icon-btn/);
+  assert.match(css, /\.hand-row \.hand-review-close\.icon-btn/);
+  assert.match(css, /hand-review-continue\.text-action-link/);
   assert.doesNotMatch(css, /position:\s*fixed[\s\S]{0,80}\.hand-review-chrome|\.hand-review-chrome[\s\S]{0,120}position:\s*fixed/);
   assert.doesNotMatch(
     css,
@@ -368,6 +373,8 @@ function table(overrides = {}) {
   assert.match(tableSrc, /Try again/);
   assert.match(tableSrc, /Show answer/);
   assert.match(tableSrc, /hand-review-continue/);
+  assert.match(tableSrc, /function continueHandReview/);
+  assert.match(tableSrc, /Your retry: Correct/);
   assert.match(tableSrc, /is-spoiler|kind: "spoiler"/);
   assert.match(tableSrc, /showHandButtonAvailable/);
   assert.match(tableSrc, /isHeroVsBotsOnly/);
