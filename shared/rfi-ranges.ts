@@ -402,3 +402,229 @@ export function dealRandomRfiSpot(
     standard,
   };
 }
+
+/** Hand buckets for short coach explanations. */
+export type RfiHandCategory =
+  | "pair"
+  | "suited_ace"
+  | "suited_broadway"
+  | "offsuit_broadway"
+  | "suited_connector"
+  | "trash";
+
+/** Seat bands for RFI advice. */
+export type RfiPositionBand = "early" | "middle" | "late" | "blinds";
+
+export type RfiCoachExplain = {
+  verdict: "correct" | "mistake";
+  /** Optional chess.com-style badge when the play matches best. */
+  badge: "Best" | null;
+  reason: string;
+  borderline: "inside" | "outside" | null;
+  category: RfiHandCategory;
+  band: RfiPositionBand;
+};
+
+const BROADWAY = new Set(["A", "K", "Q", "J", "T"]);
+
+function parseHandKey(handKey: string): {
+  high: RankChar;
+  low: RankChar;
+  suited: boolean;
+  pair: boolean;
+} | null {
+  if (!handKey || handKey.length < 2) return null;
+  const high = handKey[0] as RankChar;
+  const low = handKey[1] as RankChar;
+  if (!isRankChar(high) || !isRankChar(low)) return null;
+  if (handKey.length === 2) {
+    if (high !== low) return null;
+    return { high, low, suited: false, pair: true };
+  }
+  const flag = handKey[2];
+  if (flag !== "s" && flag !== "o") return null;
+  return { high, low, suited: flag === "s", pair: false };
+}
+
+function rankGap(high: RankChar, low: RankChar): number {
+  return Math.abs(rankIndex(high) - rankIndex(low));
+}
+
+/** Classify a hand key into a coach category. */
+export function classifyRfiHand(handKey: string): RfiHandCategory | null {
+  const parsed = parseHandKey(handKey);
+  if (!parsed) return null;
+  if (parsed.pair) return "pair";
+  if (parsed.suited && parsed.high === "A") return "suited_ace";
+  const bothBroadway = BROADWAY.has(parsed.high) && BROADWAY.has(parsed.low);
+  if (bothBroadway) return parsed.suited ? "suited_broadway" : "offsuit_broadway";
+  if (parsed.suited && rankGap(parsed.high, parsed.low) <= 2) return "suited_connector";
+  return "trash";
+}
+
+/** Map a seat to early / middle / late / blinds. */
+export function rfiPositionBand(tableSize: RfiTableSize, position: string): RfiPositionBand | null {
+  if (position === "BB") return "blinds";
+  if (!isRfiPosition(tableSize, position)) return null;
+  if (position === "SB") return "blinds";
+  if (position === "BTN" || position === "CO") return "late";
+  if (tableSize === 6) {
+    if (position === "UTG") return "early";
+    if (position === "HJ") return "middle";
+  } else if (position === "UTG" || position === "UTG+1" || position === "MP") {
+    return "early";
+  } else if (position === "LJ" || position === "HJ") {
+    return "middle";
+  }
+  return "middle";
+}
+
+function neighborKeys(handKey: string): string[] {
+  const parsed = parseHandKey(handKey);
+  if (!parsed) return [];
+  const out: string[] = [];
+  const highIdx = rankIndex(parsed.high);
+  const lowIdx = rankIndex(parsed.low);
+  if (parsed.pair) {
+    if (highIdx + 1 < RANK_ORDER.length) out.push(`${RANK_ORDER[highIdx + 1]}${RANK_ORDER[highIdx + 1]}`);
+    if (highIdx > 0) out.push(`${RANK_ORDER[highIdx - 1]}${RANK_ORDER[highIdx - 1]}`);
+    return out;
+  }
+  const suffix = parsed.suited ? "s" : "o";
+  if (lowIdx + 1 < RANK_ORDER.length && lowIdx + 1 !== highIdx) {
+    out.push(`${parsed.high}${RANK_ORDER[lowIdx + 1]}${suffix}`);
+  }
+  if (lowIdx > 0 && lowIdx - 1 !== highIdx) {
+    out.push(`${parsed.high}${RANK_ORDER[lowIdx - 1]}${suffix}`);
+  }
+  // Suit flip toward the stronger / weaker version.
+  out.push(`${parsed.high}${parsed.low}${parsed.suited ? "o" : "s"}`);
+  return out;
+}
+
+/**
+ * Borderline = just inside the raise set (a weaker neighbor folds) or just outside
+ * (a stronger neighbor raises).
+ */
+export function rfiBorderline(
+  tableSize: RfiTableSize,
+  position: string,
+  handKey: string,
+): "inside" | "outside" | null {
+  if (!isRfiPosition(tableSize, position)) return null;
+  const raiseSet = raiseSetFor(tableSize, position);
+  if (!raiseSet) return null;
+  const standard = raiseSet.has(handKey) ? "raise" : "fold";
+  const neighbors = neighborKeys(handKey);
+  if (standard === "raise") {
+    if (neighbors.some((key) => !raiseSet.has(key))) return "inside";
+    return null;
+  }
+  if (neighbors.some((key) => raiseSet.has(key))) return "outside";
+  return null;
+}
+
+function pairRankLabel(high: RankChar): string {
+  if (high === "A" || high === "K" || high === "Q" || high === "J") return "big";
+  if (high === "T" || high === "9" || high === "8") return "mid";
+  return "small";
+}
+
+function reasonFor(
+  category: RfiHandCategory,
+  band: RfiPositionBand,
+  standard: RfiAction,
+  handKey: string,
+): string {
+  const parsed = parseHandKey(handKey)!;
+  if (category === "pair") {
+    const size = pairRankLabel(parsed.high);
+    if (standard === "raise") {
+      if (size === "big") return "Pairs this big always open.";
+      if (band === "early") return "Mid pairs open from early seats.";
+      if (band === "blinds") return "Pairs play fine as a blind open.";
+      return "This pair is strong enough to open.";
+    }
+    if (band === "early") return "Too many players behind for this pair.";
+    return "This pair is too weak to open here.";
+  }
+  if (category === "suited_ace") {
+    if (standard === "raise") {
+      if (band === "late" || band === "blinds") return "Suited aces play well late — open.";
+      return "Suited aces realize well — open.";
+    }
+    return "Weak suited ace is too thin early.";
+  }
+  if (category === "suited_broadway") {
+    if (standard === "raise") return "Suited broadway opens for value.";
+    return "Suited broadway still too thin early.";
+  }
+  if (category === "offsuit_broadway") {
+    if (standard === "raise") {
+      if (band === "late" || band === "blinds") return "Offsuit broadway is fine late.";
+      return "This broadway is strong enough to open.";
+    }
+    if (band === "early") return `${handKey} is too weak to open early.`;
+    return `${handKey} gets dominated by better kickers.`;
+  }
+  if (category === "suited_connector") {
+    if (standard === "raise") {
+      if (band === "late" || band === "blinds") return "Suited connectors play well late.";
+      return "Suited connectors can open here.";
+    }
+    if (band === "early") return "Too many players behind for suited connectors.";
+    return "This connector is too weak to open.";
+  }
+  // trash
+  if (standard === "raise") return "This speculative hand still opens here.";
+  if (band === "early") return "Trash hands fold with players left to act.";
+  if (band === "late") return "Still too weak to open, even late.";
+  return "This hand is too weak to open.";
+}
+
+function trimWords(text: string, maxWords: number): string {
+  const words = text.trim().split(/\s+/);
+  if (words.length <= maxWords) return text.trim();
+  return `${words.slice(0, maxWords).join(" ")}.`;
+}
+
+/**
+ * Chess.com-style one-liner: why the standard raise/fold is right for this spot.
+ * Optional borderline note when the hand sits on the range edge.
+ */
+export function explainRfiDecision(
+  tableSize: RfiTableSize,
+  position: string,
+  handKey: string,
+  chosen: RfiAction,
+): RfiCoachExplain | null {
+  const graded = gradeRfiAction(tableSize, position, handKey, chosen);
+  if (!graded) return null;
+  const category = classifyRfiHand(handKey);
+  const band = rfiPositionBand(tableSize, position);
+  if (!category || !band) return null;
+  const borderline = rfiBorderline(tableSize, position, handKey);
+  let reason = reasonFor(category, band, graded.standard, handKey);
+  if (borderline === "inside") {
+    reason = `Borderline — just inside the ${position} range.`;
+  } else if (borderline === "outside") {
+    reason = `Borderline — just outside the ${position} range.`;
+  } else if (!graded.correct && graded.standard === "fold" && category === "offsuit_broadway") {
+    reason = `${handKey} is too weak to open from ${position}.`;
+  } else if (!graded.correct && graded.standard === "raise") {
+    // Mistaken fold: emphasize the open.
+    if (category === "pair") reason = "Pairs this big always open.";
+    else if (category === "suited_ace") reason = "Suited aces play well — open.";
+    else if (category === "suited_broadway") reason = "Suited broadway should open.";
+    else if (band === "late") reason = `Open this from ${position}.`;
+  }
+  reason = trimWords(reason, 12);
+  return {
+    verdict: graded.correct ? "correct" : "mistake",
+    badge: graded.correct ? "Best" : null,
+    reason,
+    borderline,
+    category,
+    band,
+  };
+}

@@ -26,6 +26,15 @@
   --surface-shadow:
     0 1px 0 rgba(255, 255, 255, 0.04) inset,
     0 18px 44px rgba(0, 0, 0, 0.28);
+  /* Trainer chart (dark): muted green raise vs low-contrast neutral fold, AA text. */
+  --trainer-raise: #4caf82;
+  --trainer-chart-raise-bg: #1f4d3c;
+  --trainer-chart-raise-fg: #e4f5ec;
+  --trainer-chart-fold-bg: #1a2226;
+  --trainer-chart-fold-fg: #9aa6ab;
+  --trainer-chart-pair-raise-bg: #245744;
+  --trainer-chart-hand-ring: #d4b45a;
+  --trainer-chart-grid-gap: #0c1215;
   font-family: var(--ui-font);
 }
 
@@ -49,6 +58,14 @@
   --surface-shadow:
     0 1px 0 rgba(255, 255, 255, 0.8) inset,
     0 18px 44px rgba(29, 47, 40, 0.12);
+  --trainer-raise: #2f8f6a;
+  --trainer-chart-raise-bg: #c8e6d7;
+  --trainer-chart-raise-fg: #123528;
+  --trainer-chart-fold-bg: #e6e9e4;
+  --trainer-chart-fold-fg: #4f5b55;
+  --trainer-chart-pair-raise-bg: #b7dcc9;
+  --trainer-chart-hand-ring: #9a7418;
+  --trainer-chart-grid-gap: #ffffff;
 }
 
 :root[data-felt="navy"] {
@@ -592,12 +609,29 @@ html.trainer-open-root {
 }
 
 .trainer-view {
-  --trainer-raise: #3dba7a;
+  /* theme tokens live on :root */
 }
 
 .trainer-board {
-  min-height: 48px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.trainer-board .card {
+  width: clamp(72px, 8vw, 110px);
+}
+
+/* Keep seats packed above the action panel (not stranded under a void of felt). */
+.trainer-view .players {
+  justify-content: flex-end;
+}
+
+.trainer-view .players > :first-child {
+  margin-top: 0;
 }
 
 .trainer-board-label {
@@ -618,8 +652,9 @@ html.trainer-open-root {
   color: color-mix(in srgb, var(--text) 72%, transparent);
 }
 
-#trainerAccuracy:not(:empty) {
-  display: inline-flex;
+#trainerAccuracy:empty,
+#trainerAccuracy.hidden {
+  display: none;
 }
 
 .trainer-size {
@@ -655,12 +690,113 @@ html.trainer-open-root {
   line-height: 1.4;
 }
 
-.trainer-verdict.is-correct {
+.trainer-verdict.is-correct,
+.trainer-coach-verdict.is-correct {
   color: var(--trainer-raise);
 }
 
-.trainer-verdict.is-wrong {
+.trainer-verdict.is-wrong,
+.trainer-coach-verdict.is-wrong {
   color: var(--danger);
+}
+
+.trainer-pos-label {
+  white-space: nowrap;
+}
+
+.turn-info.trainer-coach {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: baseline;
+  min-height: 0;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.trainer-coach-verdict {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.trainer-coach-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.trainer-coach-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--trainer-raise) 18%, transparent);
+  color: var(--trainer-raise);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.trainer-coach-reason {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.trainer-seat-label {
+  position: relative;
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: help;
+  min-height: 0;
+  box-shadow: none;
+}
+
+.trainer-seat-label:not(:disabled):hover,
+.trainer-seat-label:not(:disabled):active {
+  background: transparent;
+  transform: none;
+}
+
+.trainer-seat-label[data-tip="1"]::after {
+  content: attr(data-full);
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 5;
+  width: max-content;
+  max-width: min(200px, 70vw);
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  box-shadow: var(--surface-shadow);
+  pointer-events: none;
 }
 
 .trainer-chart-panel {
@@ -671,7 +807,8 @@ html.trainer-open-root {
 
 .trainer-chart-legend {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 10px 14px;
   color: var(--muted);
   font-size: 11px;
   font-weight: 700;
@@ -681,24 +818,29 @@ html.trainer-open-root {
 .trainer-legend-fold::before {
   content: "";
   display: inline-block;
-  width: 9px;
-  height: 9px;
-  margin-right: 5px;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
   border-radius: 2px;
   vertical-align: -1px;
 }
 
 .trainer-legend-raise::before {
-  background: color-mix(in srgb, var(--trainer-raise) 72%, #0b1a12);
+  background: var(--trainer-chart-raise-bg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--trainer-chart-raise-fg) 18%, transparent);
 }
 
 .trainer-legend-fold::before {
-  background: color-mix(in srgb, var(--panel-2) 88%, #000);
+  background: var(--trainer-chart-fold-bg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--trainer-chart-fold-fg) 22%, transparent);
 }
 
 .trainer-chart {
   width: 100%;
   min-width: 0;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--trainer-chart-grid-gap);
 }
 
 .trainer-chart-grid {
@@ -709,6 +851,7 @@ html.trainer-open-root {
   font-size: clamp(7px, 2.2vw, 10px);
   line-height: 1;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .trainer-chart-corner {
@@ -720,6 +863,7 @@ html.trainer-open-root {
   place-items: center;
   min-height: 14px;
   color: var(--muted);
+  font-weight: 700;
 }
 
 .trainer-chart-cell {
@@ -728,47 +872,138 @@ html.trainer-open-root {
   aspect-ratio: 1;
   min-width: 0;
   border-radius: 2px;
-  color: rgba(255, 255, 255, 0.88);
   overflow: hidden;
 }
 
 .trainer-chart-cell.is-raise {
-  background: color-mix(in srgb, var(--trainer-raise) 78%, #0b1a12);
+  background: var(--trainer-chart-raise-bg);
+  color: var(--trainer-chart-raise-fg);
 }
 
-:root[data-theme="light"] .trainer-chart-cell.is-raise {
-  background: color-mix(in srgb, var(--trainer-raise) 82%, #14532d);
-  color: #fff;
+.trainer-chart-cell.is-raise.is-pair {
+  background: var(--trainer-chart-pair-raise-bg);
+  font-weight: 800;
 }
 
 .trainer-chart-cell.is-fold {
-  background: color-mix(in srgb, var(--panel-2) 88%, #000);
-  color: var(--muted);
+  background: var(--trainer-chart-fold-bg);
+  color: var(--trainer-chart-fold-fg);
 }
 
-:root[data-theme="light"] .trainer-chart-cell.is-fold {
-  background: color-mix(in srgb, var(--panel-2) 70%, #d7ddd8);
-  color: color-mix(in srgb, var(--muted) 80%, #000);
+.trainer-chart-cell.is-suited {
+  font-weight: 750;
 }
 
-:root[data-theme="light"] .trainer-legend-raise::before {
-  background: color-mix(in srgb, var(--trainer-raise) 82%, #14532d);
+.trainer-chart-cell.is-offsuit {
+  font-weight: 650;
 }
 
 .trainer-chart-cell.is-hand {
-  outline: 2px solid #f5d76e;
+  outline: 2px solid var(--trainer-chart-hand-ring);
   outline-offset: -1px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--trainer-chart-hand-ring) 55%, transparent);
   z-index: 1;
 }
 
+/* Compact prompt on narrow phones: keep full name but allow a soft wrap after the acronym. */
+@media (max-width: 379px) {
+  .trainer-view .turn-info {
+    font-size: 13px;
+  }
+
+  .trainer-pos-label {
+    white-space: normal;
+  }
+
+  .turn-info.trainer-coach {
+    gap: 4px 8px;
+  }
+
+  .trainer-coach-reason {
+    flex: 1 1 100%;
+    font-size: 12px;
+  }
+}
+
 @media (max-width: 779px) {
-  /* Keep the puzzle one screen: player list scrolls inside the felt, not the page. */
+  /* Phones keep hole cards in the action panel; community is just a PREFLOP badge. */
+  .trainer-view .felt {
+    position: relative;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .trainer-view .trainer-board {
+    grid-row: 1;
+    min-height: 0;
+    padding: 0;
+  }
+
+  .trainer-view .trainer-board .card {
+    display: none;
+  }
+
   .trainer-view .players {
+    grid-row: 2;
     overflow-y: auto;
+  }
+
+  .trainer-view .control-panel {
+    grid-row: 3;
+  }
+
+  .trainer-chart-panel {
+    width: 100%;
+    max-height: min(780px, calc(100dvh - 16px));
   }
 }
 
 @media (min-width: 780px) {
+  /*
+   * Match Practice: seats left, spotlight cards top-right, compact action panel bottom-right.
+   * Large hole cards fill the community slot so the felt isn't empty.
+   */
+  .trainer-view .felt {
+    overflow: hidden;
+  }
+
+  .trainer-view .trainer-board {
+    position: static;
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    transform: none;
+    min-height: 160px;
+  }
+
+  .trainer-view .trainer-board-label {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+
+  .trainer-view #trainerHeroHand {
+    display: none;
+  }
+
+  .trainer-view .players {
+    position: static;
+    grid-column: 1;
+    grid-row: 1 / 3;
+  }
+
+  .trainer-view .control-panel {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: end;
+    justify-self: stretch;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 0;
+  }
+
   .trainer-chart-panel {
     width: min(520px, 100%);
   }
@@ -776,6 +1011,17 @@ html.trainer-open-root {
   .trainer-chart-grid {
     font-size: 10px;
     grid-template-columns: 16px repeat(13, minmax(0, 1fr));
+  }
+
+  .turn-info.trainer-coach {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+
+  .trainer-coach-reason {
+    overflow: visible;
+    text-overflow: unset;
+    white-space: normal;
   }
 }
 

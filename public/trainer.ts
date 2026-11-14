@@ -59,6 +59,27 @@
       "BB",
     ] as const;
 
+    const POSITION_FULL_NAME: Record<string, string> = {
+      UTG: "Under the gun",
+      "UTG+1": "Under the gun +1",
+      MP: "Middle position",
+      LJ: "Lojack",
+      HJ: "Hijack",
+      CO: "Cutoff",
+      BTN: "Button",
+      SB: "Small blind",
+      BB: "Big blind",
+    };
+
+    function positionFullName(seat: string): string {
+      return POSITION_FULL_NAME[seat] || seat;
+    }
+
+    function positionLabel(seat: string): string {
+      const full = positionFullName(seat);
+      return full === seat ? seat : `${seat} · ${full}`;
+    }
+
     type TrainerStats = {
       overall: { correct: number; total: number };
       streak: number;
@@ -236,6 +257,7 @@
       const accuracyEl = trainerView.querySelector("#trainerAccuracy") as HTMLElement | null;
       const potEl = trainerView.querySelector("#trainerPotValue") as HTMLElement | null;
       const heroHandEl = trainerView.querySelector("#trainerHeroHand") as HTMLElement | null;
+      const communityEl = trainerView.querySelector("#trainerCommunity") as HTMLElement | null;
       const turnInfoEl = trainerView.querySelector("#trainerTurnInfo") as HTMLElement | null;
       const actionsEl = trainerView.querySelector("#trainerActions") as HTMLElement | null;
       const playersEl = trainerView.querySelector("#trainerPlayers") as HTMLElement | null;
@@ -263,6 +285,7 @@
         !accuracyEl ||
         !potEl ||
         !heroHandEl ||
+        !communityEl ||
         !turnInfoEl ||
         !actionsEl ||
         !playersEl ||
@@ -299,7 +322,13 @@
 
       function renderStats(): void {
         const overallPct = pct(stats.overall.correct, stats.overall.total);
-        accuracyEl!.textContent = stats.overall.total > 0 ? overallPct : "—";
+        if (stats.overall.total > 0) {
+          accuracyEl!.textContent = overallPct;
+          accuracyEl!.classList.remove("hidden");
+        } else {
+          accuracyEl!.textContent = "";
+          accuracyEl!.classList.add("hidden");
+        }
         const parts: string[] = [
           `Overall ${stats.overall.correct}/${stats.overall.total} (${overallPct})`,
           `Streak ${stats.streak}${stats.bestStreak ? ` (best ${stats.bestStreak})` : ""}`,
@@ -363,9 +392,18 @@
             ]
               .filter(Boolean)
               .join(" ");
+            const full = positionFullName(seat);
             return `<article class="${classes}">
               <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
-              <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(seat)}</span>${seatChipMarkup(seat)}</span>
+              <span class="seat-name seat-name-with-chips">
+                <button
+                  type="button"
+                  class="seat-name-text trainer-seat-label"
+                  title="${escapeHtml(full)}"
+                  aria-label="${escapeHtml(seat)}, ${escapeHtml(full)}"
+                  data-full="${escapeHtml(full)}"
+                >${escapeHtml(seat)}</button>${seatChipMarkup(seat)}
+              </span>
               <span class="player-action${actionClass}">${escapeHtml(action)}</span>
               <strong class="player-stack">${stackForSeat(seat)}</strong>
             </article>`;
@@ -392,14 +430,17 @@
           for (let col = 0; col < 13; col += 1) {
             const cell = cells[row * 13 + col]!;
             const highlight = cell.key === highlightKey ? " is-hand" : "";
+            let shape = " is-offsuit";
+            if (cell.key.length === 2) shape = " is-pair";
+            else if (cell.key.endsWith("s")) shape = " is-suited";
             const label = cell.key.length <= 3 ? cell.key : cell.key.slice(0, 2);
-            html += `<span class="trainer-chart-cell is-${cell.action}${highlight}" title="${cell.key}">${label}</span>`;
+            html += `<span class="trainer-chart-cell is-${cell.action}${shape}${highlight}" title="${cell.key}">${label}</span>`;
           }
         }
         html += "</div>";
         chartEl!.innerHTML = html;
         if (chartEyebrow) {
-          chartEyebrow.textContent = `${spot!.position} · ${tableSize}-max open`;
+          chartEyebrow.textContent = `${positionLabel(spot!.position)} · ${tableSize}-max open`;
         }
       }
 
@@ -438,23 +479,41 @@
       function renderTurnInfo(): void {
         if (!spot) {
           turnInfoEl!.textContent = "";
-          turnInfoEl!.classList.remove("your-turn", "showdown-message");
+          turnInfoEl!.classList.remove("your-turn", "showdown-message", "trainer-coach");
           return;
         }
         if (!spot.answered) {
           turnInfoEl!.classList.add("your-turn");
-          turnInfoEl!.classList.remove("showdown-message");
-          turnInfoEl!.textContent = `Folded to you · ${spot.position}`;
+          turnInfoEl!.classList.remove("showdown-message", "trainer-coach");
+          turnInfoEl!.innerHTML = `Folded to you · <span class="trainer-pos-label" title="${escapeHtml(
+            positionFullName(spot.position),
+          )}">${escapeHtml(positionLabel(spot.position))}</span>`;
           return;
         }
-        turnInfoEl!.classList.remove("your-turn");
-        turnInfoEl!.classList.add("showdown-message");
-        const label = spot.standard === "raise" ? "Raise" : "Fold";
-        const article = spot.standard === "raise" ? "an open" : "a fold";
-        const verdict = spot.correct ? "Correct" : "Incorrect";
-        turnInfoEl!.innerHTML = `<strong class="trainer-verdict ${
-          spot.correct ? "is-correct" : "is-wrong"
-        }">${verdict}</strong> · ${label} — ${escapeHtml(spot.handKey)} is ${article} from ${escapeHtml(spot.position)}`;
+        turnInfoEl!.classList.remove("your-turn", "showdown-message");
+        turnInfoEl!.classList.add("trainer-coach");
+        const chosen = spot.chosen || "fold";
+        const explain =
+          typeof ranges!.explainRfiDecision === "function"
+            ? ranges!.explainRfiDecision(tableSize, spot.position, spot.handKey, chosen)
+            : null;
+        const correct = Boolean(spot.correct);
+        const verdictText = correct ? "Correct" : "Mistake";
+        const verdictIcon = correct ? "✓" : "✗";
+        const badge =
+          explain?.badge && correct
+            ? `<span class="trainer-coach-badge">${escapeHtml(explain.badge)}</span>`
+            : "";
+        const reason = explain?.reason
+          ? explain.reason
+          : correct
+            ? "Nice — that matches the chart."
+            : "Check the chart for this seat.";
+        turnInfoEl!.innerHTML = `<span class="trainer-coach-verdict ${
+          correct ? "is-correct" : "is-wrong"
+        }"><span class="trainer-coach-icon" aria-hidden="true">${verdictIcon}</span>${verdictText}</span>${badge}<span class="trainer-coach-reason">${escapeHtml(
+          reason,
+        )}</span>`;
       }
 
       function dealNext(): void {
@@ -472,7 +531,11 @@
         };
         trainerView.classList.remove("is-answered");
         potEl!.textContent = String(POT);
-        heroHandEl!.innerHTML = cardHtml(dealt.cards[0]) + cardHtml(dealt.cards[1]);
+        const holes = cardHtml(dealt.cards[0]) + cardHtml(dealt.cards[1]);
+        heroHandEl!.innerHTML = holes;
+        // Desktop spotlight uses the community slot (Practice board area); phones keep panel cards.
+        communityEl!.innerHTML =
+          `<span class="trainer-board-label">Preflop</span>${holes}`;
         chartEl!.innerHTML = "";
         renderPlayers();
         renderTurnInfo();
@@ -642,6 +705,22 @@
       const onChartBackdrop = (event: MouseEvent) => {
         if (event.target === chartModal) closeChart();
       };
+      const onSeatLabelClick = (event: Event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const btn = target.closest(".trainer-seat-label");
+        if (!(btn instanceof HTMLElement) || !playersEl!.contains(btn)) return;
+        event.preventDefault();
+        const full = btn.getAttribute("data-full") || "";
+        const open = btn.getAttribute("data-tip") === "1";
+        playersEl!.querySelectorAll(".trainer-seat-label[data-tip='1']").forEach((el) => {
+          el.removeAttribute("data-tip");
+          el.removeAttribute("aria-describedby");
+        });
+        if (!open && full) {
+          btn.setAttribute("data-tip", "1");
+        }
+      };
 
       trainerBtn.addEventListener("click", onTrainerClick);
       practiceBtn?.addEventListener("click", onPractice);
@@ -655,6 +734,7 @@
       closeChartBtn.addEventListener("click", closeChart);
       menuModal.addEventListener("click", onMenuBackdrop);
       chartModal.addEventListener("click", onChartBackdrop);
+      playersEl.addEventListener("click", onSeatLabelClick);
       doc.addEventListener("keydown", onKeydown);
 
       try {
@@ -680,6 +760,7 @@
           closeChartBtn.removeEventListener("click", closeChart);
           menuModal.removeEventListener("click", onMenuBackdrop);
           chartModal.removeEventListener("click", onChartBackdrop);
+          playersEl.removeEventListener("click", onSeatLabelClick);
           doc.removeEventListener("keydown", onKeydown);
         },
       };

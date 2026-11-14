@@ -40,8 +40,16 @@ assert.match(trainer, /keydown/);
 assert.match(trainer, /streak/);
 assert.match(trainer, /TABLE_SEATS/);
 assert.match(trainer, /Folded to you/);
+assert.match(trainer, /POSITION_FULL_NAME/);
+assert.match(trainer, /Under the gun/);
+assert.match(trainer, /trainer-coach/);
 assert.match(trainer, /blind-chip/);
 assert.match(trainer, /table-player-row/);
 assert.match(trainer, /trainerFoldBtn/);
+
+assert.match(css, /--trainer-chart-raise-bg/);
+assert.match(css, /--trainer-chart-fold-bg/);
+assert.match(css, /trainer-coach-verdict/);
+assert.match(css, /\.trainer-view \.felt/);
 
 console.log("Trainer UI markup checks passed.");
