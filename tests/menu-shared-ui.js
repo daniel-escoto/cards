@@ -40,4 +40,20 @@ assert.doesNotMatch(css, /\.hand-review-retry-actions/);
 assert.doesNotMatch(css, /\.control-panel \.hand-review-close\.icon-btn[\s\S]{0,80}width:\s*44px/);
 assert.doesNotMatch(css, /\.trainer-drill \.mode-option/);
 
+// Dark-mode appearance-choice: opaque panel-2 + readable text (not muted-on-transparent).
+const choiceBlock = css.match(
+  /(?:^|\n)\.appearance-choice\s*\{[^}]+background:\s*var\(--panel-2\)[^}]*\}/,
+);
+assert.ok(choiceBlock, "base appearance-choice rule with opaque panel-2");
+assert.doesNotMatch(
+  choiceBlock[0],
+  /color:\s*var\(--muted\)\s*;/,
+  "unselected choice labels must not use washed-out --muted alone",
+);
+assert.doesNotMatch(
+  css,
+  /\.appearance-choice\s*\{[^}]*color-mix\(in srgb, var\(--panel\) 72%, transparent\)/,
+  "choice tiles must not use translucent panel-over-felt wash",
+);
+
 console.log("Shared menu UI checks passed.");

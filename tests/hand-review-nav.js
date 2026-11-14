@@ -19,7 +19,8 @@ assert.match(tableSrc, /function handReviewJumpToEnd/);
 assert.match(tableSrc, /function syncHandReviewNavButtons/);
 assert.match(tableSrc, /aria-disabled/);
 
-// Stepping past an end is a hard no-op before paint (card DOM untouched).
+// Stepping past an end (e.g. Next on the last landable step) is a hard no-op —
+// return before paintHandReviewStep so card DOM / animations are untouched.
 const stepBy = tableSrc.match(
   /function handReviewStepBy\([\s\S]*?\nfunction /,
 );
@@ -27,22 +28,36 @@ assert.ok(stepBy, "handReviewStepBy present");
 assert.match(
   stepBy[0],
   /if \(nextPos < 0 \|\| nextPos >= landable\.length\) return/,
-  "stepping past an end must return before paintHandReviewStep",
+  "Next at last step / Prev at first must return before paintHandReviewStep",
 );
 assert.match(
   stepBy[0],
   /At an end: no-op/,
-  "must not paint when past an end",
+  "end-step no-op must not re-paint or re-animate cards",
+);
+assert.ok(
+  stepBy[0].indexOf("nextPos < 0 || nextPos >= landable.length") <
+    stepBy[0].indexOf("paintHandReviewStep(landable[nextPos]!)"),
+  "end guard precedes any paintHandReviewStep call in handReviewStepBy",
 );
 
 // Same-index paint is a no-op (no bust cache / no card re-animation).
+// Unchanged hole/board cards keep lastHero/Community signatures between steps.
 const paintFn = tableSrc.match(/function paintHandReviewStep\([\s\S]*?\nfunction /);
 assert.ok(paintFn, "paintHandReviewStep present");
-assert.match(paintFn[0], /next === handReviewStepIndex/);
+assert.match(
+  paintFn[0],
+  /next === handReviewStepIndex/,
+  "same-step paint must early-return (no card re-animation)",
+);
+assert.match(
+  paintFn[0],
+  /Keep lastHero\/Community signatures so unchanged cards stay still/,
+);
 assert.doesNotMatch(
   paintFn[0],
   /bustCardRenderCache/,
-  "step paints must not bust card signatures (only new cards animate)",
+  "step paints must not bust card signatures (only newly dealt cards animate)",
 );
 
 // Timeline dots = landable frames only (decisions + result).
