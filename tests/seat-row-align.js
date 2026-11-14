@@ -42,11 +42,11 @@ assert.match(block(".seat-name-text"), /flex:\s*0 1 auto/, "name hugs its text, 
 assert.match(block(".seat-name-text"), /text-overflow:\s*ellipsis/);
 assert.match(block(".player-stack"), /min-width:\s*5ch/);
 assert.doesNotMatch(css, /\.player-stack\s*\{[^}]*min-width:\s*max-content/, "stack width must not vary per row");
-assert.doesNotMatch(
-  css,
-  /\.blind-chip\.dealer\s*\{/,
-  "dealer chip uses the existing blind-chip look (no separate dealer styles)",
-);
+const dealerChip = block(".blind-chip.dealer");
+assert.match(dealerChip, /--chip-color:\s*#f5f5f4/, "dealer chip is a white button");
+assert.match(dealerChip, /color:\s*#1f2937/, "dealer D is dark on white");
+assert.match(block(".blind-chip"), /--chip-color:\s*var\(--accent\)/, "SB keeps accent blue");
+assert.match(block(".blind-chip.big"), /--chip-color:\s*#e07a4a/, "BB stays orange");
 // Shot-clock bar sits inside the row's rounded corners (inset >= corner radius), as a pill.
 const px = (re, text) => Number(re.exec(text)[1]);
 const bar = block(".turn-clock-bar");

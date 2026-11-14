@@ -91,6 +91,25 @@ declare global {
     addComputerPlayers(room: PracticeRoom, targetCount: number): void;
     resetReadiness(room: PracticeRoom): void;
     cleanName(name: unknown): string;
+    coachAvailableForViewer?(room: PracticeRoom, viewerId: string): boolean;
+    copyForAiAvailableForViewer?(
+      room: PracticeRoom,
+      viewerId: string,
+      isSpectator?: boolean,
+    ): boolean;
+    preflopHandScore?(cards: string[]): number;
+    estimatePostflopEquity?(
+      playerCards: string[],
+      community: string[],
+      iterations?: number,
+      random?: () => number,
+    ): number;
+    estimatePreflopEquityAgainstRange?(
+      playerCards: string[],
+      rangeFraction: number,
+      iterations?: number,
+      random?: () => number,
+    ): number;
   }
 
   interface PracticeSeat {
@@ -147,6 +166,45 @@ declare global {
   }
 
   const PracticeSession: PracticeSessionAPI;
+
+  interface CoachSuggestion {
+    equity: number;
+    potOdds: number;
+    toCall: number;
+    opponents: number;
+    handLabel: string;
+    action: "fold" | "check" | "call" | "bet" | "raise";
+    raiseTo: number | null;
+    reason: string;
+    summary: string;
+  }
+
+  interface CoachAPI {
+    coachAvailableForPlayers(
+      players: Array<{ id: string; isYou?: boolean; isBot?: boolean }>,
+      viewerId?: string | null,
+    ): boolean;
+    buildCoachSuggestion(
+      room: ClientRoom | null | undefined,
+      options?: { random?: () => number; iterations?: number },
+    ): CoachSuggestion | null;
+    formatCoachHint(suggestion: CoachSuggestion, room: ClientRoom): string;
+  }
+
+  const Coach: CoachAPI;
+
+  interface CopyForAiAPI {
+    isBettingPhase(phase: string | null | undefined): boolean;
+    isBetweenHands(phase: string | null | undefined): boolean;
+    handIsOver(phase: string | null | undefined): boolean;
+    copyForAiAllowed(room: ClientRoom | null | undefined): boolean;
+    formatCardPlain(card: PublicCard | null | undefined): string | null;
+    visibleCardsPlain(cards: Array<PublicCard | null | undefined> | null | undefined): string[];
+    positionByPlayerId(players: ClientPlayer[]): Map<string, string>;
+    buildCopyForAiPrompt(room: ClientRoom | null | undefined): string;
+  }
+
+  const CopyForAi: CopyForAiAPI;
 
   interface DeployHandoffAPI {
     ACTIVE_HAND_PHASES: Set<string>;
@@ -424,6 +482,10 @@ declare global {
   var shareGameBtn: HTMLButtonElement;
   var backToMenuBtn: HTMLButtonElement;
   var sitOutBtn: HTMLButtonElement;
+  var coachBtn: HTMLButtonElement;
+  var copyForAiBtn: HTMLButtonElement;
+  var coachHint: HTMLElement;
+  var COACH_PREF_KEY: string;
   var hostActionsPanel: HTMLElement;
   var menuRoomCode: HTMLElement;
   var menuRoomEyebrow: HTMLElement | null;
@@ -611,6 +673,16 @@ declare global {
   function isBlindPost(entry: ActionLogEntry): boolean;
   function actionTokenClass(entry: ActionLogEntry, player: ClientPlayer | null | undefined): string;
   function playerTableStatus(player: ClientPlayer, isActiveTurn?: boolean): string;
+  function seatCanActThisStreet(player: ClientPlayer | null | undefined): boolean;
+  function nextToActSeat(
+    players: ClientPlayer[] | null | undefined,
+    turnId: string | null | undefined,
+    phase: string | null | undefined,
+  ): ClientPlayer | null;
+  function seatWaitingForStreetAction(
+    player: ClientPlayer,
+    options: { hasStreetAction: boolean; isActing: boolean; phase: string | null | undefined },
+  ): boolean;
   function playerForAction(entry: ActionLogEntry): ClientPlayer | null | undefined;
   function renderShownHandCard(player: ClientPlayer): string;
   function currentTurnPlayer(): ClientPlayer | null | undefined;
@@ -703,5 +775,13 @@ declare global {
   function autoJoinInitialRoom(): void;
   function reportVisibility(): void;
   function flashCopyIcon(root?: HTMLElement | null): void;
+  function writeClipboardText(text: string): Promise<boolean>;
   function copyText(text: string, button: HTMLElement): Promise<void>;
+  function coachPrefEnabled(): boolean;
+  function setCoachPrefEnabled(enabled: boolean): void;
+  function coachFeatureAvailable(room?: ClientRoom | null): boolean;
+  function syncCoachBtn(): void;
+  function copyForAiFeatureAvailable(room?: ClientRoom | null): boolean;
+  function syncCopyForAiBtn(): void;
+  function renderCoachHint(): void;
 }

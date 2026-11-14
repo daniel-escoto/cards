@@ -366,6 +366,13 @@ export interface ClientRoom {
   canReady: boolean;
   isReady: boolean;
   isSpectator: boolean;
+  /** True when the viewer is a seated human and every other seat is a bot. */
+  coachAvailable: boolean;
+  /**
+   * Bot-only tables: always true for the seated human.
+   * Spectators / multi-human: true only between hands.
+   */
+  copyForAiAvailable: boolean;
   watchingCount: number;
   canTakeSeat: boolean;
   canChangeBlinds: boolean;

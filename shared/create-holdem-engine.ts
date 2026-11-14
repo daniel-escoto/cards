@@ -1211,6 +1211,32 @@ export function createHoldemEngine(Hand: HandConstructor) {
     return player.hand.map(() => null);
   }
 
+  /** Seated human vs bots only — never spectators or multi-human tables. */
+  function coachAvailableForViewer(room: Room, viewerId: string): boolean {
+    const viewer = room.players.find((player) => player.id === viewerId);
+    if (!viewer || viewer.isBot) return false;
+    return room.players.every((player) => player.id === viewerId || player.isBot);
+  }
+
+  function isBetweenHandsPhase(phase: string | null | undefined) {
+    return ["lobby", "complete", "gameover"].includes(String(phase || ""));
+  }
+
+  /**
+   * Bot-only seated human: always. Spectators / multi-human: between hands only.
+   */
+  function copyForAiAvailableForViewer(
+    room: Room,
+    viewerId: string,
+    isSpectator = false,
+  ): boolean {
+    if (isSpectator) return isBetweenHandsPhase(room.phase);
+    if (coachAvailableForViewer(room, viewerId)) return true;
+    const viewer = room.players.find((player) => player.id === viewerId);
+    if (!viewer || viewer.isBot) return false;
+    return isBetweenHandsPhase(room.phase);
+  }
+
   function cardRankValue(card: CardCode): number {
     return ranks.indexOf(card[0]) + 2;
   }
@@ -1907,6 +1933,8 @@ export function createHoldemEngine(Hand: HandConstructor) {
         playersWithChips(room).filter((player) => !player.sittingOut).length >= 2,
       ),
       isReady: Boolean(viewer?.ready),
+      coachAvailable: coachAvailableForViewer(room, viewerId),
+      copyForAiAvailable: copyForAiAvailableForViewer(room, viewerId, false),
       canChangeBlinds: room.hostId === viewerId && canReadyForHand(room),
       // Offline practice never runs a shot clock / ready timer so humans cannot get stuck alone.
       canChangeShotClock: false,
@@ -2403,6 +2431,8 @@ export function createHoldemEngine(Hand: HandConstructor) {
     setRabbitHunt,
     sanitizeActionLogForClient,
     visibleHoleCards,
+    coachAvailableForViewer,
+    copyForAiAvailableForViewer,
     cardRankValue,
     estimateComputerConfidence,
     chooseComputerRaiseTo,

@@ -235,6 +235,7 @@
             </div>
             <div id="winnerList" class="winner-list"></div>
             <div id="turnInfo" class="turn-info"></div>
+            <div id="coachHint" class="coach-hint hidden" role="status" aria-live="polite"></div>
             <div id="gameButtons" class="game-buttons"></div>
             <div id="betControls" class="bet-controls is-reserved" aria-hidden="true" inert>
               <div id="betPresets" class="bet-presets" aria-label="Quick bet amounts"></div>
@@ -316,6 +317,12 @@
                 </div>
               </div>
               <div id="menuPlayers" class="menu-players"></div>
+              <button id="coachBtn" type="button" class="secondary menu-row-btn" aria-pressed="false">
+                Coach: Off
+              </button>
+              <button id="copyForAiBtn" type="button" class="secondary menu-row-btn">
+                Copy for AI
+              </button>
               <button
                 id="addBotBtn"
                 class="secondary add-bot-btn menu-row-btn hidden"
@@ -505,6 +512,8 @@
     <script src="/turn-clock-warning.js"></script>
     <script src="/ready-clock.js"></script>
     <script src="/invite-url.js"></script>
+    <script src="/coach.js"></script>
+    <script src="/copy-for-ai.js"></script>
     <script src="/app-sounds.js"></script>
     <script src="/app-format.js"></script>
     <script src="/app-keybinds.js"></script>
