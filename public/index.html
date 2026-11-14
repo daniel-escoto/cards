@@ -162,82 +162,6 @@
         </div>
       </section>
 
-      <section id="trainerView" class="trainer-view hidden" aria-label="Preflop trainer">
-        <div class="welcome-atmosphere" aria-hidden="true">
-          <div class="welcome-glow welcome-glow-a"></div>
-          <div class="welcome-glow welcome-glow-b"></div>
-        </div>
-        <div class="trainer-shell">
-          <header class="trainer-topbar">
-            <button id="trainerBackBtn" class="ghost trainer-back" type="button" aria-label="Back to home">
-              ←
-            </button>
-            <h1 class="trainer-title">Trainer</h1>
-            <div class="trainer-size" role="group" aria-label="Table size">
-              <button id="trainerSize6" class="mode-option selected" type="button" aria-pressed="true">
-                6-max
-              </button>
-              <button id="trainerSize9" class="mode-option" type="button" aria-pressed="false">
-                9-max
-              </button>
-            </div>
-            <p id="trainerAccuracy" class="trainer-accuracy" aria-live="polite">—</p>
-          </header>
-
-          <div class="trainer-main">
-            <div class="trainer-drill">
-              <div class="trainer-seat-row">
-                <div
-                  id="trainerTableDiagram"
-                  class="trainer-table-diagram"
-                  aria-hidden="true"
-                ></div>
-                <p id="trainerPosition" class="trainer-position" aria-live="polite">
-                  <span class="trainer-pos-pill">CO</span>
-                  <span class="trainer-pos-note">folded to you</span>
-                </p>
-              </div>
-              <div id="trainerCards" class="trainer-cards" aria-live="polite"></div>
-              <p class="trainer-hint">Open-raise or fold</p>
-            </div>
-
-            <aside id="trainerFeedback" class="trainer-feedback hidden" aria-live="polite">
-              <div class="trainer-feedback-banner">
-                <p id="trainerFeedbackTitle" class="trainer-feedback-title"></p>
-                <p id="trainerFeedbackDetail" class="trainer-feedback-detail"></p>
-              </div>
-              <div class="trainer-chart-wrap">
-                <div class="trainer-chart-legend" aria-hidden="true">
-                  <span class="trainer-legend-raise">Raise</span>
-                  <span class="trainer-legend-fold">Fold</span>
-                </div>
-                <div id="trainerChart" class="trainer-chart"></div>
-              </div>
-              <button id="trainerNextBtn" type="button">Next hand</button>
-            </aside>
-          </div>
-
-          <div id="trainerActions" class="trainer-actions">
-            <button id="trainerFoldBtn" class="secondary" type="button">
-              Fold <kbd class="trainer-kbd">F</kbd>
-            </button>
-            <button id="trainerRaiseBtn" type="button">
-              Raise <kbd class="trainer-kbd">R</kbd>
-            </button>
-          </div>
-
-          <details class="trainer-stats-panel">
-            <summary class="trainer-stats-summary">
-              <span id="trainerStatsSummary">Stats</span>
-            </summary>
-            <div class="trainer-stats-body">
-              <p id="trainerStats" class="trainer-stats" aria-live="polite">Overall 0/0 (—)</p>
-              <button id="trainerResetBtn" class="ghost" type="button">Reset stats</button>
-            </div>
-          </details>
-        </div>
-      </section>
-
       <section id="tableView" class="table-view hidden">
         <header class="topbar">
           <div class="topbar-leading">
@@ -349,6 +273,120 @@
           <div id="players" class="players"></div>
         </section>
       </section>
+
+      <section id="trainerView" class="table-view trainer-view hidden" aria-label="Preflop trainer">
+        <header class="topbar">
+          <div class="topbar-leading">
+            <span class="topbar-wordmark" aria-hidden="true">holdem.nyc</span>
+            <button id="trainerHomeBtn" class="room-code-btn" type="button" aria-label="Back to home">
+              <strong>Trainer</strong>
+            </button>
+            <span id="trainerAccuracy" class="watching-count" aria-live="polite">—</span>
+          </div>
+          <button
+            id="trainerMenuBtn"
+            class="ghost menu-btn"
+            type="button"
+            aria-label="Open trainer menu"
+            aria-haspopup="dialog"
+            aria-controls="trainerMenuModal"
+          >
+            <span class="menu-btn-icon" aria-hidden="true"></span>
+          </button>
+        </header>
+
+        <section class="felt">
+          <div id="trainerCommunity" class="community trainer-board" aria-hidden="true">
+            <span class="trainer-board-label">Preflop</span>
+          </div>
+          <section id="trainerControlPanel" class="control-panel is-compact">
+            <div class="hand-row">
+              <div id="trainerHeroHand" class="hero-hand" aria-live="polite"></div>
+              <div class="table-meta">
+                <div class="pot-chip">
+                  <span>Pot</span>
+                  <strong id="trainerPotValue">30</strong>
+                </div>
+              </div>
+            </div>
+            <div id="trainerTurnInfo" class="turn-info your-turn" aria-live="polite"></div>
+            <div id="trainerActions" class="game-buttons"></div>
+          </section>
+          <div id="trainerPlayers" class="players" aria-live="polite"></div>
+        </section>
+      </section>
+
+      <div
+        id="trainerMenuModal"
+        class="modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="trainerMenuTitle"
+      >
+        <div class="modal-panel menu-panel">
+          <div class="modal-head">
+            <div>
+              <p class="eyebrow">Preflop RFI</p>
+              <h2 id="trainerMenuTitle" class="menu-title">Trainer</h2>
+            </div>
+            <button
+              id="trainerCloseMenuBtn"
+              class="ghost icon-btn"
+              type="button"
+              aria-label="Close menu"
+            >
+              ×
+            </button>
+          </div>
+          <div class="menu-stack">
+            <div class="trainer-size" role="group" aria-label="Table size">
+              <button id="trainerSize6" class="mode-option selected" type="button" aria-pressed="true">
+                6-max
+              </button>
+              <button id="trainerSize9" class="mode-option" type="button" aria-pressed="false">
+                9-max
+              </button>
+            </div>
+            <p id="trainerStats" class="trainer-stats" aria-live="polite">Overall 0/0 (—)</p>
+            <button id="trainerResetBtn" class="secondary menu-row-btn" type="button">
+              Reset stats
+            </button>
+            <button id="trainerLeaveBtn" class="secondary leave-game-btn menu-row-btn" type="button">
+              Leave
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        id="trainerChartModal"
+        class="modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="trainerChartTitle"
+      >
+        <div class="modal-panel trainer-chart-panel">
+          <div class="modal-head">
+            <div>
+              <p class="eyebrow" id="trainerChartEyebrow">Opening range</p>
+              <h2 id="trainerChartTitle" class="menu-title">Chart</h2>
+            </div>
+            <button
+              id="trainerCloseChartBtn"
+              class="ghost icon-btn"
+              type="button"
+              aria-label="Close chart"
+            >
+              ×
+            </button>
+          </div>
+          <div class="trainer-chart-legend" aria-hidden="true">
+            <span class="trainer-legend-raise">Raise</span>
+            <span class="trainer-legend-fold">Fold</span>
+          </div>
+          <div id="trainerChart" class="trainer-chart"></div>
+        </div>
+      </div>
 
       <section id="scoreView" class="score-view hidden">
         <div class="score-panel">
