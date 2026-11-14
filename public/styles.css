@@ -551,7 +551,8 @@ label {
 .welcome-secondary-actions {
   display: flex;
   gap: 10px;
-  margin-top: 4px;
+  margin-top: 12px;
+  width: 100%;
 }
 
 .welcome-secondary-actions > button {
@@ -583,7 +584,17 @@ label {
   color: #f07168;
 }
 
-/* —— Preflop Trainer (offline) —— */
+/* —— Preflop Trainer (offline, mobile-first) —— */
+html.trainer-open-root {
+  height: var(--viewport-height, 100dvh);
+  min-height: 0;
+  overflow: hidden;
+}
+body.trainer-open {
+  height: var(--viewport-height, 100dvh);
+  overflow: hidden;
+}
+
 .trainer-view {
   --welcome-ink: var(--text);
   --welcome-muted: var(--muted);
@@ -593,10 +604,13 @@ label {
   --welcome-cta-text: #ffffff;
   --welcome-cta-hover: var(--accent-hover);
   --welcome-font: var(--ui-font);
+  --trainer-raise: #3dba7a;
+  --trainer-safe-bottom: env(safe-area-inset-bottom, 0px);
   position: relative;
   isolation: isolate;
   width: 100%;
-  min-height: calc(var(--viewport-height) - 32px);
+  height: calc(var(--viewport-height, 100dvh) - 32px);
+  max-height: calc(var(--viewport-height, 100dvh) - 32px);
   font-family: var(--welcome-font);
 }
 
@@ -604,45 +618,46 @@ label {
   --welcome-panel: rgba(255, 255, 255, 0.94);
 }
 
-.trainer-stage {
+.trainer-shell {
   position: relative;
   z-index: 1;
   display: grid;
-  gap: 18px;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: 10px;
   width: min(440px, 100%);
+  height: 100%;
   margin: 0 auto;
-  padding: 12px 0 28px;
+  padding: 8px 0 calc(10px + var(--trainer-safe-bottom));
   animation: welcome-rise 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.trainer-head {
+.trainer-topbar {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 12px;
+  grid-template-columns: 40px auto minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
+  min-width: 0;
 }
 
 .trainer-back {
+  width: 40px;
+  min-width: 40px;
   min-height: 40px;
-  padding: 0 14px;
-  border-radius: 10px;
+  padding: 0;
+  border-radius: 12px;
+  font-size: 18px;
   font-weight: 700;
+  line-height: 1;
 }
 
 .trainer-title {
   margin: 0;
+  min-width: 0;
   color: var(--welcome-ink);
-  font-size: clamp(28px, 6vw, 36px);
+  font-size: 20px;
   font-weight: 800;
   letter-spacing: -0.03em;
-  line-height: 1.05;
-}
-
-.trainer-subtitle {
-  margin: 4px 0 0;
-  color: var(--welcome-muted);
-  font-size: 14px;
-  font-weight: 500;
+  line-height: 1.1;
 }
 
 .trainer-size {
@@ -650,18 +665,20 @@ label {
   grid-template-columns: 1fr 1fr;
   gap: 0;
   border: 1px solid var(--welcome-panel-border);
-  border-radius: 12px;
+  border-radius: 10px;
   overflow: hidden;
   background: var(--welcome-panel);
 }
 
 .trainer-size .mode-option {
-  min-height: 44px;
+  min-height: 36px;
+  padding: 0 10px;
   border: 0;
   border-radius: 0;
   color: var(--welcome-muted);
   background: transparent;
   font-family: var(--welcome-font);
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -670,50 +687,141 @@ label {
   background: color-mix(in srgb, var(--welcome-cta) 18%, transparent);
 }
 
-.trainer-spot {
+.trainer-accuracy {
+  margin: 0;
+  min-width: 2.6rem;
+  color: var(--welcome-muted);
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.trainer-main {
   display: grid;
-  gap: 14px;
+  gap: 10px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.trainer-drill {
+  display: grid;
+  gap: 12px;
+  align-content: center;
   justify-items: center;
-  padding: 22px 18px;
+  min-height: 0;
+  padding: 16px 14px;
   border: 1px solid var(--welcome-panel-border);
   border-radius: 16px;
   background: var(--welcome-panel);
   box-shadow: var(--surface-shadow);
 }
 
-.trainer-position {
-  margin: 0;
+.trainer-seat-row {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  width: 100%;
+}
+
+.trainer-table-diagram {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  max-width: 100%;
+}
+
+.trainer-seat-dot {
+  display: grid;
+  place-items: center;
+  min-width: 36px;
+  min-height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--welcome-panel-border);
+  border-radius: 999px;
   color: var(--welcome-muted);
-  font-size: 14px;
+  background: transparent;
+  font-size: 10px;
   font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.trainer-seat-dot.is-hero {
+  color: var(--welcome-cta-text);
+  border-color: color-mix(in srgb, var(--welcome-cta) 55%, var(--welcome-panel-border));
+  background: var(--welcome-cta);
+}
+
+.trainer-position {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+}
+
+.trainer-pos-pill {
+  display: inline-grid;
+  place-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: var(--welcome-ink);
+  background: color-mix(in srgb, var(--welcome-cta) 16%, transparent);
+  font-size: 13px;
+  font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
+.trainer-pos-note {
+  color: var(--welcome-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .trainer-cards {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   justify-content: center;
 }
 
 .trainer-cards .card {
-  width: 72px;
-  height: 100px;
-  font-size: 18px;
+  width: clamp(88px, 26vw, 112px);
+  height: clamp(124px, 36vw, 156px);
+  font-size: 22px;
+}
+
+.trainer-hint {
+  margin: 0;
+  color: var(--welcome-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.trainer-view.is-answered .trainer-hint {
+  display: none;
 }
 
 .trainer-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+  padding-bottom: 2px;
+}
+
+.trainer-actions.hidden {
+  display: none;
 }
 
 .trainer-actions > button,
 .trainer-feedback > #trainerNextBtn {
-  min-height: 52px;
-  border-radius: 12px;
+  min-height: 56px;
+  border-radius: 14px;
   font-family: var(--welcome-font);
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 800;
 }
 
@@ -739,23 +847,46 @@ label {
   background: rgba(24, 38, 33, 0.05);
 }
 
+.trainer-kbd {
+  display: none;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.72;
+}
+
 .trainer-feedback {
   display: grid;
-  gap: 12px;
-  padding: 16px;
+  gap: 10px;
+  min-height: 0;
+  padding: 12px;
   border: 1px solid var(--welcome-panel-border);
   border-radius: 16px;
   background: var(--welcome-panel);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.trainer-feedback.hidden {
+  display: none;
+}
+
+.trainer-feedback-banner {
+  display: grid;
+  gap: 4px;
 }
 
 .trainer-feedback-title {
   margin: 0;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 800;
 }
 
 .trainer-feedback-title.is-correct {
-  color: #3dba7a;
+  color: var(--trainer-raise);
 }
 
 .trainer-feedback-title.is-wrong {
@@ -765,34 +896,66 @@ label {
 .trainer-feedback-detail {
   margin: 0;
   color: var(--welcome-muted);
-  font-size: 14px;
-  line-height: 1.4;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.trainer-chart-wrap {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.trainer-chart-legend {
+  display: flex;
+  gap: 12px;
+  color: var(--welcome-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.trainer-legend-raise::before,
+.trainer-legend-fold::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 5px;
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+
+.trainer-legend-raise::before {
+  background: color-mix(in srgb, var(--trainer-raise) 72%, #0b1a12);
+}
+
+.trainer-legend-fold::before {
+  background: color-mix(in srgb, var(--panel-2) 88%, #000);
 }
 
 .trainer-chart {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  width: 100%;
+  min-width: 0;
 }
 
 .trainer-chart-grid {
   display: grid;
-  grid-template-columns: 18px repeat(13, minmax(18px, 1fr));
+  grid-template-columns: 14px repeat(13, minmax(0, 1fr));
   gap: 1px;
   width: 100%;
-  min-width: 280px;
-  font-size: 9px;
+  font-size: clamp(6px, 2.1vw, 9px);
   line-height: 1;
   font-weight: 700;
 }
 
 .trainer-chart-corner {
-  min-height: 18px;
+  min-height: 14px;
 }
 
 .trainer-chart-axis {
   display: grid;
   place-items: center;
-  min-height: 18px;
+  min-height: 14px;
   color: var(--welcome-muted);
 }
 
@@ -800,15 +963,14 @@ label {
   display: grid;
   place-items: center;
   aspect-ratio: 1;
-  min-height: 18px;
+  min-width: 0;
   border-radius: 2px;
   color: rgba(255, 255, 255, 0.88);
   overflow: hidden;
-  text-overflow: clip;
 }
 
 .trainer-chart-cell.is-raise {
-  background: color-mix(in srgb, #3dba7a 72%, #0b1a12);
+  background: color-mix(in srgb, var(--trainer-raise) 72%, #0b1a12);
 }
 
 .trainer-chart-cell.is-fold {
@@ -822,40 +984,174 @@ label {
   z-index: 1;
 }
 
-.trainer-stats-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 14px;
-  align-items: center;
-  justify-content: space-between;
+.trainer-stats-panel {
+  border: 1px solid var(--welcome-panel-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--welcome-panel) 80%, transparent);
 }
 
-.trainer-stats {
-  margin: 0;
-  flex: 1 1 200px;
+.trainer-stats-summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 10px 12px;
   color: var(--welcome-muted);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.35;
-}
-
-.trainer-stats-row > #trainerResetBtn {
-  min-height: 36px;
-  padding: 0 12px;
-  border-radius: 10px;
   font-size: 13px;
   font-weight: 700;
 }
 
-@media (max-width: 420px) {
-  .trainer-cards .card {
-    width: 64px;
-    height: 90px;
+.trainer-stats-summary::-webkit-details-marker {
+  display: none;
+}
+
+.trainer-stats-body {
+  display: grid;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.trainer-stats {
+  margin: 0;
+  color: var(--welcome-muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.trainer-stats-body > #trainerResetBtn {
+  justify-self: start;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* During the question on mobile: keep drill one-screen, no scroll. */
+.trainer-view:not(.is-answered) .trainer-feedback {
+  display: none;
+}
+
+.trainer-view.is-answered .trainer-drill {
+  padding: 10px 12px;
+  gap: 8px;
+}
+
+.trainer-view.is-answered .trainer-table-diagram {
+  display: none;
+}
+
+.trainer-view.is-answered .trainer-cards .card {
+  width: 64px;
+  height: 90px;
+  font-size: 16px;
+}
+
+.trainer-view.is-answered .trainer-main {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (min-width: 850px) {
+  body:has(#trainerView:not(.hidden)) .app {
+    width: min(920px, 100%);
+  }
+
+  .trainer-shell {
+    width: min(880px, 100%);
+    gap: 14px;
+    padding-top: 12px;
+  }
+
+  .trainer-topbar {
+    grid-template-columns: 44px auto minmax(140px, 200px) 1fr auto;
+    gap: 12px;
+  }
+
+  .trainer-title {
+    font-size: 24px;
+  }
+
+  .trainer-size .mode-option {
+    min-height: 40px;
+    font-size: 13px;
+  }
+
+  .trainer-main {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+    align-items: stretch;
+  }
+
+  .trainer-view:not(.is-answered) .trainer-main {
+    grid-template-columns: 1fr;
+  }
+
+  .trainer-view:not(.is-answered) .trainer-drill {
+    max-width: 420px;
+    justify-self: center;
+    width: 100%;
+  }
+
+  .trainer-view.is-answered .trainer-drill {
+    align-content: start;
+  }
+
+  .trainer-view.is-answered .trainer-table-diagram {
+    display: flex;
+  }
+
+  .trainer-view.is-answered .trainer-cards .card {
+    width: clamp(88px, 12vw, 112px);
+    height: clamp(124px, 17vw, 156px);
+    font-size: 22px;
+  }
+
+  .trainer-kbd {
+    display: inline-block;
   }
 
   .trainer-chart-grid {
-    font-size: 8px;
-    grid-template-columns: 14px repeat(13, minmax(16px, 1fr));
+    font-size: 9px;
+    grid-template-columns: 16px repeat(13, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1040px) {
+  .trainer-shell {
+    width: min(980px, 100%);
+  }
+}
+
+@media (max-width: 380px) {
+  .trainer-topbar {
+    grid-template-columns: 36px 1fr auto;
+    grid-template-areas:
+      "back title accuracy"
+      "size size size";
+  }
+
+  .trainer-back {
+    grid-area: back;
+    width: 36px;
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  .trainer-title {
+    grid-area: title;
+    font-size: 18px;
+  }
+
+  .trainer-accuracy {
+    grid-area: accuracy;
+  }
+
+  .trainer-size {
+    grid-area: size;
+  }
+
+  .trainer-cards .card {
+    width: 82px;
+    height: 116px;
   }
 }
 
@@ -3970,21 +4266,21 @@ kbd {
   }
 
   body.keyboard-open,
-  body:has(.welcome:not(.hidden):focus-within) {
+  body:has(.welcome:not(.hidden) #joinForm:focus-within) {
     height: var(--viewport-height);
     min-height: 0;
     overflow: hidden;
   }
 
   body.keyboard-open .app,
-  body:has(.welcome:not(.hidden):focus-within) .app {
+  body:has(.welcome:not(.hidden) #joinForm:focus-within) .app {
     height: var(--viewport-height);
     min-height: 0;
     overflow: hidden;
   }
 
   body.keyboard-open .welcome,
-  .welcome:not(.hidden):focus-within {
+  .welcome:not(.hidden):has(#joinForm:focus-within) {
     height: calc(var(--viewport-height) - 20px);
     min-height: auto;
     align-content: start;
@@ -3997,34 +4293,35 @@ kbd {
     -webkit-overflow-scrolling: touch;
   }
 
+  /* Only collapse the brand when a join-form field is focused — not Practice/Trainer. */
   body.keyboard-open .brand,
-  .welcome:not(.hidden):focus-within .brand {
+  .welcome:not(.hidden):has(#joinForm:focus-within) .brand {
     display: none;
   }
 
   body.keyboard-open .welcome-atmosphere,
-  .welcome:not(.hidden):focus-within .welcome-atmosphere {
+  .welcome:not(.hidden):has(#joinForm:focus-within) .welcome-atmosphere {
     opacity: 0.35;
   }
 
   body.keyboard-open .join-panel,
-  .welcome:not(.hidden):focus-within .join-panel {
+  .welcome:not(.hidden):has(#joinForm:focus-within) .join-panel {
     gap: 9px;
     padding: 12px;
     animation: none;
   }
 
   body.keyboard-open label,
-  .welcome:not(.hidden):focus-within label {
+  .welcome:not(.hidden):has(#joinForm:focus-within) label {
     gap: 5px;
   }
 
   body.keyboard-open input,
   body.keyboard-open select,
   body.keyboard-open button,
-  .welcome:not(.hidden):focus-within input,
-  .welcome:not(.hidden):focus-within select,
-  .welcome:not(.hidden):focus-within button {
+  .welcome:not(.hidden):has(#joinForm:focus-within) input,
+  .welcome:not(.hidden):has(#joinForm:focus-within) select,
+  .welcome:not(.hidden):has(#joinForm:focus-within) button {
     min-height: 42px;
   }
 
