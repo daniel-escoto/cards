@@ -626,7 +626,11 @@ html.trainer-open-root {
   pointer-events: none;
 }
 
-/* Live game pushes the first seat to the bottom of #players; trainer wants seats up. */
+/* Keep seats packed above the action panel (not stranded under a void of felt). */
+.trainer-view .players {
+  justify-content: flex-end;
+}
+
 .trainer-view .players > :first-child {
   margin-top: 0;
 }
@@ -1010,13 +1014,14 @@ html.trainer-open-root {
   }
 
   .turn-info.trainer-coach {
-    flex-wrap: nowrap;
-    white-space: nowrap;
+    flex-wrap: wrap;
+    white-space: normal;
   }
 
   .trainer-coach-reason {
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow: visible;
+    text-overflow: unset;
+    white-space: normal;
   }
 }
 
