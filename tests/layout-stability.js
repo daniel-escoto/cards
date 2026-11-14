@@ -37,7 +37,7 @@ assert.match(css, /\.hand-review-close\.icon-btn/);
 assert.match(css, /\.control-panel\.is-result > \.game-buttons > button[\s\S]*?flex:\s*1 1 0/);
 
 // Spoiler Mistake path keeps Try again / Show answer without leaking the answer up front.
-assert.match(tableSrc, /kind: \"spoiler\"/);
+assert.match(tableSrc, /kind: "spoiler"/);
 assert.match(tableSrc, /There was a better play here|formatMistakeNudge/);
 
 // Timeline: hero-decision dots only (long hands must not overflow).

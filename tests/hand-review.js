@@ -368,7 +368,7 @@ function table(overrides = {}) {
   assert.match(tableSrc, /Try again/);
   assert.match(tableSrc, /Show answer/);
   assert.match(tableSrc, /hand-review-continue/);
-  assert.match(tableSrc, /is-spoiler|kind: \"spoiler\"/);
+  assert.match(tableSrc, /is-spoiler|kind: "spoiler"/);
   assert.match(tableSrc, /showHandButtonAvailable/);
   assert.match(tableSrc, /isHeroVsBotsOnly/);
   assert.doesNotMatch(tableSrc, /renderHandReviewSheet/);

@@ -1021,7 +1021,7 @@
                 index < heroIndex &&
                 !isCaller);
             const isActing = isHero && !facing.answered;
-            let action = "";
+            let action: string;
             let actionClass = "";
             const nextSeat =
               !facing.answered && heroIndex >= 0
