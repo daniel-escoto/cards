@@ -996,8 +996,10 @@ html.trainer-open-root {
   .trainer-view .control-panel {
     grid-column: 2;
     grid-row: 1;
-    align-self: end;
+    /* Fill the right column so the felt isn't a void above a tiny action card. */
+    align-self: stretch;
     justify-self: stretch;
+    align-content: end;
     width: 100%;
     max-width: 100%;
     min-width: 0;
