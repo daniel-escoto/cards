@@ -610,25 +610,6 @@ html.trainer-open-root {
   /* theme tokens live on :root */
 }
 
-/* Street badge in the shared .community board slot (same placement as Practice). */
-.trainer-board-label {
-  padding: 6px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
-  background: rgba(8, 16, 18, 0.28);
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-:root[data-theme="light"] .trainer-board-label {
-  border-color: rgba(24, 38, 33, 0.14);
-  background: rgba(255, 255, 255, 0.55);
-  color: color-mix(in srgb, var(--text) 72%, transparent);
-}
-
 #trainerAccuracy:empty,
 #trainerAccuracy.hidden {
   display: none;

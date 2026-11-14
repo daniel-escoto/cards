@@ -73,6 +73,14 @@ assert.doesNotMatch(css, /body:has\(#trainerView:not\(\.hidden\)\)\s*\.app/);
 assert.match(html, /id="trainerCommunity" class="community"/);
 assert.match(html, /id="trainerControlPanel" class="control-panel/);
 assert.match(html, /id="trainerPlayers" class="players"/);
-assert.doesNotMatch(trainer, /trainer-board(?!-label)/);
+// Community slot matches Practice preflop: five face-down .card.back, no Preflop pill.
+assert.match(
+  html,
+  /id="trainerCommunity" class="community"[^>]*>\s*(?:<div class="card back"><span><\/span><span><\/span><\/div>\s*){5}<\/div>/,
+);
+assert.doesNotMatch(html, /trainer-board-label/);
+assert.doesNotMatch(css, /\.trainer-board-label/);
+assert.match(trainer, /facedownBoardHtml/);
+assert.doesNotMatch(trainer, /trainer-board/);
 
 console.log("Trainer UI markup checks passed.");

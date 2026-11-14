@@ -427,15 +427,22 @@
         }, 3200);
       }
 
-      function cardHtml(card: PublicCard): string {
+      function cardHtml(card: PublicCard | null): string {
+        // Null → face-down back (same as Practice community slots via HoldemFormat.cardTemplate).
         if (format && typeof format.cardTemplate === "function") {
           return format.cardTemplate(card);
         }
+        if (!card) return `<div class="card back"><span></span><span></span></div>`;
         const name = `${card.rank}${card.suit}`;
         return `<div class="card ${card.color === "red" ? "red" : ""}" aria-label="${name}">
           <span class="card-corner card-corner-top"><span class="card-rank">${card.rank}</span></span>
           <span class="card-corner card-corner-bottom"><span class="card-corner-suit suit">${card.suit}</span></span>
         </div>`;
+      }
+
+      /** Same five face-down board slots Practice shows preflop (no street pill). */
+      function facedownBoardHtml(): string {
+        return Array.from({ length: 5 }, () => cardHtml(null)).join("");
       }
 
       function renderStats(): void {
@@ -785,9 +792,8 @@
         potEl!.textContent = String(POT);
         const holes = cardHtml(dealt.cards[0]) + cardHtml(dealt.cards[1]);
         heroHandEl!.innerHTML = holes;
-        // Desktop spotlight uses the community slot (Practice board area); phones keep panel cards.
-        // Board slot matches Practice: street badge only; hole cards stay in the action panel.
-        communityEl!.innerHTML = `<span class="trainer-board-label">Preflop</span>`;
+        // Board slot matches Practice preflop: five face-down cards; hole cards stay in the panel.
+        communityEl!.innerHTML = facedownBoardHtml();
         chartEl!.innerHTML = "";
         hideCoach();
         renderPlayers();
