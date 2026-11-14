@@ -626,44 +626,56 @@ html.trainer-open-root {
   display: none;
 }
 
-.trainer-size,
-.trainer-drill {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  overflow: hidden;
-  background: color-mix(in srgb, var(--panel) 88%, transparent);
+/* Trainer menu: same host-block + appearance-choices as Settings (shot clock / On-Off). */
+#trainerMenuModal .host-block + .host-block {
+  padding-top: 10px;
 }
 
-.trainer-drill {
-  grid-template-columns: 1fr 1fr 1fr;
-}
-
-.trainer-size .mode-option,
-.trainer-drill .mode-option {
-  min-height: 44px;
-  border: 0;
-  border-radius: 0;
-  color: var(--muted);
-  background: transparent;
-  font-weight: 700;
-}
-
-.trainer-size .mode-option.selected,
-.trainer-drill .mode-option.selected {
-  color: var(--text);
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
+#trainerMenuModal .appearance-choices.shot-clock-choices {
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
 }
 
 .trainer-stats {
+  display: grid;
+  gap: 6px;
   margin: 0;
-  padding: 4px 2px;
-  color: var(--muted);
+  min-width: 0;
+}
+
+.trainer-stats-top {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.trainer-stats-top .appearance-choice {
+  cursor: default;
+  pointer-events: none;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.trainer-stats-top .appearance-choice strong {
+  display: block;
+  color: var(--text);
   font-size: 13px;
-  font-weight: 600;
-  line-height: 1.4;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.trainer-stats-top .appearance-choice span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+}
+
+.trainer-pos-stats {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 
 .trainer-pos-label {
@@ -3756,24 +3768,17 @@ body.hand-review-open .control-panel > .bet-controls,
 body.hand-review-open .control-panel > .winner-list {
   display: none !important;
 }
+/* Reuse .modal-head + .icon-btn from the game menu sheet. */
 .hand-review-chrome-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
   min-width: 0;
+  align-items: flex-start;
 }
-.hand-review-chrome-head .eyebrow {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  align-items: flex-start;
-  flex-wrap: nowrap;
-  gap: 2px;
-  margin: 0;
+.hand-review-chrome-head > div {
   min-width: 0;
+  flex: 1 1 auto;
 }
 .hand-review-summary {
+  margin: 0;
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
@@ -3784,62 +3789,11 @@ body.hand-review-open .control-panel > .winner-list {
   overflow-wrap: anywhere;
   max-width: 100%;
 }
-/* Match .icon-btn / menu close — beat light-mode .ghost border (higher specificity). */
-.control-panel .hand-review-close.icon-btn,
-.control-panel button.hand-review-close {
+/* Same .ghost.icon-btn as menu close — only beat control-panel button defaults. */
+.control-panel .hand-review-close.icon-btn {
   flex: 0 0 auto;
   align-self: flex-start;
-  box-sizing: border-box;
-  width: 44px;
-  min-width: 44px;
-  max-width: 44px;
-  height: 44px;
-  min-height: 44px;
-  max-height: 44px;
-  margin: 0;
-  padding: 0;
-  border-radius: 12px;
-  border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: none;
-  color: var(--muted);
-  font-size: 22px;
-  font-weight: 600;
-  line-height: 1;
   transform: none;
-}
-:root[data-theme="light"] .control-panel .hand-review-close.icon-btn,
-:root[data-theme="light"] .control-panel button.hand-review-close {
-  border: 1px solid rgba(24, 38, 33, 0.16);
-  background: rgba(24, 38, 33, 0.055);
-  color: var(--muted);
-}
-.control-panel .hand-review-close.icon-btn:hover,
-.control-panel .hand-review-close.icon-btn:active,
-.control-panel button.hand-review-close:hover,
-.control-panel button.hand-review-close:active {
-  background: rgba(255, 255, 255, 0.16);
-  color: var(--text);
-  transform: none;
-}
-:root[data-theme="light"] .control-panel .hand-review-close.icon-btn:hover,
-:root[data-theme="light"] .control-panel .hand-review-close.icon-btn:active,
-:root[data-theme="light"] .control-panel button.hand-review-close:hover,
-:root[data-theme="light"] .control-panel button.hand-review-close:active {
-  background: rgba(24, 38, 33, 0.1);
-  color: var(--text);
-}
-@media (min-width: 1040px) {
-  .control-panel .hand-review-close.icon-btn,
-  .control-panel button.hand-review-close {
-    width: 32px;
-    min-width: 32px;
-    max-width: 32px;
-    height: 32px;
-    min-height: 32px;
-    max-height: 32px;
-    font-size: 20px;
-  }
 }
 /* Two-line slot only — badge + why. No oversized empty band between head and nav. */
 .hand-review-verdict {
@@ -3921,6 +3875,19 @@ body.hand-review-open .hand-review-verdict.is-idle {
   display: block;
   width: 14px;
   height: 14px;
+}
+.control-panel .hand-review-nav > button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.control-panel .hand-review-nav > button:disabled:focus,
+.control-panel .hand-review-nav > button:disabled:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+.hand-review-dot.is-result {
+  background: color-mix(in srgb, var(--muted) 55%, transparent);
 }
 /* Dots on their own row; step label below — label width must never shove dots. */
 .hand-review-timeline-wrap {
@@ -4068,18 +4035,7 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
 }
 .hand-review-retry-bar > .hand-review-continue {
   flex: 1 1 auto;
-  min-height: 44px;
-}
-.hand-review-retry-actions {
-  display: flex;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-height: 44px;
-}
-.hand-review-retry-actions > button {
-  flex: 1 1 28%;
-  min-height: 44px;
+  min-height: 40px;
 }
 /* Hand-complete between hands: Ready + Review (+ optional Show hand) share the row evenly. */
 .control-panel.is-result > .game-buttons {

@@ -633,25 +633,45 @@
           accuracyEl!.textContent = "";
           accuracyEl!.classList.add("hidden");
         }
-        const parts: string[] = [
-          `Overall ${stats.overall.correct}/${stats.overall.total} (${overallPct})`,
-          `Streak ${stats.streak}${stats.bestStreak ? ` (best ${stats.bestStreak})` : ""}`,
-        ];
+
+        const top = document.createElement("div");
+        top.className = "trainer-stats-top";
+        top.innerHTML = `
+          <div class="appearance-choice" aria-label="Overall">
+            <strong>${stats.overall.correct}/${stats.overall.total}</strong>
+            <span>Overall · ${overallPct}</span>
+          </div>
+          <div class="appearance-choice" aria-label="Streak">
+            <strong>${stats.streak}</strong>
+            <span>Streak${stats.bestStreak ? ` · best ${stats.bestStreak}` : ""}</span>
+          </div>`;
+
+        const posWrap = document.createElement("div");
+        posWrap.className = "trainer-pos-stats menu-players";
         const order = ranges!.positionsForTable(tableSize);
-        for (const pos of order) {
-          const row = stats.byPosition[pos];
-          if (!row || row.total === 0) continue;
-          parts.push(`${pos} ${row.correct}/${row.total}`);
-        }
+        const positions: string[] = [...order];
         if (vsOpen) {
           for (const pos of vsOpen.facingHeroPositions(tableSize)) {
-            if ((order as readonly string[]).includes(pos)) continue;
-            const row = stats.byPosition[pos];
-            if (!row || row.total === 0) continue;
-            parts.push(`${pos} ${row.correct}/${row.total}`);
+            if (!positions.includes(pos)) positions.push(pos);
           }
         }
-        statsEl!.textContent = parts.join(" · ");
+        for (const pos of positions) {
+          const row = stats.byPosition[pos];
+          if (!row || row.total === 0) continue;
+          const article = document.createElement("article");
+          article.className = "menu-player";
+          article.innerHTML = `
+            <div class="menu-player-row static">
+              <span class="menu-player-line">
+                <span class="seat-name trainer-pos-label">${pos}</span>
+              </span>
+              <strong class="menu-player-stack">${row.correct}/${row.total} · ${pct(row.correct, row.total)}</strong>
+            </div>`;
+          posWrap.append(article);
+        }
+
+        statsEl!.replaceChildren(top);
+        if (posWrap.childElementCount) statsEl!.append(posWrap);
       }
 
       function hideCoach(): void {

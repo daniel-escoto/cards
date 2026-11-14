@@ -727,7 +727,7 @@ declare global {
   var shareGameBtn: HTMLButtonElement;
   var backToMenuBtn: HTMLButtonElement;
   var sitOutBtn: HTMLButtonElement;
-  var handReviewBtn: HTMLButtonElement;
+  var handReviewBtn: HTMLButtonElement | null;
   var copyForAiBtn: HTMLButtonElement;
   var handReviewChrome: HTMLElement;
   var handReviewCloseBtn: HTMLButtonElement;
@@ -748,6 +748,7 @@ declare global {
       id: string;
       index: number;
       label: string;
+      kind?: "action" | "hero_decision" | "street" | "showdown" | "result";
       decision: {
         verdict: "best" | "fine" | "mistake";
         badge: string;
@@ -1074,6 +1075,11 @@ declare global {
   function hideHandReview(): void;
   function paintHandReviewStep(index: number): void;
   function handReviewStepBy(delta: number): void;
+  function handReviewLandableIndexes(): number[];
+  function handReviewJumpToStart(): void;
+  function handReviewJumpToEnd(): void;
+  function syncHandReviewNavButtons(): void;
+  function submitHandReviewRetryAction(payload: Record<string, unknown>): void;
   function recordHandReviewRoom(room: ClientRoom): void;
   function copyForAiFeatureAvailable(room?: ClientRoom | null): boolean;
   function syncCopyForAiBtn(): void;

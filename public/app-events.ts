@@ -206,26 +206,24 @@ shareGameBtn.addEventListener("click", showSharePanel);
 copyShareBtn.addEventListener("click", () => copyText(shareLink.value, copyShareBtn));
 closeInviteBtn?.addEventListener("click", showMenuMainView);
 closeInviteMenuBtn?.addEventListener("click", hideGameMenu);
-handReviewBtn?.addEventListener("click", () => {
-  hideGameMenu();
-  if (typeof openHandReview === "function") openHandReview();
-});
 handReviewCloseBtn?.addEventListener("click", () => {
   if (typeof hideHandReview === "function") hideHandReview();
 });
 handReviewStartBtn?.addEventListener("click", () => {
-  if (typeof paintHandReviewStep === "function") paintHandReviewStep(0);
+  if (handReviewStartBtn?.disabled) return;
+  if (typeof handReviewJumpToStart === "function") handReviewJumpToStart();
 });
 handReviewPrevBtn?.addEventListener("click", () => {
+  if (handReviewPrevBtn?.disabled) return;
   if (typeof handReviewStepBy === "function") handReviewStepBy(-1);
 });
 handReviewNextBtn?.addEventListener("click", () => {
+  if (handReviewNextBtn?.disabled) return;
   if (typeof handReviewStepBy === "function") handReviewStepBy(1);
 });
 handReviewEndBtn?.addEventListener("click", () => {
-  if (typeof lastHandReplay !== "undefined" && lastHandReplay && typeof paintHandReviewStep === "function") {
-    paintHandReviewStep(lastHandReplay.steps.length - 1);
-  }
+  if (handReviewEndBtn?.disabled) return;
+  if (typeof handReviewJumpToEnd === "function") handReviewJumpToEnd();
 });
 // Swipe on the chrome / felt for prev/next on phones.
 let handReviewSwipeX = 0;
@@ -446,6 +444,42 @@ document.addEventListener("keydown", (event) => {
   }
   if (typeof handReviewActive !== "undefined" && handReviewActive) {
     if (typingTarget || event.metaKey || event.ctrlKey || event.altKey) return;
+    // In-spot retry: reuse live Fold/Call/Raise keybinds (same as the table).
+    if (typeof handReviewRetryItem !== "undefined" && handReviewRetryItem && state?.isYourTurn) {
+      if (
+        (matchesKeybind(event, "raiseUp") || matchesKeybind(event, "raiseDown")) &&
+        !betControls.classList.contains("is-reserved")
+      ) {
+        event.preventDefault();
+        changeRaise(matchesKeybind(event, "raiseUp") ? 1 : -1);
+        return;
+      }
+      if (event.repeat) return;
+      if (matchesKeybind(event, "fold") && state.toCall > 0) {
+        event.preventDefault();
+        emitWithAck("game:action", { type: "fold" });
+        return;
+      }
+      if (matchesKeybind(event, "call")) {
+        event.preventDefault();
+        if (mergePassiveConfirm) {
+          if (atPassiveDetent()) {
+            emitWithAck("game:action", { type: state.toCall > 0 ? "call" : "check" });
+          } else {
+            emitWithAck("game:action", { type: "raise", raiseTo: raiseState.value });
+          }
+        } else {
+          emitWithAck("game:action", { type: state.toCall > 0 ? "call" : "check" });
+        }
+        return;
+      }
+      if (matchesKeybind(event, "raise") && !betControls.classList.contains("is-reserved")) {
+        event.preventDefault();
+        if (mergePassiveConfirm) changeRaise(1);
+        else raiseActionBtn.click();
+        return;
+      }
+    }
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
       if (typeof handReviewStepBy === "function") {
@@ -455,15 +489,12 @@ document.addEventListener("keydown", (event) => {
     }
     if (event.key === "Home") {
       event.preventDefault();
-      if (typeof paintHandReviewStep === "function") paintHandReviewStep(0);
+      if (typeof handReviewJumpToStart === "function") handReviewJumpToStart();
       return;
     }
     if (event.key === "End") {
       event.preventDefault();
-      if (typeof paintHandReviewStep === "function" && typeof lastHandReplay !== "undefined") {
-        const last = Math.max(0, (lastHandReplay?.steps?.length || 1) - 1);
-        paintHandReviewStep(last);
-      }
+      if (typeof handReviewJumpToEnd === "function") handReviewJumpToEnd();
       return;
     }
     const reviewKey = event.key.length === 1 ? event.key.toLowerCase() : event.key;
@@ -513,16 +544,14 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   // Between hands only — never steals in-hand raise (R) or other bet keys.
+  // Menu no longer lists Review; V opens the post-hand button path only.
   if (
     matchesKeybind(event, "reviewHand") &&
     state.canReady &&
     !state.isYourTurn &&
     typeof openHandReview === "function" &&
-    typeof lastHandReplay !== "undefined" &&
-    lastHandReplay &&
-    lastHandReplay.steps.length > 0 &&
-    typeof handReviewFeatureAvailable === "function" &&
-    handReviewFeatureAvailable(state)
+    typeof hasReviewableCompletedHand === "function" &&
+    hasReviewableCompletedHand(state)
   ) {
     event.preventDefault();
     if (!event.repeat) openHandReview();

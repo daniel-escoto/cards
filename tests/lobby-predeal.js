@@ -44,9 +44,13 @@ assert.match(
   "pre-deal must clear #heroHand even when the signature was already empty",
 );
 
-// Ready-up remains the primary between-hands control; Review is additive only.
+// Ready-up remains the primary between-hands control; Review is post-hand only (no menu entry).
 assert.match(tableSrc, /Ready up/);
 assert.match(tableSrc, /addReviewHandButton\(\)/);
-assert.match(bootSrc, /hasReviewableCompletedHand\(\)/);
+assert.doesNotMatch(
+  fs.readFileSync(path.join(__dirname, "../public/index.html"), "utf8"),
+  /id="handReviewBtn"/,
+  "Review hand must not appear in the hamburger menu",
+);
 
 console.log("Lobby pre-deal Review/hole-card checks passed.");

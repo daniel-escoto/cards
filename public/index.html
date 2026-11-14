@@ -242,11 +242,11 @@
               role="region"
               aria-label="Hand review"
             >
-              <div class="hand-review-chrome-head">
-                <p class="eyebrow">
-                  Hand review
-                  <span id="handReviewSummary" class="hand-review-summary" aria-live="polite"></span>
-                </p>
+              <div class="modal-head hand-review-chrome-head">
+                <div>
+                  <p class="eyebrow">Hand review</p>
+                  <p id="handReviewSummary" class="hand-review-summary" aria-live="polite"></p>
+                </div>
                 <button
                   id="handReviewCloseBtn"
                   class="ghost icon-btn hand-review-close"
@@ -487,26 +487,72 @@
             </button>
           </div>
           <div class="menu-stack">
-            <div class="trainer-drill" role="group" aria-label="Drill type">
-              <button id="trainerDrillRfi" class="mode-option selected" type="button" aria-pressed="true">
-                Open first
-              </button>
-              <button id="trainerDrillFacing" class="mode-option" type="button" aria-pressed="false">
-                Facing a raise
-              </button>
-              <button id="trainerDrillMix" class="mode-option" type="button" aria-pressed="false">
-                Mix both
-              </button>
+            <div class="host-block">
+              <p class="menu-subsection-title">Drill</p>
+              <div class="appearance-group">
+                <div
+                  class="appearance-choices shot-clock-choices"
+                  role="radiogroup"
+                  aria-label="Drill type"
+                >
+                  <button
+                    id="trainerDrillRfi"
+                    class="appearance-choice selected"
+                    type="button"
+                    aria-pressed="true"
+                  >
+                    Open first
+                  </button>
+                  <button
+                    id="trainerDrillFacing"
+                    class="appearance-choice"
+                    type="button"
+                    aria-pressed="false"
+                  >
+                    Facing a raise
+                  </button>
+                  <button
+                    id="trainerDrillMix"
+                    class="appearance-choice"
+                    type="button"
+                    aria-pressed="false"
+                  >
+                    Mix both
+                  </button>
+                </div>
+              </div>
             </div>
-            <div class="trainer-size" role="group" aria-label="Table size">
-              <button id="trainerSize6" class="mode-option selected" type="button" aria-pressed="true">
-                6-max
-              </button>
-              <button id="trainerSize9" class="mode-option" type="button" aria-pressed="false">
-                9-max
-              </button>
+            <div class="host-block">
+              <p class="menu-subsection-title">Table</p>
+              <div class="appearance-group">
+                <div
+                  class="appearance-choices shot-clock-choices"
+                  role="radiogroup"
+                  aria-label="Table size"
+                >
+                  <button
+                    id="trainerSize6"
+                    class="appearance-choice selected"
+                    type="button"
+                    aria-pressed="true"
+                  >
+                    6-max
+                  </button>
+                  <button
+                    id="trainerSize9"
+                    class="appearance-choice"
+                    type="button"
+                    aria-pressed="false"
+                  >
+                    9-max
+                  </button>
+                </div>
+              </div>
             </div>
-            <p id="trainerStats" class="trainer-stats" aria-live="polite">Overall 0/0 (—)</p>
+            <div class="host-block">
+              <p class="menu-subsection-title">Stats</p>
+              <div id="trainerStats" class="trainer-stats" aria-live="polite"></div>
+            </div>
             <button id="trainerResetBtn" class="secondary menu-row-btn" type="button">
               Reset stats
             </button>
@@ -588,9 +634,6 @@
             <div class="menu-stack">
               <div id="menuPlayers" class="menu-players"></div>
               <button id="shareGameBtn" type="button" class="secondary menu-row-btn">Invite</button>
-              <button id="handReviewBtn" type="button" class="secondary menu-row-btn hidden">
-                Review hand
-              </button>
               <button id="copyForAiBtn" type="button" class="secondary menu-row-btn">
                 Copy for AI
               </button>

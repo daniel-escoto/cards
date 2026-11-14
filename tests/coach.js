@@ -295,7 +295,7 @@ function seat(id, overrides = {}) {
   assert.match(html, /shared\/coach-odds\.js/);
   assert.match(
     html,
-    /id="menuPlayers"[\s\S]*?id="shareGameBtn"[\s\S]*?id="handReviewBtn"[\s\S]*?id="copyForAiBtn"/,
+    /id="menuPlayers"[\s\S]*?id="shareGameBtn"[\s\S]*?id="copyForAiBtn"/,
   );
   const css = fs.readFileSync(path.join(__dirname, "../public/styles.css"), "utf8");
   assert.match(css, /\.blind-chip\.dealer\s*\{[^}]*#f5f5f4/);

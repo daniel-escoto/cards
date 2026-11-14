@@ -84,8 +84,19 @@ const context = {
   lastHandReplay: { steps: [{}, {}, {}] },
   hideHandReview: () => calls.push("hide"),
   handReviewStepBy: (delta) => calls.push(`step:${delta}`),
+  handReviewJumpToStart: () => calls.push("jump:start"),
+  handReviewJumpToEnd: () => calls.push("jump:end"),
   paintHandReviewStep: (index) => calls.push(`paint:${index}`),
+  handReviewRetryItem: null,
   state: null,
+  betControls: { classList: { contains: () => true } },
+  mergePassiveConfirm: false,
+  raiseState: { value: 0 },
+  changeRaise: () => {},
+  atPassiveDetent: () => true,
+  emitWithAck: () => {},
+  matchesKeybind: () => false,
+  raiseActionBtn: { click: () => {} },
 };
 vm.runInNewContext(listener, context);
 
@@ -119,7 +130,7 @@ assert.deepEqual(calls, ["step:-1", "step:1"]);
 calls.length = 0;
 press("Home");
 press("End");
-assert.deepEqual(calls, ["paint:0", "paint:2"]);
+assert.deepEqual(calls, ["jump:start", "jump:end"]);
 
 calls.length = 0;
 press("t");

@@ -330,7 +330,7 @@ function table(overrides = {}) {
 
 {
   const html = fs.readFileSync(path.join(__dirname, "../public/index.html"), "utf8");
-  assert.match(html, /id="handReviewBtn"/);
+  assert.doesNotMatch(html, /id="handReviewBtn"/, "Review hand is not in the hamburger menu");
   assert.match(html, /id="handReviewChrome"/);
   assert.match(html, /id="handReviewTimeline"/);
   assert.match(html, /hand-review-timeline-wrap/);
@@ -371,6 +371,10 @@ function table(overrides = {}) {
   assert.match(tableSrc, /is-spoiler|kind: "spoiler"/);
   assert.match(tableSrc, /showHandButtonAvailable/);
   assert.match(tableSrc, /isHeroVsBotsOnly/);
+  assert.match(tableSrc, /handReviewLandableIndexes/);
+  assert.match(tableSrc, /submitHandReviewRetryAction/);
+  assert.match(tableSrc, /renderHeroActionControls\(reviewHero/);
+  assert.doesNotMatch(tableSrc, /hand-review-retry-actions/);
   assert.doesNotMatch(tableSrc, /renderHandReviewSheet/);
   assert.doesNotMatch(tableSrc, /renderCoachHint/);
 

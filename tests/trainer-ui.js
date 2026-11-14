@@ -113,7 +113,25 @@ assert.match(css, /--trainer-chart-fold-bg/);
 assert.match(css, /\.trainer-why/);
 assert.match(css, /\.trainer-borderline-note/);
 assert.match(css, /\.coach-hint/);
-assert.match(css, /\.trainer-drill/);
+// Trainer menu reuses Settings sheet pieces (not bespoke mode-option segments).
+assert.match(html, /id="trainerMenuModal"[\s\S]*class="modal-panel menu-panel"/);
+assert.match(html, /id="trainerCloseMenuBtn"[\s\S]*class="ghost icon-btn"/);
+assert.match(html, /id="trainerDrillRfi"[\s\S]*class="appearance-choice/);
+assert.match(html, /id="trainerSize6"[\s\S]*class="appearance-choice/);
+assert.match(html, /menu-subsection-title">Drill/);
+assert.match(html, /menu-subsection-title">Table/);
+assert.match(html, /menu-subsection-title">Stats/);
+assert.match(html, /id="trainerResetBtn"[\s\S]*class="secondary menu-row-btn"/);
+assert.match(html, /id="trainerLeaveBtn"[\s\S]*class="secondary leave-game-btn menu-row-btn"/);
+assert.match(html, /appearance-choices shot-clock-choices/);
+assert.doesNotMatch(html, /class="trainer-drill"/);
+assert.doesNotMatch(html, /class="trainer-size"/);
+assert.doesNotMatch(html, /trainerDrillRfi" class="mode-option/);
+assert.match(trainer, /trainer-stats-top/);
+assert.match(trainer, /menu-player-row static/);
+assert.doesNotMatch(trainer, /parts\.join\(" · "\)/);
+assert.doesNotMatch(css, /\.trainer-drill \.mode-option/);
+assert.doesNotMatch(css, /\.trainer-size \.mode-option/);
 // Trainer reuses Practice .felt / .community / .players / .control-panel — no desktop overrides.
 assert.match(
   css,

@@ -52,7 +52,8 @@ var endGameBtn = document.querySelector("#endGameBtn") as HTMLButtonElement;
 var shareGameBtn = document.querySelector("#shareGameBtn") as HTMLButtonElement;
 var backToMenuBtn = document.querySelector("#backToMenuBtn") as HTMLButtonElement;
 var sitOutBtn = document.querySelector("#sitOutBtn") as HTMLButtonElement;
-var handReviewBtn = document.querySelector("#handReviewBtn") as HTMLButtonElement;
+/** Menu no longer lists Review — post-hand button + V shortcut only. */
+var handReviewBtn = document.querySelector("#handReviewBtn") as HTMLButtonElement | null;
 var copyForAiBtn = document.querySelector("#copyForAiBtn") as HTMLButtonElement;
 var handReviewChrome = document.querySelector("#handReviewChrome") as HTMLElement;
 var handReviewCloseBtn = document.querySelector("#handReviewCloseBtn") as HTMLButtonElement;
@@ -969,15 +970,11 @@ function handReviewFeatureAvailable(room: ClientRoom | null | undefined = state)
 }
 
 function syncHandReviewBtn() {
+  // Review was removed from the hamburger menu; keep a no-op for call sites.
   if (!handReviewBtn) return;
-  const available =
-    handReviewFeatureAvailable() &&
-    typeof hasReviewableCompletedHand === "function" &&
-    hasReviewableCompletedHand();
-  handReviewBtn.classList.toggle("hidden", !available);
-  handReviewBtn.disabled = !available;
-  handReviewBtn.setAttribute("aria-disabled", available ? "false" : "true");
-  handReviewBtn.title = available ? "Replay the last hand on the table" : "Bot games only";
+  handReviewBtn.classList.add("hidden");
+  handReviewBtn.disabled = true;
+  handReviewBtn.setAttribute("aria-disabled", "true");
 }
 
 function copyForAiFeatureAvailable(room: ClientRoom | null | undefined = state) {

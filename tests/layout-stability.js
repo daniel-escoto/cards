@@ -39,8 +39,8 @@ assert.match(css, /\.control-panel\.is-result > \.game-buttons > button[\s\S]*?f
 assert.match(tableSrc, /kind: "spoiler"/);
 assert.match(tableSrc, /There was a better play here|formatMistakeNudge/);
 
-// Timeline: hero-decision dots only (long hands must not overflow).
-assert.match(tableSrc, /only hero decision dots|heroIndexes/);
+// Timeline: hero-decision + result dots only (long hands must not overflow).
+assert.match(tableSrc, /handReviewLandableIndexes|is-result/);
 assert.match(css, /\.hand-review-timeline\s*\{[^}]*overflow-x:\s*auto/s);
 
 // Showdown holes: main-style appended feed cards (not an inline seat-row slot).
