@@ -545,8 +545,8 @@
       function placeSeatPopover(anchor: HTMLElement): void {
         const tip = seatPopover!;
         tip.classList.remove("hidden");
-        tip.style.left = "0px";
-        tip.style.top = "0px";
+        tip.style.setProperty("--seat-popover-left", "0px");
+        tip.style.setProperty("--seat-popover-top", "0px");
         const pad = 8;
         const gap = 8;
         const anchorRect = anchor.getBoundingClientRect();
@@ -565,8 +565,8 @@
           left = Math.max(pad, vw - tipRect.width - pad);
         }
         if (left < pad) left = pad;
-        tip.style.left = `${Math.round(left)}px`;
-        tip.style.top = `${Math.round(top)}px`;
+        tip.style.setProperty("--seat-popover-left", `${Math.round(left)}px`);
+        tip.style.setProperty("--seat-popover-top", `${Math.round(top)}px`);
       }
 
       function openSeatPopover(row: HTMLElement): void {
@@ -699,8 +699,13 @@
         }
       }
 
-      /** Same label + optional kbd badge markup the live table uses. */
+      /** Same label + optional kbd badge markup the live table uses (via HoldemUI). */
       function setButtonLabel(button: HTMLElement | null | undefined, label: string, shortcut = ""): void {
+        const ui = (globalThis as typeof globalThis & { HoldemUI?: HoldemUIAPI }).HoldemUI;
+        if (ui && typeof ui.setButtonLabel === "function") {
+          ui.setButtonLabel(button, label, shortcut);
+          return;
+        }
         if (!button) return;
         button.innerHTML = `<span>${escapeHtml(label)}</span>${
           shortcut ? `<kbd aria-hidden="true">${escapeHtml(shortcut)}</kbd>` : ""
@@ -832,7 +837,11 @@
       }
 
       function textActionLink(id: string, label: string): string {
-        return `<button id="${id}" class="text-action-link" type="button">${label}</button>`;
+        const ui = (globalThis as typeof globalThis & { HoldemUI?: HoldemUIAPI }).HoldemUI;
+        if (ui && typeof ui.textActionLinkHtml === "function") {
+          return ui.textActionLinkHtml(id, label);
+        }
+        return `<button type="button" class="text-action-link" id="${id}">${label}</button>`;
       }
 
       function nudgeFacingRaise(direction: number): void {
@@ -1779,7 +1788,31 @@
         /* ignore */
       }
 
-      return {
+      function forceSpotForTest(next: SpotState): void {
+        spot = next;
+        trainerView.classList.toggle("is-answered", Boolean(next.answered));
+        trainerView.classList.toggle("is-facing", next.kind === "facing");
+        potEl!.textContent = String(
+          next.kind === "facing" ? next.openTo + (next.callers.length + 1) * next.toCall : POT_RFI,
+        );
+        // Facing pot uses blinds + open; keep simple deterministic value for screenshots.
+        if (next.kind === "facing") {
+          potEl!.textContent = String(SMALL_BLIND + BIG_BLIND + next.openTo);
+        }
+        const holes = cardHtml(next.cards[0]) + cardHtml(next.cards[1]);
+        heroHandEl!.innerHTML = holes;
+        communityEl!.innerHTML = facedownBoardHtml();
+        if (next.answered) renderChart(next.handKey);
+        else chartEl!.innerHTML = "";
+        renderPlayers();
+        renderTurnInfo();
+        renderCoach();
+        renderActions();
+        renderStats();
+      }
+
+      const controller = {
+        forceSpot: forceSpotForTest,
         destroy() {
           active = false;
           trainerBtn.removeEventListener("click", onTrainerClick);
@@ -1807,6 +1840,12 @@
           closeSeatPopover();
         },
       };
+      (
+        globalThis as typeof globalThis & {
+          PreflopTrainerTest?: { forceSpot: (spot: SpotState) => void };
+        }
+      ).PreflopTrainerTest = { forceSpot: forceSpotForTest };
+      return controller;
     }
 
     if (typeof document !== "undefined") {

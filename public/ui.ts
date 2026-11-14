@@ -1,33 +1,3 @@
-type HoldemButtonVariant = "primary" | "secondary" | "danger" | "ghost";
-type HoldemButtonVariantInput = HoldemButtonVariant | "ghost icon" | string;
-
-interface HoldemButtonHtmlOptions {
-  variant?: HoldemButtonVariantInput;
-  label: string;
-  shortcut?: string;
-  id?: string;
-  className?: string;
-  disabled?: boolean;
-}
-
-interface HoldemCreateButtonOptions extends HoldemButtonHtmlOptions {
-  type?: "button" | "submit" | "reset";
-  onClick?: (event: MouseEvent) => void;
-}
-
-interface HoldemUIAPI {
-  BUTTON_VARIANTS: readonly HoldemButtonVariant[];
-  variantClass(variant: HoldemButtonVariantInput): string;
-  keyBadgeHtml(shortcut: string): string;
-  setButtonLabel(button: HTMLElement | null | undefined, label: string, shortcut?: string): void;
-  createButton(options: HoldemCreateButtonOptions): HTMLButtonElement;
-  buttonHtml(options: HoldemButtonHtmlOptions): string;
-  textActionLinkHtml(id: string, label: string): string;
-  iconCloseSvg(): string;
-  verdictIconSvg(kind: "best" | "mistake" | "neutral"): string;
-  isAllowedButtonVariant(className: string): boolean;
-}
-
 (function (
   root: typeof globalThis & { HoldemUI?: HoldemUIAPI; HoldemFormat?: HoldemFormatAPI },
   factory: () => HoldemUIAPI,

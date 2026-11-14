@@ -1584,6 +1584,10 @@ function changeRaise(direction: number) {
 }
 
 function setButtonLabel(button: HTMLElement | null | undefined, label: string, shortcut = "") {
+  if (typeof HoldemUI !== "undefined" && HoldemUI.setButtonLabel) {
+    HoldemUI.setButtonLabel(button, label, shortcut);
+    return;
+  }
   if (!button) return;
   button.innerHTML = `<span>${escapeHtml(label)}</span>${shortcut ? `<kbd aria-hidden="true">${escapeHtml(shortcut)}</kbd>` : ""}`;
   button.classList.toggle("has-shortcut", Boolean(shortcut));
@@ -1645,6 +1649,13 @@ function addButton(label: string, eventName: string, className = "", shortcut = 
 
 /** Secondary action as a compact text link — never a third button in the row. */
 function textActionLink(label: string, onClick: () => void) {
+  if (typeof HoldemUI !== "undefined" && HoldemUI.createButton) {
+    return HoldemUI.createButton({
+      label,
+      className: "text-action-link",
+      onClick: () => onClick(),
+    });
+  }
   const button = document.createElement("button");
   button.type = "button";
   button.className = "text-action-link";
@@ -1721,10 +1732,7 @@ async function writeClipboardText(text: string) {
   const area = document.createElement("textarea");
   area.value = text;
   area.setAttribute("readonly", "");
-  area.style.position = "fixed";
-  area.style.top = "0";
-  area.style.left = "0";
-  area.style.opacity = "0";
+  area.className = "clipboard-scratch";
   document.body.appendChild(area);
   area.focus();
   area.select();

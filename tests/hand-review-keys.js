@@ -29,7 +29,7 @@ assert.match(
 const css = fs.readFileSync(path.join(__dirname, "../public/styles.css"), "utf8");
 assert.match(
   css,
-  /button\.has-shortcut,\s*\n\.raise-action\.has-shortcut\s*\{[^}]*gap:\s*8px/s,
+  /button\.has-shortcut,\s*\n\.raise-action\.has-shortcut\s*\{[^}]*gap:\s*var\(--space-8\)/s,
   "every has-shortcut control shares the Ready/Review 8px badge gap",
 );
 assert.match(

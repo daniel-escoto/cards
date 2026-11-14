@@ -10,11 +10,28 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const css = fs.readFileSync(path.join(__dirname, "../public/styles.css"), "utf8");
+const tokens = fs.readFileSync(path.join(__dirname, "../public/tokens.css"), "utf8");
 const LINE_HEIGHT = 1.35;
 
+/** Resolve var(--font-size-N) / var(--space-N) and plain/calc px to a number. */
 function px(value) {
+  if (!value) return 0;
+  const token = /var\(\s*(--(?:font-size|space)-([\d_]+))\s*\)/.exec(value);
+  if (token) {
+    const def = new RegExp(`${token[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:\\s*([\\d.]+)px`).exec(
+      tokens,
+    );
+    if (def) return Number(def[1]);
+  }
   const calc = /calc\(\s*([\d.]+)px\s*\*\s*([\d.]+)\s*\)/.exec(value);
   if (calc) return Number(calc[1]) * Number(calc[2]);
+  const calcToken = /calc\(\s*var\(\s*(--font-size-([\d_]+))\s*\)\s*\*\s*([\d.]+)\s*\)/.exec(value);
+  if (calcToken) {
+    const def = new RegExp(
+      `${calcToken[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:\\s*([\\d.]+)px`,
+    ).exec(tokens);
+    if (def) return Number(def[1]) * Number(calcToken[3]);
+  }
   const plain = /^([\d.]+)px$/.exec(value.trim());
   return plain ? Number(plain[1]) : 0;
 }
@@ -44,7 +61,7 @@ assert.ok(base.length > 0, "expected .turn-info rules");
 assert.equal(yourTurn.length, 1, "expected one .turn-info.your-turn rule");
 
 const yourTurnLine = px(yourTurn[0].fontSize) * LINE_HEIGHT;
-assert.ok(yourTurnLine > 0, "your-turn font-size should be in px");
+assert.ok(yourTurnLine > 0, `your-turn font-size should resolve (got ${yourTurn[0].fontSize})`);
 
 const baseRule = base.find((rule) => rule.lineHeight);
 assert.equal(
@@ -59,8 +76,10 @@ assert.ok(
 
 let sized = 0;
 for (const rule of base) {
-  if (!rule.fontSize || !rule.fontSize.endsWith("px")) continue;
-  const line = px(rule.fontSize) * LINE_HEIGHT;
+  if (!rule.fontSize) continue;
+  const sizePx = px(rule.fontSize);
+  if (!sizePx) continue;
+  const line = sizePx * LINE_HEIGHT;
   if (line <= yourTurnLine) continue; // covered by the base min-height
   sized += 1;
   assert.ok(

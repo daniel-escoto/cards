@@ -116,8 +116,14 @@ assert.ok(!popover.classList.contains("hidden"), "popover opens on seat click");
 assert.match(popover.textContent, /UTG/);
 assert.match(popover.textContent, /Under the gun/);
 assert.match(popover.textContent, /first to act, play tight/);
-assert.ok(popover.style.left, "popover positioned with left");
-assert.ok(popover.style.top, "popover positioned with top");
+assert.ok(
+  popover.style.getPropertyValue("--seat-popover-left"),
+  "popover positioned with --seat-popover-left",
+);
+assert.ok(
+  popover.style.getPropertyValue("--seat-popover-top"),
+  "popover positioned with --seat-popover-top",
+);
 
 const btn = players.querySelector('.trainer-seat-row[data-seat="BTN"]');
 assert.ok(btn);

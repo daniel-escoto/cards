@@ -11,7 +11,7 @@ const css = fs.readFileSync(path.join(__dirname, "../public/styles.css"), "utf8"
 
 assert.match(
   css,
-  /\.game-buttons > button\.has-shortcut:not\(\.secondary\):not\(\.ghost\) > kbd[\s\S]*?border-color:\s*rgba\(255,\s*255,\s*255,\s*0\.3\)[\s\S]*?color:\s*rgba\(255,\s*255,\s*255,\s*0\.82\)[\s\S]*?background:\s*rgba\(0,\s*0,\s*0,\s*0\.14\)/,
+  /\.game-buttons > button\.has-shortcut:not\(\.secondary\):not\(\.ghost\) > kbd[\s\S]*?border-color:\s*var\(--color-raw-93\)[\s\S]*?color:\s*var\(--color-raw-90\)[\s\S]*?background:\s*var\(--color-raw-52\)/,
 );
 assert.doesNotMatch(
   css,

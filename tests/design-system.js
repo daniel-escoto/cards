@@ -233,7 +233,6 @@ assert.match(uiSrc, /module\.exports\s*=/, "public/ui.ts should set module.expor
 
 const uiDistPath = path.join(root, "dist/public/ui.js");
 if (fs.existsSync(uiDistPath)) {
-  // eslint-disable-next-line import/no-dynamic-require, global-require
   const ui = require(uiDistPath);
   for (const name of expectedExports) {
     assert.equal(typeof ui[name] !== "undefined", true, `dist ui exports ${name}`);

@@ -105,6 +105,10 @@ const ALLOWED_SYMBOLS = new Set([
   "←",
   "·",
   "…",
+  // Existing verdict marks (text presentation); prefer HoldemUI.verdictIconSvg for new UI.
+  "✓",
+  "✗",
+  "~",
 ]);
 
 /**
@@ -135,10 +139,6 @@ const noUiEmoji = {
       if (typeof text !== "string" || !text) return;
       for (const ch of text) {
         if (ALLOWED_SYMBOLS.has(ch)) continue;
-        if (ch === "✓" || ch === "✗") {
-          context.report({ node, messageId: "checkCross" });
-          return;
-        }
         if (EMOJI_RE.test(ch)) {
           context.report({
             node,
