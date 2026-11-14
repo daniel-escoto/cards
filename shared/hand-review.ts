@@ -500,12 +500,12 @@ export function gradeRetry(
   if (correct) {
     return {
       correct: true,
-      line: `✓ Correct — ${actionLabel(item.recommended, item.recommendedRaiseTo)}.`,
+      line: `✓\uFE0E Correct — ${actionLabel(item.recommended, item.recommendedRaiseTo)}.`,
     };
   }
   return {
     correct: false,
-    line: `✗ Still off — ${actionLabel(item.recommended, item.recommendedRaiseTo)} was the play.`,
+    line: `✗\uFE0E Still off — ${actionLabel(item.recommended, item.recommendedRaiseTo)} was the play.`,
   };
 }
 
@@ -518,9 +518,10 @@ export function formatDecisionHeadline(item: HandReviewItem): string {
   return `${streetLabel(item.street)} · ${actionLabel(item.taken, item.raiseTo)}`;
 }
 
-/** Badge fragment only — e.g. "✗ Mistake" (UI colors the mark). */
+/** Badge fragment only — e.g. "✗ Mistake" (UI colors the mark). FE0E = text, not emoji. */
 export function formatVerdictBadge(item: HandReviewItem): string {
-  const mark = item.verdict === "best" ? "✓" : item.verdict === "mistake" ? "✗" : "~";
+  const mark =
+    item.verdict === "best" ? "✓\uFE0E" : item.verdict === "mistake" ? "✗\uFE0E" : "~";
   return `${mark} ${item.badge}`;
 }
 

@@ -50,6 +50,18 @@ const bounds = {
 assert.equal(nudgeRaiseTo(60, 1, bounds), 120, "first + from Call is min legal raise");
 assert.equal(nudgeRaiseTo(120, 1, bounds), 140, "+ steps up from min raise");
 assert.equal(nudgeRaiseTo(120, -1, bounds), 60, "- returns to Call detent");
+assert.equal(nudgeRaiseTo(140, -1, bounds), 120, "- from above min steps toward Call");
+assert.equal(
+  nudgeRaiseTo(20, -1, {
+    minRaiseTo: 20,
+    maxRaiseTo: 1000,
+    step: 20,
+    currentBet: 0,
+    mergeCheckBet: true,
+  }),
+  0,
+  "- from min bet returns to Check detent (0)",
+);
 assert.equal(legalRaiseTo(125, bounds), 120, "illegal 125 snaps to 120");
 
 // Facing a raise to 400 → Call 400; first nudge → 800 (min legal).
@@ -107,6 +119,12 @@ assert.doesNotMatch(
   tableSrc,
   /atPassiveDetent\(\)\s*\?\s*0\s*:\s*raiseState\.value/,
   "must not force RAISE TO display to 0 at Call detent",
+);
+// UI wiring: minus is disabled only at the passive detent, never stuck at min raise.
+assert.match(
+  tableSrc,
+  /mergePassiveConfirm \? atPassiveDetent\(\) : raiseState\.value <= raiseState\.min/,
+  "raiseMinus must unlock once above the Call/Check detent",
 );
 
 console.log("Facing-bet raise default checks passed.");

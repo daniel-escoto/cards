@@ -88,14 +88,23 @@ function render() {
   lastActionEntryId = latestEntryId;
 
   const hero = activeHero();
+  // Pre-deal / lobby / game-over: never paint hole cards (also clears stale DOM
+  // when lastHeroSignature was reset without wiping #heroHand).
   const showHeroCards =
     room.phase !== "lobby" && room.phase !== "gameover" && Boolean(hero?.cards?.length);
   const heroSignature = showHeroCards
     ? hero!.cards.map((card) => card?.code || `${card?.rank || ""}${card?.suit || ""}`).join("|")
     : "";
-  if (heroSignature !== lastHeroSignature) {
+  if (!showHeroCards) {
+    if (lastHeroSignature !== "" || heroHand.children.length > 0) {
+      heroCardsHidden = false;
+      heroHand.innerHTML = "";
+      updateHeroCardVisibility();
+      lastHeroSignature = "";
+    }
+  } else if (heroSignature !== lastHeroSignature) {
     heroCardsHidden = false;
-    heroHand.innerHTML = showHeroCards ? hero!.cards.map((card) => cardTemplate(card)).join("") : "";
+    heroHand.innerHTML = hero!.cards.map((card) => cardTemplate(card)).join("");
     updateHeroCardVisibility();
     replayAnimation(heroHand, "cards-entering", 720);
     if (heroSignature && !document.hidden) tableSounds.deal(hero?.cards?.length || 1);
@@ -484,9 +493,28 @@ function finalizeHandReplay() {
   if (typeof syncHandReviewBtn === "function") syncHandReviewBtn();
 }
 
+function hasReviewableCompletedHand(room: ClientRoom | null | undefined = state) {
+  if (!room) return false;
+  if (!lastHandReplay || lastHandReplay.steps.length === 0) return false;
+  // Fresh lobby before any deal must never inherit a prior room's replay.
+  const handNumber = Number(room.handNumber) || 0;
+  if (room.phase === "lobby" && handNumber <= 0 && !(room.winners?.length > 0)) {
+    return false;
+  }
+  return true;
+}
+
 function maybeOfferHandReview(room: ClientRoom) {
   if (typeof handReviewFeatureAvailable !== "function" || !handReviewFeatureAvailable(room)) {
     lastHandReplay = null;
+    handRecording = null;
+    if (typeof syncHandReviewBtn === "function") syncHandReviewBtn();
+    return;
+  }
+  const handNumber = Number(room.handNumber) || 0;
+  if (room.phase === "lobby" && handNumber <= 0 && !(room.winners?.length > 0)) {
+    lastHandReplay = null;
+    handRecording = null;
     if (typeof syncHandReviewBtn === "function") syncHandReviewBtn();
     return;
   }
@@ -500,7 +528,7 @@ function maybeOfferHandReview(room: ClientRoom) {
 }
 
 function addReviewHandButton() {
-  if (!lastHandReplay || lastHandReplay.steps.length === 0) return;
+  if (!hasReviewableCompletedHand()) return;
   if (typeof handReviewFeatureAvailable !== "function" || !handReviewFeatureAvailable()) return;
   const button = document.createElement("button");
   button.type = "button";
@@ -685,7 +713,9 @@ function handReviewBadge(item: HandReviewItemLocal): string {
   if (typeof HandReview !== "undefined" && HandReview.formatVerdictBadge) {
     return HandReview.formatVerdictBadge(item);
   }
-  const mark = item.verdict === "mistake" ? "✗" : item.verdict === "best" ? "✓" : "~";
+  // FE0E keeps ✓/✗ as text glyphs on iOS (avoids emoji presentation).
+  const mark =
+    item.verdict === "mistake" ? "✗\uFE0E" : item.verdict === "best" ? "✓\uFE0E" : "~";
   return `${mark} ${item.badge}`;
 }
 
@@ -729,7 +759,7 @@ function paintHandReviewVerdict(opts: {
   if (opts.kind === "spoiler" && opts.item) {
     const mark = document.createElement("span");
     mark.className = "hand-review-verdict-mark";
-    mark.textContent = "✗ Mistake";
+    mark.textContent = "✗\uFE0E Mistake";
     const detail = document.createElement("span");
     detail.className = "hand-review-verdict-why";
     detail.textContent = handReviewMistakeNudge();
@@ -740,7 +770,7 @@ function paintHandReviewVerdict(opts: {
   if (opts.kind === "correct" && opts.item) {
     const mark = document.createElement("span");
     mark.className = "hand-review-verdict-mark";
-    mark.textContent = "✓ Correct";
+    mark.textContent = "✓\uFE0E Correct";
     const detail = document.createElement("span");
     detail.className = "hand-review-verdict-why";
     detail.textContent = handReviewWhy(opts.item);
@@ -1148,7 +1178,11 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
     Boolean(room.isYourTurn && hero) && isBettingPhase(room.phase) && !betweenHands;
 
   if (!heroToAct) {
-    // At most two primary buttons per row: Ready + Review. Secondary actions are links.
+    // Main order: + Add bot (dashed secondary), then Ready up. Max two buttons per row —
+    // Review follows when present (wraps to the next row). Show hand stays a text link.
+    if (room.canAddBot && betweenHands) {
+      addButton("+ Add bot", "room:addBot", "secondary lobby-add-bot");
+    }
     if (room.canReady && betweenHands) {
       const readyShortcut = room.isReady
         ? keybindLabel(keybinds.ready)
@@ -1162,21 +1196,16 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
       maybeOfferHandReview(room);
       addReviewHandButton();
     }
-    const links: HTMLElement[] = [];
-    if (room.canAddBot && betweenHands) {
-      links.push(textActionLink("Add bot", () => emitWithAck("room:addBot", {})));
-    }
     // Show hand is for multi-human tables (muck / reveal). Hide vs bots — no audience.
     if (showHandButtonAvailable(room)) {
       const showShortcut = keybindLabel(keybinds.showHand);
-      links.push(
+      appendActionLinks([
         textActionLink(
           showShortcut ? `Show hand (${showShortcut})` : "Show hand",
           () => emitWithAck("game:showCards", {}),
         ),
-      );
+      ]);
     }
-    if (links.length) appendActionLinks(links);
   }
 
   if (!heroToAct) {

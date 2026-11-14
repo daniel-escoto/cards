@@ -117,7 +117,7 @@ function table(overrides = {}) {
   assert.match(snappedRaise.reason, /calling only needs \d+ in \d+/i);
   assert.doesNotMatch(snappedRaise.reason, /%|equity|pot odds/i);
   assert.doesNotMatch(snappedRaise.reason, /Raise to 125/);
-  assert.match(HandReview.formatVerdictBadge(snappedRaise), /✗ Mistake/);
+  assert.match(HandReview.formatVerdictBadge(snappedRaise), /✗\uFE0E? Mistake/);
   assert.match(HandReview.formatVerdictWhy(snappedRaise), /Raise to 120/);
   const retrySnap = HandReview.gradeRetry(snappedRaise, "fold");
   assert.match(retrySnap.line, /Raise to 120/);

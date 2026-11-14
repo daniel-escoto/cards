@@ -43,9 +43,12 @@ assert.match(tableSrc, /There was a better play here|formatMistakeNudge/);
 assert.match(tableSrc, /only hero decision dots|heroIndexes/);
 assert.match(css, /\.hand-review-timeline\s*\{[^}]*overflow-x:\s*auto/s);
 
-// Seat hole cards: reserved grid column + inline markup (no appended feed cards).
-assert.match(css, /\.seat-shown-hand\s*\{/);
-assert.match(css, /grid-template-columns:[^;]*64px/s);
+// Showdown holes: main-style appended feed cards (not an inline seat-row slot).
+assert.doesNotMatch(css, /\.seat-shown-hand\s*\{/);
+assert.doesNotMatch(css, /grid-template-columns:[^;]*64px/);
+const bootSrc = fs.readFileSync(path.join(__dirname, "../public/app-boot.ts"), "utf8");
+assert.match(bootSrc, /shown-hand-card/);
+assert.match(bootSrc, /seatHoleCardsMayReveal/);
 
 // Welcome: centered idle; keyboard-open only via body class (not focus-within jump).
 assert.match(css, /\.welcome\s*\{[^}]*align-content:\s*safe center/s);

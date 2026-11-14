@@ -48,7 +48,7 @@ assert.match(formatSrc, /normalizePublicCard/);
 const trainerSrc = fs.readFileSync(path.join(__dirname, "../public/trainer.ts"), "utf8");
 assert.match(trainerSrc, /cardTemplate/);
 const bootSrc = fs.readFileSync(path.join(__dirname, "../public/app-boot.ts"), "utf8");
-assert.match(bootSrc, /seatShownHandMarkup/);
+assert.match(bootSrc, /renderShownHandCard|cardTemplate\(card\)/);
 assert.match(bootSrc, /cardTemplate\(card\)/);
 
 // No face render path may paint a bare suit letter for any letter-suit card.

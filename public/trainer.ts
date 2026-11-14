@@ -885,7 +885,7 @@
           badge.textContent = "Trainer";
           const headline = doc.createElement("strong");
           headline.className = "coach-hint-headline";
-          const icon = correct ? "✓" : "✗";
+          const icon = correct ? "✓\uFE0E" : "✗\uFE0E";
           headline.textContent = `${icon} ${badgeLabel}`;
           head.append(badge, headline);
 
@@ -933,7 +933,7 @@
         badge.textContent = "Trainer";
         const headline = doc.createElement("strong");
         headline.className = "coach-hint-headline";
-        const icon = correct ? "✓" : "✗";
+        const icon = correct ? "✓\uFE0E" : "✗\uFE0E";
         headline.textContent = `${icon} ${badgeLabel}`;
         head.append(badge, headline);
 
@@ -1285,24 +1285,20 @@
         trainerView.classList.toggle("is-facing", spot.kind === "facing");
         syncRaiseDisplay();
         const showRetry = spot.kind === "facing" && spot.correct === false;
-        // Max 2 buttons: Retry (secondary) + Next hand (primary). Chart is a link.
+        // Max 2 buttons: Next hand (primary) + Chart (secondary). Retry is a text link.
         actionsEl!.innerHTML = `
-          <div class="action-links">${textActionLink("trainerChartBtn", "Chart")}</div>
-          ${
-            showRetry
-              ? `<button id="trainerRetryBtn" class="secondary" type="button"></button>`
-              : `<button id="trainerRetryPlaceholder" class="action-placeholder" type="button" tabindex="-1" aria-hidden="true">Retry</button>`
-          }
+          ${showRetry ? `<div class="action-links">${textActionLink("trainerRetryBtn", "Retry")}</div>` : ""}
           <button id="trainerNextBtn" type="button"></button>
+          <button id="trainerChartBtn" class="secondary" type="button"></button>
         `;
-        const chartBtn = actionsEl!.querySelector("#trainerChartBtn") as HTMLButtonElement;
-        chartBtn.addEventListener("click", openChart);
         const nextBtn = actionsEl!.querySelector("#trainerNextBtn") as HTMLButtonElement;
         setButtonLabel(nextBtn, "Next hand", "N");
         nextBtn.addEventListener("click", () => dealNext());
+        const chartBtn = actionsEl!.querySelector("#trainerChartBtn") as HTMLButtonElement;
+        setButtonLabel(chartBtn, "Chart");
+        chartBtn.addEventListener("click", openChart);
         const retryBtn = actionsEl!.querySelector("#trainerRetryBtn") as HTMLButtonElement | null;
         if (retryBtn) {
-          setButtonLabel(retryBtn, "Retry", "T");
           retryBtn.addEventListener("click", retrySpot);
         }
       }

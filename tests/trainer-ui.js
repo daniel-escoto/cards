@@ -63,8 +63,8 @@ assert.match(trainer, /table-player-row/);
 assert.match(trainer, /trainerFoldBtn/);
 assert.match(trainer, /trainerConfirmBtn/);
 assert.match(trainer, /trainerRetryBtn/);
+assert.match(trainer, /trainerChartBtn/);
 assert.match(trainer, /text-action-link/);
-assert.match(trainer, /action-links/);
 assert.match(trainer, /DRILL_KEY/);
 assert.match(trainer, /setButtonLabel/);
 assert.match(trainer, /class="danger"/);
@@ -79,10 +79,31 @@ assert.doesNotMatch(trainer, /function onHint/);
 assert.doesNotMatch(trainer, /renderHintCoach/);
 assert.doesNotMatch(trainer, /Hint again/);
 assert.doesNotMatch(html, /trainerHint/);
-// Max 2 primary buttons: facing Fold|Call/Raise confirm; Chart is a link after answer.
+// Max 2 primary buttons: facing Fold|Call/Raise; answered Next|Chart (Retry is a text link).
 assert.match(css, /\.trainer-view \.game-buttons\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\)/s);
+assert.match(
+  trainer,
+  /trainerNextBtn[\s\S]*trainerChartBtn[\s\S]*class="secondary"/,
+  "answered row is Next hand (primary) + Chart (secondary)",
+);
+assert.doesNotMatch(
+  trainer,
+  /action-links">\$\{textActionLink\("trainerChartBtn"/,
+  "Chart must be a real button, not an underlined link",
+);
+assert.doesNotMatch(trainer, /trainerRetryPlaceholder/);
 assert.doesNotMatch(css, /Facing: Hint \| Fold \| Call \| Raise/);
 assert.match(css, /button\.text-action-link/);
+// Fold (danger) and Call/Raise share the same translucent kbd badge as the live table.
+assert.match(
+  css,
+  /\.game-buttons > button\.has-shortcut:not\(\.secondary\):not\(\.ghost\) > kbd/,
+);
+assert.doesNotMatch(
+  css,
+  /\.game-buttons > button\.has-shortcut:not\(\.secondary\):not\(\.danger\):not\(\.ghost\) > kbd/,
+  "danger/Fold must use the same light badge as Call/Raise",
+);
 // Live-table raise button is not forced visible on facing (Call/Raise merge hides it).
 assert.doesNotMatch(css, /\.trainer-view\.is-facing #trainerRaiseActionBtn/);
 

@@ -497,6 +497,14 @@ function applyRoomUpdate(room: ClientRoom) {
       state.handNumber !== room.handNumber ||
       state.phase !== room.phase);
   syncServerTimeOffset(room);
+  // New table: never carry Review / recording from a prior room.
+  if (state && state.id !== room.id) {
+    if (typeof lastHandReplay !== "undefined") lastHandReplay = null;
+    if (typeof handRecording !== "undefined") handRecording = null;
+    if (typeof handReviewLastLogId !== "undefined") handReviewLastLogId = "";
+    lastHeroSignature = "";
+    heroHand.innerHTML = "";
+  }
   // While reviewing, keep the live room for later restore; don't yank the replay frame.
   if (typeof handReviewActive !== "undefined" && handReviewActive) {
     handReviewSavedState = room;
@@ -964,9 +972,8 @@ function syncHandReviewBtn() {
   if (!handReviewBtn) return;
   const available =
     handReviewFeatureAvailable() &&
-    typeof lastHandReplay !== "undefined" &&
-    lastHandReplay != null &&
-    lastHandReplay.steps.length > 0;
+    typeof hasReviewableCompletedHand === "function" &&
+    hasReviewableCompletedHand();
   handReviewBtn.classList.toggle("hidden", !available);
   handReviewBtn.disabled = !available;
   handReviewBtn.setAttribute("aria-disabled", available ? "false" : "true");
@@ -1037,6 +1044,12 @@ function showWelcome(status = "") {
   lastPhase = "";
   lastPot = null;
   leavingEndedRoom = false;
+  // Drop prior-room Review + hole cards so a fresh lobby never inherits them.
+  if (typeof lastHandReplay !== "undefined") lastHandReplay = null;
+  if (typeof handRecording !== "undefined") handRecording = null;
+  if (typeof handReviewLastLogId !== "undefined") handReviewLastLogId = "";
+  heroHand.innerHTML = "";
+  if (typeof syncHandReviewBtn === "function") syncHandReviewBtn();
   hideGameMenu();
   document.documentElement.classList.remove("game-open-root");
   document.body.classList.remove("game-open", "keyboard-open");
@@ -1281,8 +1294,8 @@ function playerForAction(entry: ActionLogEntry) {
 }
 
 /**
- * Seat-row hole cards only after betting is closed: all-in runout (`allInCardsExposed`)
- * or showdown/complete. Never while someone still has to act.
+ * Shown-hand feed cards only after betting is closed: all-in runout (`allInCardsExposed`)
+ * or showdown/complete. Never while someone still has to act (short shove facing).
  */
 function seatHoleCardsMayReveal() {
   if (!state) return false;
@@ -1290,21 +1303,23 @@ function seatHoleCardsMayReveal() {
   return state.phase === "showdown" || state.phase === "complete";
 }
 
-/** Mini hole cards inline in the seat row — reserved slot so reveal never shifts layout. */
-function seatShownHandMarkup(player: ClientPlayer) {
-  const visible =
-    seatHoleCardsMayReveal() &&
-    Boolean(player.showCards) &&
-    Array.isArray(player.cards) &&
-    player.cards.some((card) => card && (card.code || card.rank));
-  const cards = visible
-    ? player.cards!
-        .filter((card) => card && (card.code || card.rank))
-        .slice(0, 2)
-        .map((card) => cardTemplate(card))
-        .join("")
-    : "";
-  return `<span class="seat-shown-hand${visible ? " is-visible" : ""}" aria-hidden="${visible ? "false" : "true"}">${cards}</span>`;
+/** Main-style appended showdown/muck/all-in reveal card below the seat list. */
+function renderShownHandCard(player: ClientPlayer) {
+  if (!state) return "";
+  const cards = (player.cards || [])
+    .filter((card) => card && (card.code || card.rank))
+    .map((card) => cardTemplate(card))
+    .join("");
+  if (!cards) return "";
+  return `
+    <article class="action-feed-card shown-hand-card ${player.isYou ? "you" : ""}" ${playerColorStyle(player)}>
+      <div class="action-card-head">
+        <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
+        <strong class="player-stack">${playerStackLabel(player)}</strong>
+      </div>
+      <div class="shown-hand">${cards}</div>
+    </article>
+  `;
 }
 
 function currentTurnPlayer() {
@@ -1765,14 +1780,24 @@ function renderActionFeed(newEntryId = "") {
         <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
         <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}</span>${seatChipMarkup(player)}</span>
         <span class="player-action${actionClass}">${escapeHtml(action)}${arrowMarkup}${clockMarkup}</span>
-        ${seatShownHandMarkup(player)}
         <strong class="player-stack">${playerStackLabel(player)}</strong>
         ${barMarkup}
       </article>
     `;
     })
     .join("");
-  return tableMarkup;
+  // Revealed hands: showdown winners/mucks, voluntary shows, and all-in runout face-ups.
+  // Gate on seatHoleCardsMayReveal so a short all-in still facing action stays private.
+  const shownHands = seatHoleCardsMayReveal()
+    ? room.players
+        .filter(
+          (player) =>
+            player.showCards && player.cards?.some((card) => card && (card.code || card.rank)),
+        )
+        .map(renderShownHandCard)
+        .join("")
+    : "";
+  return `${tableMarkup}${shownHands}`;
 }
 
 function isEndedGameReturn(previous: ClientRoom | null | undefined, next: ClientRoom | null | undefined) {

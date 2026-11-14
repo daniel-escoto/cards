@@ -1874,43 +1874,6 @@ button.menu-player-row:not(:disabled):hover {
   font-size: 12px;
 }
 
-/* Inline seat hole cards — reserved column; legible mini faces with suit glyphs. */
-.seat-shown-hand {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  width: 64px;
-  min-width: 64px;
-  max-width: 64px;
-  height: 40px;
-  min-height: 40px;
-  overflow: visible;
-  pointer-events: none;
-}
-.seat-shown-hand .card {
-  width: 30px;
-  min-width: 30px;
-  height: 40px;
-  padding: 3px 2px;
-  font-size: 12px;
-  line-height: 1.05;
-  box-shadow: none;
-}
-.seat-shown-hand .card-rank {
-  font-size: 12px;
-  font-weight: 800;
-}
-.seat-shown-hand .card-corner-suit {
-  font-size: 12px;
-  /* Prefer symbol fonts so ♦/♥ never fall back to Latin lookalikes. */
-  font-family: "Segoe UI Symbol", "Apple Symbols", "Noto Sans Symbols 2", "DejaVu Sans", sans-serif;
-  font-weight: 700;
-}
-.seat-shown-hand .card-corner-top,
-.seat-shown-hand .card-corner-bottom {
-  padding: 0;
-}
 .shown-hand {
   display: flex;
   gap: 5px;
@@ -2220,23 +2183,9 @@ button.menu-player-row:not(:disabled):hover {
   cursor: progress;
 }
 
+/* No stray "tap"/"reveal" label under rabbit slots — the face-down card is enough. */
 .card.rabbit-hint::after {
-  content: "tap";
-  position: absolute;
-  left: 0;
-  top: calc(100% + 4px);
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .card.rabbit-hint::after {
-    content: "reveal";
-  }
+  content: none;
 }
 
 .card.rabbit-first::after {
@@ -2390,10 +2339,10 @@ button.menu-player-row:not(:disabled):hover {
 
 .table-player-row {
   position: relative;
-  min-height: 44px;
+  min-height: 42px;
   display: grid;
-  /* Name | action | reserved hole-card slot | stack — card slot always present (no showdown shift). */
-  grid-template-columns: 14px minmax(9ch, 1.1fr) minmax(4.75rem, 0.95fr) 64px auto;
+  /* Name column keeps enough room for ~12–18 character display names. */
+  grid-template-columns: 14px minmax(12ch, 1.35fr) minmax(4.5rem, 0.9fr) auto;
   align-items: center;
   gap: 8px;
   padding: 7px 10px;
@@ -3134,15 +3083,16 @@ button.has-shortcut > kbd,
   text-decoration: none;
   pointer-events: none;
 }
-/* Primary accent buttons (Ready up, Try again, Raise): light badge on blue. */
-.game-buttons > button.has-shortcut:not(.secondary):not(.danger):not(.ghost) > kbd,
+/* Colored primary buttons (Ready, Fold/danger, Call/Raise, Try again): translucent badge
+   matching main — light border + white letter on the button color (game + Trainer). */
+.game-buttons > button.has-shortcut:not(.secondary):not(.ghost) > kbd,
 .hand-review-retry-bar > .hand-review-try-again.has-shortcut > kbd,
 .raise-action.has-shortcut > kbd {
   border-color: rgba(255, 255, 255, 0.3);
   color: rgba(255, 255, 255, 0.82);
   background: rgba(0, 0, 0, 0.14);
 }
-/* Secondary buttons (Review hand, Show answer): keep token kbd so it reads in light + dark. */
+/* Secondary buttons (Review hand, Chart, Show answer): keep token kbd so it reads in light + dark. */
 .game-buttons > button.has-shortcut.secondary > kbd,
 .hand-review-retry-bar > .hand-review-show-answer.has-shortcut > kbd {
   border-color: color-mix(in srgb, var(--line) 72%, var(--muted));
@@ -3954,6 +3904,8 @@ body.hand-review-open .hand-review-verdict.is-idle {
 /* Keep nav squares compact even under .control-panel button { min-height: 48px }. */
 .control-panel .hand-review-nav > button {
   flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
   width: 32px;
   min-width: 32px;
   max-width: 32px;
@@ -3963,6 +3915,12 @@ body.hand-review-open .hand-review-verdict.is-idle {
   padding: 0;
   font-size: 12px;
   line-height: 1;
+  color: var(--text);
+}
+.control-panel .hand-review-nav > button > svg {
+  display: block;
+  width: 14px;
+  height: 14px;
 }
 /* Dots on their own row; step label below — label width must never shove dots. */
 .hand-review-timeline-wrap {
@@ -4820,30 +4778,12 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
   }
 
   .table-player-row {
-    min-height: 44px;
-    /* Status gets room; mini cards stay legible without overlapping Ready/Not ready. */
-    grid-template-columns: 12px minmax(7ch, 1fr) minmax(4.5rem, 0.95fr) 60px auto;
-    gap: 6px;
+    min-height: 40px;
+    /* Fixed status width on phones: the name column gets the rest instead of a roomy status. */
+    grid-template-columns: 12px minmax(10ch, 1fr) 4.25rem auto;
+    gap: 7px;
     padding: 7px 9px;
     border-radius: 11px;
-  }
-
-  .seat-shown-hand {
-    width: 58px;
-    min-width: 58px;
-    max-width: 58px;
-    height: 36px;
-    min-height: 36px;
-  }
-  .seat-shown-hand .card {
-    width: 27px;
-    min-width: 27px;
-    height: 36px;
-    font-size: 11px;
-  }
-  .seat-shown-hand .card-rank,
-  .seat-shown-hand .card-corner-suit {
-    font-size: 11px;
   }
 
   .seat-timer {

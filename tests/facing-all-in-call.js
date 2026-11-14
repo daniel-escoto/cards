@@ -38,11 +38,11 @@ assert.match(
 );
 assert.match(tableSrc, /showToast\(text\)/);
 
-// Inline showdown cards — no appended shown-hand-card feed blocks.
-assert.match(bootSrc, /function seatShownHandMarkup/);
-assert.match(bootSrc, /seatShownHandMarkup\(player\)/);
-assert.doesNotMatch(bootSrc, /renderShownHandCard/);
-assert.doesNotMatch(bootSrc, /shownHands/);
+// Main-style appended shown-hand feed cards, gated until betting is closed.
+assert.match(bootSrc, /function renderShownHandCard/);
+assert.match(bootSrc, /shownHands/);
+assert.match(bootSrc, /shown-hand-card/);
+assert.doesNotMatch(bootSrc, /function seatShownHandMarkup|seat-shown-hand/);
 
 // Short all-in call: opponents all-in (0 stack) → Call is Best, never recommend Raise.
 {

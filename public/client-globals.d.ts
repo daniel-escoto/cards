@@ -1061,7 +1061,15 @@ declare global {
   function writeClipboardText(text: string): Promise<boolean>;
   function copyText(text: string, button: HTMLElement): Promise<void>;
   function handReviewFeatureAvailable(room?: ClientRoom | null): boolean;
+  function hasReviewableCompletedHand(room?: ClientRoom | null): boolean;
   function syncHandReviewBtn(): void;
+  var handRecording: {
+    handNumber: number;
+    heroId: string;
+    heroCodes: [string, string];
+    steps: unknown[];
+  } | null;
+  var handReviewLastLogId: string;
   function openHandReview(): void;
   function hideHandReview(): void;
   function paintHandReviewStep(index: number): void;
