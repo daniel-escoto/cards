@@ -50,7 +50,8 @@ const context = {
   winnerList: document.querySelector("#winnerList"),
   state: { phase: "flop" },
 };
-const panel = document.querySelector(".control-panel");
+const panel = document.querySelector("#tableView .control-panel");
+assert.ok(panel, "live table control panel exists");
 vm.runInNewContext(
   ["setBetControlsReserved", "actionPlaceholder", "reserveActionSpace", "winnerHowText"]
     .map(grab)

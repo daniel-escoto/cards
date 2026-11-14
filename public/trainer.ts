@@ -1,5 +1,5 @@
 /**
- * Offline Preflop Trainer — RFI Raise/Fold drills with shared chart data.
+ * Offline Preflop Trainer — RFI Raise/Fold drills presented as table-layout puzzles.
  */
 (function (
   root: typeof globalThis & {
@@ -40,6 +40,24 @@
 
     const STATS_KEY = "holdem:trainer-stats";
     const TABLE_KEY = "holdem:trainer-table";
+    const SMALL_BLIND = 10;
+    const BIG_BLIND = 20;
+    const STARTING_STACK = 1000;
+    const POT = SMALL_BLIND + BIG_BLIND;
+
+    /** Full table seats including BB (RFI spots never deal BB). */
+    const TABLE_SEATS_6 = ["UTG", "HJ", "CO", "BTN", "SB", "BB"] as const;
+    const TABLE_SEATS_9 = [
+      "UTG",
+      "UTG+1",
+      "MP",
+      "LJ",
+      "HJ",
+      "CO",
+      "BTN",
+      "SB",
+      "BB",
+    ] as const;
 
     type TrainerStats = {
       overall: { correct: number; total: number };
@@ -55,11 +73,9 @@
       handKey: string;
       standard: "raise" | "fold";
       answered: boolean;
+      chosen: "raise" | "fold" | null;
+      correct: boolean | null;
     };
-
-    /** Seat order clockwise from UTG for table diagrams (no BB — RFI only). */
-    const DIAGRAM_SEATS_6 = ["UTG", "HJ", "CO", "BTN", "SB"] as const;
-    const DIAGRAM_SEATS_9 = ["UTG", "UTG+1", "MP", "LJ", "HJ", "CO", "BTN", "SB"] as const;
 
     function emptyStats(): TrainerStats {
       return {
@@ -148,6 +164,54 @@
       return next;
     }
 
+    function escapeHtml(value: string): string {
+      if (format && typeof format.escapeHtml === "function") {
+        return format.escapeHtml(value);
+      }
+      return value.replace(/[&<>"']/g, (char) => {
+        switch (char) {
+          case "&":
+            return "&amp;";
+          case "<":
+            return "&lt;";
+          case ">":
+            return "&gt;";
+          case '"':
+            return "&quot;";
+          default:
+            return "&#39;";
+        }
+      });
+    }
+
+    function seatsForTable(tableSize: 6 | 9): readonly string[] {
+      return tableSize === 6 ? TABLE_SEATS_6 : TABLE_SEATS_9;
+    }
+
+    function stackForSeat(seat: string): number {
+      if (seat === "SB") return STARTING_STACK - SMALL_BLIND;
+      if (seat === "BB") return STARTING_STACK - BIG_BLIND;
+      return STARTING_STACK;
+    }
+
+    function seatChipMarkup(seat: string): string {
+      const chips: string[] = [];
+      if (seat === "BTN") {
+        chips.push('<span class="blind-chip dealer" title="Dealer" aria-label="Dealer">D</span>');
+      }
+      if (seat === "SB") {
+        chips.push(
+          '<span class="blind-chip small" title="Small blind" aria-label="Small blind">SB</span>',
+        );
+      }
+      if (seat === "BB") {
+        chips.push(
+          '<span class="blind-chip big" title="Big blind" aria-label="Big blind">BB</span>',
+        );
+      }
+      return chips.map((chip) => `<span class="seat-chip-slot">${chip}</span>`).join("");
+    }
+
     function bind(doc: Document = document): { destroy: () => void } | null {
       if (!ranges) return null;
 
@@ -167,47 +231,52 @@
       const welcome = welcomeEl;
       const trainerView = trainerViewEl;
 
-      const backBtn = trainerView.querySelector("#trainerBackBtn") as HTMLButtonElement | null;
-      const size6Btn = trainerView.querySelector("#trainerSize6") as HTMLButtonElement | null;
-      const size9Btn = trainerView.querySelector("#trainerSize9") as HTMLButtonElement | null;
+      const homeBtn = trainerView.querySelector("#trainerHomeBtn") as HTMLButtonElement | null;
+      const menuBtn = trainerView.querySelector("#trainerMenuBtn") as HTMLButtonElement | null;
       const accuracyEl = trainerView.querySelector("#trainerAccuracy") as HTMLElement | null;
-      const positionEl = trainerView.querySelector("#trainerPosition") as HTMLElement | null;
-      const diagramEl = trainerView.querySelector("#trainerTableDiagram") as HTMLElement | null;
-      const cardsEl = trainerView.querySelector("#trainerCards") as HTMLElement | null;
-      const raiseBtn = trainerView.querySelector("#trainerRaiseBtn") as HTMLButtonElement | null;
-      const foldBtn = trainerView.querySelector("#trainerFoldBtn") as HTMLButtonElement | null;
+      const potEl = trainerView.querySelector("#trainerPotValue") as HTMLElement | null;
+      const heroHandEl = trainerView.querySelector("#trainerHeroHand") as HTMLElement | null;
+      const turnInfoEl = trainerView.querySelector("#trainerTurnInfo") as HTMLElement | null;
       const actionsEl = trainerView.querySelector("#trainerActions") as HTMLElement | null;
-      const feedbackEl = trainerView.querySelector("#trainerFeedback") as HTMLElement | null;
-      const feedbackTitle = trainerView.querySelector("#trainerFeedbackTitle") as HTMLElement | null;
-      const feedbackDetail = trainerView.querySelector(
-        "#trainerFeedbackDetail",
+      const playersEl = trainerView.querySelector("#trainerPlayers") as HTMLElement | null;
+      const controlPanel = trainerView.querySelector(
+        "#trainerControlPanel",
       ) as HTMLElement | null;
-      const chartEl = trainerView.querySelector("#trainerChart") as HTMLElement | null;
-      const nextBtn = trainerView.querySelector("#trainerNextBtn") as HTMLButtonElement | null;
-      const statsEl = trainerView.querySelector("#trainerStats") as HTMLElement | null;
-      const statsSummaryEl = trainerView.querySelector(
-        "#trainerStatsSummary",
-      ) as HTMLElement | null;
-      const resetBtn = trainerView.querySelector("#trainerResetBtn") as HTMLButtonElement | null;
+
+      const menuModal = doc.querySelector("#trainerMenuModal") as HTMLElement | null;
+      const closeMenuBtn = doc.querySelector("#trainerCloseMenuBtn") as HTMLButtonElement | null;
+      const size6Btn = doc.querySelector("#trainerSize6") as HTMLButtonElement | null;
+      const size9Btn = doc.querySelector("#trainerSize9") as HTMLButtonElement | null;
+      const statsEl = doc.querySelector("#trainerStats") as HTMLElement | null;
+      const resetBtn = doc.querySelector("#trainerResetBtn") as HTMLButtonElement | null;
+      const leaveBtn = doc.querySelector("#trainerLeaveBtn") as HTMLButtonElement | null;
+
+      const chartModal = doc.querySelector("#trainerChartModal") as HTMLElement | null;
+      const closeChartBtn = doc.querySelector("#trainerCloseChartBtn") as HTMLButtonElement | null;
+      const chartEl = doc.querySelector("#trainerChart") as HTMLElement | null;
+      const chartEyebrow = doc.querySelector("#trainerChartEyebrow") as HTMLElement | null;
       const joinError = doc.querySelector("#joinError") as HTMLElement | null;
 
       if (
-        !backBtn ||
+        !homeBtn ||
+        !menuBtn ||
+        !accuracyEl ||
+        !potEl ||
+        !heroHandEl ||
+        !turnInfoEl ||
+        !actionsEl ||
+        !playersEl ||
+        !controlPanel ||
+        !menuModal ||
+        !closeMenuBtn ||
         !size6Btn ||
         !size9Btn ||
-        !accuracyEl ||
-        !positionEl ||
-        !cardsEl ||
-        !raiseBtn ||
-        !foldBtn ||
-        !actionsEl ||
-        !feedbackEl ||
-        !feedbackTitle ||
-        !feedbackDetail ||
-        !chartEl ||
-        !nextBtn ||
         !statsEl ||
-        !resetBtn
+        !resetBtn ||
+        !leaveBtn ||
+        !chartModal ||
+        !closeChartBtn ||
+        !chartEl
       ) {
         return null;
       }
@@ -230,14 +299,7 @@
 
       function renderStats(): void {
         const overallPct = pct(stats.overall.correct, stats.overall.total);
-        accuracyEl!.textContent =
-          stats.overall.total > 0 ? overallPct : "—";
-        if (statsSummaryEl) {
-          statsSummaryEl.textContent =
-            stats.overall.total > 0
-              ? `${overallPct} · streak ${stats.streak}`
-              : "Stats";
-        }
+        accuracyEl!.textContent = stats.overall.total > 0 ? overallPct : "—";
         const parts: string[] = [
           `Overall ${stats.overall.correct}/${stats.overall.total} (${overallPct})`,
           `Streak ${stats.streak}${stats.bestStreak ? ` (best ${stats.bestStreak})` : ""}`,
@@ -258,28 +320,58 @@
         size9Btn!.setAttribute("aria-pressed", tableSize === 9 ? "true" : "false");
       }
 
-      function renderDiagram(activePos: string): void {
-        if (!diagramEl) return;
-        const seats = tableSize === 6 ? DIAGRAM_SEATS_6 : DIAGRAM_SEATS_9;
-        let html = "";
-        for (const seat of seats) {
-          const on = seat === activePos ? " is-hero" : "";
-          html += `<span class="trainer-seat-dot${on}" title="${seat}"><span>${seat}</span></span>`;
+      function renderPlayers(): void {
+        if (!spot) {
+          playersEl!.innerHTML = "";
+          return;
         }
-        diagramEl.innerHTML = html;
-        diagramEl.dataset.size = String(tableSize);
-      }
-
-      function renderPosition(position: string): void {
-        positionEl!.innerHTML = "";
-        const pill = doc.createElement("span");
-        pill.className = "trainer-pos-pill";
-        pill.textContent = position;
-        const note = doc.createElement("span");
-        note.className = "trainer-pos-note";
-        note.textContent = "folded to you";
-        positionEl!.append(pill, note);
-        renderDiagram(position);
+        const seats = seatsForTable(spot.tableSize);
+        const heroIndex = seats.indexOf(spot.position);
+        const html = seats
+          .map((seat, index) => {
+            const isHero = seat === spot!.position;
+            const folded = heroIndex >= 0 && index < heroIndex;
+            const isActing = isHero && !spot!.answered;
+            const waitingAfter = !folded && !isHero;
+            let action = "";
+            let actionClass = "";
+            const nextSeat =
+              !spot!.answered && heroIndex >= 0 ? seats[heroIndex + 1] || null : null;
+            if (folded) {
+              action = "Fold";
+            } else if (isHero && spot!.answered) {
+              action = spot!.chosen === "raise" ? "Raise" : "Fold";
+              actionClass = spot!.chosen === "raise" ? " action-token-raise" : "";
+            } else if (isActing) {
+              action = "Acting";
+            } else if (waitingAfter) {
+              // Live-game cue: next seat after the actor shows muted "Next".
+              if (seat === nextSeat) {
+                action = "Next";
+                actionClass = " is-next";
+              } else {
+                action = "—";
+                actionClass = " is-waiting";
+              }
+            }
+            const classes = [
+              "table-player-row",
+              isActing ? "turn" : "",
+              seat === nextSeat ? "next-to-act" : "",
+              folded ? "folded" : "",
+              isHero ? "you" : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
+            return `<article class="${classes}">
+              <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
+              <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(seat)}</span>${seatChipMarkup(seat)}</span>
+              <span class="player-action${actionClass}">${escapeHtml(action)}</span>
+              <strong class="player-stack">${stackForSeat(seat)}</strong>
+            </article>`;
+          })
+          .join("");
+        playersEl!.innerHTML = html;
       }
 
       function renderChart(highlightKey: string): void {
@@ -306,9 +398,67 @@
         }
         html += "</div>";
         chartEl!.innerHTML = html;
+        if (chartEyebrow) {
+          chartEyebrow.textContent = `${spot!.position} · ${tableSize}-max open`;
+        }
+      }
+
+      function renderActions(): void {
+        if (!spot) {
+          actionsEl!.innerHTML = "";
+          return;
+        }
+        if (!spot.answered) {
+          actionsEl!.innerHTML = `
+            <button id="trainerFoldBtn" class="secondary has-shortcut" type="button">
+              Fold <kbd>F</kbd>
+            </button>
+            <button id="trainerRaiseBtn" class="has-shortcut" type="button">
+              Raise <kbd>R</kbd>
+            </button>
+          `;
+          const foldBtn = actionsEl!.querySelector("#trainerFoldBtn") as HTMLButtonElement;
+          const raiseBtn = actionsEl!.querySelector("#trainerRaiseBtn") as HTMLButtonElement;
+          foldBtn.addEventListener("click", () => answer("fold"));
+          raiseBtn.addEventListener("click", () => answer("raise"));
+          return;
+        }
+        actionsEl!.innerHTML = `
+          <button id="trainerChartBtn" class="secondary" type="button">Chart</button>
+          <button id="trainerNextBtn" class="has-shortcut" type="button">
+            Next hand <kbd>N</kbd>
+          </button>
+        `;
+        const chartBtn = actionsEl!.querySelector("#trainerChartBtn") as HTMLButtonElement;
+        const nextBtn = actionsEl!.querySelector("#trainerNextBtn") as HTMLButtonElement;
+        chartBtn.addEventListener("click", openChart);
+        nextBtn.addEventListener("click", () => dealNext());
+      }
+
+      function renderTurnInfo(): void {
+        if (!spot) {
+          turnInfoEl!.textContent = "";
+          turnInfoEl!.classList.remove("your-turn", "showdown-message");
+          return;
+        }
+        if (!spot.answered) {
+          turnInfoEl!.classList.add("your-turn");
+          turnInfoEl!.classList.remove("showdown-message");
+          turnInfoEl!.textContent = `Folded to you · ${spot.position}`;
+          return;
+        }
+        turnInfoEl!.classList.remove("your-turn");
+        turnInfoEl!.classList.add("showdown-message");
+        const label = spot.standard === "raise" ? "Raise" : "Fold";
+        const article = spot.standard === "raise" ? "an open" : "a fold";
+        const verdict = spot.correct ? "Correct" : "Incorrect";
+        turnInfoEl!.innerHTML = `<strong class="trainer-verdict ${
+          spot.correct ? "is-correct" : "is-wrong"
+        }">${verdict}</strong> · ${label} — ${escapeHtml(spot.handKey)} is ${article} from ${escapeHtml(spot.position)}`;
       }
 
       function dealNext(): void {
+        closeChart();
         const dealt = ranges!.dealRandomRfiSpot(tableSize);
         spot = {
           tableSize: dealt.tableSize,
@@ -317,17 +467,16 @@
           handKey: dealt.handKey,
           standard: dealt.standard,
           answered: false,
+          chosen: null,
+          correct: null,
         };
         trainerView.classList.remove("is-answered");
-        renderPosition(dealt.position);
-        cardsEl!.innerHTML = cardHtml(dealt.cards[0]) + cardHtml(dealt.cards[1]);
-        actionsEl!.classList.remove("hidden");
-        feedbackEl!.classList.add("hidden");
-        raiseBtn!.disabled = false;
-        foldBtn!.disabled = false;
+        potEl!.textContent = String(POT);
+        heroHandEl!.innerHTML = cardHtml(dealt.cards[0]) + cardHtml(dealt.cards[1]);
         chartEl!.innerHTML = "";
-        feedbackTitle!.textContent = "";
-        feedbackDetail!.textContent = "";
+        renderPlayers();
+        renderTurnInfo();
+        renderActions();
       }
 
       function answer(chosen: "raise" | "fold"): void {
@@ -335,22 +484,36 @@
         const graded = ranges!.gradeRfiAction(tableSize, spot.position, spot.handKey, chosen);
         if (!graded) return;
         spot.answered = true;
-        raiseBtn!.disabled = true;
-        foldBtn!.disabled = true;
-        actionsEl!.classList.add("hidden");
-        feedbackEl!.classList.remove("hidden");
+        spot.chosen = chosen;
+        spot.correct = graded.correct;
         trainerView.classList.add("is-answered");
-        feedbackTitle!.textContent = graded.correct ? "Correct" : "Incorrect";
-        feedbackTitle!.classList.toggle("is-correct", graded.correct);
-        feedbackTitle!.classList.toggle("is-wrong", !graded.correct);
-        const label = graded.standard === "raise" ? "Raise" : "Fold";
-        feedbackDetail!.textContent = `${label} — ${spot.handKey} is ${
-          graded.standard === "raise" ? "an open" : "a fold"
-        } from ${spot.position}`;
         renderChart(spot.handKey);
+        renderPlayers();
+        renderTurnInfo();
+        renderActions();
         stats = recordResult(stats, spot.position, graded.correct);
         saveStats(stats);
         renderStats();
+      }
+
+      function openMenu(): void {
+        closeChart();
+        menuModal!.classList.remove("hidden");
+      }
+
+      function closeMenu(): void {
+        menuModal!.classList.add("hidden");
+      }
+
+      function openChart(): void {
+        if (!spot?.answered) return;
+        closeMenu();
+        if (!chartEl!.innerHTML) renderChart(spot.handKey);
+        chartModal!.classList.remove("hidden");
+      }
+
+      function closeChart(): void {
+        chartModal!.classList.add("hidden");
       }
 
       function showTrainer(): void {
@@ -358,11 +521,12 @@
         if (scoreView) scoreView.classList.add("hidden");
         welcome.classList.add("hidden");
         trainerView.classList.remove("hidden");
-        doc.documentElement.classList.add("trainer-open-root");
-        doc.body.classList.add("trainer-open");
-        doc.documentElement.classList.remove("game-open-root");
-        doc.body.classList.remove("game-open", "keyboard-open");
+        doc.documentElement.classList.add("game-open-root", "trainer-open-root");
+        doc.body.classList.add("game-open", "trainer-open");
+        doc.body.classList.remove("keyboard-open");
         active = true;
+        closeMenu();
+        closeChart();
         renderSizeToggle();
         renderStats();
         dealNext();
@@ -379,11 +543,13 @@
 
       function hideTrainer(): void {
         active = false;
+        closeMenu();
+        closeChart();
         trainerView.classList.add("hidden");
         trainerView.classList.remove("is-answered");
         welcome.classList.remove("hidden");
-        doc.documentElement.classList.remove("trainer-open-root");
-        doc.body.classList.remove("trainer-open");
+        doc.documentElement.classList.remove("game-open-root", "trainer-open-root");
+        doc.body.classList.remove("game-open", "trainer-open");
         try {
           if (/^\/trainer\/?$/i.test(window.location.pathname)) {
             window.history.replaceState({}, "", "/");
@@ -421,6 +587,21 @@
         ) {
           return;
         }
+        if (event.key === "Escape") {
+          if (!chartModal!.classList.contains("hidden")) {
+            event.preventDefault();
+            closeChart();
+            return;
+          }
+          if (!menuModal!.classList.contains("hidden")) {
+            event.preventDefault();
+            closeMenu();
+            return;
+          }
+        }
+        if (!menuModal!.classList.contains("hidden") || !chartModal!.classList.contains("hidden")) {
+          return;
+        }
         const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
         if (!spot?.answered) {
           if (key === "r") {
@@ -436,14 +617,18 @@
         } else if (key === " " || key === "Enter" || key === "n") {
           event.preventDefault();
           dealNext();
+        } else if (key === "c") {
+          event.preventDefault();
+          openChart();
         }
       }
 
       const onTrainerClick = () => showTrainer();
-      const onBack = () => hideTrainer();
-      const onRaise = () => answer("raise");
-      const onFold = () => answer("fold");
-      const onNext = () => dealNext();
+      const onHome = () => hideTrainer();
+      const onLeave = () => {
+        closeMenu();
+        hideTrainer();
+      };
       const onReset = () => {
         stats = emptyStats();
         saveStats(stats);
@@ -451,16 +636,25 @@
       };
       const onSize6 = () => onSize(6);
       const onSize9 = () => onSize(9);
+      const onMenuBackdrop = (event: MouseEvent) => {
+        if (event.target === menuModal) closeMenu();
+      };
+      const onChartBackdrop = (event: MouseEvent) => {
+        if (event.target === chartModal) closeChart();
+      };
 
       trainerBtn.addEventListener("click", onTrainerClick);
       practiceBtn?.addEventListener("click", onPractice);
-      backBtn.addEventListener("click", onBack);
-      raiseBtn.addEventListener("click", onRaise);
-      foldBtn.addEventListener("click", onFold);
-      nextBtn.addEventListener("click", onNext);
+      homeBtn.addEventListener("click", onHome);
+      menuBtn.addEventListener("click", openMenu);
+      closeMenuBtn.addEventListener("click", closeMenu);
+      leaveBtn.addEventListener("click", onLeave);
       resetBtn.addEventListener("click", onReset);
       size6Btn.addEventListener("click", onSize6);
       size9Btn.addEventListener("click", onSize9);
+      closeChartBtn.addEventListener("click", closeChart);
+      menuModal.addEventListener("click", onMenuBackdrop);
+      chartModal.addEventListener("click", onChartBackdrop);
       doc.addEventListener("keydown", onKeydown);
 
       try {
@@ -476,13 +670,16 @@
           active = false;
           trainerBtn.removeEventListener("click", onTrainerClick);
           practiceBtn?.removeEventListener("click", onPractice);
-          backBtn.removeEventListener("click", onBack);
-          raiseBtn.removeEventListener("click", onRaise);
-          foldBtn.removeEventListener("click", onFold);
-          nextBtn.removeEventListener("click", onNext);
+          homeBtn.removeEventListener("click", onHome);
+          menuBtn.removeEventListener("click", openMenu);
+          closeMenuBtn.removeEventListener("click", closeMenu);
+          leaveBtn.removeEventListener("click", onLeave);
           resetBtn.removeEventListener("click", onReset);
           size6Btn.removeEventListener("click", onSize6);
           size9Btn.removeEventListener("click", onSize9);
+          closeChartBtn.removeEventListener("click", closeChart);
+          menuModal.removeEventListener("click", onMenuBackdrop);
+          chartModal.removeEventListener("click", onChartBackdrop);
           doc.removeEventListener("keydown", onKeydown);
         },
       };
