@@ -637,7 +637,9 @@ declare global {
   function syncTurnCountdown(): void;
   function botStyleTagMarkup(player: ClientPlayer): string;
   function renderBustPanel(room: ClientRoom): void;
+  function dealerChipMarkup(player: ClientPlayer): string;
   function blindChipMarkup(player: ClientPlayer): string;
+  function seatChipMarkup(player: ClientPlayer): string;
   function readyTimerActive(): boolean;
   function readySecondsRemaining(): number;
   function readyPctRemaining(): number;

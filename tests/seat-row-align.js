@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Seat rows: no "you" tag (the hero row is highlighted); the SB/BB chip sits right after the name,
- * and the name truncates first so the chip is never pushed out; the stack has a shared min width
- * so status/stack columns line up.
+ * Seat rows: no "you" tag (the hero row is highlighted); D then SB/BB chips sit right after the
+ * name, and the name truncates first so the chips are never pushed out; the stack has a shared
+ * min width so status/stack columns line up.
  */
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -15,7 +15,17 @@ const css = fs.readFileSync(path.join(root, "public/styles.css"), "utf8");
 assert.match(
   boot,
   /<span class="seat-name-text">\$\{escapeHtml\(player\.name\)\}<\/span>\$\{seatChipMarkup\(player\)\}<\/span>/,
-  "blind chip rendered right after the name",
+  "seat chips rendered right after the name",
+);
+assert.match(
+  boot,
+  /chips = \[dealerChipMarkup\(player\), blindChipMarkup\(player\)\]\.filter\(Boolean\)/,
+  "dealer chip precedes SB/BB on the same row",
+);
+assert.match(
+  boot,
+  /class="blind-chip dealer"[^>]*>D<\/span>/,
+  "dealer chip reuses blind-chip styling with a D label",
 );
 assert.doesNotMatch(boot, /seat-you-mark/, "no 'you' tag in seat rows");
 assert.doesNotMatch(css, /\.seat-you-mark/);
@@ -32,6 +42,11 @@ assert.match(block(".seat-name-text"), /flex:\s*0 1 auto/, "name hugs its text, 
 assert.match(block(".seat-name-text"), /text-overflow:\s*ellipsis/);
 assert.match(block(".player-stack"), /min-width:\s*5ch/);
 assert.doesNotMatch(css, /\.player-stack\s*\{[^}]*min-width:\s*max-content/, "stack width must not vary per row");
+assert.doesNotMatch(
+  css,
+  /\.blind-chip\.dealer\s*\{/,
+  "dealer chip uses the existing blind-chip look (no separate dealer styles)",
+);
 // Shot-clock bar sits inside the row's rounded corners (inset >= corner radius), as a pill.
 const px = (re, text) => Number(re.exec(text)[1]);
 const bar = block(".turn-clock-bar");

@@ -1347,6 +1347,11 @@ function syncTurnCountdown() {
   turnCountdownTimer = setInterval(tick, 200);
 }
 
+function dealerChipMarkup(player: ClientPlayer) {
+  if (!player.dealer) return "";
+  return '<span class="blind-chip dealer" title="Dealer" aria-label="Dealer">D</span>';
+}
+
 function blindChipMarkup(player: ClientPlayer) {
   if (player.isBigBlind)
     return '<span class="blind-chip big" title="Big blind" aria-label="Big blind">BB</span>';
@@ -1355,10 +1360,10 @@ function blindChipMarkup(player: ClientPlayer) {
   return "";
 }
 
-/** SB/BB badge right after the name (nothing when the seat has no blind). */
+/** Dealer then SB/BB badge right after the name (empty when the seat has neither). */
 function seatChipMarkup(player: ClientPlayer) {
-  const chip = blindChipMarkup(player);
-  return chip ? `<span class="seat-chip-slot">${chip}</span>` : "";
+  const chips = [dealerChipMarkup(player), blindChipMarkup(player)].filter(Boolean);
+  return chips.map((chip) => `<span class="seat-chip-slot">${chip}</span>`).join("");
 }
 
 function readyTimerActive() {
