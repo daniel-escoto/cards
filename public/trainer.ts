@@ -786,8 +786,8 @@
         const holes = cardHtml(dealt.cards[0]) + cardHtml(dealt.cards[1]);
         heroHandEl!.innerHTML = holes;
         // Desktop spotlight uses the community slot (Practice board area); phones keep panel cards.
-        communityEl!.innerHTML =
-          `<span class="trainer-board-label">Preflop</span>${holes}`;
+        // Board slot matches Practice: street badge only; hole cards stay in the action panel.
+        communityEl!.innerHTML = `<span class="trainer-board-label">Preflop</span>`;
         chartEl!.innerHTML = "";
         hideCoach();
         renderPlayers();

@@ -286,22 +286,24 @@ function seat(id, overrides = {}) {
 
 {
   const html = fs.readFileSync(path.join(__dirname, "../public/index.html"), "utf8");
+  // Live coach UI removed; math library + Trainer teaching card remain.
+  assert.doesNotMatch(html, /id="coachBtn"/);
+  assert.doesNotMatch(html, /id="coachHint"/);
+  assert.match(html, /shared\/coach-odds\.js/);
   assert.match(
     html,
-    /id="menuPlayers"[\s\S]*?id="shareGameBtn"[\s\S]*?id="coachBtn"[\s\S]*?id="copyForAiBtn"/,
+    /id="menuPlayers"[\s\S]*?id="shareGameBtn"[\s\S]*?id="handReviewBtn"[\s\S]*?id="copyForAiBtn"/,
   );
-  assert.match(html, /id="coachHint"/);
   const css = fs.readFileSync(path.join(__dirname, "../public/styles.css"), "utf8");
   assert.match(css, /\.blind-chip\.dealer\s*\{[^}]*#f5f5f4/);
   assert.match(css, /\.coach-hint-headline/);
   assert.match(css, /coach-hint\[data-action="fold"\]/);
   assert.match(css, /coach-hint\[data-action="borderline"\]/);
   assert.match(css, /-webkit-line-clamp:\s*3/);
-  assert.match(css, /\.coach-hint-use/);
-  assert.match(html, /shared\/coach-odds\.js/);
+  assert.doesNotMatch(css, /\.coach-hint-use/);
   const tableSrc = fs.readFileSync(path.join(__dirname, "../public/app-table.ts"), "utf8");
-  assert.match(tableSrc, /coach-hint-use/);
-  assert.match(tableSrc, /setRaiseState\(\{\s*value: suggestion\.raiseTo/);
+  assert.doesNotMatch(tableSrc, /coach-hint-use/);
+  assert.doesNotMatch(tableSrc, /renderCoachHint/);
 }
 
 console.log("Coach checks passed.");

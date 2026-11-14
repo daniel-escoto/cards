@@ -204,16 +204,15 @@ shareGameBtn.addEventListener("click", showSharePanel);
 copyShareBtn.addEventListener("click", () => copyText(shareLink.value, copyShareBtn));
 closeInviteBtn?.addEventListener("click", showMenuMainView);
 closeInviteMenuBtn?.addEventListener("click", hideGameMenu);
-coachBtn?.addEventListener("click", () => {
-  if (!coachFeatureAvailable()) {
-    syncCoachBtn();
-    showToast("Bot games only");
-    return;
-  }
-  setCoachPrefEnabled(!coachPrefEnabled());
-  syncCoachBtn();
-  if (typeof renderCoachHint === "function") renderCoachHint();
-  showToast(coachPrefEnabled() ? "Coach on" : "Coach off");
+handReviewBtn?.addEventListener("click", () => {
+  hideGameMenu();
+  if (typeof openHandReview === "function") openHandReview();
+});
+handReviewCloseBtn?.addEventListener("click", () => {
+  if (typeof hideHandReview === "function") hideHandReview();
+});
+handReviewModal?.addEventListener("click", (event) => {
+  if (event.target === handReviewModal && typeof hideHandReview === "function") hideHandReview();
 });
 copyForAiBtn?.addEventListener("click", async () => {
   if (!state || copyForAiBtn.disabled) return;
@@ -397,6 +396,10 @@ document.addEventListener("keydown", (event) => {
   if (rabbitTarget && (event.key === "Enter" || event.key === " ")) {
     event.preventDefault();
     revealRabbitBoard();
+    return;
+  }
+  if (event.key === "Escape" && handReviewModal && !handReviewModal.classList.contains("hidden")) {
+    if (typeof hideHandReview === "function") hideHandReview();
     return;
   }
   if (event.key === "Escape" && !gameMenuModal.classList.contains("hidden")) {

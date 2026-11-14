@@ -71,8 +71,7 @@ assert.equal(
 const tableSrc = fs.readFileSync(path.join(__dirname, "../public/app-table.ts"), "utf8");
 assert.match(tableSrc, /initialRaiseTo/);
 assert.match(tableSrc, /displayRaiseAmount/);
-assert.match(tableSrc, /coach-hint-use/);
-assert.match(tableSrc, /setRaiseState\(\{\s*value: suggestion\.raiseTo/);
+assert.doesNotMatch(tableSrc, /coach-hint-use/);
 assert.doesNotMatch(
   tableSrc,
   /atPassiveDetent\(\)\s*\?\s*0\s*:\s*raiseState\.value/,
