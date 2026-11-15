@@ -15,6 +15,7 @@ const trainerPath = path.join(root, "public/trainer.ts");
 const ALLOWED_BUTTON_TOKENS = new Set([
   "secondary",
   "danger",
+  "danger-outline",
   "ghost",
   "appearance-choice",
   "menu-row-btn",
@@ -238,7 +239,10 @@ if (fs.existsSync(uiDistPath)) {
   for (const name of expectedExports) {
     assert.equal(typeof ui[name] !== "undefined", true, `dist ui exports ${name}`);
   }
-  assert.deepEqual([...ui.BUTTON_VARIANTS], ["primary", "secondary", "danger", "ghost"]);
+  assert.deepEqual(
+    [...ui.BUTTON_VARIANTS],
+    ["primary", "secondary", "danger", "danger-outline", "ghost"],
+  );
   assert.equal(ui.variantClass("primary"), "");
   assert.equal(ui.variantClass("ghost icon"), "ghost icon-btn");
   assert.equal(ui.isAllowedButtonVariant(""), true);

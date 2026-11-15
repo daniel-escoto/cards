@@ -72,6 +72,10 @@ button:not(:disabled):active {
 .ghost:not(:disabled):hover {
   background: var(--color-raw-5);
 }
+
+.danger-outline:not(:disabled):hover {
+  background: var(--btn-danger-outline-bg-hover);
+}
 button:focus-visible,
 input:focus-visible,
 select:focus-visible {
@@ -90,6 +94,13 @@ button:disabled {
   background: var(--color-raw-7);
 }
 
+.danger-outline {
+  border: 0;
+  color: var(--btn-danger-outline-fg);
+  background: var(--btn-danger-outline-bg);
+  box-shadow: inset 0 0 0 1px var(--btn-danger-outline-ring);
+}
+
 :root[data-theme="light"] .secondary,
 :root[data-theme="light"] .ghost {
   border: 1px solid var(--color-raw-8);
@@ -99,6 +110,15 @@ button:disabled {
 :root[data-theme="light"] .secondary:not(:disabled):hover,
 :root[data-theme="light"] .ghost:not(:disabled):hover {
   background: var(--color-raw-10);
+}
+
+:root[data-theme="light"] .danger-outline {
+  border: 0;
+  background: var(--btn-danger-outline-bg);
+}
+
+:root[data-theme="light"] .danger-outline:not(:disabled):hover {
+  background: var(--btn-danger-outline-bg-hover);
 }
 
 .ghost {
@@ -1207,7 +1227,8 @@ button.text-action-link:disabled {
 }
 
 .game-buttons > button.secondary,
-.game-buttons > button.danger {
+.game-buttons > button.danger,
+.game-buttons > button.danger-outline {
   box-shadow: none;
 }
 
@@ -1216,29 +1237,29 @@ button.text-action-link:disabled {
 }
 
 /*
- * Check/Fold off-turn: unarmed = quiet danger (secondary + leave-game-btn token recipe,
- * outline via inset shadow so size matches solid Fold). Armed = full solid Fold danger.
+ * Check/Fold off-turn: unarmed = danger-outline (secondary surface + danger ink/ring).
+ * Armed = solid Fold danger (+ selected). Inset ring keeps size matched to solid Fold.
  */
-.game-buttons > button.danger.secondary {
-  /* border:0 overrides light-theme .secondary 1px border — outline is inset shadow. */
+.game-buttons > button.danger-outline {
   border: 0;
-  color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 7%, var(--color-white));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 42%, var(--line));
+  color: var(--btn-danger-outline-fg);
+  background: var(--btn-danger-outline-bg);
+  box-shadow: inset 0 0 0 1px var(--btn-danger-outline-ring);
 }
 
-.game-buttons > button.danger.secondary:not(:disabled):hover {
-  background: color-mix(in srgb, var(--danger) 14%, var(--color-white));
+.game-buttons > button.danger-outline:not(:disabled):hover {
+  background: var(--btn-danger-outline-bg-hover);
 }
 
 .game-buttons > button.danger.selected,
-.game-buttons > button.danger[aria-pressed="true"]:not(.secondary) {
+.game-buttons > button.danger[aria-pressed="true"] {
   color: var(--color-white);
   background: color-mix(in srgb, var(--danger) 88%, var(--color-black));
   box-shadow: none;
 }
 
-.game-buttons > button.danger > span {
+.game-buttons > button.danger > span,
+.game-buttons > button.danger-outline > span {
   white-space: nowrap;
 }
 
@@ -1706,15 +1727,15 @@ button.text-action-link:disabled {
   width: 100%;
 }
 
+/* Quiet destructive: shared --btn-danger-outline-* tokens (same recipe as .danger-outline). */
 .leave-game-btn {
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 42%, var(--line));
-  /* Light pink pill in dark + light — transparent danger reads as a dark red patch on dark sheets. */
-  background: color-mix(in srgb, var(--danger) 7%, var(--color-white));
+  color: var(--btn-danger-outline-fg);
+  border-color: var(--btn-danger-outline-ring);
+  background: var(--btn-danger-outline-bg);
 }
 
 .leave-game-btn:not(:disabled):hover {
-  background: color-mix(in srgb, var(--danger) 14%, var(--color-white));
+  background: var(--btn-danger-outline-bg-hover);
 }
 
 .menu-players {
@@ -3029,15 +3050,16 @@ button.has-shortcut > kbd,
 }
 /* Colored primary buttons (Ready, Fold/danger, Call/Raise, Try again): translucent badge
    matching main — light border + white letter on the button color (game + Trainer). */
-.game-buttons > button.has-shortcut:not(.secondary):not(.ghost) > kbd,
+.game-buttons > button.has-shortcut:not(.secondary):not(.ghost):not(.danger-outline) > kbd,
 .hand-review-retry-bar > .hand-review-try-again.has-shortcut > kbd,
 .raise-action.has-shortcut > kbd {
   border-color: var(--color-raw-93);
   color: var(--color-raw-90);
   background: var(--color-raw-52);
 }
-/* Secondary buttons (Review hand, Chart, Show answer): keep token kbd so it reads in light + dark. */
+/* Secondary / quiet-danger buttons: keep token kbd so it reads in light + dark. */
 .game-buttons > button.has-shortcut.secondary > kbd,
+.game-buttons > button.has-shortcut.danger-outline > kbd,
 .hand-review-retry-bar > .hand-review-show-answer.has-shortcut > kbd {
   border-color: color-mix(in srgb, var(--line) 72%, var(--muted));
   color: var(--muted);

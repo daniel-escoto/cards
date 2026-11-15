@@ -10,11 +10,12 @@
 })(typeof globalThis !== "undefined" ? globalThis : (this as typeof globalThis), function () {
   "use strict";
 
-  const BUTTON_VARIANTS = ["primary", "secondary", "danger", "ghost"] as const;
+  const BUTTON_VARIANTS = ["primary", "secondary", "danger", "danger-outline", "ghost"] as const;
 
   const ALLOWED_BUTTON_TOKENS = new Set([
     "secondary",
     "danger",
+    "danger-outline",
     "ghost",
     "appearance-choice",
     "menu-row-btn",

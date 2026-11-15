@@ -1761,7 +1761,7 @@ function addActionButton(label: string, payload: Record<string, unknown>, classN
 
 /**
  * Off-turn Fold slot: enabled Check/Fold toggle. Arm/disarm with click or the Fold key.
- * Unarmed = danger + secondary (quiet red outline); armed = solid danger Fold (+ selected).
+ * Unarmed = danger-outline (quiet surface + danger ink/ring); armed = solid danger (+ selected).
  */
 function addCheckFoldToggleButton() {
   if (!state) return;
@@ -1769,12 +1769,13 @@ function addCheckFoldToggleButton() {
     typeof CheckFold !== "undefined" && CheckFold.LABEL ? CheckFold.LABEL : "Check/Fold";
   const shortcut = keybindLabel(keybinds.fold);
   const armed = Boolean(checkFoldSession?.armed);
-  const className = armed ? "selected" : "secondary";
+  const variant = armed ? "danger" : "danger-outline";
+  const className = armed ? "selected" : "";
   const button =
     typeof HoldemUI !== "undefined" && HoldemUI.createButton
       ? HoldemUI.createButton({
           label,
-          variant: "danger",
+          variant,
           className,
           shortcut,
           onClick: () => toggleCheckFoldArmed(),
@@ -1782,16 +1783,25 @@ function addCheckFoldToggleButton() {
       : document.createElement("button");
   if (!(typeof HoldemUI !== "undefined" && HoldemUI.createButton)) {
     button.type = "button";
-    button.className = `danger ${className}`.trim();
+    button.className = `${variant} ${className}`.trim();
     setButtonLabel(button, label, shortcut);
     button.addEventListener("click", () => toggleCheckFoldArmed());
   }
+  const offerable =
+    typeof CheckFold !== "undefined" && CheckFold.shouldOffer
+      ? CheckFold.shouldOffer({
+          isYourTurn: state.isYourTurn,
+          phase: state.phase,
+          hero: typeof activeHero === "function" ? activeHero() : null,
+        })
+      : true;
   button.setAttribute("aria-pressed", armed ? "true" : "false");
   button.classList.toggle("selected", armed);
-  button.classList.toggle("secondary", !armed);
-  button.disabled = false;
-  button.setAttribute("aria-disabled", "false");
-  button.tabIndex = 0;
+  button.classList.toggle("danger-outline", !armed);
+  button.classList.toggle("danger", armed);
+  button.disabled = !offerable;
+  button.setAttribute("aria-disabled", offerable ? "false" : "true");
+  button.tabIndex = offerable ? 0 : -1;
   gameButtons.appendChild(button);
 }
 

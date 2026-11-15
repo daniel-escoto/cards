@@ -97,7 +97,7 @@ assert.match(css, /button\.text-action-link/);
 // Fold (danger) and Call/Raise share the same translucent kbd badge as the live table.
 assert.match(
   css,
-  /\.game-buttons > button\.has-shortcut:not\(\.secondary\):not\(\.ghost\) > kbd/,
+  /\.game-buttons > button\.has-shortcut:not\(\.secondary\):not\(\.ghost\):not\(\.danger-outline\) > kbd/,
 );
 assert.doesNotMatch(
   css,

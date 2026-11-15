@@ -42,8 +42,24 @@ const leaveRule = css.match(/\.leave-game-btn\s*\{[^}]+\}/);
 assert.ok(leaveRule, "leave-game-btn rule");
 assert.match(
   leaveRule[0],
-  /background:\s*color-mix\(in srgb, var\(--danger\) 7%, var\(--color-white\)\)/,
-  "Leave must be the light pink pill (not translucent dark-red wash)",
+  /background:\s*var\(--btn-danger-outline-bg\)/,
+  "Leave uses shared quiet-destructive surface token",
+);
+assert.match(
+  leaveRule[0],
+  /color:\s*var\(--btn-danger-outline-fg\)/,
+  "Leave uses shared quiet-destructive danger text token",
+);
+assert.doesNotMatch(
+  leaveRule[0],
+  /color-mix\(in srgb, var\(--danger\) 7%, var\(--color-white\)\)/,
+  "Leave must not use the pale pink pill recipe",
+);
+const tokens = fs.readFileSync(path.join(__dirname, "../public/tokens.css"), "utf8");
+assert.match(
+  tokens,
+  /--btn-danger-outline-fg:/,
+  "quiet-destructive tokens live in the design system",
 );
 assert.doesNotMatch(block, /mode-option/);
 assert.doesNotMatch(block, /trainer-drill|trainer-size/);

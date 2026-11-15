@@ -84,8 +84,9 @@ assert.equal(messages.length, 0, "Do not act outside the player's turn");
 
 // Off-turn Fold key arms/disarms Check/Fold (does not emit an action).
 let toggled = 0;
+let offer = true;
 context.CheckFold = {
-  shouldOffer: () => true,
+  shouldOffer: () => offer,
 };
 context.toggleCheckFoldArmed = () => {
   toggled += 1;
@@ -98,5 +99,18 @@ assert.equal(toggled, 1, "Fold key toggles Check/Fold off-turn");
 assert.equal(messages.length, 0, "Toggle does not emit game:action");
 press("f", { repeat: true });
 assert.equal(toggled, 1, "Ignore held Fold key for Check/Fold");
+
+// shouldOffer false (sit-out / folded / etc.): F must not toggle.
+offer = false;
+press("f");
+assert.equal(toggled, 1, "Fold key ignored when Check/Fold not offered");
+offer = true;
+
+// On-turn: F emits fold and does not toggle Check/Fold.
+context.state = { canReady: false, isYourTurn: true, phase: "flop", toCall: 20 };
+const toggledBefore = toggled;
+press("f");
+assert.deepEqual(messages.pop(), { event: "game:action", payload: { type: "fold" } });
+assert.equal(toggled, toggledBefore, "On-turn Fold must not toggle Check/Fold");
 
 console.log("Check/call/ready keyboard checks passed.");

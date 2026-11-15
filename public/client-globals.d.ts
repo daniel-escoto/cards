@@ -361,7 +361,12 @@ declare global {
     shouldOffer(options: {
       isYourTurn?: unknown;
       phase?: unknown;
-      hero?: { folded?: unknown; allIn?: unknown; cards?: unknown } | null;
+      hero?: {
+        folded?: unknown;
+        allIn?: unknown;
+        sittingOut?: unknown;
+        cards?: unknown;
+      } | null;
     }): boolean;
     sync(
       session: CheckFoldSession | null | undefined,
@@ -370,7 +375,12 @@ declare global {
         phase?: unknown;
         toCall?: unknown;
         handNumber?: unknown;
-        hero?: { folded?: unknown; allIn?: unknown; cards?: unknown } | null;
+        hero?: {
+          folded?: unknown;
+          allIn?: unknown;
+          sittingOut?: unknown;
+          cards?: unknown;
+        } | null;
       },
     ): { type: "check" | "fold" } | null;
     resolveArmedAction(toCall: unknown): "check" | "fold";
@@ -631,7 +641,7 @@ declare global {
 
   const HoldemFormat: HoldemFormatAPI;
 
-  type HoldemButtonVariant = "primary" | "secondary" | "danger" | "ghost";
+  type HoldemButtonVariant = "primary" | "secondary" | "danger" | "danger-outline" | "ghost";
   type HoldemButtonVariantInput = HoldemButtonVariant | "ghost icon" | string;
 
   interface HoldemButtonHtmlOptions {

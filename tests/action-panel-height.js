@@ -211,6 +211,7 @@ function footprint(harness) {
     selected: b.classList.contains("selected"),
     secondary: b.classList.contains("secondary"),
     danger: b.classList.contains("danger"),
+    dangerOutline: b.classList.contains("danger-outline"),
     tabIndex: b.tabIndex,
   }));
   const presets = [...betPresets.querySelectorAll("button")].map((b) => ({
@@ -333,10 +334,12 @@ function paint(harness, room, disabled) {
   assert.equal(armed.buttons[0].ariaPressed, "true");
   assert.equal(unarmed.buttons[0].selected, false);
   assert.equal(armed.buttons[0].selected, true);
-  assert.equal(unarmed.buttons[0].secondary, true, "unarmed uses quiet secondary+danger");
-  assert.equal(armed.buttons[0].secondary, false, "armed drops secondary for solid Fold");
-  assert.equal(unarmed.buttons[0].danger, true);
+  assert.equal(unarmed.buttons[0].dangerOutline, true, "unarmed uses danger-outline");
+  assert.equal(armed.buttons[0].dangerOutline, false, "armed drops outline for solid Fold");
+  assert.equal(unarmed.buttons[0].danger, false);
   assert.equal(armed.buttons[0].danger, true);
+  assert.equal(unarmed.buttons[0].secondary, false);
+  assert.equal(armed.buttons[0].secondary, false);
 }
 
 // --- True Call-only (every villain all-in): still compact on your turn ---
