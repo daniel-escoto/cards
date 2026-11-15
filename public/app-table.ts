@@ -1360,7 +1360,7 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
 
   if (!heroToAct) {
     // Main order: + Add bot (dashed secondary), then Ready up. Max two buttons per row —
-    // Review follows when present (wraps to the next row). Show hand stays a text link.
+    // Review (offline) or Show hand (online) shares the row as the same secondary button.
     if (room.canAddBot && betweenHands) {
       addButton("+ Add bot", "room:addBot", "secondary lobby-add-bot");
     }
@@ -1378,14 +1378,14 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
       addReviewHandButton();
     }
     // Show hand is for multi-human tables (muck / reveal). Hide vs bots — no audience.
+    // Same secondary bordered button as Review hand (shared slot / height).
     if (showHandButtonAvailable(room)) {
-      const showShortcut = keybindLabel(keybinds.showHand);
-      appendActionLinks([
-        textActionLink(
-          showShortcut ? `Show hand (${showShortcut})` : "Show hand",
-          () => emitWithAck("game:showCards", {}),
-        ),
-      ]);
+      addButton(
+        "Show hand",
+        "game:showCards",
+        "secondary",
+        keybindLabel(keybinds.showHand),
+      );
     }
   }
 

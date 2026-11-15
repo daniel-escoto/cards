@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * Check/Fold pre-action: stays armed across raises, streets, and hands until
- * the player turns it off. Auto-check when free, otherwise auto-fold.
- * Hard-clears on sit-out, bust, leave (showWelcome), or game end.
+ * Check/Fold pre-action: stays armed across raises and street changes within
+ * the same hand until the player turns it off. Auto-check when free, otherwise
+ * auto-fold. A new deal (handNumber change) disarms automatically.
+ * Hard-clears on sit-out, bust, leave (showWelcome), game end, or new hand.
  */
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -241,7 +242,7 @@ assert.equal(shouldOffer({ isYourTurn: false, phase: "lobby", hero }), false);
   );
 }
 
-// (9) New hand keeps arm; fires on next turn
+// (9) New hand disarms; no auto-act on the next deal
 {
   const session = createSession();
   arm(session, 0, 9);
@@ -253,13 +254,15 @@ assert.equal(shouldOffer({ isYourTurn: false, phase: "lobby", hero }), false);
     hero: { ...hero, cards: [] },
   });
   assert.equal(session.armed, true, "between hands keeps arm");
-  sync(session, {
+  const cleared = sync(session, {
     isYourTurn: false,
     phase: "preflop",
     toCall: 0,
     handNumber: 10,
     hero,
   });
+  assert.equal(cleared, null);
+  assert.equal(session.armed, false, "new deal disarms Check/Fold");
   const action = sync(session, {
     isYourTurn: true,
     phase: "preflop",
@@ -269,9 +272,9 @@ assert.equal(shouldOffer({ isYourTurn: false, phase: "lobby", hero }), false);
   });
   caseResult(
     9,
-    "new hand keeps arm; folds when facing a bet",
-    action && action.type === "fold" && session.armed === true,
-    `action=${JSON.stringify(action)} hand=${session.handNumber}`,
+    "new hand disarms; no auto-fold on next deal",
+    action === null && session.armed === false,
+    `action=${JSON.stringify(action)} armed=${session.armed}`,
   );
 }
 

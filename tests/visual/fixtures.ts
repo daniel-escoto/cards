@@ -60,6 +60,8 @@ export function forceTableState(
     | "in-hand-off-turn"
     | "all-in-runout"
     | "showdown"
+    | "hand-end-offline"
+    | "hand-end-online"
     | "tournament-level-clock"
     | "tournament-eliminated"
     | "tournament-results",
@@ -370,11 +372,11 @@ export function forceTableState(
           { rank: "9", suit: "♦", code: "9d", color: "red" },
           { rank: "3", suit: "♠", code: "3s", color: "black" },
         ],
-        winners: [{ playerId: "you", name: "Alex", hand: "Pair of Aces", amount: 200 }],
+        winners: [{ playerId: "bot1", name: "FrostyRaven", hand: "King high", amount: 200 }],
         players: [
           {
             ...you,
-            stack: 1180,
+            stack: 860,
             bet: 0,
             showCards: true,
             cards: [
@@ -384,25 +386,172 @@ export function forceTableState(
           },
           {
             ...bot1,
-            stack: 860,
+            name: "FrostyRaven",
+            stack: 1150,
             bet: 0,
+            isBigBlind: true,
+            ready: true,
             showCards: true,
             cards: [
-              { rank: "K", suit: "♦", code: "Kd", color: "red" },
-              { rank: "Q", suit: "♦", code: "Qd", color: "red" },
+              { rank: "8", suit: "♠", code: "8s", color: "black" },
+              { rank: "K", suit: "♠", code: "Ks", color: "black" },
             ],
           },
           { ...bot2, folded: true, showCards: false },
+        ],
+      };
+    } else if (sceneName === "hand-end-offline") {
+      // Offline Practice: Ready up + Review hand (secondary).
+      room = {
+        ...room,
+        offline: true,
+        coachAvailable: true,
+        phase: "complete",
+        pot: 0,
+        toCall: 0,
+        currentBet: 0,
+        isYourTurn: false,
+        turn: null,
+        canReady: true,
+        isReady: false,
+        canShowHand: false,
+        handNumber: 3,
+        winners: [{ playerId: "you", name: "Alex", hand: "Pair of Aces", amount: 120 }],
+        community: [
+          { rank: "Q", suit: "♥", code: "Qh", color: "red" },
+          { rank: "J", suit: "♥", code: "Jh", color: "red" },
+          { rank: "2", suit: "♣", code: "2c", color: "black" },
+        ],
+        players: [
+          { ...you, stack: 1060, bet: 0, cards: [], ready: false },
+          { ...bot1, stack: 940, bet: 0, cards: [], ready: true },
+          { ...bot2, stack: 1000, bet: 0, folded: false, cards: [], ready: true },
+        ],
+      };
+    } else if (sceneName === "hand-end-online") {
+      // Online multi-human: Ready up + Show hand (same secondary slot as Review).
+      room = {
+        ...room,
+        offline: false,
+        coachAvailable: false,
+        phase: "complete",
+        pot: 0,
+        toCall: 0,
+        currentBet: 0,
+        isYourTurn: false,
+        turn: null,
+        canReady: true,
+        isReady: false,
+        canShowHand: true,
+        canAddBot: false,
+        handNumber: 3,
+        winners: [{ playerId: "you", name: "Alex", hand: "Pair of Aces", amount: 120 }],
+        community: [
+          { rank: "Q", suit: "♥", code: "Qh", color: "red" },
+          { rank: "J", suit: "♥", code: "Jh", color: "red" },
+          { rank: "2", suit: "♣", code: "2c", color: "black" },
+        ],
+        players: [
+          { ...you, stack: 1060, bet: 0, cards: [], ready: false, isBot: false },
+          {
+            ...bot1,
+            id: "sam",
+            name: "Sam",
+            isBot: false,
+            stack: 940,
+            bet: 0,
+            cards: [],
+            ready: true,
+          },
+          {
+            ...bot2,
+            id: "riley",
+            name: "Riley",
+            isBot: false,
+            stack: 1000,
+            bet: 0,
+            folded: false,
+            cards: [],
+            ready: true,
+          },
         ],
       };
     }
 
     const win = window as unknown as {
       state: unknown;
+      lastHandReplay?: { steps: unknown[]; summary?: string } | null;
       render?: () => void;
       showScoreScreen?: (next: Record<string, unknown>) => void;
     };
     win.state = room;
+    if (sceneName === "hand-end-offline") {
+      // Stub a completed replay so Review hand mounts beside Ready up.
+      win.lastHandReplay = {
+        summary: "Solid hand",
+        best: 1,
+        fine: 0,
+        mistake: 0,
+        items: [],
+        steps: [
+          {
+            id: "hero",
+            index: 0,
+            label: "Your decision",
+            actorId: "you",
+            kind: "hero_decision",
+            isHeroDecision: true,
+            decision: {
+              id: "d1",
+              street: "preflop",
+              boardCodes: [],
+              heroCodes: ["As", "Ks"],
+              pot: 60,
+              toCall: 20,
+              currentBet: 40,
+              taken: "call",
+              raiseTo: null,
+              equity: 0.62,
+              potOdds: 0.25,
+              recommended: "call",
+              recommendedRaiseTo: null,
+              verdict: "best",
+              badge: "Best",
+              reason: "Calling is fine here.",
+            },
+            table: {
+              street: "preflop",
+              pot: 60,
+              toCall: 20,
+              currentBet: 40,
+              boardCodes: [],
+              actingSeatId: "you",
+              winners: [],
+              seats: [],
+            },
+          },
+          {
+            id: "result",
+            index: 1,
+            label: "Result",
+            actorId: null,
+            kind: "result",
+            isHeroDecision: false,
+            decision: null,
+            table: {
+              street: "complete",
+              pot: 0,
+              toCall: 0,
+              currentBet: 0,
+              boardCodes: ["Qh", "Jh", "2c"],
+              actingSeatId: null,
+              winners: [{ playerId: "you", name: "Alex", amount: 120, hand: "Pair of Aces" }],
+              seats: [],
+            },
+          },
+        ],
+      };
+    }
     if (sceneName === "tournament-results" && typeof win.showScoreScreen === "function") {
       win.showScoreScreen(room);
       return;

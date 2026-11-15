@@ -50,7 +50,7 @@ assert.match(
   /body\.hand-review-open\.hand-review-retrying \.hand-review-bottom\s*\{[^}]*display:\s*none\s*!important/s,
 );
 
-// Between-hands action row shares width evenly (Ready / Review [/ Show hand]).
+// Between-hands action row shares width evenly (Ready / Review or Show hand).
 assert.match(css, /\.control-panel\.is-result > \.game-buttons > button[\s\S]*?flex:\s*1 1 0/);
 
 // Spoiler Mistake path keeps Try again / Show answer without leaking the answer up front.
@@ -61,9 +61,24 @@ assert.match(tableSrc, /There was a better play here|formatMistakeNudge/);
 assert.match(tableSrc, /handReviewLandableIndexes|is-result/);
 assert.match(css, /\.hand-review-timeline\s*\{[^}]*overflow-x:\s*auto/s);
 
-// Showdown holes: main-style appended feed cards (not an inline seat-row slot).
+// Showdown holes: appended feed rows (not an inline seat-row slot); compact cards fit the row.
 assert.doesNotMatch(css, /\.seat-shown-hand\s*\{/);
 assert.doesNotMatch(css, /grid-template-columns:[^;]*64px/);
+assert.match(
+  css,
+  /\.table-player-row\.shown-hand-card[\s\S]*?overflow:\s*hidden/,
+  "revealed-hand row must clip rather than spill cards",
+);
+assert.match(
+  css,
+  /\.shown-hand \.card\s*\{[^}]*width:\s*17px/s,
+  "revealed hole cards use a compact size that fits the standard seat row",
+);
+assert.match(
+  css,
+  /\.table-player-row\.shown-hand-card\s*\{[^}]*max-height:\s*42px/s,
+  "revealed-hand row locks to standard seat height",
+);
 const bootSrc = fs.readFileSync(path.join(__dirname, "../public/app-boot.ts"), "utf8");
 assert.match(bootSrc, /shown-hand-card/);
 assert.match(bootSrc, /seatHoleCardsMayReveal/);

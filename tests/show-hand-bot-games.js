@@ -15,7 +15,20 @@ assert.match(tableSrc, /showHandButtonAvailable\(room\)/);
 assert.match(tableSrc, /every other seated player is a bot|vs bots/i);
 assert.match(eventsSrc, /showHandButtonAvailable/);
 
-// Ready + Review share the hand-complete row evenly when Show hand is gone.
+// Online Show hand uses the same secondary button slot as offline Review hand.
+assert.match(
+  tableSrc,
+  /addButton\(\s*"Show hand",\s*"game:showCards",\s*"secondary"/,
+  "Show hand must be a secondary bordered button, not a text link",
+);
+assert.doesNotMatch(
+  tableSrc,
+  /textActionLink\(\s*[`'"]Show hand/,
+  "Show hand must not use text-action-link",
+);
+assert.match(tableSrc, /button\.className = "secondary"[\s\S]*Review hand/);
+
+// Ready + Review/Show hand share the hand-complete row evenly.
 assert.match(css, /\.control-panel\.is-result > \.game-buttons > button[\s\S]*?flex:\s*1 1 0/);
 
 console.log("Show-hand bot-game checks passed.");
