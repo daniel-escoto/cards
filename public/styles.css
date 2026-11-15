@@ -1867,11 +1867,15 @@ button.menu-player-row:not(:disabled):hover {
   font-size: var(--font-size-12);
 }
 
-/* Showdown reveals: same seat-row surface; grow with comfortable padding around cards. */
+/* Showdown reveals: same seat-row surface; grow with comfortable padding around cards.
+   min-height:auto restores the flex content minimum (seat rows set a definite 40/42px
+   min-height which otherwise lets flex-shrink squash these below the sm cards). */
 .table-player-row.shown-hand-card {
   grid-template-columns: 14px minmax(12ch, 1.35fr) auto auto;
   align-items: center;
   padding-block: var(--space-8);
+  min-height: auto;
+  flex-shrink: 0;
 }
 .table-player-row.shown-hand-card .seat-name,
 .table-player-row.shown-hand-card .player-stack,
@@ -2356,6 +2360,8 @@ button.menu-player-row:not(:disabled):hover {
 .table-player-row {
   position: relative;
   min-height: 42px;
+  /* Seat list scrolls (.players overflow-y:auto); never squash rows to fit. */
+  flex-shrink: 0;
   display: grid;
   /* Name column keeps enough room for ~12–18 character display names. */
   grid-template-columns: 14px minmax(12ch, 1.35fr) minmax(4.5rem, 0.9fr) auto;
@@ -4976,6 +4982,8 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
   .table-player-row.shown-hand-card {
     grid-template-columns: 12px minmax(10ch, 1fr) auto auto;
     padding-block: var(--space-8);
+    min-height: auto;
+    flex-shrink: 0;
   }
 
   .seat-timer {

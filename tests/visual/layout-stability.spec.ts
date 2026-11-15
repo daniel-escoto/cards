@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { VIEWPORTS, openOfflineTable, forceTableState } from "./fixtures";
+import {
+  VIEWPORTS,
+  openOfflineTable,
+  forceTableState,
+  forceCrowdedShowdown,
+} from "./fixtures";
 
 const LAYOUT_VIEWPORTS = [
   ...VIEWPORTS,
@@ -384,5 +389,93 @@ for (const vp of LAYOUT_VIEWPORTS) {
       expect(metrics.overflowX, "page scrolls horizontally").toBe(false);
       expect(metrics.feltWidth).toBeGreaterThan(0);
     });
+  });
+}
+
+async function revealCardContainment(page: import("@playwright/test").Page) {
+  return page.evaluate(() => {
+    const panel = document.querySelector(".control-panel")?.getBoundingClientRect();
+    const players = document.querySelector("#players")?.getBoundingClientRect();
+    const revealRows = [...document.querySelectorAll("#players .table-player-row.shown-hand-card")];
+    const rows = revealRows.map((row) => {
+      const rr = row.getBoundingClientRect();
+      const cards = [...row.querySelectorAll(".shown-hand .card")].map((card) => {
+        const cr = card.getBoundingClientRect();
+        return {
+          contained:
+            cr.top >= rr.top - 0.5 &&
+            cr.bottom <= rr.bottom + 0.5 &&
+            cr.left >= rr.left - 0.5 &&
+            cr.right <= rr.right + 0.5,
+          cardH: cr.height,
+          rowH: rr.height,
+        };
+      });
+      return {
+        rowH: rr.height,
+        allContained: cards.length > 0 && cards.every((c) => c.contained),
+        cards,
+      };
+    });
+    return {
+      panelY: panel?.y ?? null,
+      panelH: panel?.height ?? null,
+      playersH: players?.height ?? null,
+      revealCount: revealRows.length,
+      rows,
+    };
+  });
+}
+
+/** Crowded showdowns must keep sm hole cards inside reveal rows (no flex-shrink squash). */
+for (const vp of [
+  { name: "375", width: 375, height: 667 },
+  { name: "393", width: 393, height: 852 },
+] as const) {
+  test.describe(`showdown reveal containment ${vp.name}`, () => {
+    test.use({
+      colorScheme: "dark",
+      viewport: { width: vp.width, height: vp.height },
+      deviceScaleFactor: 1,
+    });
+
+    for (const mode of ["online", "offline"] as const) {
+      for (const playerCount of [6, 9] as const) {
+        test(`${mode} ${playerCount}-player showdown cards stay inside reveal rows`, async ({
+          page,
+        }) => {
+          await openOfflineTable(page);
+          await forceTableState(page, "in-hand-on-turn");
+          await page.waitForTimeout(80);
+          const baseline = await panelMetrics(page);
+
+          const revealCount = playerCount === 6 ? 2 : 3;
+          await forceCrowdedShowdown(page, {
+            playerCount,
+            revealCount,
+            offline: mode === "offline",
+          });
+          await page.waitForSelector("#players .shown-hand .card", { timeout: 10000 });
+          await page.waitForTimeout(100);
+
+          const measured = await revealCardContainment(page);
+          expect(measured.revealCount, "expected reveal rows").toBe(revealCount);
+          for (const [i, row] of measured.rows.entries()) {
+            expect(row.allContained, `reveal row ${i} cards overflow row (h=${row.rowH})`).toBe(
+              true,
+            );
+            expect(row.rowH, `reveal row ${i} still locked near seat min-height`).toBeGreaterThan(50);
+          }
+
+          // Action panel y/height stay put; crowded seats scroll inside #players.
+          const after = await panelMetrics(page);
+          expect(nearlyEqual(after.panel!.y, baseline.panel!.y, 2), "panel y drifted").toBe(true);
+          expect(
+            nearlyEqual(after.panel!.height, baseline.panel!.height, 2),
+            "panel height drifted",
+          ).toBe(true);
+        });
+      }
+    }
   });
 }

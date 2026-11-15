@@ -560,6 +560,101 @@ export function forceTableState(
   }, scene);
 }
 
+/** Crowded showdown: many seat rows + appended reveal rows (reproduces flex-shrink overflow). */
+export function forceCrowdedShowdown(
+  page: Page,
+  options: {
+    playerCount: 6 | 9;
+    revealCount: number;
+    offline: boolean;
+  },
+) {
+  return page.evaluate((opts) => {
+    const colors = [
+      "#60a5fa",
+      "#4caf82",
+      "#f59e0b",
+      "#ef4444",
+      "#a78bfa",
+      "#22d3ee",
+      "#f472b6",
+      "#94a3b8",
+      "#eab308",
+    ];
+    const holes = [
+      [
+        { rank: "A", suit: "♠", code: "As", color: "black" },
+        { rank: "A", suit: "♥", code: "Ah", color: "red" },
+      ],
+      [
+        { rank: "K", suit: "♠", code: "Ks", color: "black" },
+        { rank: "8", suit: "♠", code: "8s", color: "black" },
+      ],
+      [
+        { rank: "Q", suit: "♦", code: "Qd", color: "red" },
+        { rank: "J", suit: "♦", code: "Jd", color: "red" },
+      ],
+    ];
+    const players = [];
+    for (let i = 0; i < opts.playerCount; i++) {
+      const isYou = i === 0;
+      const reveal = i < opts.revealCount;
+      players.push({
+        id: isYou ? "you" : `p${i}`,
+        name: isYou ? "Alex" : `Player${i}`,
+        stack: 1000 - i * 40,
+        stackCents: 0,
+        isYou,
+        isBot: !isYou,
+        sittingOut: false,
+        ready: i !== 0,
+        folded: !reveal && i >= 2,
+        allIn: false,
+        bet: 0,
+        showCards: reveal,
+        cards: reveal ? holes[i % holes.length] : [],
+        dealer: i === 0,
+        isSmallBlind: i === 1,
+        isBigBlind: i === 2,
+        isTurn: false,
+        color: colors[i % colors.length],
+      });
+    }
+    const base =
+      window.state && typeof window.state === "object"
+        ? (window.state as Record<string, unknown>)
+        : {};
+    const room = {
+      ...base,
+      offline: opts.offline,
+      coachAvailable: opts.offline,
+      phase: "showdown",
+      status: "playing",
+      pot: 420,
+      toCall: 0,
+      currentBet: 0,
+      isYourTurn: false,
+      turn: null,
+      canReady: true,
+      isReady: false,
+      canShowHand: !opts.offline,
+      handNumber: 4,
+      community: [
+        { rank: "Q", suit: "♥", code: "Qh", color: "red" },
+        { rank: "J", suit: "♥", code: "Jh", color: "red" },
+        { rank: "2", suit: "♣", code: "2c", color: "black" },
+        { rank: "9", suit: "♦", code: "9d", color: "red" },
+        { rank: "3", suit: "♠", code: "3s", color: "black" },
+      ],
+      winners: [{ playerId: "you", name: "Alex", hand: "Pair of Aces", amount: 420 }],
+      players,
+    };
+    const win = window as unknown as { state: unknown; render?: () => void };
+    win.state = room;
+    if (typeof win.render === "function") win.render();
+  }, options);
+}
+
 export async function openGameMenu(page: Page) {
   await page.click("#menuBtn");
   await page.waitForSelector("#gameMenuModal:not(.hidden)");
