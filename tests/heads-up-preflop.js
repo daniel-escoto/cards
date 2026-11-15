@@ -91,26 +91,30 @@ try {
     assert.ok(r.huSb >= 0.62 && r.huSb <= 0.95, label);
     assert.ok(r.huSb >= r.sixMax + 0.2, `heads-up SB much wider than 6-max: ${label}`);
     assert.equal(r.vsLimp, 0, `BB never folds when it can check: ${label}`);
-    assert.ok(r.vs2x >= 0.05 && r.vs2x <= 0.35, label);
-    assert.ok(r.vs25x >= 0.08 && r.vs25x <= 0.45, label);
+    assert.ok(r.vs2x >= 0.05 && r.vs2x <= 0.4, label);
+    assert.ok(r.vs25x >= 0.08 && r.vs25x <= 0.5, label);
     assert.ok(r.vs25x >= r.vs2x - 0.05, `bigger open folds at least as often: ${label}`);
-    // 6-max first-in entry stays in the #53 band.
+    // 6-max first-in entry stays in a sane band (position + threshold retune).
     assert.ok(r.sixMax >= 0.12 && r.sixMax <= 0.55, label);
   }
   assert.ok(results.Loose.huSb > results.Quick.huSb, "styles keep their ordering heads-up");
 
-  // 6-max is unchanged: with six dealt in, the limp chance is exactly the #53 formula.
+  // 6-max limp chance matches play-threshold − table/position discounts.
   {
     const room = table(6, "Balanced");
     const actor = room.players.find((player) => player.id === room.turn);
     actor.hand = ["Qh", "7c"];
-    const threshold = 0.57 - (style("Balanced").looseness - 0.68) * 0.13;
+    const threshold =
+      0.595 -
+      (style("Balanced").looseness - 0.68) * 0.13 -
+      engine.preflopTableWiden(room) -
+      engine.preflopPositionWiden(room, actor);
     const expected = Math.max(
       0,
       Math.min(0.97, 0.5 + (engine.preflopHandScore(actor.hand) - threshold) / 0.08),
     );
     assert.equal(engine.preflopBlindCallChance(room, actor, 20), expected);
-    // Heads-up the same hand is a clear play.
+    // Heads-up the same hand is a clear play (short-handed widen).
     const hu = table(2, "Balanced");
     const sb = hu.players.find((player) => player.id === hu.turn);
     sb.hand = ["Qh", "7c"];
