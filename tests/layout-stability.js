@@ -61,24 +61,31 @@ assert.match(tableSrc, /There was a better play here|formatMistakeNudge/);
 assert.match(tableSrc, /handReviewLandableIndexes|is-result/);
 assert.match(css, /\.hand-review-timeline\s*\{[^}]*overflow-x:\s*auto/s);
 
-// Showdown holes: appended feed rows (not an inline seat-row slot); compact cards fit the row.
+// Showdown holes: appended feed rows (not an inline seat-row slot); sm cards, row grows.
 assert.doesNotMatch(css, /\.seat-shown-hand\s*\{/);
 assert.doesNotMatch(css, /grid-template-columns:[^;]*64px/);
-assert.match(
+assert.doesNotMatch(
   css,
-  /\.table-player-row\.shown-hand-card[\s\S]*?overflow:\s*hidden/,
-  "revealed-hand row must clip rather than spill cards",
+  /\.table-player-row\.shown-hand-card\s*\{[^}]*max-height:/s,
+  "revealed-hand row must grow with cards (no locked max-height)",
+);
+assert.doesNotMatch(
+  css,
+  /\.shown-hand \.card\s*\{[^}]*width:\s*1[67]px/s,
+  "revealed hole cards must not use the tiny compact size from #99",
 );
 assert.match(
   css,
-  /\.shown-hand \.card\s*\{[^}]*width:\s*17px/s,
-  "revealed hole cards use a compact size that fits the standard seat row",
+  /\.shown-hand \.card\s*\{[^}]*width:\s*var\(--card-sm-w\)/s,
+  "revealed hole cards use the shared sm card size token",
 );
 assert.match(
   css,
-  /\.table-player-row\.shown-hand-card\s*\{[^}]*max-height:\s*42px/s,
-  "revealed-hand row locks to standard seat height",
+  /\.table-player-row\.shown-hand-card\s*\{[^}]*align-items:\s*center/s,
+  "revealed-hand row vertically centers name and stack",
 );
+const tokensCss = fs.readFileSync(path.join(__dirname, "../public/tokens.css"), "utf8");
+assert.match(tokensCss, /--card-sm-w:\s*34px/, "sm card width lives in tokens");
 const bootSrc = fs.readFileSync(path.join(__dirname, "../public/app-boot.ts"), "utf8");
 assert.match(bootSrc, /shown-hand-card/);
 assert.match(bootSrc, /seatHoleCardsMayReveal/);

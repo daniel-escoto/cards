@@ -1857,34 +1857,21 @@ button.menu-player-row:not(:disabled):hover {
 .shown-hand {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-5);
 }
-/* Compact holes: must fit inside the standard seat-row content box (~26px). */
+/* Shared sm card size (pre-#99 / ~hero hand); row grows to contain them. */
 .shown-hand .card {
-  width: 17px;
-  min-width: 17px;
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--font-size-9);
-  line-height: 1;
-  box-shadow: none;
-}
-.shown-hand .card-rank,
-.shown-hand .card-corner-suit {
-  font-size: var(--font-size-9);
-  font-weight: 800;
-}
-.shown-hand .card-corner-top,
-.shown-hand .card-corner-bottom {
-  padding: 0;
+  width: var(--card-sm-w);
+  min-width: var(--card-sm-w);
+  padding: var(--space-5);
+  font-size: var(--font-size-12);
 }
 
-/* Showdown reveals: lock to seat-row height so cards never spill or stretch the row. */
+/* Showdown reveals: same seat-row surface; grow with comfortable padding around cards. */
 .table-player-row.shown-hand-card {
   grid-template-columns: 14px minmax(12ch, 1.35fr) auto auto;
   align-items: center;
-  min-height: 42px;
-  max-height: 42px;
-  overflow: hidden;
+  padding-block: var(--space-8);
 }
 .table-player-row.shown-hand-card .seat-name,
 .table-player-row.shown-hand-card .player-stack,
@@ -1895,8 +1882,6 @@ button.menu-player-row:not(:disabled):hover {
   justify-self: start;
   align-self: center;
   min-width: 0;
-  max-height: 26px;
-  overflow: hidden;
 }
 /* Winner: shared accent outline only — keep the normal seat-row fill. */
 .table-player-row.shown-hand-card.showdown-winner {
@@ -4990,11 +4975,7 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
 
   .table-player-row.shown-hand-card {
     grid-template-columns: 12px minmax(10ch, 1fr) auto auto;
-    min-height: 40px;
-    max-height: 40px;
-  }
-  .table-player-row.shown-hand-card .shown-hand {
-    max-height: 24px;
+    padding-block: var(--space-8);
   }
 
   .seat-timer {
@@ -5103,14 +5084,9 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
   }
 
   .shown-hand .card {
-    width: 16px;
-    min-width: 16px;
-    padding: var(--space-1) var(--space-2);
-    font-size: var(--font-size-9);
-  }
-  .shown-hand .card-rank,
-  .shown-hand .card-corner-suit {
-    font-size: var(--font-size-9);
+    width: var(--card-sm-w);
+    min-width: var(--card-sm-w);
+    padding: var(--space-5);
   }
 
   .turn-info,
