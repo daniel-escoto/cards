@@ -68,7 +68,6 @@ const APP_SHELL = [
   "/ready-clock.js",
   "/invite-url.js",
   "/coach.js",
-  "/copy-for-ai.js",
   "/manifest.webmanifest",
   "/shared/pokersolver.js",
   "/shared/engine.js",

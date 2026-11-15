@@ -293,10 +293,12 @@ function seat(id, overrides = {}) {
   assert.doesNotMatch(html, /id="coachBtn"/);
   assert.doesNotMatch(html, /id="coachHint"/);
   assert.match(html, /shared\/coach-odds\.js/);
-  // Markup stays in the menu; visibility is gated offline-only at runtime.
+  // Copy for AI removed — menu order is players → Invite → Add bot / Settings.
+  assert.doesNotMatch(html, /id="copyForAiBtn"/);
+  assert.doesNotMatch(html, /copy-for-ai\.js/);
   assert.match(
     html,
-    /id="menuPlayers"[\s\S]*?id="shareGameBtn"[\s\S]*?id="copyForAiBtn"/,
+    /id="menuPlayers"[\s\S]*?id="shareGameBtn"[\s\S]*?id="addBotBtn"[\s\S]*?id="openSettingsBtn"/,
   );
   const css = fs.readFileSync(path.join(__dirname, "../public/styles.css"), "utf8");
   assert.match(css, /\.blind-chip\.dealer\s*\{[^}]*var\(--color-raw-84\)/);
@@ -308,64 +310,11 @@ function seat(id, overrides = {}) {
   const tableSrc = fs.readFileSync(path.join(__dirname, "../public/app-table.ts"), "utf8");
   assert.doesNotMatch(tableSrc, /coach-hint-use/);
   assert.doesNotMatch(tableSrc, /renderCoachHint/);
-}
-
-{
-  // Copy for AI: hidden in online rooms; visible (and disabled until available) offline.
-  const { JSDOM } = require("jsdom");
-  const vm = require("node:vm");
-  const html = fs.readFileSync(path.join(__dirname, "../public/index.html"), "utf8");
-  const boot = fs.readFileSync(path.join(__dirname, "../dist/public/app-boot.js"), "utf8");
+  assert.doesNotMatch(tableSrc, /syncCopyForAiBtn/);
+  const bootSrc = fs.readFileSync(path.join(__dirname, "../public/app-boot.ts"), "utf8");
+  assert.doesNotMatch(bootSrc, /syncCopyForAiBtn|copyForAiFeatureAvailable|copyForAiBtn/);
   const eventsSrc = fs.readFileSync(path.join(__dirname, "../public/app-events.ts"), "utf8");
-  assert.match(
-    eventsSrc,
-    /copyForAiBtn\?\.addEventListener\("click"[\s\S]*?!isOfflineSession\(\)/,
-    "click handler no-ops online",
-  );
-
-  const grab = (fn) => {
-    const start = boot.indexOf(`function ${fn}(`);
-    assert.ok(start >= 0, `${fn} exists`);
-    const end = boot.indexOf("\nfunction ", start + 10);
-    return boot.slice(start, end === -1 ? undefined : end);
-  };
-  const dom = new JSDOM(html);
-  const { document } = dom.window;
-  const btn = document.querySelector("#copyForAiBtn");
-  assert.ok(btn, "Copy for AI markup present");
-  let offline = false;
-  const context = {
-    document,
-    copyForAiBtn: btn,
-    state: { copyForAiAvailable: true, offline: false },
-    isOfflineSession: () => offline,
-    CopyForAi: { copyForAiAllowed: () => true },
-    copyForAiFeatureAvailable() {
-      return true;
-    },
-  };
-  vm.runInNewContext(
-    `${grab("copyForAiFeatureAvailable")}\n${grab("syncCopyForAiBtn")}\nthis.sync = syncCopyForAiBtn;`,
-    context,
-  );
-
-  offline = false;
-  context.state = { copyForAiAvailable: true, offline: false };
-  context.sync();
-  assert.ok(btn.classList.contains("hidden"), "hidden in online rooms");
-  assert.equal(btn.disabled, true);
-
-  offline = true;
-  context.state = { copyForAiAvailable: false, offline: true };
-  context.copyForAiFeatureAvailable = () => false;
-  context.sync();
-  assert.ok(!btn.classList.contains("hidden"), "visible in offline sessions");
-  assert.equal(btn.disabled, true, "disabled until available offline");
-
-  context.copyForAiFeatureAvailable = () => true;
-  context.sync();
-  assert.ok(!btn.classList.contains("hidden"));
-  assert.equal(btn.disabled, false, "enabled when available offline");
+  assert.doesNotMatch(eventsSrc, /copyForAiBtn|CopyForAi/);
 }
 
 console.log("Coach checks passed.");

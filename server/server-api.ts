@@ -71,7 +71,6 @@ export type ServerEngineApi = Pick<
   | "sanitizeActionLogForClient"
   | "visibleHoleCards"
   | "coachAvailableForViewer"
-  | "copyForAiAvailableForViewer"
   | "estimateComputerConfidence"
   | "chooseComputerRaiseTo"
   | "preflopBlindRaiseChance"
