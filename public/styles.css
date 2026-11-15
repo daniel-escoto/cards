@@ -1864,6 +1864,24 @@ button.menu-player-row:not(:disabled):hover {
   font-size: var(--font-size-12);
 }
 
+/* Showdown reveals: same seat-row surface; cards sit in the status column. */
+.table-player-row.shown-hand-card {
+  grid-template-columns: 14px minmax(12ch, 1.35fr) auto auto;
+}
+.table-player-row.shown-hand-card .shown-hand {
+  justify-self: start;
+  min-width: 0;
+}
+/* Winner: shared accent outline only — keep the normal seat-row fill. */
+.table-player-row.shown-hand-card.showdown-winner {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--color-raw-7));
+  box-shadow: inset 3px 0 0 var(--player-color, var(--accent));
+  background: var(--color-raw-62);
+}
+.table-player-row.shown-hand-card.showdown-winner.you {
+  background: color-mix(in srgb, var(--accent) 12%, var(--color-raw-54));
+}
+
 .menu-name-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -4942,6 +4960,10 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
     gap: var(--space-7);
     padding: var(--space-7) var(--space-9);
     border-radius: var(--radius-11);
+  }
+
+  .table-player-row.shown-hand-card {
+    grid-template-columns: 12px minmax(10ch, 1fr) auto auto;
   }
 
   .seat-timer {

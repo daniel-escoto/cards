@@ -1350,7 +1350,11 @@ function seatHoleCardsMayReveal() {
   return state.phase === "showdown" || state.phase === "complete";
 }
 
-/** Main-style appended showdown/muck/all-in reveal card below the seat list. */
+/**
+ * Appended showdown/muck/all-in reveal row below the seat list.
+ * Reuses `.table-player-row` surface (not `.action-feed-card`) so light theme
+ * never paints a pale fill with white stack text.
+ */
 function renderShownHandCard(player: ClientPlayer) {
   if (!state) return "";
   const cards = (player.cards || [])
@@ -1358,13 +1362,23 @@ function renderShownHandCard(player: ClientPlayer) {
     .map((card) => cardTemplate(card))
     .join("");
   if (!cards) return "";
+  const isWinner = (state.winners || []).some(
+    (winner) => winner.playerId === player.id || winner.name === player.name,
+  );
+  const rowClasses = [
+    "table-player-row",
+    "shown-hand-card",
+    player.isYou ? "you" : "",
+    isWinner ? "showdown-winner" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return `
-    <article class="action-feed-card shown-hand-card ${player.isYou ? "you" : ""}" ${playerColorStyle(player)}>
-      <div class="action-card-head">
-        <span class="seat-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
-        <strong class="player-stack">${playerStackLabel(player)}</strong>
-      </div>
-      <div class="shown-hand">${cards}</div>
+    <article class="${rowClasses}" ${playerColorStyle(player)}>
+      <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
+      <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span></span>
+      <span class="shown-hand">${cards}</span>
+      <strong class="player-stack">${playerStackLabel(player)}</strong>
     </article>
   `;
 }

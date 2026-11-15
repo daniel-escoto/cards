@@ -46,7 +46,7 @@ const sw = swSelf;
 
 const CACHE_VERSION = "__BUILD_ID__";
 /** Bump when the app-shell file set changes so clients drop stale precaches. */
-const SHELL_REVISION = "5";
+const SHELL_REVISION = "6";
 const CACHE_NAME = `holdem-nyc-shell-${CACHE_VERSION}-${SHELL_REVISION}`;
 const APP_SHELL = [
   "/",
@@ -138,6 +138,27 @@ sw.addEventListener("fetch", (event) => {
           (await caches.match("/")) ||
           Response.error()
         );
+      })(),
+    );
+    return;
+  }
+
+  // App JS: network-first so logic fixes (Check/Fold persistence, etc.) reach
+  // clients even when a prior shell cache is still warm; fall back offline.
+  if (url.pathname.endsWith(".js") && shouldCache(url.pathname)) {
+    event.respondWith(
+      (async () => {
+        try {
+          const response = await fetch(request);
+          if (response && response.ok) {
+            const cache = await caches.open(CACHE_NAME);
+            cache.put(request, response.clone());
+            return response;
+          }
+        } catch {
+          /* offline — fall through to cache */
+        }
+        return (await caches.match(request)) || Response.error();
       })(),
     );
     return;
