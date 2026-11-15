@@ -65,6 +65,8 @@
   --space-22: 22px;
   --space-24: 24px;
   --space-36: 36px;
+  /* Shared small face-up card width (showdown reveal holes; ~hero hand size). */
+  --card-sm-w: 34px;
   /* Type scale. */
   --font-size-6_5: 6.5px;
   --font-size-7: 7px;
