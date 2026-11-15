@@ -9,7 +9,6 @@ const path = require("node:path");
 const {
   LABEL,
   createSession,
-  disarm,
   arm,
   toggle,
   shouldOffer,
