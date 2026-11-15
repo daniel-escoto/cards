@@ -309,9 +309,18 @@ function attemptAutoRejoin() {
 }
 
 function autoJoinInitialRoom() {
-  if (didAutoJoinInitialRoom || !initialRoomParam || !nameInput.value.trim() || state) return;
+  // Path codes (/CODE) and legacy ?room= both land in initialRoomId. After a
+  // refresh, state is null — attemptAutoRejoin needs state, so this path must
+  // silently rejoin via saved reconnectToken (no money-terms re-prompt).
+  if (didAutoJoinInitialRoom || !initialRoomId || !nameInput.value.trim() || state) return;
+  if (typeof practiceSession !== "undefined" && practiceSession) return;
+  const credentials = roomCredentials(initialRoomId);
+  if (!credentials?.reconnectToken && !credentials?.spectator) return;
   didAutoJoinInitialRoom = true;
-  joinOrCreate("join");
+  // Hide welcome before the socket round-trip so refresh does not flash the Join screen.
+  welcome.classList.add("hidden");
+  if (credentials.spectator) watchRoom();
+  else joinOrCreate("join");
 }
 
 socket?.on("server:hello", ({ buildId }: { buildId?: string } = {}) => {

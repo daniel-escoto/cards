@@ -2031,10 +2031,13 @@ function joinOrCreate(mode: string) {
       joinPending = false;
       updateTableActionLabel();
       if (error) {
-        joinError.textContent = "Still connecting. Try again.";
+        if (!state) showWelcome("Still connecting. Try again.");
+        else joinError.textContent = "Still connecting. Try again.";
         return;
       }
       if (!response?.ok) {
+        // Refresh rejoin failed (seat gone / bad token) — restore Join screen.
+        if (!state && welcome.classList.contains("hidden")) showWelcome();
         if (response && "moneyTerms" in response) {
           acceptedMoneyTerms = response.moneyTerms;
           joinPreview.textContent = moneyJoinSummary(acceptedMoneyTerms);
@@ -2100,10 +2103,12 @@ function watchRoom() {
       joinPending = false;
       updateTableActionLabel();
       if (error) {
-        joinError.textContent = "Still connecting. Try again.";
+        if (!state) showWelcome("Still connecting. Try again.");
+        else joinError.textContent = "Still connecting. Try again.";
         return;
       }
       if (!response?.ok) {
+        if (!state && welcome.classList.contains("hidden")) showWelcome();
         joinError.textContent = response?.error || "Could not watch table.";
         return;
       }
