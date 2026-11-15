@@ -25,7 +25,7 @@ assert.match(css, /\.hand-review-dot:focus-visible/);
 
 // Verdict keeps a reserved slot; idle retry bar collapses (slack + bottom-pinned nav).
 assert.match(css, /\.hand-review-verdict\s*\{[^}]*min-height:/s);
-assert.match(css, /\.hand-review-retry-bar:not\(\.hidden\):not\(\.is-idle\):has\(>\s*\.hand-review-try-again\)\s*\{[^}]*min-height:\s*44px/s);
+assert.match(css, /\.hand-review-retry-bar:not\(\.hidden\):not\(\.is-idle\):has\(>\s*\.hand-review-try-again\)\s*\{[^}]*min-height:\s*var\(--cp-action-btn-h\)/s);
 assert.match(css, /body\.hand-review-open \.hand-review-verdict\.is-idle/);
 assert.match(css, /body\.hand-review-open \.hand-review-retry-bar\.is-idle\s*\{[^}]*display:\s*none/s);
 

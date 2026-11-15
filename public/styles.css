@@ -3707,7 +3707,8 @@ body.hand-review-open .hand-row .table-meta {
   display: grid;
   align-content: stretch;
   align-items: stretch;
-  gap: var(--space-6);
+  /* Tight gap — reclaim vertical room for verdict copy without growing the panel. */
+  gap: var(--space-4);
   min-width: 0;
   min-height: 0;
   /* Head · flexible wrapping verdict · continue/nav. */
@@ -3749,14 +3750,21 @@ body.hand-review-open .control-panel > .winner-list {
 }
 /* Non-retry: chrome fills prompt+button+bet tracks; live controls keep the footprint. */
 body.hand-review-open:not(.hand-review-retrying) .control-panel > .hand-review-chrome {
-  /* Absolute in the prompt+controls grid area — fills it without sizing the tracks. */
+  /* Absolute in the prompt+controls grid area — fills it without sizing the tracks.
+     Abspos CB can bleed one padding past the in-flow column on the right; pin right
+     to --cp-pad so Try again / Show answer share Fold/Call horizontal insets. */
   grid-row: 3 / 6;
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: var(--cp-pad);
+  bottom: 0;
   z-index: 2;
   min-height: 0;
   width: auto;
+  max-width: 100%;
   height: auto;
+  box-sizing: border-box;
   overflow: hidden;
 }
 body.hand-review-open:not(.hand-review-retrying) .control-panel > .game-buttons,
@@ -3781,8 +3789,9 @@ body.hand-review-open:not(.hand-review-retrying) .control-panel > .game-buttons 
 /* Continue/Try again + nav: in-flow at the bottom of the chrome span (no absolute gap). */
 .hand-review-bottom {
   display: grid;
-  gap: var(--space-6);
+  gap: var(--space-4);
   min-width: 0;
+  width: 100%;
   flex-shrink: 0;
 }
 body.hand-review-open:not(.hand-review-retrying) .hand-review-bottom {
@@ -3816,28 +3825,56 @@ body.hand-review-open.hand-review-retrying .control-panel > .bet-controls {
   visibility: visible;
   pointer-events: auto;
 }
-/* Title row only — close moved to .hand-row (top-right with pot). */
+/* Title row only — close moved to .hand-row (top-right with pot).
+   One line: HAND REVIEW · 1 mistake (reclaims a full summary line for verdict copy). */
 .hand-review-chrome-head {
+  display: block;
   min-width: 0;
   width: 100%;
-  align-items: flex-start;
   flex-shrink: 0;
 }
-.hand-review-chrome-head > div {
+.hand-review-kicker {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  gap: 0;
+  margin: 0;
   min-width: 0;
-  flex: 1 1 auto;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+.hand-review-kicker .eyebrow {
+  margin: 0;
+  flex: 0 0 auto;
+  font-size: var(--font-size-10);
+  line-height: 1.3;
+}
+.hand-review-summary-sep {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: var(--font-size-10);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+}
+.hand-review-kicker:not(:has(#handReviewSummary:not(:empty))) .hand-review-summary-sep {
+  display: none;
 }
 .hand-review-summary {
   margin: 0;
-  color: var(--muted);
+  min-width: 0;
+  color: var(--text);
   font-size: var(--font-size-12);
   font-weight: 700;
   letter-spacing: 0;
   text-transform: none;
-  line-height: 1.35;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  max-width: 100%;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* Verdict fills leftover chrome space and wraps; panel height stays on the live tracks. */
 .hand-review-verdict {
@@ -3855,7 +3892,9 @@ body.hand-review-open.hand-review-retrying .control-panel > .bet-controls {
   line-height: 1.3;
   color: var(--text);
   min-height: 0;
-  overflow: hidden;
+  /* Visible so nudge/reason is never clipped under the action row; chrome overflow
+     still contains the block if copy is extreme. */
+  overflow: visible;
 }
 body.hand-review-open.hand-review-retrying .hand-review-verdict {
   display: block;
@@ -3885,6 +3924,7 @@ body.hand-review-open .hand-review-verdict.is-idle {
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
+  overflow: visible;
 }
 .hand-review-verdict.is-best .hand-review-verdict-mark {
   color: color-mix(in srgb, var(--color-raw-143) 90%, var(--text));
@@ -4049,16 +4089,20 @@ body.hand-review-open .hand-review-verdict.is-idle {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Retry/continue row: sits directly above nav. Idle collapses — slack absorbs the gap. */
+/* Retry/continue row: sits directly above nav. Same even split + gap as Fold/Call /
+   Ready|Review (is-result). Idle collapses — slack absorbs the gap. */
 .hand-review-retry-bar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: var(--space-8);
+  gap: var(--space-10);
+  min-width: 0;
+  width: 100%;
   min-height: 0;
+  box-sizing: border-box;
 }
 .hand-review-retry-bar:not(.hidden):not(.is-idle):has(> .hand-review-try-again) {
-  min-height: 44px;
+  min-height: var(--cp-action-btn-h);
 }
 .hand-review-retry-bar.hidden,
 .hand-review-retry-bar.is-idle {
@@ -4074,15 +4118,16 @@ body.hand-review-open .hand-review-retry-bar.is-idle {
   overflow: hidden;
   pointer-events: none;
 }
-.hand-review-retry-bar > .hand-review-try-again {
-  flex: 1 1 auto;
-  min-height: 44px;
-}
-/* Show answer: clean secondary (same badge spacing as Review hand) — never underline the kbd. */
+.hand-review-retry-bar > .hand-review-try-again,
 .hand-review-retry-bar > .hand-review-show-answer {
-  flex: 0 0 auto;
-  min-height: 44px;
-  padding-inline: var(--space-12);
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: var(--cp-action-btn-h);
+  height: var(--cp-action-btn-h);
+  max-height: var(--cp-action-btn-h);
+}
+/* Show answer: clean secondary — never underline the kbd. */
+.hand-review-retry-bar > .hand-review-show-answer {
   font-size: var(--font-size-13);
   font-weight: 700;
   text-decoration: none;

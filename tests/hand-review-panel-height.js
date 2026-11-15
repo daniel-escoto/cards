@@ -40,6 +40,16 @@ assert.match(css, /\.hand-review-chrome\s*\{[^}]*grid-template-rows:\s*auto minm
 assert.match(html, /hand-review-bottom[\s\S]*handReviewRetryBar[\s\S]*hand-review-nav/);
 assert.match(css, /\.hand-review-verdict\s*\{[^}]*min-height:\s*0/s);
 assert.match(css, /\.hand-review-verdict-why\s*\{[^}]*overflow-wrap:\s*anywhere/s);
+assert.match(html, /hand-review-kicker/);
+assert.match(css, /\.hand-review-kicker\s*\{[^}]*white-space:\s*nowrap/s);
+assert.match(
+  css,
+  /body\.hand-review-open:not\(\.hand-review-retrying\) \.control-panel > \.hand-review-chrome\s*\{[^}]*right:\s*var\(--cp-pad\)/s,
+);
+assert.match(
+  css,
+  /\.hand-review-retry-bar > \.hand-review-try-again,\s*\n\.hand-review-retry-bar > \.hand-review-show-answer\s*\{[^}]*flex:\s*1 1 0/s,
+);
 assert.match(css, /\.hand-row \.hand-review-close\.icon-btn/);
 assert.match(html, /hand-row[\s\S]*id="handReviewCloseBtn"/);
 assert.doesNotMatch(html, /hand-review-chrome-head[\s\S]{0,200}handReviewCloseBtn/);
@@ -333,12 +343,101 @@ async function main() {
           };
           openHandReview();
           const step = panelBox();
+
+          const layoutHealth = () => {
+            const panelEl = document.querySelector(".control-panel");
+            const panel = panelEl.getBoundingClientRect();
+            const padL = parseFloat(getComputedStyle(panelEl).paddingLeft) || 0;
+            const padR = parseFloat(getComputedStyle(panelEl).paddingRight) || 0;
+            const contentLeft = panel.left + padL;
+            const contentRight = panel.right - padR;
+            const overlaps = (a, b) => {
+              if (!a || !b || a.width <= 0 || a.height <= 0 || b.width <= 0 || b.height <= 0) {
+                return false;
+              }
+              return !(
+                a.right <= b.left + 0.5 ||
+                a.left >= b.right - 0.5 ||
+                a.bottom <= b.top + 0.5 ||
+                a.top >= b.bottom - 0.5
+              );
+            };
+            const textNodes = [];
+            const root = document.querySelector("#handReviewChrome");
+            if (root) {
+              const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+              let node;
+              while ((node = walk.nextNode())) {
+                if (!String(node.textContent || "").trim()) continue;
+                const el = node.parentElement;
+                if (!el || el.closest("[hidden]")) continue;
+                if (getComputedStyle(el).display === "none" || getComputedStyle(el).visibility === "hidden") {
+                  continue;
+                }
+                const r = el.getBoundingClientRect();
+                if (r.width <= 0 || r.height <= 0) continue;
+                const clipped =
+                  el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
+                textNodes.push({
+                  text: String(node.textContent).trim().slice(0, 48),
+                  clipped,
+                  rect: {
+                    left: r.left,
+                    right: r.right,
+                    top: r.top,
+                    bottom: r.bottom,
+                    width: r.width,
+                    height: r.height,
+                  },
+                });
+              }
+            }
+            const retry = document.querySelector("#handReviewRetryBar");
+            const retryVisible =
+              retry &&
+              !retry.classList.contains("is-idle") &&
+              !retry.classList.contains("hidden") &&
+              getComputedStyle(retry).display !== "none";
+            const retryRect = retryVisible ? retry.getBoundingClientRect() : null;
+            const withinPad = retryRect
+              ? retryRect.left >= contentLeft - 0.75 && retryRect.right <= contentRight + 0.75
+              : true;
+            const why = document.querySelector(".hand-review-verdict-why");
+            const whyRect = why ? why.getBoundingClientRect() : null;
+            const whyOverlapsRetry = Boolean(whyRect && retryRect && overlaps(whyRect, retryRect));
+            const clipped = textNodes.filter((t) => t.clipped).map((t) => t.text);
+            const outside = textNodes.filter(
+              (t) => t.rect.left < contentLeft - 0.75 || t.rect.right > contentRight + 0.75,
+            );
+            return {
+              kicker: document.querySelector(".hand-review-kicker")?.innerText?.replace(/\s+/g, " ").trim() || "",
+              withinPad,
+              whyOverlapsRetry,
+              clipped,
+              outside: outside.map((t) => t.text),
+              padL,
+              padR,
+              retryInset: retryRect
+                ? {
+                    left: retryRect.left - panel.left,
+                    right: panel.right - retryRect.right,
+                  }
+                : null,
+            };
+          };
+
+          const decisionLayout = layoutHealth();
+
           startHandReviewRetry(dec, heroStep.table, 980);
           const retryLive = panelBox();
           submitHandReviewRetryAction({ type: "call" });
           const retryAnswered = panelBox();
           handReviewRetryItem = null;
           document.body.classList.remove("hand-review-retrying");
+          // Show-answer (full reason) on the decision step.
+          handReviewRevealedSteps.add(0);
+          paintHandReviewStep(0, { force: true });
+          const answerLayout = layoutHealth();
           paintHandReviewStep(1);
           const result = panelBox();
 
@@ -351,6 +450,8 @@ async function main() {
             retryLive,
             retryAnswered,
             result,
+            decisionLayout,
+            answerLayout,
             bottomVisible: Boolean(bottom && getComputedStyle(bottom).display !== "none"),
             navBottom: nav?.getBoundingClientRect().bottom ?? 0,
             closeInHandRow: Boolean(document.querySelector("#handReviewCloseBtn")?.closest(".hand-row")),
@@ -371,6 +472,36 @@ async function main() {
         );
       }
       assert.equal(boxes.closeInHandRow, true);
+      for (const [name, layout] of [
+        ["decision", boxes.decisionLayout],
+        ["answer", boxes.answerLayout],
+      ]) {
+        assert.match(
+          layout.kicker,
+          /HAND REVIEW/i,
+          `${label} ${name}: expected one-line HAND REVIEW kicker`,
+        );
+        assert.equal(
+          layout.withinPad,
+          true,
+          `${label} ${name}: Try again / Show answer must stay within panel padding (inset=${JSON.stringify(layout.retryInset)}, pad=${layout.padL}/${layout.padR})`,
+        );
+        assert.equal(
+          layout.whyOverlapsRetry,
+          false,
+          `${label} ${name}: verdict why must not overlap the action row`,
+        );
+        assert.deepEqual(
+          layout.clipped,
+          [],
+          `${label} ${name}: review text must not be clipped (${layout.clipped.join(" | ")})`,
+        );
+        assert.deepEqual(
+          layout.outside,
+          [],
+          `${label} ${name}: review text must stay inside panel padding (${layout.outside.join(" | ")})`,
+        );
+      }
       console.log(
         label,
         `panel height stable @ ${Math.round(boxes.inHand.height)}px across in-hand / Ready up / review`,
