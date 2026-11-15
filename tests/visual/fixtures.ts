@@ -222,6 +222,7 @@ export function forceTableState(
             ...you,
             stack: 1180,
             bet: 0,
+            showCards: true,
             cards: [
               { rank: "A", suit: "♠", code: "As", color: "black" },
               { rank: "A", suit: "♥", code: "Ah", color: "red" },
@@ -231,12 +232,13 @@ export function forceTableState(
             ...bot1,
             stack: 860,
             bet: 0,
+            showCards: true,
             cards: [
               { rank: "K", suit: "♦", code: "Kd", color: "red" },
               { rank: "Q", suit: "♦", code: "Qd", color: "red" },
             ],
           },
-          { ...bot2, folded: true },
+          { ...bot2, folded: true, showCards: false },
         ],
       };
     }

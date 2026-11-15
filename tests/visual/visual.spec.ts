@@ -2,6 +2,7 @@ import { test, expect, type Page, type Locator } from "@playwright/test";
 import {
   VIEWPORTS,
   type Theme,
+  gotoFresh,
   openOfflineTable,
   openTrainer,
   forceTableState,
@@ -11,10 +12,10 @@ import {
 } from "./fixtures";
 
 /**
- * Lean visual coverage (≤ ~24 PNGs): table, Hand Review retry+result,
- * Trainer facing-raise, and both menus — at 375/1280 × light/dark.
- * Screenshots target the surface under test (not full page) to keep
- * baseline size ~1–2MB total.
+ * Lean visual coverage: actionable panels/menus plus a few high-churn
+ * surfaces (showdown, off-turn, trainer-answered, welcome) at
+ * 375/1280 × light/dark. Element-cropped (not full page) to keep
+ * total PNG size under ~1.5MB.
  */
 const THEMES: Theme[] = ["dark", "light"];
 
@@ -35,6 +36,31 @@ async function shot(target: Locator, name: string) {
     animations: "disabled",
     // Element shots are smaller; allow light AA/subpixel noise.
     maxDiffPixelRatio: 0.02,
+  });
+}
+
+/** Clip a union of element boxes (e.g. board + seats) without full felt chrome. */
+async function shotUnion(page: Page, locators: Locator[], name: string) {
+  const boxes = [];
+  for (const loc of locators) {
+    await loc.waitFor({ state: "visible", timeout: 10000 });
+    const box = await loc.boundingBox();
+    if (box) boxes.push(box);
+  }
+  if (!boxes.length) throw new Error(`No bounding boxes for ${name}`);
+  const x = Math.min(...boxes.map((b) => b.x));
+  const y = Math.min(...boxes.map((b) => b.y));
+  const right = Math.max(...boxes.map((b) => b.x + b.width));
+  const bottom = Math.max(...boxes.map((b) => b.y + b.height));
+  await expect(page).toHaveScreenshot(`${name}.png`, {
+    animations: "disabled",
+    maxDiffPixelRatio: 0.02,
+    clip: {
+      x: Math.max(0, Math.floor(x)),
+      y: Math.max(0, Math.floor(y)),
+      width: Math.ceil(right - x),
+      height: Math.ceil(bottom - y),
+    },
   });
 }
 
@@ -206,6 +232,66 @@ for (const theme of THEMES) {
         await shot(page.locator("#tableView .control-panel"), `${theme}-${vp.name}-in-hand-on-turn`);
       });
 
+      test(`in-hand-off-turn`, async ({ page }) => {
+        await openOfflineTable(page);
+        await forceTableState(page, "in-hand-off-turn");
+        await stabilize(page);
+        // Controls rendered but disabled while waiting on another seat.
+        await shot(page.locator("#tableView .control-panel"), `${theme}-${vp.name}-in-hand-off-turn`);
+      });
+
+      test(`showdown`, async ({ page }) => {
+        await openOfflineTable(page);
+        await forceTableState(page, "showdown");
+        await page.waitForSelector("#tableView #community .card", { timeout: 10000 });
+        await page.waitForSelector("#tableView .shown-hand .card", { timeout: 10000 });
+        await stabilize(page);
+        // Stack board + seats + revealed holes into a dense crop (no empty felt / panel).
+        await page.addStyleTag({
+          content: `
+            #tableView .topbar,
+            #tableView .control-panel { display: none !important; }
+            #tableView .felt {
+              display: flex !important;
+              flex-direction: column !important;
+              align-items: stretch !important;
+              gap: 10px !important;
+              padding: 12px !important;
+              min-height: 0 !important;
+              height: auto !important;
+              background: var(--color-bg, #121212) !important;
+              background-image: none !important;
+            }
+            #tableView .community {
+              position: static !important;
+              top: auto !important;
+              left: auto !important;
+              transform: none !important;
+              align-self: center !important;
+            }
+            #tableView .players {
+              position: static !important;
+              inset: auto !important;
+              max-height: none !important;
+              overflow: visible !important;
+            }
+            #tableView .players > :first-child { margin-top: 0 !important; }
+          `,
+        });
+        await shotUnion(
+          page,
+          [page.locator("#tableView #community"), page.locator("#tableView #players")],
+          `${theme}-${vp.name}-showdown`,
+        );
+      });
+
+      test(`welcome`, async ({ page }) => {
+        await gotoFresh(page, "/");
+        await page.waitForSelector("#joinForm.join-panel, #welcome .join-panel");
+        await stabilize(page);
+        await shot(page.locator("#welcome .join-panel").first(), `${theme}-${vp.name}-welcome`);
+      });
+
       test(`hand-review-retry`, async ({ page }) => {
         await openOfflineTable(page);
         await forceTableState(page, "lobby-waiting");
@@ -233,6 +319,15 @@ for (const theme of THEMES) {
         await page.waitForSelector("#trainerFoldBtn, #trainerConfirmBtn", { timeout: 10000 });
         await stabilize(page);
         await shot(page.locator("#trainerControlPanel"), `${theme}-${vp.name}-trainer-facing-raise`);
+      });
+
+      test(`trainer-answered`, async ({ page }) => {
+        await openTrainer(page);
+        await forceTrainerScene(page, "answered");
+        await page.waitForSelector("#trainerNextBtn", { timeout: 10000 });
+        await page.waitForSelector("#trainerChartBtn", { timeout: 10000 });
+        await stabilize(page);
+        await shot(page.locator("#trainerControlPanel"), `${theme}-${vp.name}-trainer-answered`);
       });
 
       test(`game-menu`, async ({ page }) => {
