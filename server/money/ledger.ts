@@ -22,8 +22,12 @@ function chipsToCents(room: Room, chips: number): number {
   return Math.round(Math.max(0, Math.floor(Number(chips) || 0)) * chipValueCents(room));
 }
 
+function usesLedger(room: Room | null | undefined): boolean {
+  return Boolean(room?.moneyMode || room?.tournamentMode);
+}
+
 function syncPlayerToMoneyLedger(room: Room, player: Player): LedgerEntry | null {
-  if (!room?.moneyMode || !player || player.isBot) return null;
+  if (!usesLedger(room) || !player || player.isBot) return null;
   if (!Array.isArray(room.moneyLedger)) room.moneyLedger = [];
   let entry = room.moneyLedger.find((item) => item.playerId === player.id);
   if (!entry) {
@@ -33,11 +37,14 @@ function syncPlayerToMoneyLedger(room: Room, player: Player): LedgerEntry | null
   entry.name = player.name;
   entry.buyInsCents = Math.max(entry.buyInsCents, player.buyInsCents || 0);
   entry.cashOutCents = Math.max(entry.cashOutCents, player.cashOutCents || 0);
+  if (player.finishPlace) {
+    entry.finishPlace = Math.max(1, Math.floor(Number(player.finishPlace) || 0));
+  }
   return entry;
 }
 
 function addMoneyBuyIn(room: Room, player: Player, cents: number): void {
-  if (!room?.moneyMode || !player) return;
+  if (!usesLedger(room) || !player) return;
   const entry = syncPlayerToMoneyLedger(room, player);
   if (!entry) return;
   entry.buyInsCents += cents;
@@ -104,6 +111,39 @@ function settleMoneyGame(room: Room): void {
   room.settlements = optimizeSettlements(room.moneyLedger || []);
 }
 
+/** Assign remaining places, pay top-N from the buy-in pool, build settlements. */
+function settleTournamentGame(room: Room): void {
+  if (!room.tournamentMode) return;
+  if (api.isHandInProgress(room)) {
+    for (const player of room.players) {
+      if (player.invested > 0) {
+        player.stack += player.invested;
+        player.invested = 0;
+        player.bet = 0;
+      }
+    }
+  }
+  api.assignRemainingTournamentPlaces(room);
+  for (const player of room.players) {
+    if (!player.isBot) syncPlayerToMoneyLedger(room, player);
+  }
+  const ledger = room.moneyLedger || [];
+  const fieldSize = Math.max(ledger.length, room.players.filter((player) => !player.isBot).length);
+  const prizePoolCents = ledger.reduce((sum, entry) => sum + Math.max(0, entry.buyInsCents || 0), 0);
+  const splits = api.tournamentPayoutSplits(fieldSize);
+  for (const entry of ledger) {
+    const player = room.players.find((item) => item.id === entry.playerId);
+    const place = player?.finishPlace || entry.finishPlace || null;
+    if (place) entry.finishPlace = place;
+    entry.cashOutCents = api.tournamentCashOutForPlace(place, prizePoolCents, splits);
+    if (player) player.cashOutCents = entry.cashOutCents;
+  }
+  room.settlements = optimizeSettlements(ledger);
+  room.status = "complete";
+  room.phase = "gameover";
+  room.turn = null;
+}
+
 function cashInPlayer(
   room: Room,
   playerId: string,
@@ -167,6 +207,16 @@ function cashOutPlayer(room: Room, playerId: string): { ok: boolean; error?: str
 
 function moneyTermsForRoom(room: Room): MoneyTerms {
   const blinds = api.currentBlinds(room);
+  // Tournament: confirm buy-in + opening chip blinds (not dollar blinds).
+  if (room.tournamentMode) {
+    return {
+      roomId: room.id,
+      buyInCents: room.buyInCents,
+      smallBlindCents: blinds.smallBlind,
+      bigBlindCents: blinds.bigBlind,
+      tournamentMode: true,
+    };
+  }
   return {
     roomId: room.id,
     buyInCents: room.buyInCents,
@@ -190,10 +240,12 @@ Object.assign(api, {
   chipValueCents,
   centsToChips,
   chipsToCents,
+  usesLedger,
   syncPlayerToMoneyLedger,
   addMoneyBuyIn,
   optimizeSettlements,
   settleMoneyGame,
+  settleTournamentGame,
   cashInPlayer,
   playerCanCashIn,
   cashOutPlayer,
@@ -206,10 +258,12 @@ export = {
   chipValueCents,
   centsToChips,
   chipsToCents,
+  usesLedger,
   syncPlayerToMoneyLedger,
   addMoneyBuyIn,
   optimizeSettlements,
   settleMoneyGame,
+  settleTournamentGame,
   cashInPlayer,
   playerCanCashIn,
   cashOutPlayer,

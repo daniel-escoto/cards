@@ -62,7 +62,8 @@ function scheduleTournamentLevelTimer(room: Room): void {
     return;
   }
   // Clock starts when the tournament deals hand 1 (or after restore mid-event).
-  if (room.handNumber < 1) {
+  // Stop once the event is over so eliminated/spectator views show "—" not a stale countdown.
+  if (room.handNumber < 1 || room.phase === "gameover") {
     clearTournamentLevelTimer(room);
     room.tournamentLevelEndsAt = null;
     return;

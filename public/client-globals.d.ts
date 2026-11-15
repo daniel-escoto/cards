@@ -999,6 +999,7 @@ declare global {
   function levelSecondsRemaining(room?: ClientRoom | null): number;
   function renderLevelClock(room?: ClientRoom | null): void;
   function syncLevelCountdown(): void;
+  function formatFinishPlace(place: number | null | undefined): string;
   function setTableMode(mode: string, focusRoom?: boolean): void;
   function isSpectatorView(room?: ClientRoom | null): boolean;
   function showToast(message: string): void;

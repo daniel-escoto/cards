@@ -2,7 +2,7 @@
 
 Grounded in today’s holdem.nyc: private Socket.IO rooms, shared engine (`shared/create-holdem-engine.ts`), money ledger (`server/money/ledger.ts`), ready-up + shot clock, bots, `MAX_PLAYERS = 9`, `STARTING_STACK = 1000`, Redis/file room persistence.
 
-**Phases 1–2 (this PR):** `tournamentMode` create/serialize, host lobby toggle, timed blind levels (server timer → next deal), level clock UI.
+**Phases 1–4:** `tournamentMode`, timed levels, elimination/places, buy-in ledger + settle-up.
 
 ## Goal
 
@@ -25,11 +25,11 @@ Cash rooms keep **fixed** blinds. Chip rooms already bump blinds by **hand count
 
 ## Elimination & places
 
-*(Phase 3.)* Bust when stack hits 0 after a hand settles. Record finish place; last standing = 1st; room → `gameover`. Disconnect / sit-out: keep today’s grace; blinding off while out.
+Bust when stack hits 0 after a hand settles. Record finish place; last standing = 1st; room → `gameover`. Disconnect / sit-out: keep today’s grace; blinding off while out.
 
 ## Payouts
 
-*(Phase 4.)* Prize pool from tournament buy-ins on a ledger shaped like `moneyLedger`. Default: **top ~15% paid** with classic splits:
+Prize pool from tournament buy-ins on a ledger shaped like `moneyLedger`. Default: **top ~15% paid** with classic splits:
 
 - 2–4 players → top 1 (100%)
 - 5–7 → top 2 (65/35)
@@ -66,11 +66,11 @@ On finish, write `cashOutCents` and run `optimizeSettlements` so settle-up works
 
 ## Phased PRs
 
-1. **Types + room flag** — `tournamentMode` on create/serialize; cash paths ignore it. ✅ (this PR)
-2. **Timed blind levels** — schedule, server timer, next-deal apply; level clock UI. ✅ (this PR)
-3. **Elimination + places** — bust → place; tournament end; results chrome.
-4. **Ledger payouts** — buy-in collection, top-N splits, settlements + settle-up.
-5. **Polish** — late-reg/rebuy hooks (still default off), more baselines, disconnect edges.
+1. **Types + room flag** — `tournamentMode` on create/serialize; cash paths ignore it. ✅
+2. **Timed blind levels** — schedule, server timer, next-deal apply; level clock UI. ✅
+3. **Elimination + places** — bust → place; tournament end; results chrome. ✅
+4. **Ledger payouts** — buy-in collection, top-N splits, settlements + settle-up. ✅
+5. **Polish** — late-reg is closed at hand 1; rebuys still off; more baselines as needed.
 
 ## Decisions for Daniel — approved
 

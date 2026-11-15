@@ -90,9 +90,11 @@
     buyInCents?: unknown;
     smallBlindCents?: unknown;
     bigBlindCents?: unknown;
+    tournamentMode?: unknown;
   } | null | undefined) {
     if (!terms) return "";
     const buyIn = formatMoneyCompact(terms.buyInCents);
+    if (terms.tournamentMode) return `${buyIn} buy-in · tournament`;
     const sb = formatMoneyCompact(terms.smallBlindCents);
     const bb = formatMoneyCompact(terms.bigBlindCents);
     return `${buyIn} buy-in · ${sb}/${bb} blinds`;

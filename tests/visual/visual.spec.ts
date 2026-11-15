@@ -317,6 +317,30 @@ for (const theme of THEMES) {
         await shot(page.locator("#tableView .hand-row"), `${theme}-${vp.name}-tournament-level-clock`);
       });
 
+      test(`tournament-eliminated`, async ({ page }) => {
+        await openOfflineTable(page);
+        await forceTableState(page, "tournament-eliminated");
+        await page.waitForFunction(() =>
+          Boolean(document.querySelector("#turnInfo")?.textContent?.includes("eliminated")),
+        );
+        // Mid-event: level clock must show a live countdown (not "—").
+        await page.waitForFunction(() => {
+          const clock = document.querySelector("#levelClockValue");
+          const text = clock?.textContent?.trim() || "";
+          return Boolean(text) && text !== "—" && text !== "Soon";
+        });
+        await stabilize(page);
+        await shot(page.locator("#tableView .control-panel"), `${theme}-${vp.name}-tournament-eliminated`);
+      });
+
+      test(`tournament-results`, async ({ page }) => {
+        await openOfflineTable(page);
+        await forceTableState(page, "tournament-results");
+        await page.waitForSelector("#scoreView:not(.hidden)");
+        await stabilize(page);
+        await shot(page.locator("#scoreView .score-panel").first(), `${theme}-${vp.name}-tournament-results`);
+      });
+
       test(`hand-review-retry`, async ({ page }) => {
         await openOfflineTable(page);
         await forceTableState(page, "lobby-waiting");

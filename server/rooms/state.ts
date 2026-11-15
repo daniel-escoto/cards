@@ -113,6 +113,9 @@ function serializePlayerForStorage(player: Player): StoredPlayer {
     replacedReconnectTokenHash: player.replacedReconnectTokenHash || null,
     buyInsCents: Math.max(0, Math.floor(Number(player.buyInsCents) || 0)),
     cashOutCents: Math.max(0, Math.floor(Number(player.cashOutCents) || 0)),
+    ...(player.finishPlace
+      ? { finishPlace: Math.max(1, Math.floor(Number(player.finishPlace) || 0)) }
+      : {}),
     preflopShoveStreak: Math.max(0, Math.floor(Number(player.preflopShoveStreak) || 0)),
     botProfile: player.isBot ? player.botProfile || null : null,
   } as StoredPlayer;
@@ -307,7 +310,11 @@ function clearRoomDormancy(room: Room | null | undefined) {
 }
 
 function isSettledMoneyRoom(room: Room) {
-  return Boolean(room?.moneyMode && room.phase === "gameover" && !(room.players || []).length);
+  return Boolean(
+    (room?.moneyMode || room?.tournamentMode) &&
+      room.phase === "gameover" &&
+      !(room.players || []).length,
+  );
 }
 
 function roomCleanupTtlMs(room: Room) {
@@ -339,11 +346,12 @@ function scheduleDormantRoomCleanup(room: Room) {
 }
 
 function preserveSettledMoneyRoom(room: Room) {
-  if (!room?.moneyMode) return;
+  if (!room?.moneyMode && !room?.tournamentMode) return;
   api.clearComputerTurn(room);
   clearTimer(room.showdownTimer);
   api.clearTurnTimer(room);
   api.clearReadyTimer(room);
+  api.clearTournamentLevelTimer(room);
   clearSpectators(room);
   room.botTimer = null;
   room.showdownTimer = null;
@@ -363,7 +371,9 @@ function preserveSettledMoneyRoom(room: Room) {
   room.status = "complete";
   room.phase = "gameover";
   room.settlements = api.optimizeSettlements(room.moneyLedger || []);
-  room.message = "Money game ended. Reopen this room code to view settle-up.";
+  room.message = room.tournamentMode
+    ? "Tournament ended. Reopen this room code to view settle-up."
+    : "Money game ended. Reopen this room code to view settle-up.";
   clearRoomDormancy(room);
   scheduleDormantRoomCleanup(room);
 }
@@ -394,6 +404,9 @@ function restorePlayer(raw: StoredPlayer | Record<string, unknown>): Player {
     replacedReconnectTokenHash: data.replacedReconnectTokenHash || null,
     buyInsCents: Math.max(0, Math.floor(Number(data.buyInsCents) || 0)),
     cashOutCents: Math.max(0, Math.floor(Number(data.cashOutCents) || 0)),
+    finishPlace: data.finishPlace
+      ? Math.max(1, Math.floor(Number(data.finishPlace) || 0))
+      : null,
     preflopShoveStreak: Math.max(0, Math.floor(Number(data.preflopShoveStreak) || 0)),
     // Legacy rooms have no tag → computerProfile falls back to the seat-number style.
     botProfile: data.isBot && typeof data.botProfile === "string" ? data.botProfile : null,
@@ -496,7 +509,7 @@ function restoreRoom(raw: StoredRoom | Record<string, unknown>): Room | null {
 
   for (const player of room.players) {
     if (player.isBot) player.name = api.computerName(player);
-    if (room.moneyMode) api.syncPlayerToMoneyLedger(room, player);
+    if (room.moneyMode || room.tournamentMode) api.syncPlayerToMoneyLedger(room, player);
   }
 
   dedupePlayersById(room);
@@ -512,7 +525,10 @@ function restoreRoom(raw: StoredRoom | Record<string, unknown>): Room | null {
   }
 
   if (!room.players.length) {
-    if (room.moneyMode && ((room.moneyLedger?.length ?? 0) > 0 || room.phase === "gameover")) {
+    if (
+      (room.moneyMode || room.tournamentMode) &&
+      ((room.moneyLedger?.length ?? 0) > 0 || room.phase === "gameover")
+    ) {
       room.status = "complete";
       room.phase = "gameover";
       room.hostId = null;
@@ -788,8 +804,9 @@ function makeRoom(hostId: string, hostName: string, socketId: string, tableSize 
         replacedPlayerName: null,
         replacedPlayerColor: null,
         replacedReconnectTokenHash: null,
-        buyInsCents: moneyMode ? buyInCents : 0,
+        buyInsCents: moneyMode || tournamentMode ? buyInCents : 0,
         cashOutCents: 0,
+        finishPlace: null,
         preflopShoveStreak: 0,
         disconnectExpiresAt: null,
         disconnectTimer: null,
@@ -797,7 +814,7 @@ function makeRoom(hostId: string, hostName: string, socketId: string, tableSize 
     ],
   };
   api.rooms.set(id, room);
-  if (moneyMode) api.syncPlayerToMoneyLedger(room, room.players[0]);
+  if (moneyMode || tournamentMode) api.syncPlayerToMoneyLedger(room, room.players[0]);
   usage.logRoomCreated(room, hostName, moneyMode);
   usage.logPlayerJoined(room, room.players[0], 0);
   return room;
@@ -824,11 +841,15 @@ function makeHumanPlayer(room: Room, { id, socketId, name, reconnectTokenHash }:
   const player = api.makePlayer({ id, socketId, name });
   player.reconnectTokenHash = reconnectTokenHash || null;
   player.color = api.defaultPlayerColor(room);
+  player.finishPlace = null;
   if (room.moneyMode) {
     player.stack = api.centsToChips(room, room.buyInCents);
     api.addMoneyBuyIn(room, player, room.buyInCents);
     // Keep late arrivals out of every betting and payout calculation until the next deal.
     player.folded = api.isHandInProgress(room);
+  } else if (room.tournamentMode) {
+    player.stack = api.STARTING_STACK;
+    api.addMoneyBuyIn(room, player, room.buyInCents);
   }
   return player;
 }
@@ -1004,6 +1025,7 @@ function convertHumanToBot(room: Room, player: Player) {
 function endGame(room: Room) {
   api.clearTurnTimer(room);
   api.clearReadyTimer(room);
+  api.clearTournamentLevelTimer(room);
   if (room.moneyMode) {
     api.settleMoneyGame(room);
     api.resetHandState(room);
@@ -1012,6 +1034,14 @@ function endGame(room: Room) {
     room.turn = null;
     room.actionLog = [];
     room.message = "Money game ended. Settle up from the final screen.";
+    return;
+  }
+
+  if (room.tournamentMode) {
+    api.settleTournamentGame(room);
+    api.resetHandState(room);
+    room.actionLog = [];
+    room.message = "Tournament ended. Settle up from the final screen.";
     return;
   }
 
@@ -1141,13 +1171,17 @@ function serializeRoom(room: Room, viewerId: string) {
     buyInCents: room.buyInCents,
     chipValueCents: api.chipValueCents(room),
     settlements: room.settlements || [],
-    ledger: room.moneyMode
-      ? (room.moneyLedger || []).map((entry) => ({
-          ...entry,
-          netCents: entry.cashOutCents - entry.buyInsCents,
-          isYou: entry.playerId === viewerId,
-          color: room.players.find((player) => player.id === entry.playerId)?.color || null,
-        }))
+    ledger: room.moneyMode || room.tournamentMode
+      ? (room.moneyLedger || []).map((entry) => {
+          const seat = room.players.find((player) => player.id === entry.playerId);
+          return {
+            ...entry,
+            finishPlace: seat?.finishPlace || entry.finishPlace || null,
+            netCents: entry.cashOutCents - entry.buyInsCents,
+            isYou: entry.playerId === viewerId,
+            color: seat?.color || null,
+          };
+        })
       : [],
     turn: room.turn,
     isYourTurn: Boolean(viewer) && room.turn === viewerId,
@@ -1210,8 +1244,15 @@ function serializeRoom(room: Room, viewerId: string) {
       room.players.length < api.MAX_PLAYERS,
     bustedOut: api.humansBustedOut(room),
     canRebuy: Boolean(
-      viewer && !viewer.isBot && viewer.stack <= 0 && api.humansBustedOut(room),
+      viewer &&
+        !viewer.isBot &&
+        !room.tournamentMode &&
+        viewer.stack <= 0 &&
+        api.humansBustedOut(room),
     ),
+    placesRemaining: room.tournamentMode
+      ? api.playersWithChips(room).length
+      : null,
     rabbitHuntEnabled: api.rabbitHuntEnabled(room),
     canChangeRabbitHunt: Boolean(viewer) && room.hostId === viewerId,
     canRabbitHunt: Boolean(viewer) && api.canRabbitHunt(room),
@@ -1231,6 +1272,7 @@ function serializeRoom(room: Room, viewerId: string) {
       stackCents: api.chipsToCents(room, player.stack),
       buyInsCents: player.buyInsCents || 0,
       cashOutCents: player.cashOutCents || 0,
+      finishPlace: player.finishPlace || null,
       netCents:
         (player.cashOutCents || 0) +
         api.chipsToCents(room, player.stack) -
@@ -1275,7 +1317,21 @@ function scheduleShowdown(room: Room) {
   }, revealDelay);
 }
 
+function ensureTournamentSettled(room: Room) {
+  if (!room?.tournamentMode || room.phase !== "gameover") return;
+  // Places recorded by the engine; pay the pool once settlements are still empty.
+  if ((room.settlements || []).length > 0) return;
+  const ledger = room.moneyLedger || [];
+  const paid = ledger.some((entry) => (entry.cashOutCents || 0) > 0);
+  if (paid) {
+    room.settlements = api.optimizeSettlements(ledger);
+    return;
+  }
+  api.settleTournamentGame(room);
+}
+
 function emitRoom(room: Room) {
+  ensureTournamentSettled(room);
   // Bot game (one human + CPU players) → timers Off unless the host set them.
   api.syncTimerDefaults(room);
   // Arm absolute clocks before serialize so clients receive turnEndsAt / readyEndsAt.
@@ -1349,6 +1405,11 @@ function removePlayerAfterDisconnect(room: Room, player: Player) {
     }
     api.syncPlayerToMoneyLedger(room, player);
     room.settlements = api.optimizeSettlements(room.moneyLedger || []);
+  } else if (room.tournamentMode && !player.finishPlace) {
+    // Leaving mid-event = eliminate at the current field size (including this seat).
+    player.finishPlace = api.playersWithChips(room).length;
+    player.stack = 0;
+    api.syncPlayerToMoneyLedger(room, player);
   }
   if (!(room.moneyMode && isLastPlayer)) {
     room.deadPot += player.invested;
@@ -1359,7 +1420,7 @@ function removePlayerAfterDisconnect(room: Room, player: Player) {
   room.players.splice(index, 1);
   usage.logPlayerLeft(room, player.name, { kind: "human" });
   if (room.players.length === 0) {
-    if (room.moneyMode) {
+    if (room.moneyMode || room.tournamentMode) {
       preserveSettledMoneyRoom(room);
       return;
     }
@@ -1388,6 +1449,15 @@ function removePlayerAfterDisconnect(room: Room, player: Player) {
     api.maybeAdvance(room);
   } else {
     tryStartReadyHand(room);
+  }
+  if (
+    room.tournamentMode &&
+    room.phase !== "gameover" &&
+    room.handNumber > 0 &&
+    api.playersWithChips(room).length <= 1
+  ) {
+    room.phase = "complete";
+    api.recordTournamentEliminations(room);
   }
   emitRoom(room);
 }
@@ -1465,6 +1535,12 @@ function leaveCurrentRoom(socket: { id: string }, { removeAfterGrace = true, all
 function kickPlayerFromRoom(room: Room, playerId: string) {
   const index = api.playerIndex(room, playerId);
   if (index < 0) return null;
+  const player = room.players[index];
+  if (room.tournamentMode && !player.finishPlace) {
+    player.finishPlace = api.playersWithChips(room).length;
+    player.stack = 0;
+    api.syncPlayerToMoneyLedger(room, player);
+  }
   const [removed] = room.players.splice(index, 1);
   if (room.moneyMode) {
     removed.cashOutCents = (removed.cashOutCents || 0) + api.chipsToCents(room, removed.stack);
