@@ -7,7 +7,7 @@ Read this before any UI change. Prefer shared helpers in `public/ui.ts` and shar
 - **Never more than 2 buttons in a row.** Extra secondary actions go in `.action-links` as small text links (`text-action-link` / `textActionLinkHtml`).
 - **One clear primary button** per row (default `<button>` with no variant class).
 - **Trainer / Hand Review controls** must match the live game table (same classes, labels, key badges, Fold/Confirm patterns).
-- **Fold is red** — use the `danger` variant.
+- **Fold is red** — use the `danger` variant. Quiet destructive (Leave, Check/Fold unarmed) uses `--btn-danger-outline-*` tokens via `danger-outline` / `leave-game-btn` (secondary surface fill, AA danger text, subtle danger ring) — never a pale pink slab.
 - **Key badges** use the same markup everywhere: `setButtonLabel` / `keyBadgeHtml` (`<span>` + optional `<kbd>` + `has-shortcut`).
 
 ## Icons & copy

@@ -29,6 +29,11 @@
   --surface: rgba(22, 29, 33, 0.92);
   --surface-border: var(--line);
   --surface-shadow: var(--shadow-panel);
+  /* Quiet destructive (leave-game / Check/Fold unarmed): secondary surface + AA danger ink. */
+  --btn-danger-outline-fg: #f28b84;
+  --btn-danger-outline-bg: var(--color-raw-7);
+  --btn-danger-outline-bg-hover: var(--color-raw-5);
+  --btn-danger-outline-ring: color-mix(in srgb, var(--btn-danger-outline-fg) 45%, var(--line));
   /* Trainer chart (dark): muted green raise vs low-contrast neutral fold, AA text. */
   --trainer-raise: #4caf82;
   --trainer-chart-raise-bg: #1f4d3c;
@@ -275,6 +280,9 @@
   --toast-text: #ffffff;
   --surface: rgba(255, 255, 255, 0.94);
   --surface-shadow: var(--shadow-panel-light);
+  --btn-danger-outline-fg: #a83630;
+  --btn-danger-outline-bg: var(--color-raw-9);
+  --btn-danger-outline-bg-hover: var(--color-raw-10);
   --trainer-raise: #2f8f6a;
   --trainer-chart-raise-bg: #c8e6d7;
   --trainer-chart-raise-fg: #123528;

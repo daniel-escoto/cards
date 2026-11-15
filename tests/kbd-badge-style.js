@@ -11,7 +11,7 @@ const css = fs.readFileSync(path.join(__dirname, "../public/styles.css"), "utf8"
 
 assert.match(
   css,
-  /\.game-buttons > button\.has-shortcut:not\(\.secondary\):not\(\.ghost\) > kbd[\s\S]*?border-color:\s*var\(--color-raw-93\)[\s\S]*?color:\s*var\(--color-raw-90\)[\s\S]*?background:\s*var\(--color-raw-52\)/,
+  /\.game-buttons > button\.has-shortcut:not\(\.secondary\):not\(\.ghost\):not\(\.danger-outline\) > kbd[\s\S]*?border-color:\s*var\(--color-raw-93\)[\s\S]*?color:\s*var\(--color-raw-90\)[\s\S]*?background:\s*var\(--color-raw-52\)/,
 );
 assert.doesNotMatch(
   css,
@@ -22,6 +22,11 @@ assert.match(
   css,
   /\.game-buttons > button\.has-shortcut\.secondary > kbd[\s\S]*?color:\s*var\(--muted\)/,
   "secondary badges stay muted token style",
+);
+assert.match(
+  css,
+  /\.game-buttons > button\.has-shortcut\.danger-outline > kbd[\s\S]*?color:\s*var\(--muted\)/,
+  "danger-outline badges stay muted token style",
 );
 
 console.log("Kbd badge style checks passed.");
