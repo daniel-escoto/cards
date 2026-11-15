@@ -198,6 +198,18 @@ function player(id, overrides = {}) {
     html,
     /id="menuPlayers"[\s\S]*?id="shareGameBtn"[\s\S]*?id="copyForAiBtn"[\s\S]*?id="openSettingsBtn"/,
   );
+  const bootSrc = fs.readFileSync(path.join(__dirname, "../public/app-boot.ts"), "utf8");
+  assert.match(
+    bootSrc,
+    /function syncCopyForAiBtn\(\)[\s\S]*?classList\.toggle\("hidden", !offline\)/,
+    "menu row hidden unless offline",
+  );
+  const eventsSrc = fs.readFileSync(path.join(__dirname, "../public/app-events.ts"), "utf8");
+  assert.match(
+    eventsSrc,
+    /copyForAiBtn\?\.addEventListener\("click"[\s\S]*?!isOfflineSession\(\)/,
+    "click / shortcut path no-ops online",
+  );
 }
 
 console.log("Copy for AI checks passed.");
