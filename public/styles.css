@@ -1215,11 +1215,27 @@ button.text-action-link:disabled {
   background: color-mix(in srgb, var(--danger) 88%, var(--color-black));
 }
 
-/* Check/Fold armed: pressed/selected language shared with appearance choices. */
+/*
+ * Check/Fold off-turn: unarmed = quiet danger (secondary + leave-game-btn token recipe,
+ * outline via inset shadow so size matches solid Fold). Armed = full solid Fold danger.
+ */
+.game-buttons > button.danger.secondary {
+  /* border:0 overrides light-theme .secondary 1px border — outline is inset shadow. */
+  border: 0;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 7%, var(--color-white));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 42%, var(--line));
+}
+
+.game-buttons > button.danger.secondary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--danger) 14%, var(--color-white));
+}
+
 .game-buttons > button.danger.selected,
-.game-buttons > button.danger[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--danger) 72%, var(--color-black));
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-white) 55%, transparent);
+.game-buttons > button.danger[aria-pressed="true"]:not(.secondary) {
+  color: var(--color-white);
+  background: color-mix(in srgb, var(--danger) 88%, var(--color-black));
+  box-shadow: none;
 }
 
 .game-buttons > button.danger > span {

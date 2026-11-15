@@ -1761,7 +1761,7 @@ function addActionButton(label: string, payload: Record<string, unknown>, classN
 
 /**
  * Off-turn Fold slot: enabled Check/Fold toggle. Arm/disarm with click or the Fold key.
- * Uses danger + aria-pressed (same pressed/selected language as appearance choices).
+ * Unarmed = danger + secondary (quiet red outline); armed = solid danger Fold (+ selected).
  */
 function addCheckFoldToggleButton() {
   if (!state) return;
@@ -1769,23 +1769,26 @@ function addCheckFoldToggleButton() {
     typeof CheckFold !== "undefined" && CheckFold.LABEL ? CheckFold.LABEL : "Check/Fold";
   const shortcut = keybindLabel(keybinds.fold);
   const armed = Boolean(checkFoldSession?.armed);
+  const className = armed ? "selected" : "secondary";
   const button =
     typeof HoldemUI !== "undefined" && HoldemUI.createButton
       ? HoldemUI.createButton({
           label,
           variant: "danger",
+          className,
           shortcut,
           onClick: () => toggleCheckFoldArmed(),
         })
       : document.createElement("button");
   if (!(typeof HoldemUI !== "undefined" && HoldemUI.createButton)) {
     button.type = "button";
-    button.className = "danger";
+    button.className = `danger ${className}`.trim();
     setButtonLabel(button, label, shortcut);
     button.addEventListener("click", () => toggleCheckFoldArmed());
   }
   button.setAttribute("aria-pressed", armed ? "true" : "false");
   button.classList.toggle("selected", armed);
+  button.classList.toggle("secondary", !armed);
   button.disabled = false;
   button.setAttribute("aria-disabled", "false");
   button.tabIndex = 0;
