@@ -1323,6 +1323,11 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
     renderBustPanel(room);
     return;
   }
+  // Money mode: busted / zero-stack seat gets a primary Buy in CTA in the action row.
+  if (shouldOfferMoneyBuyIn(room, hero)) {
+    renderMoneyBuyInCta(room);
+    return;
+  }
   if (hero?.sittingOut && (!isBettingPhase(room.phase) || !hero.cards.length)) {
     turnInfo.textContent = "Sitting out";
     addButton("Sit back in", "game:sitOut", "", "", { sittingOut: false });
@@ -1408,6 +1413,38 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
       : "Check or bet";
   turnInfo.classList.add("your-turn");
   renderHeroActionControls(hero!, false);
+}
+
+/** Money table: seated hero with no chips who may cash in for the next deal. */
+function shouldOfferMoneyBuyIn(
+  room: ClientRoom,
+  hero: ClientPlayer | null | undefined,
+): boolean {
+  if (!room.moneyMode || !hero || hero.isBot) return false;
+  if (hero.stack > 0) return false;
+  if (typeof room.canCashIn === "boolean") return room.canCashIn;
+  return typeof heroCanCashIn === "function" ? heroCanCashIn() : true;
+}
+
+function renderMoneyBuyInCta(room: ClientRoom) {
+  setBetControlsReserved(true);
+  const buyInCents = Math.max(0, Math.round(Number(room.buyInCents) || 0));
+  const amount =
+    typeof formatMoneyCompact === "function"
+      ? formatMoneyCompact(buyInCents)
+      : formatMoney(buyInCents);
+  const label = `Buy in · ${amount}`;
+  const button = document.createElement("button");
+  setButtonLabel(button, label);
+  const allowed = shouldOfferMoneyBuyIn(room, activeHero());
+  button.disabled = !allowed;
+  button.setAttribute("aria-disabled", allowed ? "false" : "true");
+  button.tabIndex = allowed ? 0 : -1;
+  button.addEventListener("click", () => {
+    if (button.disabled) return;
+    emitWithAck("money:cashIn", { amountCents: buyInCents });
+  });
+  gameButtons.appendChild(button);
 }
 
 /** Every human is out of chips while CPUs play on: offer Rebuy / Restart instead of a dead table. */
@@ -1584,11 +1621,8 @@ function renderBetPresets(hero: ClientPlayer, disabled: boolean, canFullRaise = 
     button.tabIndex = disabled ? -1 : 0;
     button.addEventListener("click", () => {
       if (disabled) return;
+      // All in matches ½ pot / Pot: stage the amount; confirm button sends on a second tap.
       setRaiseState({ value: option.value });
-      // Tapping All in sends the all-in raise-to immediately on your turn.
-      if (option.allIn && state?.isYourTurn) {
-        emitWithAck("game:action", { type: "raise", raiseTo: allInTo });
-      }
     });
     betPresets.appendChild(button);
   });
@@ -1699,6 +1733,11 @@ function updateConfirmPassiveButton() {
     raiseState.value,
     Math.round(raiseState.value * (state?.chipValueCents || 0)),
   );
+  // Staged all-in (preset or + to max): confirm reads All in N — second tap / Enter sends.
+  if (raiseState.value >= raiseState.max) {
+    setButtonLabel(confirmActionBtn, `All in ${formatted}`, shortcut);
+    return;
+  }
   // Facing a bet: Raise {amount}; free check: Bet {amount}.
   const verb = state.toCall > 0 ? "Raise" : "Bet";
   setButtonLabel(confirmActionBtn, `${verb} ${formatted}`, shortcut);

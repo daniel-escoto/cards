@@ -827,11 +827,8 @@
           button.tabIndex = answered ? -1 : 0;
           button.addEventListener("click", () => {
             if (!spot || spot.kind !== "facing" || spot.answered) return;
+            // Stage all-in like ½ pot / Pot — confirm button sends on a second tap.
             spot.raiseTo = option.value;
-            if (option.allIn) {
-              answerFacing("raise");
-              return;
-            }
             syncRaiseDisplay();
           });
           betPresetsEl!.appendChild(button);
@@ -843,6 +840,10 @@
         if (!confirmBtn || !spot || spot.kind !== "facing" || spot.answered) return;
         if (atFacingCallDetent()) {
           setButtonLabel(confirmBtn, `Call ${spot.toCall}`, "C");
+          return;
+        }
+        if (spot.raiseTo >= spot.maxRaiseTo) {
+          setButtonLabel(confirmBtn, `All in ${spot.raiseTo}`, "C");
           return;
         }
         setButtonLabel(confirmBtn, `Raise ${spot.raiseTo}`, "C");

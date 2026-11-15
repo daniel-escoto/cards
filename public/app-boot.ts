@@ -261,7 +261,7 @@ var confirmActionBtn: HTMLButtonElement | null = null;
 var checkFoldSession =
   typeof CheckFold !== "undefined" && CheckFold.createSession
     ? CheckFold.createSession()
-    : { armed: false, armedToCall: 0, handNumber: null };
+    : { armed: false, armedToCall: 0, handNumber: null, readyToFire: true };
 var leavingEndedRoom = false;
 var menuTimer: ReturnType<typeof setInterval> | null = null;
 var lastAutoRejoinKey = "";
@@ -1028,6 +1028,7 @@ function showGameMenu() {
 
 function showWelcome(status = "") {
   disposePracticeSession();
+  if (typeof CheckFold !== "undefined" && CheckFold.disarm) CheckFold.disarm(checkFoldSession);
   document.querySelector("#trainerView")?.classList.add("hidden");
   state = null;
   watchOfferPending = false;
