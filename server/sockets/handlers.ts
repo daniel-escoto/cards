@@ -133,8 +133,8 @@ function registerSocketHandlers(): void {
           api.emitRoom(room);
           return;
         }
-        // Finished money sessions stay addressable by code so anyone can reopen settle-up.
-        if (room.moneyMode && room.phase === "gameover") {
+        // Finished money/tournament sessions stay addressable by code so anyone can reopen settle-up.
+        if ((room.moneyMode || room.tournamentMode) && room.phase === "gameover") {
           ack?.({ ok: true, roomId: room.id, settlementView: true });
           socket.emit("room:update", api.serializeRoom(room, playerId));
           return;
@@ -187,6 +187,13 @@ function registerSocketHandlers(): void {
         }
         if (room.phase === "gameover")
           return ack?.({ ok: false, error: "This session has ended." });
+        if (room.tournamentMode && room.handNumber >= 1) {
+          return ack?.({
+            ok: false,
+            error: "Late registration is closed.",
+            canWatch: true,
+          });
+        }
         if (!room.moneyMode && room.phase !== "lobby" && room.phase !== "complete") {
           return ack?.({
             ok: false,
@@ -194,7 +201,7 @@ function registerSocketHandlers(): void {
             canWatch: true,
           });
         }
-        if (room.moneyMode) {
+        if (room.moneyMode || room.tournamentMode) {
           const moneyTerms = api.moneyTermsForRoom(room);
           if (!api.moneyTermsAccepted(room, acceptedMoneyTerms)) {
             return ack?.({
@@ -419,7 +426,7 @@ function registerSocketHandlers(): void {
       if (!removed) return ack?.({ ok: false, error: "Player not found." });
       ack?.({ ok: true });
       if (room.players.length === 0) {
-        if (room.moneyMode) {
+        if (room.moneyMode || room.tournamentMode) {
           api.preserveSettledMoneyRoom(room);
           return;
         }
@@ -629,7 +636,7 @@ function registerSocketHandlers(): void {
         return ack?.({ ok: false, error: "Only the host can end the game." });
       if (!api.canAdministerGame(room))
         return ack?.({ ok: false, error: "Finish the current hand before ending the game." });
-      if (room.phase === "lobby" && !room.moneyMode)
+      if (room.phase === "lobby" && !room.moneyMode && !room.tournamentMode)
         return ack?.({ ok: false, error: "No game is in progress." });
       api.endGame(room);
       ack?.({ ok: true });

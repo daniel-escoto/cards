@@ -626,8 +626,113 @@ export function createHoldemEngine(Hand: HandConstructor) {
     return room.players.filter((player) => player.stack > 0);
   }
 
+  /** Approved payout table: top ~15% with 1/2/3-place splits by field size. */
+  function tournamentPayoutSplits(fieldSize: number): number[] {
+    const n = Math.max(0, Math.floor(Number(fieldSize) || 0));
+    if (n <= 0) return [];
+    if (n <= 4) return [1];
+    if (n <= 7) return [0.65, 0.35];
+    return [0.5, 0.3, 0.2];
+  }
+
+  function tournamentCashOutForPlace(
+    place: number | null | undefined,
+    prizePoolCents: number,
+    splits: number[],
+  ): number {
+    const placeNum = Math.floor(Number(place) || 0);
+    if (placeNum < 1 || placeNum > splits.length) return 0;
+    const pool = Math.max(0, Math.floor(Number(prizePoolCents) || 0));
+    const raw = splits.map((share) => Math.floor(pool * share));
+    // Give rounding remainder to 1st so the pool is fully paid out.
+    const paid = raw.reduce((sum, cents) => sum + cents, 0);
+    if (raw.length) raw[0] += Math.max(0, pool - paid);
+    return raw[placeNum - 1] || 0;
+  }
+
+  /**
+   * After a hand settles: assign finish places to newly busted seats.
+   * When one (or zero) stacks remain, crown 1st and mark gameover.
+   */
+  function recordTournamentEliminations(room: Room): boolean {
+    if (!room?.tournamentMode || room.phase !== "complete") return false;
+    const alive = playersWithChips(room);
+    const newlyBusted = room.players.filter(
+      (player) => player.stack <= 0 && !player.finishPlace,
+    );
+    // Same-hand busts: more invested → better place among the busted.
+    newlyBusted.sort(
+      (a, b) =>
+        (b.invested || 0) - (a.invested || 0) ||
+        String(a.name || "").localeCompare(String(b.name || "")),
+    );
+    // Best available place among this bust batch = alive + 1.
+    let nextPlace = alive.length + 1;
+    const eliminatedNames: string[] = [];
+    for (const player of newlyBusted) {
+      player.finishPlace = nextPlace;
+      eliminatedNames.push(`${player.name} · ${ordinalPlace(nextPlace)}`);
+      nextPlace += 1;
+    }
+    if (eliminatedNames.length === 1) {
+      room.message = `${eliminatedNames[0]} eliminated.`;
+    } else if (eliminatedNames.length > 1) {
+      room.message = `Eliminated: ${eliminatedNames.join(", ")}.`;
+    }
+    if (alive.length > 1) return false;
+    if (alive.length === 1) {
+      alive[0].finishPlace = 1;
+      room.message = `${alive[0].name} wins the tournament.`;
+    } else if (!room.message) {
+      room.message = "Tournament over.";
+    }
+    room.status = "complete";
+    room.phase = "gameover";
+    room.turn = null;
+    return true;
+  }
+
+  function ordinalPlace(place: number): string {
+    const n = Math.floor(Number(place) || 0);
+    const mod100 = n % 100;
+    if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+    switch (n % 10) {
+      case 1:
+        return `${n}st`;
+      case 2:
+        return `${n}nd`;
+      case 3:
+        return `${n}rd`;
+      default:
+        return `${n}th`;
+    }
+  }
+
+  /** Host ends early: place remaining seats by chip count (highest = best). */
+  function assignRemainingTournamentPlaces(room: Room): void {
+    if (!room?.tournamentMode) return;
+    const unplaced = room.players.filter((player) => !player.finishPlace);
+    if (!unplaced.length) return;
+    unplaced.sort(
+      (a, b) =>
+        (b.stack || 0) - (a.stack || 0) ||
+        String(a.name || "").localeCompare(String(b.name || "")),
+    );
+    const taken = new Set(
+      room.players.map((player) => player.finishPlace).filter((place): place is number => Boolean(place)),
+    );
+    let place = 1;
+    for (const player of unplaced) {
+      while (taken.has(place)) place += 1;
+      player.finishPlace = place;
+      taken.add(place);
+      place += 1;
+    }
+  }
+
   function maybeEndGame(room: Room): boolean {
     if (room.moneyMode) return false;
+    if (room.tournamentMode) return recordTournamentEliminations(room);
     const remaining = playersWithChips(room);
     if (remaining.length >= 2 || room.phase !== "complete") return false;
     room.status = "complete";
@@ -643,7 +748,7 @@ export function createHoldemEngine(Hand: HandConstructor) {
    * (One CPU left is already a normal game over via maybeEndGame.)
    */
   function humansBustedOut(room: Room): boolean {
-    if (room.moneyMode || !canReadyForHand(room)) return false;
+    if (room.moneyMode || room.tournamentMode || !canReadyForHand(room)) return false;
     const humans = room.players.filter((player) => !player.isBot);
     if (!humans.length || humans.some((player) => player.stack > 0)) return false;
     return room.players.filter((player) => player.isBot && player.stack > 0).length >= 2;
@@ -1942,6 +2047,7 @@ export function createHoldemEngine(Hand: HandConstructor) {
         room.tournamentLevelDurationMs,
         TOURNAMENT_LEVEL_DURATION_MS,
       ),
+      placesRemaining: room.tournamentMode ? playersWithChips(room).length : null,
       buyInCents: room.buyInCents || 0,
       chipValueCents: chipValueCents(room),
       settlements: room.settlements || [],
@@ -2008,6 +2114,7 @@ export function createHoldemEngine(Hand: HandConstructor) {
         stackCents: chipsToCents(room, player.stack),
         buyInsCents: player.buyInsCents || 0,
         cashOutCents: player.cashOutCents || 0,
+        finishPlace: player.finishPlace || null,
         netCents:
           (player.cashOutCents || 0) + chipsToCents(room, player.stack) - (player.buyInsCents || 0),
         bet: player.bet,
@@ -2406,6 +2513,11 @@ export function createHoldemEngine(Hand: HandConstructor) {
     tournamentBlindSchedule,
     tournamentLevel,
     applyTournamentLevelOnDeal,
+    tournamentPayoutSplits,
+    tournamentCashOutForPlace,
+    recordTournamentEliminations,
+    assignRemainingTournamentPlaces,
+    ordinalPlace,
     currentBlinds,
     makeDeck,
     publicCard,

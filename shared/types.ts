@@ -53,9 +53,11 @@ export interface LedgerEntry {
   name: string;
   buyInsCents: number;
   cashOutCents: number;
+  /** Tournament finish place (copied from the seat when eliminated). */
+  finishPlace?: number | null;
 }
 
-/** Client-facing ledger row from `serializeRoom` (moneyMode only; else `[]`). */
+/** Client-facing ledger row from `serializeRoom` (money/tournament; else `[]`). */
 export interface ClientLedgerEntry extends LedgerEntry {
   netCents: number;
   isYou: boolean;
@@ -75,6 +77,8 @@ export interface MoneyTerms {
   buyInCents: number;
   smallBlindCents: number;
   bigBlindCents: number;
+  /** Present on tournament rooms so join copy can skip dollar blinds. */
+  tournamentMode?: boolean;
 }
 
 export interface WinnerSummary {
@@ -124,6 +128,8 @@ export interface Player {
   replacedReconnectTokenHash?: string | null;
   buyInsCents?: number;
   cashOutCents?: number;
+  /** Tournament finish place (1 = winner). Null/absent while still alive. */
+  finishPlace?: number | null;
   preflopShoveStreak?: number;
   disconnectExpiresAt?: number | null;
   disconnectTimer?: TimerHandle;
@@ -161,6 +167,7 @@ export interface StoredPlayer {
   replacedReconnectTokenHash: string | null;
   buyInsCents: number;
   cashOutCents: number;
+  finishPlace?: number | null;
   preflopShoveStreak: number;
   /** Absent in rooms saved by older builds → legacy seat-number personality. */
   botProfile?: string | null;
@@ -175,6 +182,7 @@ export interface ClientPlayer {
   buyInsCents: number;
   cashOutCents: number;
   netCents: number;
+  finishPlace: number | null;
   bet: number;
   betCents: number;
   invested: number;
@@ -414,6 +422,8 @@ export interface ClientRoom {
   bustedOut: boolean;
   /** Viewer is a busted human who can top back up and keep playing. */
   canRebuy: boolean;
+  /** Tournament: players still with chips (null when not a tournament). */
+  placesRemaining: number | null;
   /** Room setting: "Show rest of board" after a fold-win (default on). */
   rabbitHuntEnabled: boolean;
   canChangeRabbitHunt: boolean;

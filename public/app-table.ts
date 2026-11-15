@@ -1324,6 +1324,11 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
     renderBustPanel(room);
     return;
   }
+  if (room.tournamentMode && hero?.finishPlace) {
+    turnInfo.textContent = `${formatFinishPlace(hero.finishPlace)} · eliminated`;
+    turnInfo.classList.add("bust-message");
+    return;
+  }
   // Money mode: busted / zero-stack seat gets a primary Buy in CTA in the action row.
   if (shouldOfferMoneyBuyIn(room, hero)) {
     renderMoneyBuyInCta(room);
@@ -1392,8 +1397,12 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
         room.players.filter((player) => player.stack > 0 && !player.sittingOut).length < 2
           ? "Need two players to start"
           : `${readyCount} of ${humans.length} ready`;
+      const placesLeft =
+        room.tournamentMode && room.placesRemaining != null
+          ? ` · ${room.placesRemaining} left`
+          : "";
       // No ready-up number here or on the button: the seat progress bar is the countdown.
-      turnInfo.textContent = readyStatus;
+      turnInfo.textContent = `${readyStatus}${placesLeft}`;
       return;
     }
     const currentIndex = findLastIndex(room.players, (player) => player.id === room.turn);

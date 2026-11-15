@@ -573,7 +573,7 @@ function updateTableActionLabel() {
   blindFields?.classList.toggle("hidden", isJoining || tournamentMode);
   moneyModeLabel?.classList.toggle("hidden", isJoining);
   tournamentModeLabel?.classList.toggle("hidden", isJoining);
-  buyInLabel.classList.toggle("hidden", isJoining || !moneyMode || tournamentMode);
+  buyInLabel.classList.toggle("hidden", isJoining || (!moneyMode && !tournamentMode));
   roomCodeLabel.classList.toggle("hidden", !isJoining);
   hostModeBtn.classList.toggle("selected", !isJoining);
   joinModeBtn.classList.toggle("selected", isJoining);
@@ -748,6 +748,8 @@ function hideGameMenu() {
 }
 
 function playerIsOut(player: ClientPlayer) {
+  // Tournament eliminations stay visible with their finish place until settle-up.
+  if (state?.tournamentMode && player.finishPlace) return false;
   const betweenHands = ["lobby", "complete", "gameover"].includes(state?.phase || "");
   return player.stack <= 0 && (betweenHands || player.invested <= 0);
 }
@@ -758,8 +760,26 @@ function seatedPlayers(players: ClientPlayer[] | null | undefined = state?.playe
   return (players || []).filter((player) => !playerIsOut(player));
 }
 
+function formatFinishPlace(place: number | null | undefined) {
+  const n = Math.floor(Number(place) || 0);
+  if (n < 1) return "";
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
+
 function roundStatus(player: ClientPlayer) {
   if (!state) return "";
+  if (player.finishPlace) return formatFinishPlace(player.finishPlace);
   if (player.sittingOut)
     return player.cards.length && isBettingPhase(state.phase) ? "Sits out next" : "Sitting out";
 
@@ -1081,10 +1101,23 @@ function showWelcome(status = "") {
 }
 
 function showScoreScreen(room: ClientRoom) {
-  const standings = room.moneyMode
-    ? [...(room.ledger || [])].sort(
-        (a, b) => b.netCents - a.netCents || a.name.localeCompare(b.name),
-      )
+  const tournament = Boolean(room.tournamentMode);
+  const settleMode = Boolean(room.moneyMode || tournament);
+  const standings = settleMode
+    ? [...(room.ledger || [])].sort((a, b) => {
+        const placeA = Number(
+          room.players.find((player) => player.id === a.playerId)?.finishPlace ||
+            (a as { finishPlace?: number }).finishPlace ||
+            999,
+        );
+        const placeB = Number(
+          room.players.find((player) => player.id === b.playerId)?.finishPlace ||
+            (b as { finishPlace?: number }).finishPlace ||
+            999,
+        );
+        if (tournament && placeA !== placeB) return placeA - placeB;
+        return b.netCents - a.netCents || a.name.localeCompare(b.name);
+      })
     : [...room.players].sort((a, b) => b.stack - a.stack || a.name.localeCompare(b.name));
   state = null;
   lastActionEntryId = "";
@@ -1096,27 +1129,38 @@ function showScoreScreen(room: ClientRoom) {
   scoreView.classList.remove("hidden");
   const scoreHead = scoreView.querySelector(".score-head");
   if (scoreHead) {
-    scoreHead.innerHTML = room.moneyMode
-      ? `<p class="eyebrow">Room ${escapeHtml(room.id)} · reopen anytime with this code</p><h2>Settle up</h2>`
+    scoreHead.innerHTML = settleMode
+      ? `<p class="eyebrow">Room ${escapeHtml(room.id)} · reopen anytime with this code</p><h2>${
+          tournament ? "Results" : "Settle up"
+        }</h2>`
       : `<p class="eyebrow">Final standings</p><h2>Game over</h2>`;
   }
   scoreList.innerHTML =
     standings
       .map((player, index) => {
         const colorPlayer = player as ClientPlayer;
-        const netOrStack = room.moneyMode
+        const place =
+          tournament
+            ? Number(
+                room.players.find((seat) => seat.id === (player as { playerId?: string }).playerId)
+                  ?.finishPlace ||
+                  (player as { finishPlace?: number }).finishPlace ||
+                  index + 1,
+              )
+            : index + 1;
+        const netOrStack = settleMode
           ? formatSignedMoney((player as { netCents: number }).netCents)
           : (player as ClientPlayer).stack;
         return `
     <div class="score-row ${player.isYou ? "you" : ""}" ${playerColorStyle(colorPlayer)}>
-      <span class="score-rank">${index + 1}</span>
+      <span class="score-rank">${place}</span>
       <span class="score-name">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span>
       <strong>${netOrStack}</strong>
     </div>
   `;
       })
       .join("") +
-    (room.moneyMode
+    (settleMode
       ? `
     <div class="settlement-list">
       <p class="eyebrow">Who owes whom</p>
@@ -1137,7 +1181,7 @@ function showScoreScreen(room: ClientRoom) {
     </div>
   `
       : "");
-  if (room.moneyMode && room.id) setRoomUrl(room.id);
+  if (settleMode && room.id) setRoomUrl(room.id);
   else clearRoomUrl();
 }
 

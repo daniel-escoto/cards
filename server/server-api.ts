@@ -46,6 +46,11 @@ export type ServerEngineApi = Pick<
   | "tournamentBlindSchedule"
   | "tournamentLevel"
   | "applyTournamentLevelOnDeal"
+  | "tournamentPayoutSplits"
+  | "tournamentCashOutForPlace"
+  | "recordTournamentEliminations"
+  | "assignRemainingTournamentPlaces"
+  | "ordinalPlace"
   | "currentBlinds"
   | "publicCard"
   | "cleanName"
@@ -190,6 +195,8 @@ export interface ServerApi extends ServerEngineApi {
   addMoneyBuyIn: (room: Room, player: Player, cents: number) => void;
   optimizeSettlements: (entries: LedgerEntry[]) => Settlement[];
   settleMoneyGame: (room: Room) => void;
+  settleTournamentGame: (room: Room) => void;
+  usesLedger: (room: Room | null | undefined) => boolean;
   cashInPlayer: (
     room: Room,
     playerId: string,
