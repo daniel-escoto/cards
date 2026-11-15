@@ -167,6 +167,7 @@ async function main() {
 
       const boxes = await page.evaluate(
         ({ decision: dec }) => {
+          /* eslint-disable no-undef -- Playwright page.evaluate browser context */
           const panelBox = () => {
             const el = document.querySelector(".control-panel");
             const r = el.getBoundingClientRect();
@@ -456,6 +457,7 @@ async function main() {
             navBottom: nav?.getBoundingClientRect().bottom ?? 0,
             closeInHandRow: Boolean(document.querySelector("#handReviewCloseBtn")?.closest(".hand-row")),
           };
+          /* eslint-enable no-undef */
         },
         { decision },
       );
