@@ -1007,6 +1007,15 @@ function copyForAiFeatureAvailable(room: ClientRoom | null | undefined = state) 
 
 function syncCopyForAiBtn() {
   if (!copyForAiBtn) return;
+  // Offline-only menu row (Practice / local table). Absent for the whole online session.
+  const offline = isOfflineSession();
+  copyForAiBtn.classList.toggle("hidden", !offline);
+  if (!offline) {
+    copyForAiBtn.disabled = true;
+    copyForAiBtn.title = "";
+    copyForAiBtn.setAttribute("aria-disabled", "true");
+    return;
+  }
   const allowed = copyForAiFeatureAvailable();
   copyForAiBtn.disabled = !allowed;
   copyForAiBtn.title = allowed ? "Copy a plain-text hand prompt" : "Available after the hand";

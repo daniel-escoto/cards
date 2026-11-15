@@ -248,7 +248,8 @@ document.addEventListener(
   { passive: true },
 );
 copyForAiBtn?.addEventListener("click", async () => {
-  if (!state || copyForAiBtn.disabled) return;
+  // Online rooms never expose Copy for AI (including bot-only + spectator).
+  if (!state || !isOfflineSession() || copyForAiBtn.disabled) return;
   if (typeof CopyForAi === "undefined" || !CopyForAi.buildCopyForAiPrompt) {
     showToast("Copy for AI unavailable");
     return;
