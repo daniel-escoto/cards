@@ -325,9 +325,11 @@ declare global {
 
   interface CheckFoldSession {
     armed: boolean;
-    /** toCall stored when the hero armed; disarm if live toCall rises above this. */
+    /** Last toCall seen while armed (updated on fire); not used to auto-disarm. */
     armedToCall: number;
     handNumber: number | null;
+    /** Prevents double-send on the same turn; resets when off-turn again. */
+    readyToFire: boolean;
   }
 
   interface CheckFoldAPI {
@@ -348,6 +350,7 @@ declare global {
         allIn?: unknown;
         sittingOut?: unknown;
         cards?: unknown;
+        stack?: unknown;
       } | null;
     }): boolean;
     sync(
@@ -362,6 +365,7 @@ declare global {
           allIn?: unknown;
           sittingOut?: unknown;
           cards?: unknown;
+          stack?: unknown;
         } | null;
       },
     ): { type: "check" | "fold" } | null;

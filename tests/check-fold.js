@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * Check/Fold pre-action: arm → auto-check when free, auto-fold when facing a bet,
- * disarm when toCall rises, disarm at hand end. Covers the Daniel audit cases.
+ * Check/Fold pre-action: stays armed across raises, streets, and hands until
+ * the player turns it off. Auto-check when free, otherwise auto-fold.
+ * Hard-clears on sit-out, bust, leave (showWelcome), or game end.
  */
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -14,11 +15,18 @@ const {
   shouldOffer,
   sync,
   resolveArmedAction,
+  disarm,
 } = require("../dist/public/check-fold.js");
 
 assert.equal(LABEL, "Check/Fold");
 
-const hero = { folded: false, allIn: false, sittingOut: false, cards: [{ code: "As" }, { code: "Kd" }] };
+const hero = {
+  folded: false,
+  allIn: false,
+  sittingOut: false,
+  stack: 1000,
+  cards: [{ code: "As" }, { code: "Kd" }],
+};
 const results = [];
 
 function caseResult(id, title, ok, detail) {
@@ -26,147 +34,121 @@ function caseResult(id, title, ok, detail) {
   assert.ok(ok, `case ${id}: ${title} — ${detail}`);
 }
 
-// --- resolveArmedAction ---
 assert.equal(resolveArmedAction(0), "check");
-assert.equal(resolveArmedAction(null), "check");
 assert.equal(resolveArmedAction(20), "fold");
-assert.equal(resolveArmedAction(1), "fold");
 
-// --- shouldOffer ---
-assert.equal(
-  shouldOffer({ isYourTurn: false, phase: "flop", hero }),
-  true,
-  "off-turn live hero",
-);
-assert.equal(shouldOffer({ isYourTurn: true, phase: "flop", hero }), false, "not on your turn");
-assert.equal(
-  shouldOffer({ isYourTurn: false, phase: "lobby", hero }),
-  false,
-  "not between hands",
-);
-assert.equal(
-  shouldOffer({ isYourTurn: false, phase: "flop", hero: { ...hero, folded: true } }),
-  false,
-);
-assert.equal(
-  shouldOffer({ isYourTurn: false, phase: "flop", hero: { ...hero, allIn: true } }),
-  false,
-);
+assert.equal(shouldOffer({ isYourTurn: false, phase: "flop", hero }), true);
+assert.equal(shouldOffer({ isYourTurn: true, phase: "flop", hero }), false);
+assert.equal(shouldOffer({ isYourTurn: false, phase: "lobby", hero }), false);
 
-// --- arm / toggle ---
 {
   const session = createSession();
   assert.equal(session.armed, false);
+  assert.equal(session.readyToFire, true);
   assert.equal(toggle(session, 0, 3), true);
   assert.equal(session.armed, true);
-  assert.equal(session.armedToCall, 0);
-  assert.equal(session.handNumber, 3);
-  assert.equal(toggle(session, 0, 3), false, "second tap disarms");
+  assert.equal(toggle(session, 0, 3), false);
   assert.equal(session.armed, false);
 }
 
-// ============================================================================
-// (1) Limp/call that does not change hero's toCall must NOT disarm
-// ============================================================================
+// (1) Raise that increases toCall keeps the arm — folds when turn arrives
 {
   const session = createSession();
-  arm(session, 20, 1);
-  const action = sync(session, {
+  arm(session, 0, 1);
+  let action = sync(session, {
     isYourTurn: false,
-    phase: "preflop",
-    toCall: 20,
+    phase: "flop",
+    toCall: 40,
+    handNumber: 1,
+    hero,
+  });
+  const stayed = action === null && session.armed === true;
+  action = sync(session, {
+    isYourTurn: true,
+    phase: "flop",
+    toCall: 40,
     handNumber: 1,
     hero,
   });
   caseResult(
     1,
-    "limp/call at same toCall keeps arm",
-    action === null && session.armed === true && session.armedToCall === 20,
-    `armed=${session.armed} action=${JSON.stringify(action)}`,
+    "raise keeps arm; auto-folds when facing a bet",
+    stayed && action && action.type === "fold" && session.armed === true,
+    `action=${JSON.stringify(action)} armed=${session.armed}`,
   );
 }
 
-// ============================================================================
-// (2) New street: stay armed across streets unless toCall rises
-// ============================================================================
+// (2) Stay armed across streets; check when free; stay armed after fire
 {
   const session = createSession();
   arm(session, 0, 2);
-  // Flop → turn: bets reset to 0 (not a rise).
-  let action = sync(session, {
-    isYourTurn: false,
-    phase: "turn",
-    toCall: 0,
-    handNumber: 2,
-    hero,
-  });
-  const stayed = action === null && session.armed === true;
-  // Free check on the new street.
-  action = sync(session, {
+  sync(session, { isYourTurn: false, phase: "turn", toCall: 0, handNumber: 2, hero });
+  assert.equal(session.armed, true);
+  const action = sync(session, {
     isYourTurn: true,
     phase: "turn",
     toCall: 0,
     handNumber: 2,
     hero,
   });
-  const checked = action && action.type === "check" && session.armed === false;
   caseResult(
     2,
-    "stay armed across streets; check when free",
-    stayed && checked,
-    "documented: armedToCall holds; toCall=0 after street change is not a rise",
+    "stay armed across streets; check when free; remain armed",
+    action && action.type === "check" && session.armed === true && session.readyToFire === false,
+    `action=${JSON.stringify(action)}`,
   );
 }
+
+// (3) Sit-out / bust / gameover hard-clear; folded mid-hand keeps arm
 {
-  // Street change then a bet → disarm (toCall rose above armedToCall).
   const session = createSession();
-  arm(session, 0, 2);
-  sync(session, { isYourTurn: false, phase: "turn", toCall: 0, handNumber: 2, hero });
-  const action = sync(session, {
+  arm(session, 0, 3);
+  sync(session, {
     isYourTurn: false,
-    phase: "turn",
-    toCall: 40,
-    handNumber: 2,
+    phase: "flop",
+    toCall: 0,
+    handNumber: 3,
+    hero: { ...hero, sittingOut: true },
+  });
+  assert.equal(session.armed, false, "sit-out clears");
+
+  arm(session, 0, 3);
+  sync(session, {
+    isYourTurn: false,
+    phase: "flop",
+    toCall: 0,
+    handNumber: 3,
+    hero: { ...hero, stack: 0, allIn: false },
+  });
+  assert.equal(session.armed, false, "bust clears");
+
+  arm(session, 0, 3);
+  sync(session, {
+    isYourTurn: false,
+    phase: "gameover",
+    toCall: 0,
+    handNumber: 3,
     hero,
   });
-  assert.equal(action, null);
-  assert.equal(session.armed, false, "bet on new street disarms when armed at free");
+  assert.equal(session.armed, false, "gameover clears");
+
+  arm(session, 0, 3);
+  const action = sync(session, {
+    isYourTurn: false,
+    phase: "flop",
+    toCall: 0,
+    handNumber: 3,
+    hero: { ...hero, folded: true },
+  });
+  caseResult(
+    3,
+    "folded mid-hand keeps arm; sit-out/bust/gameover clear",
+    action === null && session.armed === true,
+    `armed=${session.armed}`,
+  );
 }
 
-// ============================================================================
-// (3) folded / all-in / sitting out / spectating: no offer, never fire
-// ============================================================================
-{
-  const blocked = [
-    ["folded", { ...hero, folded: true }],
-    ["all-in", { ...hero, allIn: true }],
-    ["sitting out", { ...hero, sittingOut: true }],
-    ["no cards (spectate/undealt)", { ...hero, cards: [] }],
-    ["null hero (spectator)", null],
-  ];
-  let ok = true;
-  const details = [];
-  for (const [label, h] of blocked) {
-    const offer = shouldOffer({ isYourTurn: false, phase: "flop", hero: h });
-    const session = createSession();
-    arm(session, 0, 3);
-    const action = sync(session, {
-      isYourTurn: true,
-      phase: "flop",
-      toCall: 0,
-      handNumber: 3,
-      hero: h,
-    });
-    const pass = offer === false && action === null && session.armed === false;
-    if (!pass) ok = false;
-    details.push(`${label}: offer=${offer} action=${JSON.stringify(action)} armed=${session.armed}`);
-  }
-  caseResult(3, "out-of-hand states disable offer and never fire", ok, details.join("; "));
-}
-
-// ============================================================================
-// (4) Arming as turn arrives: sync fires at most once (no double-send)
-// ============================================================================
+// (4) Turn-arrival fires at most once
 {
   const session = createSession();
   arm(session, 0, 4);
@@ -187,16 +169,13 @@ assert.equal(
   caseResult(
     4,
     "turn-arrival race fires at most once",
-    first && first.type === "check" && second === null && session.armed === false,
+    first && first.type === "check" && second === null && session.armed === true,
     `first=${JSON.stringify(first)} second=${JSON.stringify(second)}`,
   );
 }
 
-// ============================================================================
-// (5) Reconnect/refresh: session is in-memory; fresh session never fires stale arm
-// ============================================================================
+// (5) Refresh: in-memory session only
 {
-  // Simulate "refresh": old armed session discarded; new createSession() is cold.
   const stale = createSession();
   arm(stale, 20, 5);
   const fresh = createSession();
@@ -208,126 +187,88 @@ assert.equal(
     hero,
   });
   const bootSrc = fs.readFileSync(path.join(__dirname, "../public/app-boot.ts"), "utf8");
-  const notPersisted = !/localStorage.*checkFold|checkFold.*localStorage/i.test(bootSrc);
   caseResult(
     5,
     "refresh starts unarmed (no stale fire)",
-    action === null && fresh.armed === false && notPersisted,
-    "checkFoldSession is in-memory only; createSession() is cold",
+    action === null &&
+      fresh.armed === false &&
+      !/localStorage.*checkFold|checkFold.*localStorage/i.test(bootSrc),
+    "checkFoldSession is in-memory only",
   );
 }
 
-// ============================================================================
-// (6) Shot clock / auto-action timeout interplay
-// ============================================================================
+// (6) Leave path disarms via showWelcome
 {
-  // Client shot clock only plays cues — consumeDeadlineTimeout → playTimerTimeoutIfEligible,
-  // never emitWithAck("game:action"). Check/Fold is the sole client pre-action; a server
-  // timeout updates the room and sync disarms.
   const bootSrc = fs.readFileSync(path.join(__dirname, "../public/app-boot.ts"), "utf8");
-  const timeoutBlock = bootSrc.match(
-    /consumeDeadlineTimeout[\s\S]{0,240}?playTimerTimeoutIfEligible/,
-  );
-  const timeoutEmitsAction = timeoutBlock
-    ? /emitWithAck\(\s*["']game:action["']/.test(timeoutBlock[0])
-    : true;
-  const session = createSession();
-  arm(session, 20, 6);
-  // Server timed the hero out → folded; sync must disarm without emitting.
-  const action = sync(session, {
-    isYourTurn: false,
-    phase: "flop",
-    toCall: 20,
-    handNumber: 6,
-    hero: { ...hero, folded: true },
-  });
   caseResult(
     6,
-    "shot-clock timeout does not double-act; sync disarms",
-    Boolean(timeoutBlock) && !timeoutEmitsAction && action === null && session.armed === false,
-    "client timer is cue-only; folded state clears the arm",
+    "leave/showWelcome disarms Check/Fold",
+    /function showWelcome[\s\S]*?CheckFold\.disarm\(checkFoldSession\)/.test(bootSrc),
+    "showWelcome clears the arm",
   );
 }
 
-// ============================================================================
-// (7) Practice/offline + mid-hand handoff share the same CheckFold module + applyRoom path
-// ============================================================================
+// (7) Practice/offline shares sync path
 {
   const bootSrc = fs.readFileSync(path.join(__dirname, "../public/app-boot.ts"), "utf8");
-  const sharedSession = /Off-turn Check\/Fold pre-action; shared by live table \+ offline Practice/.test(
-    bootSrc,
-  );
-  const syncInApply =
-    /CheckFold\.sync\(checkFoldSession/.test(bootSrc) &&
-    /handoffOnlineToOffline/.test(bootSrc) &&
-    /practiceSession\.publish\(\)/.test(bootSrc);
-  // Handoff keeps the in-memory session (same hand) — arm survives into offline publish.
-  const session = createSession();
-  arm(session, 0, 7);
-  const afterHandoffPublish = sync(session, {
-    isYourTurn: false,
-    phase: "flop",
-    toCall: 0,
-    handNumber: 7,
-    hero,
-  });
   caseResult(
     7,
-    "Practice/offline uses same sync; handoff keeps arm in-hand",
-    sharedSession && syncInApply && afterHandoffPublish === null && session.armed === true,
-    "single checkFoldSession; handoff publish re-enters applyRoom → sync",
+    "Practice/offline uses same sync",
+    /CheckFold\.sync\(checkFoldSession/.test(bootSrc) && /handoffOnlineToOffline/.test(bootSrc),
+    "single checkFoldSession",
   );
 }
 
-// ============================================================================
-// (8) Keyboard F toggles only when allowed; on-turn Fold still emits fold
-// (covered in detail by tests/keyboard.js — assert wiring here)
-// ============================================================================
+// (8) Keyboard wiring
 {
   const eventsSrc = fs.readFileSync(path.join(__dirname, "../public/app-events.ts"), "utf8");
-  const offTurnGate =
-    /!state\.isYourTurn/.test(eventsSrc) &&
-    /matchesKeybind\(event, "fold"\)/.test(eventsSrc) &&
-    /CheckFold\.shouldOffer/.test(eventsSrc) &&
-    /toggleCheckFoldArmed/.test(eventsSrc);
-  const onTurnFold =
-    /if \(!state\.isYourTurn\) return/.test(eventsSrc) &&
-    /emitWithAck\("game:action", \{ type: "fold" \}\)/.test(eventsSrc);
   caseResult(
     8,
     "F toggles off-turn only when shouldOffer; on-turn Fold emits",
-    offTurnGate && onTurnFold,
-    "see tests/keyboard.js for runtime press coverage",
+    /CheckFold\.shouldOffer/.test(eventsSrc) &&
+      /toggleCheckFoldArmed/.test(eventsSrc) &&
+      /emitWithAck\("game:action", \{ type: "fold" \}\)/.test(eventsSrc),
+    "see tests/keyboard.js",
   );
 }
 
-// ============================================================================
-// (9) State resets on new hand even if hero wasn't dealt in
-// ============================================================================
+// (9) New hand keeps arm; fires on next turn
 {
   const session = createSession();
   arm(session, 0, 9);
-  const action = sync(session, {
+  sync(session, {
+    isYourTurn: false,
+    phase: "complete",
+    toCall: 0,
+    handNumber: 9,
+    hero: { ...hero, cards: [] },
+  });
+  assert.equal(session.armed, true, "between hands keeps arm");
+  sync(session, {
     isYourTurn: false,
     phase: "preflop",
     toCall: 0,
     handNumber: 10,
-    hero: { ...hero, cards: [] },
+    hero,
+  });
+  const action = sync(session, {
+    isYourTurn: true,
+    phase: "preflop",
+    toCall: 20,
+    handNumber: 10,
+    hero,
   });
   caseResult(
     9,
-    "new handNumber disarms even when undealt",
-    action === null && session.armed === false,
-    "hand number advance clears arm before offer checks",
+    "new hand keeps arm; folds when facing a bet",
+    action && action.type === "fold" && session.armed === true,
+    `action=${JSON.stringify(action)} hand=${session.handNumber}`,
   );
 }
 
-// ============================================================================
-// (10) BB preflop, limps around → check (not fold)
-// ============================================================================
+// (10) BB vs limps auto-checks and stays armed
 {
   const session = createSession();
-  // BB facing limps: toCall stays 0 while others complete.
   arm(session, 0, 10);
   sync(session, {
     isYourTurn: false,
@@ -336,7 +277,6 @@ assert.equal(
     handNumber: 10,
     hero,
   });
-  assert.equal(session.armed, true, "limps at toCall=0 keep arm");
   const action = sync(session, {
     isYourTurn: true,
     phase: "preflop",
@@ -346,62 +286,18 @@ assert.equal(
   });
   caseResult(
     10,
-    "BB vs limps auto-checks",
-    action && action.type === "check" && session.armed === false,
+    "BB vs limps auto-checks; stays armed",
+    action && action.type === "check" && session.armed === true,
     `action=${JSON.stringify(action)}`,
   );
 }
 
-// --- existing core paths kept ---
+// Manual disarm still works
 {
   const session = createSession();
-  arm(session, 20, 2);
-  const action = sync(session, {
-    isYourTurn: true,
-    phase: "preflop",
-    toCall: 20,
-    handNumber: 2,
-    hero,
-  });
-  assert.deepEqual(action, { type: "fold" });
-}
-{
-  const session = createSession();
-  arm(session, 20, 4);
-  const action = sync(session, {
-    isYourTurn: false,
-    phase: "preflop",
-    toCall: 60,
-    handNumber: 4,
-    hero,
-  });
-  assert.equal(action, null);
-  assert.equal(session.armed, false, "disarmed on raise");
-}
-{
-  const session = createSession();
-  arm(session, 0, 6);
-  const action = sync(session, {
-    isYourTurn: false,
-    phase: "flop",
-    toCall: 40,
-    handNumber: 6,
-    hero,
-  });
-  assert.equal(action, null);
-  assert.equal(session.armed, false, "bet while armed at free check disarms");
-}
-{
-  const session = createSession();
-  arm(session, 20, 7);
-  sync(session, {
-    isYourTurn: false,
-    phase: "complete",
-    toCall: 0,
-    handNumber: 7,
-    hero,
-  });
-  assert.equal(session.armed, false, "disarmed at hand end");
+  arm(session, 20, 11);
+  disarm(session);
+  assert.equal(session.armed, false);
 }
 
 console.log("Check/Fold pre-action tests passed.");

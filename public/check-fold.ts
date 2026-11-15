@@ -17,6 +17,7 @@
       armed: false,
       armedToCall: 0,
       handNumber: null,
+      readyToFire: true,
     };
   }
 
@@ -25,6 +26,7 @@
     session.armed = false;
     session.armedToCall = 0;
     session.handNumber = null;
+    session.readyToFire = true;
   }
 
   function arm(
@@ -37,6 +39,7 @@
     session.armedToCall = Math.max(0, Math.floor(Number(toCall) || 0));
     const hand = Number(handNumber);
     session.handNumber = Number.isFinite(hand) ? hand : null;
+    session.readyToFire = true;
   }
 
   function toggle(
@@ -69,6 +72,22 @@
     return true;
   }
 
+  /** Hard clear: sit-out, bust (no chips), or game over. Raises / streets / hands keep the arm. */
+  function shouldHardClear(
+    phase: unknown,
+    hero: {
+      sittingOut?: unknown;
+      allIn?: unknown;
+      stack?: unknown;
+    } | null | undefined,
+  ): boolean {
+    if (String(phase || "") === "gameover") return true;
+    if (hero?.sittingOut) return true;
+    const stack = Number(hero?.stack);
+    if (Number.isFinite(stack) && stack <= 0 && !hero?.allIn) return true;
+    return false;
+  }
+
   /**
    * Off-turn pre-action is offered while the hero is still live in a betting street.
    * Fold chrome stays mounted (as Check/Fold) — never unmount for layout stability.
@@ -82,10 +101,12 @@
       allIn?: unknown;
       sittingOut?: unknown;
       cards?: unknown;
+      stack?: unknown;
     } | null;
   }): boolean {
     if (options.isYourTurn) return false;
     if (!isBettingPhase(options.phase)) return false;
+    if (shouldHardClear(options.phase, options.hero)) return false;
     return heroLiveForPreAction(options.hero);
   }
 
@@ -93,17 +114,11 @@
    * Sync armed state against the latest room. Returns an action to fire through the
    * normal click path when the hero's turn arrives while still armed; otherwise null.
    *
-   * Disarm rules (deterministic):
-   * - hand over / hero out of the hand (fold, all-in, sit-out, empty cards, non-betting phase)
-   * - hand number changed (includes new hand even if hero was not dealt in)
-   * - toCall increased vs the amount stored when armed (bet/raise before hero acts)
+   * Persistence: stay armed across raises, streets, and hands until the player turns
+   * it off. Auto-check when free, otherwise auto-fold.
    *
-   * Street choice: stay armed across streets within the same hand. A new street resets
-   * bets to toCall=0; that is not a "rise", so the arm holds and auto-checks when free.
-   * A bet/raise that pushes toCall above armedToCall disarms (does not auto-fold).
-   *
-   * Session is in-memory only — reconnect/refresh starts unarmed (never fires stale).
-   * sync disarms before returning an action, so a turn-arrival race fires at most once.
+   * Hard clear only: sit-out, bust (stack ≤ 0), game over (leave clears via disarm).
+   * readyToFire prevents double-send on the same turn; resets when off-turn again.
    */
   function sync(
     session: CheckFoldSession | null | undefined,
@@ -117,44 +132,38 @@
         allIn?: unknown;
         sittingOut?: unknown;
         cards?: unknown;
+        stack?: unknown;
       } | null;
     },
   ): { type: "check" | "fold" } | null {
     if (!session || !session.armed) return null;
 
-    const hand = Number(options.handNumber);
-    if (
-      session.handNumber != null &&
-      Number.isFinite(hand) &&
-      hand !== session.handNumber
-    ) {
-      disarm(session);
-      return null;
-    }
-
-    if (!shouldOffer({ ...options, isYourTurn: false }) && !options.isYourTurn) {
-      disarm(session);
-      return null;
-    }
-
     const hero = options.hero;
-    if (!heroLiveForPreAction(hero) || !isBettingPhase(options.phase)) {
+    if (shouldHardClear(options.phase, hero)) {
       disarm(session);
       return null;
     }
+
+    const hand = Number(options.handNumber);
+    if (Number.isFinite(hand)) session.handNumber = hand;
+
+    // Between hands / folded / all-in / undealt: keep arm, re-arm fire for the next act.
+    if (!isBettingPhase(options.phase) || !heroLiveForPreAction(hero)) {
+      session.readyToFire = true;
+      return null;
+    }
+
+    if (!options.isYourTurn) {
+      session.readyToFire = true;
+      return null;
+    }
+
+    if (!session.readyToFire) return null;
 
     const toCall = Math.max(0, Math.floor(Number(options.toCall) || 0));
-    if (toCall > session.armedToCall) {
-      disarm(session);
-      return null;
-    }
-
-    if (!options.isYourTurn) return null;
-
-    // Disarm before returning so a second sync in the same turn cannot double-send.
-    const action = { type: toCall === 0 ? ("check" as const) : ("fold" as const) };
-    disarm(session);
-    return action;
+    session.readyToFire = false;
+    session.armedToCall = toCall;
+    return { type: toCall === 0 ? ("check" as const) : ("fold" as const) };
   }
 
   function resolveArmedAction(toCall: unknown): "check" | "fold" {
