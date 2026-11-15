@@ -1313,7 +1313,7 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
     }
     if (room.canTakeSeat) {
       const button = document.createElement("button");
-      button.textContent = "Take a seat";
+      button.textContent = moneyJoinButtonLabel(acceptedMoneyTerms);
       button.addEventListener("click", () => takeSeatFromSpectator());
       gameButtons.appendChild(button);
     }
@@ -2038,8 +2038,7 @@ function joinOrCreate(mode: string) {
       if (!response?.ok) {
         if (response && "moneyTerms" in response) {
           acceptedMoneyTerms = response.moneyTerms;
-          const terms = acceptedMoneyTerms;
-          joinPreview.textContent = `Money game · Buy-in ${formatMoney(terms.buyInCents)} · Blinds ${formatMoney(terms.smallBlindCents)}/${formatMoney(terms.bigBlindCents)}. You’ll play on the next deal. Payments happen separately after the game.`;
+          joinPreview.textContent = moneyJoinSummary(acceptedMoneyTerms);
           joinError.textContent = "";
           updateTableActionLabel();
           return;
@@ -2141,9 +2140,7 @@ function takeSeatFromSpectator() {
       if (!response?.ok) {
         if (response && "moneyTerms" in response) {
           acceptedMoneyTerms = response.moneyTerms;
-          showToast(
-            `Money game · Buy-in ${formatMoney(response.moneyTerms.buyInCents)}. Confirm to take a seat.`,
-          );
+          showToast(moneyJoinSummary(response.moneyTerms));
           if (state) renderControls(activeHero());
           return;
         }

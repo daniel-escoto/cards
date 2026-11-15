@@ -469,6 +469,18 @@ label {
   font-weight: 800;
   letter-spacing: 0.01em;
   box-shadow: 0 10px 28px color-mix(in srgb, var(--welcome-cta) 28%, transparent);
+  white-space: nowrap;
+}
+
+.welcome #joinPreview {
+  margin: 0;
+  color: var(--welcome-muted);
+  font-size: var(--font-size-13);
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .welcome .actions-row > #tableActionBtn:not(:disabled):hover {

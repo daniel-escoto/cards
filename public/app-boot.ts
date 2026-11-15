@@ -168,6 +168,9 @@ var {
   escapeRegExp,
   moneyCentsFromInput,
   formatMoney,
+  formatMoneyCompact,
+  moneyJoinSummary,
+  moneyJoinButtonLabel,
   formatSignedMoney,
   formatAmount,
   playerStackLabel,
@@ -549,9 +552,7 @@ function updateTableActionLabel() {
   const offlineHost = !isJoining && hostUsesOfflinePath();
   if (!joinPending) {
     tableActionBtn.textContent = isJoining
-      ? acceptedMoneyTerms
-        ? "Join table · Play next hand"
-        : "Join table"
+      ? moneyJoinButtonLabel(acceptedMoneyTerms)
       : "Host table";
   }
   joinPreview.classList.toggle("hidden", !isJoining || !acceptedMoneyTerms);
@@ -966,16 +967,17 @@ function syncCashInControls() {
   if (cashInInput) cashInInput.disabled = !allowed;
   if (cashInBtn) {
     cashInBtn.disabled = !allowed;
-    cashInBtn.title = allowed
-      ? "Add chips for the next hand"
-      : "Finish this hand before adding chips";
+    cashInBtn.title = allowed ? "Add chips" : "Finish this hand first";
   }
   if (moneyNote) {
-    moneyNote.textContent = allowed
-      ? ["preflop", "flop", "turn", "river", "showdown"].includes(state?.phase || "")
-        ? "Buy-in now for the next deal. Settle up after the game."
-        : "Settle up after the game."
-      : "Finish this hand before adding chips.";
+    // No settle-up / next-deal disclaimers — only a short block reason when cash-in is closed.
+    if (allowed) {
+      moneyNote.textContent = "";
+      moneyNote.classList.add("hidden");
+    } else {
+      moneyNote.textContent = "Finish this hand first.";
+      moneyNote.classList.remove("hidden");
+    }
   }
 }
 
