@@ -55,6 +55,7 @@ assert.equal(shouldOffer({ isYourTurn: false, phase: "lobby", hero }), false);
 {
   const session = createSession();
   arm(session, 0, 1);
+  // Opponent raise while still off-turn: must NOT disarm (legacy bug).
   let action = sync(session, {
     isYourTurn: false,
     phase: "flop",
@@ -63,6 +64,8 @@ assert.equal(shouldOffer({ isYourTurn: false, phase: "lobby", hero }), false);
     hero,
   });
   const stayed = action === null && session.armed === true;
+  assert.equal(session.armed, true, "raise must not disarm Check/Fold");
+  assert.equal(action, null, "raise off-turn must not auto-act yet");
   action = sync(session, {
     isYourTurn: true,
     phase: "flop",
@@ -76,6 +79,12 @@ assert.equal(shouldOffer({ isYourTurn: false, phase: "lobby", hero }), false);
     stayed && action && action.type === "fold" && session.armed === true,
     `action=${JSON.stringify(action)} armed=${session.armed}`,
   );
+}
+
+// Source must not reintroduce disarm-on-raise.
+{
+  const src = fs.readFileSync(path.join(__dirname, "../public/check-fold.ts"), "utf8");
+  assert.doesNotMatch(src, /toCall\s*>\s*session\.armedToCall/);
 }
 
 // (2) Stay armed across streets; check when free; stay armed after fire
