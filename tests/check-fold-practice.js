@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Check/Fold × offline Practice engine: armed stays through an opponent raise,
- * then folds on the hero's turn; also stays armed across a new street and hand.
+ * then folds on the hero's turn; stays armed across a street change; disarms
+ * when the next hand deals.
  */
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -123,7 +124,7 @@ function reachHeroAsBigBlind(practice) {
   }
 }
 
-// (2) armed across a new street and a new hand
+// (2) armed across a street change; disarmed when the next hand deals
 {
   const practice = createPracticeSession({
     name: "Hero",
@@ -178,15 +179,9 @@ function reachHeroAsBigBlind(practice) {
     room = practice.snapshot();
     assert.ok(room.handNumber > priorHand, "new hand started");
     const fired = syncFromRoom(session, room);
-    assert.equal(session.armed, true, "arm holds into the next hand");
-    if (room.isYourTurn && room.toCall > 0) {
-      assert.ok(fired && fired.type === "fold");
-    } else if (room.isYourTurn && room.toCall === 0) {
-      assert.ok(fired && fired.type === "check");
-    } else {
-      assert.equal(fired, null);
-    }
-    console.log("case 2: armed across street + new hand — OK");
+    assert.equal(session.armed, false, "new deal disarms Check/Fold");
+    assert.equal(fired, null, "disarmed session must not auto-act");
+    console.log("case 2: armed across street; disarmed on new hand — OK");
   } finally {
     practice.dispose();
   }

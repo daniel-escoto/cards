@@ -72,7 +72,7 @@
     return true;
   }
 
-  /** Hard clear: sit-out, bust (no chips), or game over. Raises / streets / hands keep the arm. */
+  /** Hard clear: sit-out, bust (no chips), or game over. Raises / streets keep the arm; a new hand clears it. */
   function shouldHardClear(
     phase: unknown,
     hero: {
@@ -114,10 +114,11 @@
    * Sync armed state against the latest room. Returns an action to fire through the
    * normal click path when the hero's turn arrives while still armed; otherwise null.
    *
-   * Persistence: stay armed across raises, streets, and hands until the player turns
-   * it off. Auto-check when free, otherwise auto-fold.
+   * Persistence: stay armed across raises and street changes within the same hand
+   * until the player turns it off (or a new hand deals). Auto-check when free,
+   * otherwise auto-fold. A new deal (handNumber change) disarms automatically.
    *
-   * Hard clear only: sit-out, bust (stack ≤ 0), game over (leave clears via disarm).
+   * Hard clear: sit-out, bust (stack ≤ 0), game over, new hand (leave clears via disarm).
    * readyToFire prevents double-send on the same turn; resets when off-turn again.
    */
   function sync(
@@ -145,7 +146,14 @@
     }
 
     const hand = Number(options.handNumber);
-    if (Number.isFinite(hand)) session.handNumber = hand;
+    if (Number.isFinite(hand)) {
+      // New deal within the same session: drop the arm (player must re-arm).
+      if (session.handNumber != null && hand !== session.handNumber) {
+        disarm(session);
+        return null;
+      }
+      session.handNumber = hand;
+    }
 
     // Between hands / folded / all-in / undealt: keep arm, re-arm fire for the next act.
     if (!isBettingPhase(options.phase) || !heroLiveForPreAction(hero)) {

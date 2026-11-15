@@ -285,6 +285,51 @@ for (const theme of THEMES) {
         );
       });
 
+      // Hand-end panel: offline Review hand vs online Show hand (same secondary slot).
+      // 375 only — side-by-side comparison for the shared Ready + secondary row.
+      if (vp.name === "375") {
+        test(`hand-end-offline`, async ({ page }) => {
+          await openOfflineTable(page);
+          await forceTableState(page, "hand-end-offline");
+          await page.waitForSelector("#tableView .control-panel.is-result", { timeout: 10000 });
+          await page.waitForFunction(() => {
+            const buttons = Array.from(
+              document.querySelectorAll<HTMLButtonElement>(
+                "#tableView .control-panel.is-result .game-buttons > button",
+              ),
+            );
+            return buttons.some((btn) => /Review hand/i.test(btn.textContent || ""));
+          });
+          await stabilize(page);
+          await shot(
+            page.locator("#tableView .control-panel"),
+            `${theme}-${vp.name}-hand-end-offline`,
+          );
+        });
+
+        test(`hand-end-online`, async ({ page }) => {
+          await openOfflineTable(page);
+          await forceTableState(page, "hand-end-online");
+          await page.waitForSelector("#tableView .control-panel.is-result", { timeout: 10000 });
+          await page.waitForFunction(() => {
+            const buttons = Array.from(
+              document.querySelectorAll<HTMLButtonElement>(
+                "#tableView .control-panel.is-result .game-buttons > button",
+              ),
+            );
+            return (
+              buttons.some((btn) => /Show hand/i.test(btn.textContent || "")) &&
+              buttons.every((btn) => !btn.classList.contains("text-action-link"))
+            );
+          });
+          await stabilize(page);
+          await shot(
+            page.locator("#tableView .control-panel"),
+            `${theme}-${vp.name}-hand-end-online`,
+          );
+        });
+      }
+
       test(`welcome`, async ({ page }) => {
         await gotoFresh(page, "/");
         await page.waitForSelector("#joinForm.join-panel, #welcome .join-panel");
