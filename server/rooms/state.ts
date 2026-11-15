@@ -1121,8 +1121,6 @@ function serializeRoom(room: Room, viewerId: string) {
     isSpectator,
     // Server-enforced: only seated humans at bot-only tables (never spectators / multi-human).
     coachAvailable: Boolean(viewer) && api.coachAvailableForViewer(room, viewerId),
-    // Bot-only: always. Spectators / multi-human: between hands only.
-    copyForAiAvailable: api.copyForAiAvailableForViewer(room, viewerId, isSpectator),
     watchingCount: watchingCount(room),
     canTakeSeat: isSpectator && canTakeSeatNow(room),
     canChangeBlinds: Boolean(viewer) && room.hostId === viewerId && api.canReadyForHand(room),

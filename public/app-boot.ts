@@ -54,7 +54,6 @@ var backToMenuBtn = document.querySelector("#backToMenuBtn") as HTMLButtonElemen
 var sitOutBtn = document.querySelector("#sitOutBtn") as HTMLButtonElement;
 /** Menu no longer lists Review — post-hand button + V shortcut only. */
 var handReviewBtn = document.querySelector("#handReviewBtn") as HTMLButtonElement | null;
-var copyForAiBtn = document.querySelector("#copyForAiBtn") as HTMLButtonElement;
 var handReviewChrome = document.querySelector("#handReviewChrome") as HTMLElement;
 var handReviewCloseBtn = document.querySelector("#handReviewCloseBtn") as HTMLButtonElement;
 var handReviewSummary = document.querySelector("#handReviewSummary") as HTMLElement;
@@ -996,32 +995,6 @@ function syncHandReviewBtn() {
   handReviewBtn.setAttribute("aria-disabled", "true");
 }
 
-function copyForAiFeatureAvailable(room: ClientRoom | null | undefined = state) {
-  if (!room) return false;
-  if (typeof CopyForAi !== "undefined" && CopyForAi.copyForAiAllowed) {
-    return CopyForAi.copyForAiAllowed(room);
-  }
-  if (typeof room.copyForAiAvailable === "boolean") return room.copyForAiAvailable;
-  return false;
-}
-
-function syncCopyForAiBtn() {
-  if (!copyForAiBtn) return;
-  // Offline-only menu row (Practice / local table). Absent for the whole online session.
-  const offline = isOfflineSession();
-  copyForAiBtn.classList.toggle("hidden", !offline);
-  if (!offline) {
-    copyForAiBtn.disabled = true;
-    copyForAiBtn.title = "";
-    copyForAiBtn.setAttribute("aria-disabled", "true");
-    return;
-  }
-  const allowed = copyForAiFeatureAvailable();
-  copyForAiBtn.disabled = !allowed;
-  copyForAiBtn.title = allowed ? "Copy a plain-text hand prompt" : "Available after the hand";
-  copyForAiBtn.setAttribute("aria-disabled", allowed ? "false" : "true");
-}
-
 function showGameMenu() {
   openPlayerSheetId = "";
   showMenuMainView();
@@ -1031,7 +1004,6 @@ function showGameMenu() {
   sitOutBtn.classList.toggle("hidden", !hero || isSpectatorView() || state?.phase === "gameover");
   if (hero) sitOutBtn.textContent = hero.sittingOut ? "Sit in" : "Sit out";
   syncHandReviewBtn();
-  syncCopyForAiBtn();
   moneyPanel.classList.toggle(
     "hidden",
     !state?.moneyMode || isSpectatorView() || isOfflineSession(),

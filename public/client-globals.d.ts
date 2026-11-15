@@ -92,11 +92,6 @@ declare global {
     resetReadiness(room: PracticeRoom): void;
     cleanName(name: unknown): string;
     coachAvailableForViewer?(room: PracticeRoom, viewerId: string): boolean;
-    copyForAiAvailableForViewer?(
-      room: PracticeRoom,
-      viewerId: string,
-      isSpectator?: boolean,
-    ): boolean;
     preflopHandScore?(cards: string[]): number;
     estimatePostflopEquity?(
       playerCards: string[],
@@ -231,19 +226,6 @@ declare global {
   }
 
   const Coach: CoachAPI;
-
-  interface CopyForAiAPI {
-    isBettingPhase(phase: string | null | undefined): boolean;
-    isBetweenHands(phase: string | null | undefined): boolean;
-    handIsOver(phase: string | null | undefined): boolean;
-    copyForAiAllowed(room: ClientRoom | null | undefined): boolean;
-    formatCardPlain(card: PublicCard | null | undefined): string | null;
-    visibleCardsPlain(cards: Array<PublicCard | null | undefined> | null | undefined): string[];
-    positionByPlayerId(players: ClientPlayer[]): Map<string, string>;
-    buildCopyForAiPrompt(room: ClientRoom | null | undefined): string;
-  }
-
-  const CopyForAi: CopyForAiAPI;
 
   interface DeployHandoffAPI {
     ACTIVE_HAND_PHASES: Set<string>;
@@ -722,7 +704,6 @@ declare global {
     VsOpenRanges?: VsOpenRangesAPI;
     PreflopTrainer?: PreflopTrainerAPI;
     Coach?: CoachAPI;
-    CopyForAi?: CopyForAiAPI;
     TableSounds?: TableSoundsConstructor;
     HoldemFormat?: HoldemFormatAPI;
     HoldemKeybinds?: HoldemKeybindsAPI;
@@ -810,7 +791,6 @@ declare global {
   var backToMenuBtn: HTMLButtonElement;
   var sitOutBtn: HTMLButtonElement;
   var handReviewBtn: HTMLButtonElement | null;
-  var copyForAiBtn: HTMLButtonElement;
   var handReviewChrome: HTMLElement;
   var handReviewCloseBtn: HTMLButtonElement;
   var handReviewSummary: HTMLElement;
@@ -1162,8 +1142,6 @@ declare global {
   function syncHandReviewNavButtons(): void;
   function submitHandReviewRetryAction(payload: Record<string, unknown>): void;
   function recordHandReviewRoom(room: ClientRoom): void;
-  function copyForAiFeatureAvailable(room?: ClientRoom | null): boolean;
-  function syncCopyForAiBtn(): void;
 
   interface HandReviewAPI {
     legalRaiseTo(

@@ -149,7 +149,6 @@ function render() {
     );
     if (menuHero) sitOutBtn.textContent = menuHero.sittingOut ? "Sit back in" : "Sit out";
     if (typeof syncHandReviewBtn === "function") syncHandReviewBtn();
-    if (typeof syncCopyForAiBtn === "function") syncCopyForAiBtn();
   }
   requestAnimationFrame(() => restoreActionFeedScroll(feedScroll));
 }

@@ -247,22 +247,6 @@ document.addEventListener(
   },
   { passive: true },
 );
-copyForAiBtn?.addEventListener("click", async () => {
-  // Online rooms never expose Copy for AI (including bot-only + spectator).
-  if (!state || !isOfflineSession() || copyForAiBtn.disabled) return;
-  if (typeof CopyForAi === "undefined" || !CopyForAi.buildCopyForAiPrompt) {
-    showToast("Copy for AI unavailable");
-    return;
-  }
-  if (!CopyForAi.copyForAiAllowed(state)) {
-    syncCopyForAiBtn();
-    showToast("Available after the hand");
-    return;
-  }
-  const prompt = CopyForAi.buildCopyForAiPrompt(state);
-  if (!prompt) return;
-  await copyText(prompt, copyForAiBtn);
-});
 openSettingsBtn.addEventListener("click", showMenuSettingsView);
 closeSettingsBtn.addEventListener("click", showMenuMainView);
 closeSettingsMenuBtn.addEventListener("click", hideGameMenu);
