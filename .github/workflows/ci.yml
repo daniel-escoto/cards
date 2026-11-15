@@ -24,6 +24,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
       - run: npm run build
       - run: npm run typecheck
       - run: npm run lint
@@ -43,6 +45,22 @@ jobs:
           done
           curl --fail --silent "$SMOKE_URL/" > /dev/null
           npm run smoke
+      - name: Visual + layout regression
+        env:
+          PORT: 4173
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
+          GAME_STATE_FILE: ${{ runner.temp }}/cards-visual-rooms.json
+        run: |
+          node dist/server.js > "$RUNNER_TEMP/cards-visual-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent "$PLAYWRIGHT_BASE_URL/" > /dev/null; then break; fi
+            sleep 1
+          done
+          npm run test:visual
       - name: Server log on failure
         if: failure()
-        run: cat "$RUNNER_TEMP/cards-server.log" 2>/dev/null || true
+        run: |
+          cat "$RUNNER_TEMP/cards-server.log" 2>/dev/null || true
+          cat "$RUNNER_TEMP/cards-visual-server.log" 2>/dev/null || true

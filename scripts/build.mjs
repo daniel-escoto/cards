@@ -136,7 +136,7 @@ await esbuild.build({
 
 copyFile(path.join(root, "shared/pokersolver.js"), path.join(dist, "shared/pokersolver.js"));
 
-const staticFiles = ["index.html", "styles.css", "icon.svg", "manifest.webmanifest"];
+const staticFiles = ["index.html", "styles.css", "tokens.css", "icon.svg", "manifest.webmanifest"];
 for (const name of staticFiles) {
   copyIfExists(path.join(root, "public", name), path.join(dist, "public", name));
 }

@@ -1,0 +1,317 @@
+/* Design tokens for holdem.nyc — colors, spacing, type, radius, shadows.
+ * Literal hex/rgb and spacing/font-size/radius px values belong HERE only.
+ * See DESIGN.md. Generated/maintained for zero visual change vs prior screenshots.
+ */
+
+:root {
+  color-scheme: dark;
+  --game-vh: 100dvh;
+  --viewport-height: 100dvh;
+  --bg: #090d10;
+  --panel: #161d21;
+  --panel-2: #202a2f;
+  --felt: #0f6b56;
+  --felt-dark: #0a4036;
+  --line: rgba(255, 255, 255, 0.13);
+  --text: #f3f5f1;
+  --muted: #aeb8b0;
+  --accent: #60a5fa;
+  --accent-hover: #83b9fb;
+  --danger: #ef6b63;
+  --black-card: #20262b;
+  --red-card: #b83d35;
+  --input-bg: rgba(7, 12, 14, 0.72);
+  --input-focus: #0b1114;
+  --overlay: rgba(3, 7, 9, 0.78);
+  --toast-bg: #f7f3e8;
+  --toast-text: #17120a;
+  --ui-font: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --surface: rgba(22, 29, 33, 0.92);
+  --surface-border: var(--line);
+  --surface-shadow: var(--shadow-panel);
+  /* Trainer chart (dark): muted green raise vs low-contrast neutral fold, AA text. */
+  --trainer-raise: #4caf82;
+  --trainer-chart-raise-bg: #1f4d3c;
+  --trainer-chart-raise-fg: #e4f5ec;
+  --trainer-chart-call-bg: #3a4550;
+  --trainer-chart-call-fg: #d7e0e6;
+  --trainer-chart-fold-bg: #1a2226;
+  --trainer-chart-fold-fg: #9aa6ab;
+  --trainer-chart-pair-raise-bg: #245744;
+  --trainer-chart-hand-ring: #d4b45a;
+  --trainer-chart-grid-gap: #0c1215;
+  font-family: var(--ui-font);
+  /* Spacing scale (padding / margin / gap). */
+  --space-1: 1px;
+  --space-2: 2px;
+  --space-3: 3px;
+  --space-4: 4px;
+  --space-5: 5px;
+  --space-6: 6px;
+  --space-7: 7px;
+  --space-8: 8px;
+  --space-9: 9px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-14: 14px;
+  --space-16: 16px;
+  --space-18: 18px;
+  --space-20: 20px;
+  --space-22: 22px;
+  --space-24: 24px;
+  --space-36: 36px;
+  /* Type scale. */
+  --font-size-6_5: 6.5px;
+  --font-size-7: 7px;
+  --font-size-9: 9px;
+  --font-size-10: 10px;
+  --font-size-11: 11px;
+  --font-size-12: 12px;
+  --font-size-13: 13px;
+  --font-size-14: 14px;
+  --font-size-15: 15px;
+  --font-size-16: 16px;
+  --font-size-17: 17px;
+  --font-size-18: 18px;
+  --font-size-20: 20px;
+  --font-size-22: 22px;
+  --font-size-24: 24px;
+  --font-size-26: 26px;
+  --font-size-32: 32px;
+  --font-size-40: 40px;
+  --font-size-44: 44px;
+  --font-size-52: 52px;
+  --font-size-60: 60px;
+  --font-size-68: 68px;
+  /* Radius scale. */
+  --radius-2: 2px;
+  --radius-3: 3px;
+  --radius-5: 5px;
+  --radius-6: 6px;
+  --radius-7: 7px;
+  --radius-8: 8px;
+  --radius-9: 9px;
+  --radius-10: 10px;
+  --radius-11: 11px;
+  --radius-12: 12px;
+  --radius-13: 13px;
+  --radius-14: 14px;
+  --radius-18: 18px;
+  --radius-22: 22px;
+  --radius-999: 999px;
+  /* Shadows. */
+  --shadow-panel: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 18px 44px rgba(0, 0, 0, 0.28);
+  --shadow-panel-light: 0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 18px 44px rgba(29, 47, 40, 0.12);
+  --shadow-raise: 0 8px 22px color-mix(in srgb, var(--accent) 22%, transparent);
+  --shadow-float: 0 5px 14px rgba(0, 0, 0, 0.24);
+  /* Migrated one-off colors (literal values live only here). */
+  --color-raw-1: rgba(96, 165, 250, 0.18);
+  --color-raw-2: #10171b;
+  --color-raw-3: rgba(37, 99, 185, 0.1);
+  --color-raw-4: #f8faf6;
+  --color-white: #fff;
+  --color-raw-5: rgba(255, 255, 255, 0.16);
+  --color-raw-6: rgba(96, 165, 250, 0.34);
+  --color-raw-7: rgba(255, 255, 255, 0.1);
+  --color-raw-8: rgba(24, 38, 33, 0.16);
+  --color-raw-9: rgba(24, 38, 33, 0.055);
+  --color-raw-10: rgba(24, 38, 33, 0.11);
+  --color-raw-11: rgba(96, 165, 250, 0.22);
+  --color-raw-12: rgba(37, 99, 185, 0.12);
+  --color-raw-13: rgba(22, 29, 33, 0.92);
+  --color-raw-14: rgba(255, 255, 255, 0.94);
+  --color-raw-15: rgba(96, 165, 250, 0.4);
+  --color-raw-16: rgba(96, 165, 250, 0.12);
+  --color-raw-17: rgba(37, 99, 185, 0.18);
+  --color-raw-18: rgba(37, 99, 185, 0.08);
+  --color-raw-19: rgba(255, 255, 255, 0.04);
+  --color-raw-20: rgba(0, 0, 0, 0.28);
+  --color-raw-21: rgba(255, 255, 255, 0.8);
+  --color-raw-22: rgba(29, 47, 40, 0.12);
+  --color-raw-23: rgba(29, 47, 40, 0.14);
+  --color-raw-24: rgba(0, 0, 0, 0.22);
+  --color-raw-25: rgba(255, 255, 255, 0.06);
+  --color-raw-26: rgba(24, 38, 33, 0.06);
+  --color-raw-27: rgba(0, 0, 0, 0.24);
+  --color-raw-28: rgba(0, 0, 0, 0.18);
+  --color-raw-29: rgba(24, 38, 33, 0.025);
+  --color-raw-30: rgba(255, 255, 255, 0.05);
+  --color-raw-31: rgba(24, 38, 33, 0.07);
+  --color-raw-32: rgba(24, 38, 33, 0.05);
+  --color-raw-33: rgba(255, 255, 255, 0.12);
+  --color-raw-34: rgba(24, 38, 33, 0.1);
+  --color-raw-35: #f07168;
+  --color-raw-36: rgba(4, 9, 12, 0.42);
+  --color-raw-37: rgba(7, 12, 14, 0.42);
+  --color-raw-38: rgba(255, 255, 255, 0.055);
+  --color-raw-39: rgba(255, 255, 255, 0.2);
+  --color-raw-40: rgba(0, 0, 0, 0.3);
+  --color-raw-41: rgba(24, 38, 33, 0.22);
+  --color-raw-42: rgba(24, 38, 33, 0.12);
+  --color-black: #000;
+  --color-raw-43: rgba(27, 34, 40, 0.94);
+  --color-raw-44: rgba(16, 22, 26, 0.76);
+  --color-raw-45: rgba(96, 165, 250, 0.62);
+  --color-raw-46: rgba(96, 165, 250, 0.16);
+  --color-raw-47: #f7f1e6;
+  --color-raw-48: #31a867;
+  --color-raw-49: rgba(255, 255, 255, 0.18);
+  --color-raw-50: rgba(96, 165, 250, 0.1);
+  --color-raw-51: rgba(255, 255, 255, 0.07);
+  --color-raw-52: rgba(0, 0, 0, 0.14);
+  --color-raw-53: rgba(255, 255, 255, 0.14);
+  --color-raw-54: rgba(8, 16, 18, 0.42);
+  --color-raw-55: rgba(255, 255, 255, 0.62);
+  --color-raw-56: #145343;
+  --color-raw-57: rgba(255, 255, 255, 0.35);
+  --color-raw-58: #9d9a93;
+  --color-raw-59: rgba(255, 255, 255, 0.5);
+  --color-raw-60: rgba(255, 255, 255, 0.4);
+  --color-raw-61: rgba(255, 255, 255, 0.55);
+  --color-raw-62: rgba(8, 16, 18, 0.38);
+  --color-raw-63: rgba(8, 16, 18, 0.45);
+  --color-raw-64: rgba(255, 255, 255, 0.7);
+  --color-raw-65: #9edcff;
+  --color-raw-66: rgba(255, 255, 255, 0.45);
+  --color-raw-67: rgba(255, 255, 255, 0.68);
+  --color-raw-68: rgba(255, 255, 255, 0.9);
+  --color-raw-69: #7dd3a0;
+  --color-raw-70: #ff6b6b;
+  --color-raw-71: #ffb4b4;
+  --color-raw-72: #ff8585;
+  --color-raw-73: #ffd0d0;
+  --color-raw-74: rgba(255, 255, 255, 0.72);
+  --color-raw-75: rgba(255, 255, 255, 0.38);
+  --color-raw-76: rgba(255, 255, 255, 0.92);
+  --color-raw-77: #7de2a8;
+  --color-raw-78: rgba(255, 255, 255, 0.08);
+  --color-raw-79: #b9c3bd;
+  --color-raw-80: rgba(96, 165, 250, 0.17);
+  --color-raw-81: rgba(96, 165, 250, 0.2);
+  --color-raw-82: rgba(94, 194, 255, 0.55);
+  --color-raw-83: #e07a4a;
+  --color-raw-84: #f5f5f4;
+  --color-raw-85: #1f2937;
+  --color-raw-86: rgba(15, 23, 42, 0.22);
+  --color-raw-87: #55d485;
+  --color-raw-88: #7eb6d9;
+  --color-raw-89: rgba(255, 255, 255, 0.88);
+  --color-raw-90: rgba(255, 255, 255, 0.82);
+  --color-raw-91: #17201c;
+  --color-raw-92: #101713;
+  --color-raw-93: rgba(255, 255, 255, 0.3);
+  --color-raw-94: rgba(0, 0, 0, 0.2);
+  --color-raw-95: rgba(0, 0, 0, 0.25);
+  --color-raw-96: #8295a0;
+  --color-raw-97: #27333b;
+  --color-raw-98: #1a232a;
+  --color-raw-99: #d4cabb;
+  --color-raw-100: #20262b;
+  --color-raw-101: #b83d35;
+  --color-raw-102: #6ea6a2;
+  --color-raw-103: #6ac2bb;
+  --color-raw-104: #101a20;
+  --color-raw-105: #8eb7b0;
+  --color-raw-106: #eef4f3;
+  --color-raw-107: #102b33;
+  --color-raw-108: #dfa3a8;
+  --color-raw-109: #a92d3f;
+  --color-raw-110: #711c2a;
+  --color-raw-111: #d4b59f;
+  --color-raw-112: #fbf0e5;
+  --color-raw-113: #c7a96a;
+  --color-raw-114: #cfb574;
+  --color-raw-115: #194d3c;
+  --color-raw-116: #b99a5d;
+  --color-raw-117: #f3ead4;
+  --color-raw-118: #e2e8db;
+  --color-raw-119: #236eaa;
+  --color-raw-120: #e56e5b;
+  --color-raw-121: #86b7cf;
+  --color-raw-122: #fbfaf4;
+  --color-raw-123: #485650;
+  --color-raw-124: #f6f1e7;
+  --color-raw-125: #d5a542;
+  --color-raw-126: #fffefa;
+  --color-raw-127: #cf4e56;
+  --color-raw-128: #292127;
+  --color-raw-129: #183d31;
+  --color-raw-130: #a33b35;
+  --color-raw-131: rgba(185, 154, 93, 0.18);
+  --color-raw-132: #d1b875;
+  --color-raw-133: #155b87;
+  --color-raw-134: #e05b4c;
+  --color-raw-135: #f5f0dc;
+  --color-raw-136: rgba(255, 255, 255, 0.27);
+  --color-raw-137: #26332e;
+  --color-raw-138: #c2473d;
+  --color-raw-139: #a9b0aa;
+  --color-raw-140: #397c7a;
+  --color-raw-141: #a6d2cb;
+  --color-raw-142: #3dba7a;
+  --color-raw-143: #3d9a5f;
+  --color-raw-144: #c9a227;
+  --color-raw-145: #46534c;
+  --color-raw-146: rgba(24, 38, 33, 0.04);
+  --color-raw-147: rgba(3, 10, 8, 0.2);
+  --color-raw-148: rgba(96, 165, 250, 0.32);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #eef1ec;
+  --panel: #ffffff;
+  --panel-2: #f2f4ef;
+  --line: rgba(24, 38, 33, 0.16);
+  --text: #17201c;
+  --muted: #65716a;
+  --accent: #2563b9;
+  --accent-hover: #3475ce;
+  --danger: #d9564f;
+  --input-bg: rgba(245, 247, 243, 0.96);
+  --input-focus: #ffffff;
+  --overlay: rgba(16, 25, 21, 0.48);
+  --toast-bg: #17201c;
+  --toast-text: #ffffff;
+  --surface: rgba(255, 255, 255, 0.94);
+  --surface-shadow: var(--shadow-panel-light);
+  --trainer-raise: #2f8f6a;
+  --trainer-chart-raise-bg: #c8e6d7;
+  --trainer-chart-raise-fg: #123528;
+  --trainer-chart-call-bg: #d5dde4;
+  --trainer-chart-call-fg: #243039;
+  --trainer-chart-fold-bg: #e6e9e4;
+  --trainer-chart-fold-fg: #4f5b55;
+  --trainer-chart-pair-raise-bg: #b7dcc9;
+  --trainer-chart-hand-ring: #9a7418;
+  --trainer-chart-grid-gap: #ffffff;
+}
+
+:root[data-felt="navy"] {
+  --felt: #245f86;
+  --felt-dark: #123b5b;
+}
+:root[data-felt="wine"] {
+  --felt: #8a3a50;
+  --felt-dark: #542234;
+}
+:root[data-felt="violet"] {
+  --felt: #66509a;
+  --felt-dark: #3d306d;
+}
+:root[data-felt="mint"] {
+  --felt: #72bca4;
+  --felt-dark: #3f806c;
+}
+:root[data-felt="sky"] {
+  --felt: #75aeca;
+  --felt-dark: #426f8a;
+}
+:root[data-felt="sand"] {
+  --felt: #c3a875;
+  --felt-dark: #856e45;
+}
+:root[data-felt="blush"] {
+  --felt: #c98791;
+  --felt-dark: #89545e;
+}

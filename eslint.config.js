@@ -1,6 +1,7 @@
 const js = require("@eslint/js");
 const globalsPkg = require("globals");
 const tseslint = require("typescript-eslint");
+const holdemUi = require("./scripts/eslint-rules/holdem-ui");
 
 const appClassicGlobals = {
   DECK_OPTIONS: "writable",
@@ -332,6 +333,10 @@ module.exports = tseslint.config(
       "pr-screenshots/**",
       "public/app.js",
       "scripts/**",
+      "playwright.config.ts",
+      "tests/visual/**",
+      "test-results/**",
+      "playwright-report/**",
       "**/*.js.map",
     ],
   },
@@ -406,9 +411,23 @@ module.exports = tseslint.config(
   },
   {
     files: ["public/**/*.ts"],
+    plugins: {
+      "holdem-ui": holdemUi,
+    },
+    rules: {
+      "holdem-ui/no-inline-style": "error",
+      "holdem-ui/no-ui-emoji": "error",
+    },
+  },
+  {
+    files: ["public/**/*.ts"],
     languageOptions: {
       sourceType: "script",
-      globals: browserModuleGlobals,
+      globals: {
+        ...browserModuleGlobals,
+        HoldemUI: "readonly",
+        HoldemUIAPI: "readonly",
+      },
     },
   },
   {

@@ -43,16 +43,38 @@ assert.match(block(".seat-name-text"), /text-overflow:\s*ellipsis/);
 assert.match(block(".player-stack"), /min-width:\s*5ch/);
 assert.doesNotMatch(css, /\.player-stack\s*\{[^}]*min-width:\s*max-content/, "stack width must not vary per row");
 const dealerChip = block(".blind-chip.dealer");
-assert.match(dealerChip, /--chip-color:\s*#f5f5f4/, "dealer chip is a white button");
-assert.match(dealerChip, /color:\s*#1f2937/, "dealer D is dark on white");
+assert.match(dealerChip, /--chip-color:\s*var\(--color-raw-84\)/, "dealer chip is a white button");
+assert.match(dealerChip, /color:\s*var\(--color-raw-85\)/, "dealer D is dark on white");
 assert.match(block(".blind-chip"), /--chip-color:\s*var\(--accent\)/, "SB keeps accent blue");
-assert.match(block(".blind-chip.big"), /--chip-color:\s*#e07a4a/, "BB stays orange");
+assert.match(block(".blind-chip.big"), /--chip-color:\s*var\(--color-raw-83\)/, "BB stays orange");
 // Shot-clock bar sits inside the row's rounded corners (inset >= corner radius), as a pill.
-const px = (re, text) => Number(re.exec(text)[1]);
+const tokens = fs.readFileSync(path.join(root, "public/tokens.css"), "utf8");
+function resolvePx(value) {
+  if (!value) return NaN;
+  const token = /var\(\s*(--(?:space|radius)-([\d_]+))\s*\)/.exec(value);
+  if (token) {
+    const def = new RegExp(
+      `${token[1].replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\s*:\\s*([\\d.]+)px`,
+    ).exec(tokens);
+    if (def) return Number(def[1]);
+  }
+  const plain = /([\d.]+)px/.exec(value);
+  return plain ? Number(plain[1]) : NaN;
+}
+function decl(body, prop) {
+  const m = new RegExp(`(^|;|\\s)${prop}\\s*:\\s*([^;]+);`).exec(body);
+  return m ? m[2].trim() : "";
+}
 const bar = block(".turn-clock-bar");
-assert.match(bar, /border-radius:\s*999px/);
-assert.ok(px(/left:\s*(\d+)px/, bar) >= px(/border-radius:\s*(\d+)px/, block(".table-player-row")), "bar clears the row corner");
+assert.match(bar, /border-radius:\s*var\(--radius-999\)/);
+assert.ok(
+  resolvePx(decl(bar, "left")) >= resolvePx(decl(block(".table-player-row"), "border-radius")),
+  "bar clears the row corner",
+);
 const mobileBar = /\n {2}\.turn-clock-bar \{([^}]*)\}/.exec(css)[1];
 const mobileRow = /\n {2}\.table-player-row \{([^}]*)\}/.exec(css)[1];
-assert.ok(px(/left:\s*(\d+)px/, mobileBar) >= px(/border-radius:\s*(\d+)px/, mobileRow), "mobile bar clears the row corner");
+assert.ok(
+  resolvePx(decl(mobileBar, "left")) >= resolvePx(decl(mobileRow, "border-radius")),
+  "mobile bar clears the row corner",
+);
 console.log("Seat row alignment checks passed.");

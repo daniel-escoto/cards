@@ -42,7 +42,7 @@ const leaveRule = css.match(/\.leave-game-btn\s*\{[^}]+\}/);
 assert.ok(leaveRule, "leave-game-btn rule");
 assert.match(
   leaveRule[0],
-  /background:\s*color-mix\(in srgb, var\(--danger\) 7%, #fff\)/,
+  /background:\s*color-mix\(in srgb, var\(--danger\) 7%, var\(--color-white\)\)/,
   "Leave must be the light pink pill (not translucent dark-red wash)",
 );
 assert.doesNotMatch(block, /mode-option/);

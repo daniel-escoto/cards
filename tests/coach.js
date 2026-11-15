@@ -298,7 +298,7 @@ function seat(id, overrides = {}) {
     /id="menuPlayers"[\s\S]*?id="shareGameBtn"[\s\S]*?id="copyForAiBtn"/,
   );
   const css = fs.readFileSync(path.join(__dirname, "../public/styles.css"), "utf8");
-  assert.match(css, /\.blind-chip\.dealer\s*\{[^}]*#f5f5f4/);
+  assert.match(css, /\.blind-chip\.dealer\s*\{[^}]*var\(--color-raw-84\)/);
   assert.match(css, /\.coach-hint-headline/);
   assert.match(css, /coach-hint\[data-action="fold"\]/);
   assert.match(css, /coach-hint\[data-action="borderline"\]/);
