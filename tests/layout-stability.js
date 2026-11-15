@@ -84,6 +84,21 @@ assert.match(
   /\.table-player-row\.shown-hand-card\s*\{[^}]*align-items:\s*center/s,
   "revealed-hand row vertically centers name and stack",
 );
+assert.match(
+  css,
+  /\.table-player-row\s*\{[^}]*flex-shrink:\s*0/s,
+  "seat rows must not flex-shrink inside the constrained .players list",
+);
+assert.match(
+  css,
+  /\.table-player-row\.shown-hand-card\s*\{[^}]*min-height:\s*auto/s,
+  "reveal rows restore content-based min-height so sm cards are not clipped",
+);
+assert.match(
+  css,
+  /\.table-player-row\.shown-hand-card\s*\{[^}]*flex-shrink:\s*0/s,
+  "reveal rows must not shrink below card height when the seat list is crowded",
+);
 const tokensCss = fs.readFileSync(path.join(__dirname, "../public/tokens.css"), "utf8");
 assert.match(tokensCss, /--card-sm-w:\s*34px/, "sm card width lives in tokens");
 const bootSrc = fs.readFileSync(path.join(__dirname, "../public/app-boot.ts"), "utf8");

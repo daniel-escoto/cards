@@ -46,7 +46,7 @@ const sw = swSelf;
 
 const CACHE_VERSION = "__BUILD_ID__";
 /** Bump when the app-shell file set changes so clients drop stale precaches. */
-const SHELL_REVISION = "8";
+const SHELL_REVISION = "9";
 const CACHE_NAME = `holdem-nyc-shell-${CACHE_VERSION}-${SHELL_REVISION}`;
 const APP_SHELL = [
   "/",
