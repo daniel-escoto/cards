@@ -93,6 +93,12 @@ assert.doesNotMatch(
 // Off-turn action panel: keep raise shell (ignoreRaiseOpen) so height matches your-turn.
 assert.match(tableSrc, /ignoreRaiseOpen:\s*disabled/);
 assert.match(tableSrc, /ignoreRaiseOpen\?:/);
+// Check/Fold pre-action: same Fold slot off-turn (enabled toggle).
+// Unarmed = danger+secondary quiet red; armed = solid danger (+ selected).
+assert.match(tableSrc, /addCheckFoldToggleButton/);
+assert.match(tableSrc, /aria-pressed/);
+assert.match(css, /\.game-buttons > button\.danger\.secondary/);
+assert.match(css, /\.game-buttons > button\.danger\.selected/);
 // No native title tooltip on hero cards (overlaps ½ pot on short panels).
 assert.match(bootSrc, /heroHand\.removeAttribute\("title"\)/);
 assert.doesNotMatch(bootSrc, /heroHand\.title\s*=/);

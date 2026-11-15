@@ -29,6 +29,7 @@
     "lobby-add-bot",
     "leave-game-btn",
     "add-bot-btn",
+    "selected",
   ]);
 
   function localEscapeHtml(value: unknown): string {

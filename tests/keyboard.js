@@ -81,4 +81,22 @@ assert.deepEqual(messages.pop(), {
 context.state.isYourTurn = false;
 press("x");
 assert.equal(messages.length, 0, "Do not act outside the player's turn");
+
+// Off-turn Fold key arms/disarms Check/Fold (does not emit an action).
+let toggled = 0;
+context.CheckFold = {
+  shouldOffer: () => true,
+};
+context.toggleCheckFoldArmed = () => {
+  toggled += 1;
+};
+context.activeHero = () => ({ folded: false, allIn: false, cards: [1, 2] });
+context.state = { canReady: false, isYourTurn: false, phase: "flop", toCall: 20 };
+bindings.fold = "f";
+press("f");
+assert.equal(toggled, 1, "Fold key toggles Check/Fold off-turn");
+assert.equal(messages.length, 0, "Toggle does not emit game:action");
+press("f", { repeat: true });
+assert.equal(toggled, 1, "Ignore held Fold key for Check/Fold");
+
 console.log("Check/call/ready keyboard checks passed.");

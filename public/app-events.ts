@@ -580,6 +580,23 @@ document.addEventListener("keydown", (event) => {
     if (!event.repeat) revealRabbitBoard();
     return;
   }
+  // Off-turn: Fold key arms/disarms Check/Fold (same badge as the Fold button).
+  if (
+    !state.isYourTurn &&
+    matchesKeybind(event, "fold") &&
+    typeof CheckFold !== "undefined" &&
+    CheckFold.shouldOffer?.({
+      isYourTurn: state.isYourTurn,
+      phase: state.phase,
+      hero: typeof activeHero === "function" ? activeHero() : null,
+    })
+  ) {
+    if (!event.repeat && typeof toggleCheckFoldArmed === "function") {
+      event.preventDefault();
+      toggleCheckFoldArmed();
+    }
+    return;
+  }
   if (!state.isYourTurn) return;
   if (
     (matchesKeybind(event, "raiseUp") || matchesKeybind(event, "raiseDown")) &&

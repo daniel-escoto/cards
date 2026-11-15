@@ -455,6 +455,7 @@ module.exports = tseslint.config(
       "public/invite-url.ts",
       "public/ready-clock.ts",
       "public/turn-clock-warning.ts",
+      "public/check-fold.ts",
       "public/card-art.ts",
       "public/app-sounds.ts",
       "public/app-format.ts",

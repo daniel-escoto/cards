@@ -341,6 +341,44 @@ declare global {
 
   const TurnClockWarning: TurnClockWarningAPI;
 
+  interface CheckFoldSession {
+    armed: boolean;
+    /** toCall stored when the hero armed; disarm if live toCall rises above this. */
+    armedToCall: number;
+    handNumber: number | null;
+  }
+
+  interface CheckFoldAPI {
+    LABEL: string;
+    createSession(): CheckFoldSession;
+    disarm(session: CheckFoldSession | null | undefined): void;
+    arm(session: CheckFoldSession | null | undefined, toCall: unknown, handNumber: unknown): void;
+    toggle(
+      session: CheckFoldSession | null | undefined,
+      toCall: unknown,
+      handNumber: unknown,
+    ): boolean;
+    shouldOffer(options: {
+      isYourTurn?: unknown;
+      phase?: unknown;
+      hero?: { folded?: unknown; allIn?: unknown; cards?: unknown } | null;
+    }): boolean;
+    sync(
+      session: CheckFoldSession | null | undefined,
+      options: {
+        isYourTurn?: unknown;
+        phase?: unknown;
+        toCall?: unknown;
+        handNumber?: unknown;
+        hero?: { folded?: unknown; allIn?: unknown; cards?: unknown } | null;
+      },
+    ): { type: "check" | "fold" } | null;
+    resolveArmedAction(toCall: unknown): "check" | "fold";
+    isBettingPhase(phase: unknown): boolean;
+  }
+
+  const CheckFold: CheckFoldAPI;
+
   interface ReadyClockAPI {
     readyPhaseActive(phase: unknown): boolean;
     seatShowsReadyClock(
@@ -667,6 +705,7 @@ declare global {
     RaiseSizing?: RaiseSizingAPI;
     CardArt?: CardArtAPI;
     TurnClockWarning?: TurnClockWarningAPI;
+    CheckFold?: CheckFoldAPI;
     ReadyClock?: ReadyClockAPI;
     InviteUrl?: InviteUrlAPI;
     RfiRanges?: RfiRangesAPI;
@@ -882,6 +921,9 @@ declare global {
   var raiseControlsDisabled: boolean;
   var mergePassiveConfirm: boolean;
   var confirmActionBtn: HTMLButtonElement | null;
+  var checkFoldSession: CheckFoldSession;
+  function toggleCheckFoldArmed(): void;
+  function addCheckFoldToggleButton(): void;
   var leavingEndedRoom: boolean;
   var menuTimer: ReturnType<typeof setInterval> | null;
   var lastAutoRejoinKey: string;
