@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Next-to-act: arrow on the acting row (▲/▼ by visual list order), waiting "—".
+ * Next-to-act: quiet row tint on the upcoming seat (no ▲/▼ arrow).
  */
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -11,25 +11,33 @@ const root = path.join(__dirname, "..");
 const bootSrc = fs.readFileSync(path.join(root, "public/app-boot.ts"), "utf8");
 const trainerSrc = fs.readFileSync(path.join(root, "public/trainer.ts"), "utf8");
 const css = fs.readFileSync(path.join(root, "public/styles.css"), "utf8");
+const dts = fs.readFileSync(path.join(root, "public/client-globals.d.ts"), "utf8");
 
 assert.match(bootSrc, /function nextToActSeat\(/);
-assert.match(bootSrc, /function nextActArrowGlyph\(/);
 assert.match(bootSrc, /function seatWaitingForStreetAction\(/);
-assert.match(bootSrc, /next-act-arrow/);
+assert.match(bootSrc, /next-to-act/);
+assert.match(bootSrc, /aria-label="Next to act"/);
 assert.match(bootSrc, /action = "—"/);
+assert.doesNotMatch(bootSrc, /function nextActArrowGlyph\(/);
+assert.doesNotMatch(bootSrc, /next-act-arrow/);
 assert.doesNotMatch(bootSrc, /action = isNext \? "Next"/);
-assert.doesNotMatch(bootSrc, /"next-to-act"/);
 assert.doesNotMatch(bootSrc, /isNext \? "Next"/);
-assert.match(trainerSrc, /next-act-arrow/);
+assert.match(trainerSrc, /next-to-act/);
+assert.match(trainerSrc, /Next to act/);
+assert.doesNotMatch(trainerSrc, /next-act-arrow/);
 assert.doesNotMatch(trainerSrc, /action = "Next"/);
-assert.doesNotMatch(trainerSrc, /"next-to-act"/);
-assert.match(css, /\.next-act-arrow/);
+assert.doesNotMatch(dts, /nextActArrowGlyph/);
+assert.match(css, /\.table-player-row\.next-to-act/);
 assert.match(css, /\.player-action\.is-waiting/);
-assert.doesNotMatch(css, /\.table-player-row\.next-to-act/);
+assert.doesNotMatch(css, /\.next-act-arrow/);
 assert.doesNotMatch(css, /\.player-action\.is-next/);
 
 const turnRule = /\.table-player-row\.turn\s*\{([^}]*)\}/.exec(css)?.[1] || "";
 assert.match(turnRule, /inset 3px 0 0/);
+const nextRule = /\.table-player-row\.next-to-act:not\(\.turn\)\s*\{([^}]*)\}/.exec(css)?.[1] || "";
+assert.match(nextRule, /border-color/);
+assert.match(nextRule, /background/);
+assert.doesNotMatch(nextRule, /min-height|padding|margin|height:/);
 
 function loadGlobals() {
   const html = fs
@@ -92,7 +100,6 @@ function seat(id, overrides = {}) {
 const window = loadGlobals();
 const {
   nextToActSeat,
-  nextActArrowGlyph,
   seatWaitingForStreetAction,
   seatCanActThisStreet,
   renderActionFeed,
@@ -105,14 +112,6 @@ const {
   assert.equal(nextToActSeat(players, "b", "turn")?.id, "c");
   assert.equal(nextToActSeat(players, "a", "lobby"), null);
   assert.equal(nextToActSeat(players, null, "preflop"), null);
-}
-
-{
-  const seats = [seat("a"), seat("b"), seat("c")];
-  assert.equal(nextActArrowGlyph(seats, "a", "b"), "▼", "next below");
-  assert.equal(nextActArrowGlyph(seats, "c", "a"), "▲", "next above / wrap");
-  assert.equal(nextActArrowGlyph(seats, "a", "a"), "");
-  assert.equal(nextActArrowGlyph(seats, "a", null), "");
 }
 
 {
@@ -146,7 +145,7 @@ const {
   );
 }
 
-// Actor near top → ▼ toward next below.
+// Mid-list: actor near top → next row below marked next-to-act (not the actor).
 {
   window.state = {
     id: "T",
@@ -170,22 +169,31 @@ const {
   };
   const html = renderActionFeed();
   assert.match(html, /table-player-row[^"]*turn[^"]*"[^>]*>[\s\S]*?hero[\s\S]*?Acting/);
-  assert.match(html, /next-act-arrow[^>]*>▼</);
-  assert.doesNotMatch(html, />Next</);
-  assert.doesNotMatch(html, /next-to-act/);
+  assert.match(html, /table-player-row[^"]*next-to-act[^"]*"[^>]*aria-label="Next to act"[\s\S]*?utg/);
+  assert.doesNotMatch(html, /table-player-row[^"]*turn[^"]*next-to-act/);
+  assert.doesNotMatch(html, /next-act-arrow/);
+  assert.doesNotMatch(html, /[▲▼]/);
   assert.match(html, /player-action is-waiting[^>]*>—</);
   assert.match(html, />Fold</);
   assert.doesNotMatch(html, /Posts small blind|posts small blind/i);
 }
 
-// Actor near bottom → ▲ toward next above (wrap).
+// Wraparound: bottom seat acting → top row marked Next; last-action text kept.
 {
   window.state = {
     id: "T2",
     phase: "flop",
     turn: "bb",
     pot: 80,
-    actionLog: [],
+    actionLog: [
+      {
+        id: "3",
+        phase: "flop",
+        playerId: "hero",
+        action: "Checks",
+        text: "hero checks.",
+      },
+    ],
     players: [
       seat("hero", { isYou: true }),
       seat("utg", { folded: true }),
@@ -199,8 +207,16 @@ const {
   };
   const html = renderActionFeed();
   assert.match(html, /table-player-row[^"]*turn[^"]*"[^>]*>[\s\S]*?bb[\s\S]*?Acting/);
-  assert.match(html, /next-act-arrow[^>]*>▲</);
-  assert.doesNotMatch(html, />Next</);
+  // First visual seat (hero) is next after wrap from bb.
+  assert.match(
+    html,
+    /table-player-row[^"]*next-to-act[^"]*"[^>]*aria-label="Next to act"[\s\S]*?hero[\s\S]*?>check</,
+  );
+  assert.match(html, /player-action[^>]*>check</);
+  assert.doesNotMatch(html, /next-act-arrow/);
+  assert.doesNotMatch(html, /[▲▼]/);
+  // Indicator must not replace the last-action text with a bare "Next".
+  assert.doesNotMatch(html, /player-action[^>]*>Next</);
 }
 
 console.log("Turn order UI checks passed.");

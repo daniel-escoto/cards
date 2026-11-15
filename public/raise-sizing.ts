@@ -143,8 +143,8 @@
 
   /**
    * Chips shown in the RAISE TO / BET box.
-   * Check detent → 0. Call detent / real raises → the raise-to amount (never 0
-   * while facing a bet the hero can raise).
+   * At Call/Check detent → null (UI shows a muted "Min N" placeholder so the
+   * call-total is never mistaken for a raise). Real raises → the raise-to amount.
    */
   function displayRaiseAmount({
     facingBet,
@@ -154,10 +154,16 @@
     facingBet: boolean;
     atDetent: boolean;
     value: unknown;
-  }) {
-    const chips = Math.max(0, Math.floor(Number(value) || 0));
-    if (atDetent && !facingBet) return 0;
-    return chips;
+  }): number | null {
+    void facingBet;
+    if (atDetent) return null;
+    return Math.max(0, Math.floor(Number(value) || 0));
+  }
+
+  /** Muted placeholder under RAISE TO / BET while the box is on Call/Check. */
+  function detentPlaceholderLabel(minRaiseTo: unknown): string {
+    const min = Math.max(0, Math.floor(Number(minRaiseTo) || 0));
+    return min > 0 ? `Min ${min}` : "Min";
   }
 
   /**
@@ -215,6 +221,7 @@
     usesPassiveDetent,
     initialRaiseTo,
     displayRaiseAmount,
+    detentPlaceholderLabel,
     clampRaiseTo,
     nudgeRaiseTo,
   };

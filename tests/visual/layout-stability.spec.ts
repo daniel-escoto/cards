@@ -1,6 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { VIEWPORTS, openOfflineTable, forceTableState } from "./fixtures";
 
+const LAYOUT_VIEWPORTS = [
+  ...VIEWPORTS,
+  { name: "390", width: 390, height: 844 },
+] as const;
+
 async function panelMetrics(page: import("@playwright/test").Page) {
   return page.evaluate(() => {
     const panel = document.querySelector(".control-panel");
@@ -21,7 +26,131 @@ function nearlyEqual(a: number, b: number, tol = 1) {
   return Math.abs(a - b) <= tol;
 }
 
-for (const vp of VIEWPORTS) {
+async function openReviewScene(
+  page: import("@playwright/test").Page,
+  mode: "step" | "retry" | "result",
+) {
+  await page.evaluate((nextMode) => {
+    const w = window as unknown as {
+      state: Record<string, unknown>;
+      lastHandReplay: unknown;
+      openHandReview: () => void;
+      startHandReviewRetry: (item: unknown, table: unknown, stack: number) => void;
+      paintHandReviewStep: (index: number, options?: { force?: boolean }) => void;
+      submitHandReviewRetryAction?: (payload: Record<string, unknown>) => void;
+    };
+    const decision = {
+      id: "d1",
+      street: "preflop",
+      boardCodes: [],
+      heroCodes: ["As", "Ks"],
+      pot: 60,
+      toCall: 20,
+      currentBet: 20,
+      taken: "fold",
+      raiseTo: null,
+      equity: 0.55,
+      potOdds: 0.25,
+      recommended: "call",
+      recommendedRaiseTo: null,
+      verdict: "mistake",
+      badge: "Mistake",
+      reason: "Folding is too tight versus a small open.",
+    };
+    const seats = [
+      {
+        id: "you",
+        name: "Alex",
+        isHero: true,
+        isBot: false,
+        stack: 980,
+        bet: 20,
+        folded: false,
+        allIn: false,
+        dealer: true,
+        isSmallBlind: false,
+        isBigBlind: true,
+        isTurn: true,
+        holeCodes: ["As", "Ks"],
+        lastAction: null,
+      },
+      {
+        id: "bot1",
+        name: "CPU 1",
+        isHero: false,
+        isBot: true,
+        stack: 960,
+        bet: 40,
+        folded: false,
+        allIn: false,
+        dealer: false,
+        isSmallBlind: true,
+        isBigBlind: false,
+        isTurn: false,
+        holeCodes: null,
+        lastAction: "Raises to 40",
+      },
+    ];
+    const table = {
+      street: "preflop",
+      pot: 60,
+      toCall: 20,
+      currentBet: 40,
+      minRaiseTo: 80,
+      boardCodes: [],
+      seats,
+      actingSeatId: "you",
+      winners: [],
+    };
+    w.lastHandReplay = {
+      steps: [
+        {
+          id: "hero",
+          index: 0,
+          label: "Your decision",
+          actorId: "you",
+          kind: "hero_decision",
+          isHeroDecision: true,
+          decision,
+          table,
+        },
+        {
+          id: "result",
+          index: 1,
+          label: "Result",
+          actorId: null,
+          kind: "result",
+          isHeroDecision: false,
+          decision: null,
+          table: {
+            ...table,
+            street: "complete",
+            pot: 0,
+            toCall: 0,
+            currentBet: 0,
+            actingSeatId: null,
+            winners: [{ playerId: "you", name: "Alex", amount: 120, hand: "Pair of Aces" }],
+            seats: seats.map((s) => ({ ...s, bet: 0, isTurn: false })),
+          },
+        },
+      ],
+      items: [decision],
+      best: 0,
+      fine: 0,
+      mistake: 1,
+      summary: "1 mistake",
+    };
+    w.openHandReview();
+    if (nextMode === "retry") {
+      w.startHandReviewRetry(decision, table, 980);
+    } else if (nextMode === "result") {
+      w.paintHandReviewStep(1);
+    }
+  }, mode);
+  await page.waitForTimeout(80);
+}
+
+for (const vp of LAYOUT_VIEWPORTS) {
   test.describe(`layout ${vp.name}`, () => {
     test.use({
       colorScheme: "dark",
@@ -87,8 +216,7 @@ for (const vp of VIEWPORTS) {
         ).toBe(true);
       }
 
-      // Between hands (lobby/ready): panel may compact, but its x origin and seat list
-      // x origin must stay put so the table does not horizontally jump.
+      // Pre-hand lobby may compact; x origin must stay put.
       expect(
         nearlyEqual(betweenHands.panel!.x, onTurn.panel!.x, 2),
         "between-hands panel x drifted",
@@ -97,6 +225,88 @@ for (const vp of VIEWPORTS) {
         nearlyEqual(betweenHands.players!.x, onTurn.players!.x, 2),
         "between-hands players x drifted",
       ).toBe(true);
+    });
+
+    test("panel height/top identical for in-hand, post-hand Ready up, and review steps", async ({
+      page,
+    }) => {
+      await openOfflineTable(page);
+
+      await forceTableState(page, "in-hand-on-turn");
+      await page.waitForTimeout(80);
+      const inHand = await panelMetrics(page);
+
+      // Post-hand Ready up (complete phase — full footprint, not compact lobby).
+      await page.evaluate(() => {
+        const w = window as unknown as { state: Record<string, unknown>; render?: () => void };
+        const room = { ...(w.state || {}) } as {
+          phase: string;
+          pot: number;
+          toCall: number;
+          currentBet: number;
+          isYourTurn: boolean;
+          turn: string | null;
+          canReady: boolean;
+          isReady: boolean;
+          winners: unknown[];
+          community: unknown[];
+          players: Array<Record<string, unknown>>;
+        };
+        room.phase = "complete";
+        room.pot = 0;
+        room.toCall = 0;
+        room.currentBet = 0;
+        room.isYourTurn = false;
+        room.turn = null;
+        room.canReady = true;
+        room.isReady = false;
+        room.winners = [];
+        room.community = [];
+        room.players = (room.players || []).map((p) => ({
+          ...p,
+          bet: 0,
+          cards: [],
+          folded: false,
+          allIn: false,
+          isTurn: false,
+          ready: p.isYou ? false : true,
+          stack: 1000,
+        }));
+        w.state = room;
+        if (typeof w.render === "function") w.render();
+      });
+      await page.waitForTimeout(80);
+      const postHand = await panelMetrics(page);
+
+      await openReviewScene(page, "step");
+      const reviewStep = await panelMetrics(page);
+
+      await openReviewScene(page, "retry");
+      const reviewRetry = await panelMetrics(page);
+
+      await openReviewScene(page, "result");
+      const reviewResult = await panelMetrics(page);
+
+      expect(inHand.panel).toBeTruthy();
+      for (const [label, sample] of [
+        ["post-hand", postHand],
+        ["review-step", reviewStep],
+        ["review-retry", reviewRetry],
+        ["review-result", reviewResult],
+      ] as const) {
+        expect(
+          nearlyEqual(sample.panel!.height, inHand.panel!.height, 2),
+          `${label} panel height drifted (${sample.panel!.height} vs ${inHand.panel!.height})`,
+        ).toBe(true);
+        expect(
+          nearlyEqual(sample.panel!.y, inHand.panel!.y, 2),
+          `${label} panel top drifted (${sample.panel!.y} vs ${inHand.panel!.y})`,
+        ).toBe(true);
+        expect(
+          nearlyEqual(sample.players!.y, inHand.players!.y, 2),
+          `${label} players y drifted`,
+        ).toBe(true);
+      }
     });
 
     test("seat columns align and table does not overflow horizontally", async ({ page }) => {

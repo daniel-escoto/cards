@@ -33,11 +33,12 @@ assert.doesNotMatch(bootSrc, /heroHand\.title\s*=/);
 // off-turn at the same viewport share the same track recipe whenever compact matches.
 assert.match(
   css,
-  /\.control-panel\s*\{[^}]*grid-template-rows:\s*auto 0 minmax\(calc\(15px \* 1\.35\), auto\) auto auto/,
+  /\.control-panel\s*\{[^}]*grid-template-rows:\s*auto 0 minmax\(var\(--cp-prompt-h\), auto\) auto auto/,
 );
+assert.match(css, /--cp-prompt-h:\s*calc\(15px \* 1\.35\)/);
 assert.match(
   css,
-  /@media \(min-width: 780px\)[\s\S]*?\.control-panel\s*\{[^}]*grid-template-rows:\s*auto 0 minmax\(calc\(16px \* 1\.35\), auto\) auto auto/,
+  /@media \(min-width: 1040px\)[\s\S]*?\.control-panel\s*\{[^}]*--cp-prompt-h:\s*calc\(16px \* 1\.35\)/,
 );
 
 const grab = (fn) => {
@@ -278,13 +279,13 @@ function paint(harness, room, disabled) {
   assert.ok(onTurn.buttonCount >= 1);
 }
 
-// Viewport note: 375 and 1280 share the same non-compact tracks, so equal compact/
-// reserved/button/preset footprint ⇒ equal panel height at both widths.
+// Viewport note: 375 and 1280 share the same non-compact track recipe (--cp-prompt-h
+// may change at the desktop breakpoint, but on/off-turn still match at one width).
 for (const width of [375, 1280]) {
   assert.ok(width === 375 || width === 1280);
   assert.match(
     css,
-    /\.control-panel\s*\{[^}]*grid-template-rows:\s*auto 0 minmax\(calc\(15px \* 1\.35\), auto\) auto auto/,
+    /\.control-panel\s*\{[^}]*grid-template-rows:\s*auto 0 minmax\(var\(--cp-prompt-h\), auto\) auto auto/,
     `shared in-hand tracks cover ${width}px viewport`,
   );
 }

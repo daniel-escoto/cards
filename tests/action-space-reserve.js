@@ -33,7 +33,7 @@ const block = (selector) => {
 };
 assert.match(block(".bet-controls.is-reserved,\n.action-placeholder"), /visibility:\s*hidden/);
 assert.match(block(".control-panel > .winner-list,\n.control-panel > .bet-controls"), /grid-row:\s*5/);
-assert.match(block(".control-panel"), /grid-template-rows:\s*auto 0 minmax\(calc\(15px \* 1\.35\), auto\) auto auto/);
+assert.match(block(".control-panel"), /grid-template-rows:\s*auto 0 minmax\(var\(--cp-prompt-h\), auto\) auto auto/);
 
 // 3. reserveActionSpace fills empty rows with invisible, unfocusable placeholders.
 const grab = (fn) => {
@@ -95,18 +95,23 @@ assert.ok(!panel.classList.contains("is-idle"));
 assert.match(block(".control-panel.is-result > .winner-list,\n.control-panel.is-result > .bet-controls"), /grid-row:\s*3/);
 assert.match(block(".control-panel.is-idle > .turn-info"), /grid-row:\s*3 \/ 6/);
 
-// 5. Pre-game (lobby / waiting for players, incl. the first ready-up): no hand to stay stable
-// against, so the panel drops the reserved bet row and fits its content.
+// 5. Pre-game lobby: no hand to stay stable against, so the panel drops the reserved bet row.
+// Post-hand `complete` keeps the full in-hand footprint so Ready up → Review does not resize.
 context.winnerList.innerHTML = "";
-for (const phase of ["lobby", "complete"]) {
-  context.state = { phase };
-  context.gameButtons.innerHTML = "<button>+ Add bot</button>";
-  context.reserve(true);
-  context.fill();
-  assert.ok(panel.classList.contains("is-compact"), `${phase} without a result: compact panel`);
-  assert.ok(!panel.classList.contains("is-idle") && !panel.classList.contains("is-result"));
-}
+context.state = { phase: "lobby" };
+context.gameButtons.innerHTML = "<button>+ Add bot</button>";
+context.reserve(true);
+context.fill();
+assert.ok(panel.classList.contains("is-compact"), "lobby without a result: compact panel");
+assert.ok(!panel.classList.contains("is-idle") && !panel.classList.contains("is-result"));
+context.state = { phase: "complete" };
+context.gameButtons.innerHTML = "<button>Ready up</button>";
+context.reserve(true);
+context.fill();
+assert.ok(!panel.classList.contains("is-compact"), "complete Ready up: full in-hand footprint");
+assert.ok(!panel.classList.contains("is-idle"), "complete with Ready up button: not idle");
 context.gameButtons.innerHTML = "";
+context.state = { phase: "lobby" };
 context.fill();
 assert.ok(panel.classList.contains("is-compact"), "lobby with no buttons: still compact");
 assert.ok(!panel.classList.contains("is-idle"), "lobby: no centered idle reserve");
@@ -135,7 +140,10 @@ const compactBlock = block(
   ".control-panel.is-compact > .bet-controls,\n.control-panel.is-compact > .winner-list,\n.control-panel.is-compact .action-placeholder",
 );
 assert.match(compactBlock, /display:\s*none/, "compact hides the reserved bet row and placeholders");
-assert.match(block(".control-panel.is-compact"), /grid-template-rows:\s*auto 0 minmax\(calc\(15px \* 1\.35\), auto\) auto;/);
+assert.match(
+  block(".control-panel.is-compact"),
+  /grid-template-rows:\s*auto 0 minmax\(var\(--cp-prompt-h\), auto\) auto;/,
+);
 
 // 6. Result copy: no "with Everyone else folded".
 assert.equal(context.how("Everyone else folded"), "Everyone folded");

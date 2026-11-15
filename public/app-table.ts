@@ -1232,10 +1232,13 @@ function reserveActionSpace() {
   );
   // Drop the reserved bet row when it would only leave empty space: pre-hand lobby, or
   // Fold/Call-only turns (short all-in / no reopen) where Raise isn't offered.
+  // Post-hand (`complete`) keeps the full in-hand footprint so Ready up → Review hand
+  // does not resize the panel or shove the seat list.
   const handLive = Boolean(state && !["lobby", "complete", "gameover"].includes(state.phase));
+  const preHandLobby = state?.phase === "lobby";
   // Hand review always keeps the button + bet tracks (same footprint as retry-live).
   const compact =
-    !handReviewActive && reserved && !hasResult && (!handLive || hasButtons);
+    !handReviewActive && reserved && !hasResult && (preHandLobby || (handLive && hasButtons));
   panel.classList.toggle("is-compact", compact);
   panel.classList.toggle("is-result", reserved && hasResult && !handReviewActive);
   panel.classList.toggle(
@@ -1594,16 +1597,22 @@ function setRaiseState(next: Partial<RaiseState> | RaiseState) {
     ...next,
   };
   raiseState.value = clampRaise(raiseState.value);
-  // Check detent → 0. Facing a bet → never paint 0 (Call detent shows matched bet).
+  // Call/Check detent → muted "Min N" placeholder (not the call-total). Real raise → chips.
   const displayChips = RaiseSizing.displayRaiseAmount({
     facingBet: (state.toCall || 0) > 0,
     atDetent: atPassiveDetent(),
     value: raiseState.value,
   });
-  raiseAmount.textContent = formatAmount(
-    displayChips,
-    Math.round(displayChips * (state?.chipValueCents || 0)),
-  );
+  if (displayChips == null) {
+    raiseAmount.textContent = RaiseSizing.detentPlaceholderLabel(raiseState.min);
+    raiseAmount.classList.add("is-placeholder");
+  } else {
+    raiseAmount.textContent = formatAmount(
+      displayChips,
+      Math.round(displayChips * (state?.chipValueCents || 0)),
+    );
+    raiseAmount.classList.remove("is-placeholder");
+  }
   const allInOnly = raiseState.max <= raiseState.min || raiseState.value >= raiseState.max;
   if (!mergePassiveConfirm) {
     setButtonLabel(
