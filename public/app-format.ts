@@ -77,6 +77,36 @@
     return `$${amount}`;
   }
 
+  /** Whole dollars without trailing .00; cents keep two places ($25, $0.10). */
+  function formatMoneyCompact(cents: unknown) {
+    const value = Math.round(Number(cents) || 0) / 100;
+    if (!Number.isFinite(value)) return "$0";
+    if (Number.isInteger(value)) return `$${value}`;
+    return `$${value.toFixed(2)}`;
+  }
+
+  /** Join preview / take-seat facts line: buy-in + blinds only. */
+  function moneyJoinSummary(terms: {
+    buyInCents?: unknown;
+    smallBlindCents?: unknown;
+    bigBlindCents?: unknown;
+  } | null | undefined) {
+    if (!terms) return "";
+    const buyIn = formatMoneyCompact(terms.buyInCents);
+    const sb = formatMoneyCompact(terms.smallBlindCents);
+    const bb = formatMoneyCompact(terms.bigBlindCents);
+    return `${buyIn} buy-in · ${sb}/${bb} blinds`;
+  }
+
+  /** Primary join / take-seat CTA: Join · $25 (or Join). */
+  function moneyJoinButtonLabel(
+    terms: { buyInCents?: unknown } | null | undefined,
+    fallback = "Join",
+  ) {
+    if (!terms || terms.buyInCents == null) return fallback;
+    return `Join · ${formatMoneyCompact(terms.buyInCents)}`;
+  }
+
   function formatSignedMoney(cents: unknown) {
     const amount = Math.round(Number(cents) || 0);
     if (amount === 0) return "$0.00";
@@ -118,6 +148,9 @@
     escapeRegExp,
     moneyCentsFromInput,
     formatMoney,
+    formatMoneyCompact,
+    moneyJoinSummary,
+    moneyJoinButtonLabel,
     formatSignedMoney,
     formatAmount,
     playerStackLabel,

@@ -630,6 +630,21 @@ declare global {
     escapeRegExp(value: unknown): string;
     moneyCentsFromInput(input: HTMLInputElement, fallback?: number): number;
     formatMoney(cents: unknown): string;
+    formatMoneyCompact(cents: unknown): string;
+    moneyJoinSummary(
+      terms:
+        | {
+            buyInCents?: unknown;
+            smallBlindCents?: unknown;
+            bigBlindCents?: unknown;
+          }
+        | null
+        | undefined,
+    ): string;
+    moneyJoinButtonLabel(
+      terms: { buyInCents?: unknown } | null | undefined,
+      fallback?: string,
+    ): string;
     formatSignedMoney(cents: unknown): string;
     formatAmount(chips: unknown, cents: unknown): string;
     playerStackLabel(player: ClientPlayer): string;
@@ -912,6 +927,9 @@ declare global {
   var escapeRegExp: HoldemFormatAPI["escapeRegExp"];
   var moneyCentsFromInput: HoldemFormatAPI["moneyCentsFromInput"];
   var formatMoney: HoldemFormatAPI["formatMoney"];
+  var formatMoneyCompact: HoldemFormatAPI["formatMoneyCompact"];
+  var moneyJoinSummary: HoldemFormatAPI["moneyJoinSummary"];
+  var moneyJoinButtonLabel: HoldemFormatAPI["moneyJoinButtonLabel"];
   var formatSignedMoney: HoldemFormatAPI["formatSignedMoney"];
   var formatAmount: HoldemFormatAPI["formatAmount"];
   var playerStackLabel: HoldemFormatAPI["playerStackLabel"];

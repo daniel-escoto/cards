@@ -193,7 +193,7 @@ function registerSocketHandlers(): void {
             return ack?.({
               ok: false,
               moneyTerms,
-              error: "Review the buy-in and blinds before joining.",
+              error: "Confirm buy-in.",
             });
           }
         }
@@ -324,7 +324,7 @@ function registerSocketHandlers(): void {
           return ack?.({
             ok: false,
             moneyTerms: api.moneyTermsForRoom(room),
-            error: "Review the buy-in and blinds before joining.",
+            error: "Confirm buy-in.",
           });
         }
 
