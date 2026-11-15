@@ -42,6 +42,10 @@ export interface ShotClockTime {
 export type ServerEngineApi = Pick<
   HoldemEngine,
   | "blindLevelForHand"
+  | "cleanTournamentLevelDurationMs"
+  | "tournamentBlindSchedule"
+  | "tournamentLevel"
+  | "applyTournamentLevelOnDeal"
   | "currentBlinds"
   | "publicCard"
   | "cleanName"
@@ -96,6 +100,7 @@ export type ServerEngineApi = Pick<
   | "BLIND_LEVELS"
   | "DEFAULT_BIG_BLIND"
   | "DEFAULT_SMALL_BLIND"
+  | "TOURNAMENT_LEVEL_DURATION_MS"
   | "MAX_PLAYERS"
   | "PLAYER_COLORS"
 >;
@@ -198,9 +203,11 @@ export interface ServerApi extends ServerEngineApi {
   // ── timers ───────────────────────────────────────────────────────────────
   clearTurnTimer: (room: Room) => void;
   clearReadyTimer: (room: Room) => void;
+  clearTournamentLevelTimer: (room: Room) => void;
   applyReadyTimeout: (room: Room) => void;
   armReadyTimeout: (room: Room, delayMs: number) => void;
   scheduleReadyTimer: (room: Room) => void;
+  scheduleTournamentLevelTimer: (room: Room) => void;
   autoTurnAction: (room: Room, player: Player) => { type: string };
   isBettingStreet: (phase: string) => boolean;
   armTurnTimeout: (room: Room, delayMs: number) => void;

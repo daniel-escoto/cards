@@ -44,6 +44,8 @@ function registerSocketHandlers(): void {
           computerPlayers,
           tableSize,
           moneyMode,
+          tournamentMode,
+          tournamentLevelDurationMs,
           buyInCents,
           smallBlind,
           bigBlind,
@@ -54,6 +56,8 @@ function registerSocketHandlers(): void {
       ) => {
         const playerId = api.cleanDeviceId(deviceId, socket.id);
         const cleanedBuyInCents = api.cleanMoneyCents(buyInCents, api.DEFAULT_BUY_IN_CENTS);
+        // Money wins if both are set; tournament never mixes with cash.
+        const wantTournament = Boolean(tournamentMode) && !moneyMode;
         let cleanSmall = api.cleanBlind(smallBlind, api.DEFAULT_SMALL_BLIND);
         let cleanBig = api.cleanBlind(bigBlind, api.DEFAULT_BIG_BLIND);
         if (moneyMode) {
@@ -70,20 +74,23 @@ function registerSocketHandlers(): void {
           cleanSmall = requestedSmallCents;
           cleanBig = requestedBigCents;
         }
-        if (cleanBig <= cleanSmall)
+        if (!wantTournament && cleanBig <= cleanSmall)
           return ack?.({ ok: false, error: "Big blind must be greater than small blind." });
         const credentials = api.newReconnectCredentials();
-        const requestedSize = moneyMode
-          ? 0
-          : api.cleanTableSize(tableSize) || api.cleanTableSize(computerPlayers);
+        const requestedSize =
+          moneyMode || wantTournament
+            ? 0
+            : api.cleanTableSize(tableSize) || api.cleanTableSize(computerPlayers);
         const room = api.makeRoom(playerId, api.cleanName(name || ""), socket.id, requestedSize, {
           moneyMode,
+          tournamentMode: wantTournament,
+          tournamentLevelDurationMs,
           buyInCents: cleanedBuyInCents,
           smallBlind: cleanSmall,
           bigBlind: cleanBig,
           reconnectTokenHash: credentials.tokenHash,
         });
-        if (!room.moneyMode) {
+        if (!room.moneyMode && !room.tournamentMode) {
           const previousIds = usage.seatedIds(room);
           api.addComputerPlayers(room, requestedSize || computerPlayers);
           usage.logNewSeatedPlayers(room, previousIds);
@@ -435,6 +442,8 @@ function registerSocketHandlers(): void {
         return ack?.({ ok: false, error: "Only the host can add CPU players." });
       if (room.moneyMode)
         return ack?.({ ok: false, error: "CPU players are unavailable in money mode." });
+      if (room.tournamentMode)
+        return ack?.({ ok: false, error: "CPU players are unavailable in tournaments." });
       if (room.handNumber > 0)
         return ack?.({ ok: false, error: "CPU players can only be added before the game begins." });
       if (room.players.length >= api.MAX_PLAYERS)
@@ -557,6 +566,8 @@ function registerSocketHandlers(): void {
         const playerId = playerIdFromSocket(socket);
         if (!room || room.hostId !== playerId)
           return ack?.({ ok: false, error: "Only the host can change blinds." });
+        if (room.tournamentMode)
+          return ack?.({ ok: false, error: "Tournament blinds follow the level clock." });
         if (!api.canReadyForHand(room))
           return ack?.({ ok: false, error: "Change blinds between hands." });
 

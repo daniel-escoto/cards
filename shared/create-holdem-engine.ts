@@ -12,6 +12,7 @@ type Player = import("./types").Player;
 type PublicCard = import("./types").PublicCard;
 type CardCode = import("./types").CardCode;
 type BlindLevel = import("./types").BlindLevel;
+type TimedBlindLevel = import("./types").TimedBlindLevel;
 type ActionLogEntry = import("./types").ActionLogEntry;
 type ActionType = import("./types").ActionType;
 type PlayerColor = import("./types").PlayerColor;
@@ -44,6 +45,8 @@ export function createHoldemEngine(Hand: HandConstructor) {
   ];
   const DEFAULT_BIG_BLIND = BLIND_LEVELS[0].bigBlind;
   const DEFAULT_SMALL_BLIND = BLIND_LEVELS[0].smallBlind;
+  /** Default tournament level length (approved: 10-minute timed levels). */
+  const TOURNAMENT_LEVEL_DURATION_MS = 10 * 60 * 1000;
   const MAX_PLAYERS = 9;
   const BOT_PROFILES = [
     {
@@ -205,7 +208,48 @@ export function createHoldemEngine(Hand: HandConstructor) {
     return BLIND_LEVELS[BLIND_LEVELS.length - 1];
   }
 
+  function cleanTournamentLevelDurationMs(value: unknown, fallback = TOURNAMENT_LEVEL_DURATION_MS): number {
+    const ms = Math.floor(Number(value));
+    if (!Number.isFinite(ms) || ms < 1_000) return fallback;
+    return Math.min(ms, 60 * 60 * 1000);
+  }
+
+  /** Timed ladder from chip BLIND_LEVELS ratios; final level never expires. */
+  function tournamentBlindSchedule(durationMs: unknown = TOURNAMENT_LEVEL_DURATION_MS): TimedBlindLevel[] {
+    const levelMs = cleanTournamentLevelDurationMs(durationMs);
+    return BLIND_LEVELS.map((level, index) => ({
+      smallBlind: level.smallBlind,
+      bigBlind: level.bigBlind,
+      durationMs: index === BLIND_LEVELS.length - 1 ? Number.POSITIVE_INFINITY : levelMs,
+    }));
+  }
+
+  function tournamentLevel(room: Room | null | undefined): TimedBlindLevel {
+    const schedule = tournamentBlindSchedule(room?.tournamentLevelDurationMs);
+    const index = Math.max(
+      0,
+      Math.min(schedule.length - 1, Math.floor(Number(room?.tournamentLevelIndex) || 0)),
+    );
+    return schedule[index];
+  }
+
+  /** Apply a pending clock advance before blinds post (never mid-hand). */
+  function applyTournamentLevelOnDeal(room: Room): void {
+    if (!room?.tournamentMode || !room.tournamentPendingAdvance) return;
+    const schedule = tournamentBlindSchedule(room.tournamentLevelDurationMs);
+    const current = Math.max(0, Math.floor(Number(room.tournamentLevelIndex) || 0));
+    if (current < schedule.length - 1) {
+      room.tournamentLevelIndex = current + 1;
+    }
+    room.tournamentPendingAdvance = false;
+    room.tournamentLevelEndsAt = null;
+  }
+
   function currentBlinds(room: Room): { smallBlind: number; bigBlind: number } {
+    if (room?.tournamentMode) {
+      const level = tournamentLevel(room);
+      return { smallBlind: level.smallBlind, bigBlind: level.bigBlind };
+    }
     const baseSmallBlind = Math.max(
       1,
       Math.floor(Number(room?.baseSmallBlind) || DEFAULT_SMALL_BLIND),
@@ -642,6 +686,7 @@ export function createHoldemEngine(Hand: HandConstructor) {
     room.phase = "preflop";
     room.handNumber += 1;
     if (room.handNumber === 1) room.dealer = randomInt(room.players.length);
+    applyTournamentLevelOnDeal(room);
     const { smallBlind, bigBlind } = currentBlinds(room);
     room.minRaise = bigBlind;
 
@@ -1889,6 +1934,14 @@ export function createHoldemEngine(Hand: HandConstructor) {
       playerColors: PLAYER_COLORS,
       handNumber: room.handNumber,
       moneyMode: Boolean(room.moneyMode),
+      tournamentMode: Boolean(room.tournamentMode),
+      tournamentLevelIndex: Math.max(0, Math.floor(Number(room.tournamentLevelIndex) || 0)),
+      tournamentPendingAdvance: Boolean(room.tournamentPendingAdvance),
+      tournamentLevelEndsAt: room.tournamentLevelEndsAt || null,
+      tournamentLevelDurationMs: cleanTournamentLevelDurationMs(
+        room.tournamentLevelDurationMs,
+        TOURNAMENT_LEVEL_DURATION_MS,
+      ),
       buyInCents: room.buyInCents || 0,
       chipValueCents: chipValueCents(room),
       settlements: room.settlements || [],
@@ -1915,7 +1968,8 @@ export function createHoldemEngine(Hand: HandConstructor) {
       ),
       isReady: Boolean(viewer?.ready),
       coachAvailable: coachAvailableForViewer(room, viewerId),
-      canChangeBlinds: room.hostId === viewerId && canReadyForHand(room),
+      canChangeBlinds:
+        room.hostId === viewerId && !room.tournamentMode && canReadyForHand(room),
       // Offline practice never runs a shot clock / ready timer so humans cannot get stuck alone.
       canChangeShotClock: false,
       canChangeReadyTimer: false,
@@ -2338,6 +2392,7 @@ export function createHoldemEngine(Hand: HandConstructor) {
     BLIND_LEVELS,
     DEFAULT_BIG_BLIND,
     DEFAULT_SMALL_BLIND,
+    TOURNAMENT_LEVEL_DURATION_MS,
     MAX_PLAYERS,
     BOT_PROFILES,
     PLAYER_COLORS,
@@ -2347,6 +2402,10 @@ export function createHoldemEngine(Hand: HandConstructor) {
     setRandomInt,
     randomInt,
     blindLevelForHand,
+    cleanTournamentLevelDurationMs,
+    tournamentBlindSchedule,
+    tournamentLevel,
+    applyTournamentLevelOnDeal,
     currentBlinds,
     makeDeck,
     publicCard,

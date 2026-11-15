@@ -59,7 +59,8 @@ export function forceTableState(
     | "in-hand-on-turn"
     | "in-hand-off-turn"
     | "all-in-runout"
-    | "showdown",
+    | "showdown"
+    | "tournament-level-clock",
 ) {
   return page.evaluate((sceneName) => {
     const base =
@@ -139,6 +140,11 @@ export function forceTableState(
       toCallCents: 0,
       chipValueCents: 0,
       moneyMode: false,
+      tournamentMode: false,
+      tournamentLevelIndex: 0,
+      tournamentPendingAdvance: false,
+      tournamentLevelEndsAt: null,
+      tournamentLevelDurationMs: 600_000,
       phase: "preflop",
       community: [],
       winners: [],
@@ -152,7 +158,30 @@ export function forceTableState(
       players: [you, bot1, bot2],
     };
 
-    if (sceneName === "lobby-waiting") {
+    if (sceneName === "tournament-level-clock") {
+      // Freeze client clock so the level countdown is screenshot-stable (9:42).
+      const fixedNow = 1_700_000_000_000;
+      Date.now = () => fixedNow;
+      const win = window as unknown as { serverTimeOffsetMs?: number };
+      win.serverTimeOffsetMs = 0;
+      room = {
+        ...room,
+        tournamentMode: true,
+        tournamentLevelIndex: 0,
+        tournamentPendingAdvance: false,
+        tournamentLevelEndsAt: fixedNow + 9 * 60 * 1000 + 42 * 1000,
+        tournamentLevelDurationMs: 600_000,
+        serverNow: fixedNow,
+        handNumber: 1,
+        canAddBot: false,
+        canChangeBlinds: false,
+        players: [
+          { ...you, isBot: false },
+          { ...bot1, id: "p2", name: "Sam", isBot: false },
+          { ...bot2, id: "p3", name: "Riley", isBot: false },
+        ],
+      };
+    } else if (sceneName === "lobby-waiting") {
       room = {
         ...room,
         pot: 0,

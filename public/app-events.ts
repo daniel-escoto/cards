@@ -42,8 +42,10 @@ hostModeBtn.addEventListener("click", () => setTableMode("host"));
 joinModeBtn.addEventListener("click", () => setTableMode("join", true));
 watchBtn?.addEventListener("click", () => watchRoom());
 moneyModeInput.addEventListener("change", () => {
-  syncBlindInputMode();
-  updateTableActionLabel();
+  syncHostFormatToggles("money");
+});
+tournamentModeInput?.addEventListener("change", () => {
+  syncHostFormatToggles("tournament");
 });
 joinForm.addEventListener("submit", (event) => {
   event.preventDefault();
