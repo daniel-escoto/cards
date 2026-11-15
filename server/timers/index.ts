@@ -18,6 +18,79 @@ function clearReadyTimer(room: Room): void {
   room.readyEndsAt = null;
 }
 
+function clearTournamentLevelTimer(room: Room): void {
+  if (!room) return;
+  api.shotClockTime.clearTimeout(room.tournamentLevelTimer);
+  room.tournamentLevelTimer = null;
+}
+
+function armTournamentLevelTimeout(room: Room, delayMs: number): void {
+  const roomId = room.id;
+  api.shotClockTime.clearTimeout(room.tournamentLevelTimer);
+  room.tournamentLevelTimer = api.shotClockTime.setTimeout(
+    () => {
+      const current = api.rooms.get(roomId);
+      if (!current) return;
+      current.tournamentLevelTimer = null;
+      current.tournamentLevelEndsAt = null;
+      if (!current.tournamentMode) {
+        api.emitRoom(current);
+        return;
+      }
+      const schedule = api.tournamentBlindSchedule(current.tournamentLevelDurationMs);
+      const index = Math.max(0, Math.floor(Number(current.tournamentLevelIndex) || 0));
+      if (index >= schedule.length - 1) {
+        api.emitRoom(current);
+        return;
+      }
+      if (api.isHandInProgress(current)) {
+        // Never change blinds mid-hand — bump on the next deal.
+        current.tournamentPendingAdvance = true;
+      } else {
+        current.tournamentLevelIndex = index + 1;
+        current.tournamentPendingAdvance = false;
+      }
+      api.emitRoom(current);
+    },
+    Math.max(0, delayMs),
+  );
+}
+
+function scheduleTournamentLevelTimer(room: Room): void {
+  if (!room?.tournamentMode) {
+    clearTournamentLevelTimer(room);
+    return;
+  }
+  // Clock starts when the tournament deals hand 1 (or after restore mid-event).
+  if (room.handNumber < 1) {
+    clearTournamentLevelTimer(room);
+    room.tournamentLevelEndsAt = null;
+    return;
+  }
+  if (room.tournamentPendingAdvance) {
+    clearTournamentLevelTimer(room);
+    room.tournamentLevelEndsAt = null;
+    return;
+  }
+  const level = api.tournamentLevel(room);
+  if (!Number.isFinite(level.durationMs) || level.durationMs <= 0) {
+    clearTournamentLevelTimer(room);
+    room.tournamentLevelEndsAt = null;
+    return;
+  }
+
+  const now = api.shotClockTime.now();
+  if (room.tournamentLevelEndsAt) {
+    if (!room.tournamentLevelTimer) {
+      armTournamentLevelTimeout(room, room.tournamentLevelEndsAt - now);
+    }
+    return;
+  }
+
+  room.tournamentLevelEndsAt = now + level.durationMs;
+  armTournamentLevelTimeout(room, level.durationMs);
+}
+
 function applyReadyTimeout(room: Room): void {
   if (!room || !api.canReadyForHand(room)) return;
   const satOutNames: string[] = [];
@@ -311,9 +384,11 @@ function scheduleComputerTurn(room: Room): void {
 Object.assign(api, {
   clearTurnTimer,
   clearReadyTimer,
+  clearTournamentLevelTimer,
   applyReadyTimeout,
   armReadyTimeout,
   scheduleReadyTimer,
+  scheduleTournamentLevelTimer,
   autoTurnAction,
   isBettingStreet,
   armTurnTimeout,
@@ -329,9 +404,11 @@ Object.assign(api, {
 export = {
   clearTurnTimer,
   clearReadyTimer,
+  clearTournamentLevelTimer,
   applyReadyTimeout,
   armReadyTimeout,
   scheduleReadyTimer,
+  scheduleTournamentLevelTimer,
   autoTurnAction,
   isBettingStreet,
   armTurnTimeout,

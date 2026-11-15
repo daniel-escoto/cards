@@ -143,6 +143,18 @@ function serializeRoomForStorage(room: Room): StoredRoom {
     allInCardsExposed: Boolean(room.allInCardsExposed),
     handNumber: room.handNumber,
     moneyMode: Boolean(room.moneyMode),
+    ...(room.tournamentMode
+      ? {
+          tournamentMode: true,
+          tournamentLevelIndex: Math.max(0, Math.floor(Number(room.tournamentLevelIndex) || 0)),
+          tournamentPendingAdvance: Boolean(room.tournamentPendingAdvance),
+          tournamentLevelEndsAt: room.tournamentLevelEndsAt || null,
+          tournamentLevelDurationMs: api.cleanTournamentLevelDurationMs(
+            room.tournamentLevelDurationMs,
+            api.TOURNAMENT_LEVEL_DURATION_MS,
+          ),
+        }
+      : {}),
     moneyUnitCents: room.moneyUnitCents === 1 ? 1 : null,
     buyInCents: api.cleanMoneyCents(room.buyInCents, api.DEFAULT_BUY_IN_CENTS),
     baseSmallBlind: room.baseSmallBlind || api.DEFAULT_SMALL_BLIND,
@@ -232,6 +244,7 @@ function pauseRoomTimers(room: Room) {
   room.turnTimer = null;
   api.shotClockTime.clearTimeout(room.readyTimer);
   room.readyTimer = null;
+  api.clearTournamentLevelTimer(room);
   api.clearComputerTurn(room);
   room.botTimer = null;
   clearTimer(room.showdownTimer);
@@ -257,6 +270,7 @@ function extendDeadlinesAfterRestore(room: Room, downtimeMs: number) {
   if (!room || !pad) return;
   if (room.turnEndsAt) room.turnEndsAt += pad;
   if (room.readyEndsAt) room.readyEndsAt += pad;
+  if (room.tournamentLevelEndsAt) room.tournamentLevelEndsAt += pad;
   for (const player of room.players || []) {
     if (player.disconnectExpiresAt) player.disconnectExpiresAt += pad;
   }
@@ -433,6 +447,13 @@ function restoreRoom(raw: StoredRoom | Record<string, unknown>): Room | null {
     allInCardsExposed: Boolean(data.allInCardsExposed),
     handNumber: Math.max(0, Math.floor(Number(data.handNumber) || 0)),
     moneyMode: Boolean(data.moneyMode),
+    tournamentMode: Boolean(data.tournamentMode) && !data.moneyMode,
+    tournamentLevelIndex: Math.max(0, Math.floor(Number(data.tournamentLevelIndex) || 0)),
+    tournamentPendingAdvance: Boolean(data.tournamentPendingAdvance),
+    tournamentLevelDurationMs: api.cleanTournamentLevelDurationMs(
+      data.tournamentLevelDurationMs,
+      api.TOURNAMENT_LEVEL_DURATION_MS,
+    ),
     moneyUnitCents: data.moneyUnitCents === 1 ? 1 : null,
     buyInCents: api.cleanMoneyCents(data.buyInCents, api.DEFAULT_BUY_IN_CENTS),
     baseSmallBlind: Math.max(1, Math.floor(Number(data.baseSmallBlind) || api.DEFAULT_SMALL_BLIND)),
@@ -458,10 +479,12 @@ function restoreRoom(raw: StoredRoom | Record<string, unknown>): Room | null {
     showdownTimer: null,
     turnTimer: null,
     readyTimer: null,
+    tournamentLevelTimer: null,
     // Absolute deadlines persist across process restart; timeout handles are re-armed below.
     turnEndsAt: Number(data.turnEndsAt) || null,
     turnTimerPlayerId: data.turnTimerPlayerId ? String(data.turnTimerPlayerId) : null,
     readyEndsAt: Number(data.readyEndsAt) || null,
+    tournamentLevelEndsAt: Number(data.tournamentLevelEndsAt) || null,
     dormantSince: Number(data.dormantSince) || null,
     dormantTimer: null,
     // Legacy rooms have neither field: setting on, nothing revealed.
@@ -479,7 +502,7 @@ function restoreRoom(raw: StoredRoom | Record<string, unknown>): Room | null {
   dedupePlayersById(room);
   assignMissingPlayerColors(room);
 
-  if (room.tableSize && !room.moneyMode) {
+  if (room.tableSize && !room.moneyMode && !room.tournamentMode) {
     for (const player of room.players) {
       if (!player.isBot) markRestoredHumanAsBot(room, player);
     }
@@ -545,6 +568,7 @@ function activateRoom(room: Room, { scheduleSaveAfter = true }: { scheduleSaveAf
   if (room.phase === "showdown") scheduleShowdown(room);
   api.scheduleHumanTurnTimer(room);
   api.scheduleReadyTimer(room);
+  api.scheduleTournamentLevelTimer(room);
   api.scheduleComputerTurn(room);
   if (scheduleSaveAfter) scheduleSave();
 }
@@ -672,13 +696,30 @@ function makeRoom(hostId: string, hostName: string, socketId: string, tableSize 
   let id = api.makeId();
   while (api.rooms.has(id)) id = api.makeId();
   const moneyMode = Boolean(options.moneyMode);
+  // Tournament is humans-only chip freezeout; never combine with moneyMode.
+  const tournamentMode = Boolean(options.tournamentMode) && !moneyMode;
   const buyInCents = api.cleanMoneyCents(options.buyInCents, api.DEFAULT_BUY_IN_CENTS);
-  const baseSmallBlind = cleanBlind(options.smallBlind, api.DEFAULT_SMALL_BLIND);
-  const baseBigBlind = cleanBlind(options.bigBlind, api.DEFAULT_BIG_BLIND);
+  const tournamentLevelDurationMs = api.cleanTournamentLevelDurationMs(
+    options.tournamentLevelDurationMs,
+    api.TOURNAMENT_LEVEL_DURATION_MS,
+  );
+  const openingLevel = tournamentMode
+    ? api.tournamentLevel({
+        tournamentMode: true,
+        tournamentLevelIndex: 0,
+        tournamentLevelDurationMs,
+      } as Room)
+    : null;
+  const baseSmallBlind = openingLevel
+    ? openingLevel.smallBlind
+    : cleanBlind(options.smallBlind, api.DEFAULT_SMALL_BLIND);
+  const baseBigBlind = openingLevel
+    ? openingLevel.bigBlind
+    : cleanBlind(options.bigBlind, api.DEFAULT_BIG_BLIND);
   const room: Room = {
     id,
     hostId,
-    tableSize: moneyMode ? 0 : api.cleanTableSize(tableSize),
+    tableSize: moneyMode || tournamentMode ? 0 : api.cleanTableSize(tableSize),
     status: "lobby",
     phase: "lobby",
     deck: [],
@@ -699,6 +740,12 @@ function makeRoom(hostId: string, hostName: string, socketId: string, tableSize 
     allInCardsExposed: false,
     handNumber: 0,
     moneyMode,
+    tournamentMode,
+    tournamentLevelIndex: 0,
+    tournamentPendingAdvance: false,
+    tournamentLevelDurationMs,
+    tournamentLevelEndsAt: null,
+    tournamentLevelTimer: null,
     moneyUnitCents: moneyMode ? 1 : null,
     buyInCents,
     baseSmallBlind,
@@ -1083,6 +1130,14 @@ function serializeRoom(room: Room, viewerId: string) {
     playerColors: api.PLAYER_COLORS,
     handNumber: room.handNumber,
     moneyMode: Boolean(room.moneyMode),
+    tournamentMode: Boolean(room.tournamentMode),
+    tournamentLevelIndex: Math.max(0, Math.floor(Number(room.tournamentLevelIndex) || 0)),
+    tournamentPendingAdvance: Boolean(room.tournamentPendingAdvance),
+    tournamentLevelEndsAt: room.tournamentLevelEndsAt || null,
+    tournamentLevelDurationMs: api.cleanTournamentLevelDurationMs(
+      room.tournamentLevelDurationMs,
+      api.TOURNAMENT_LEVEL_DURATION_MS,
+    ),
     buyInCents: room.buyInCents,
     chipValueCents: api.chipValueCents(room),
     settlements: room.settlements || [],
@@ -1123,7 +1178,11 @@ function serializeRoom(room: Room, viewerId: string) {
     coachAvailable: Boolean(viewer) && api.coachAvailableForViewer(room, viewerId),
     watchingCount: watchingCount(room),
     canTakeSeat: isSpectator && canTakeSeatNow(room),
-    canChangeBlinds: Boolean(viewer) && room.hostId === viewerId && api.canReadyForHand(room),
+    canChangeBlinds:
+      Boolean(viewer) &&
+      room.hostId === viewerId &&
+      !room.tournamentMode &&
+      api.canReadyForHand(room),
     canChangeShotClock: Boolean(viewer) && room.hostId === viewerId,
     canChangeReadyTimer: Boolean(viewer) && room.hostId === viewerId,
     turnTimeLimitMs: api.normalizeShotClockMs(room.turnTimeLimitMs, api.SHOT_CLOCK_DEFAULT_MS),
@@ -1132,16 +1191,21 @@ function serializeRoom(room: Room, viewerId: string) {
     readyTimeLimitMs: api.normalizeReadyTimerMs(room.readyTimeLimitMs, api.READY_TIMER_DEFAULT_MS),
     serverNow: api.shotClockTime.now(),
     canRestartGame:
-      Boolean(viewer) && room.hostId === viewerId && !room.moneyMode && api.canAdministerGame(room),
+      Boolean(viewer) &&
+      room.hostId === viewerId &&
+      !room.moneyMode &&
+      !room.tournamentMode &&
+      api.canAdministerGame(room),
     canEndGame:
       Boolean(viewer) &&
       room.hostId === viewerId &&
       api.canAdministerGame(room) &&
-      (room.moneyMode || room.phase !== "lobby"),
+      (room.moneyMode || room.tournamentMode || room.phase !== "lobby"),
     canAddBot:
       Boolean(viewer) &&
       room.hostId === viewerId &&
       !room.moneyMode &&
+      !room.tournamentMode &&
       room.handNumber === 0 &&
       room.players.length < api.MAX_PLAYERS,
     bustedOut: api.humansBustedOut(room),
@@ -1217,6 +1281,7 @@ function emitRoom(room: Room) {
   // Arm absolute clocks before serialize so clients receive turnEndsAt / readyEndsAt.
   api.scheduleHumanTurnTimer(room);
   api.scheduleReadyTimer(room);
+  api.scheduleTournamentLevelTimer(room);
   for (const player of room.players) {
     for (const socketId of player.socketIds || []) {
       api.io.to(socketId).emit("room:update", serializeRoom(room, player.id));

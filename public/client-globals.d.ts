@@ -776,6 +776,8 @@ declare global {
   var hostModeBtn: HTMLButtonElement;
   var joinModeBtn: HTMLButtonElement;
   var moneyModeLabel: HTMLElement | null;
+  var tournamentModeLabel: HTMLElement | null;
+  var tournamentModeInput: HTMLInputElement | null;
   var blindFields: HTMLElement | null;
   var smallBlindInput: HTMLInputElement;
   var bigBlindInput: HTMLInputElement;
@@ -884,6 +886,9 @@ declare global {
   var cashOutBtn: HTMLButtonElement;
   var moneyNote: HTMLElement | null;
   var potValue: HTMLElement;
+  var levelClock: HTMLElement | null;
+  var levelClockLabel: HTMLElement | null;
+  var levelClockValue: HTMLElement | null;
   var community: HTMLElement;
   var players: HTMLElement;
   var heroHand: HTMLElement;
@@ -990,6 +995,10 @@ declare global {
   function applyRoomUpdate(room: ClientRoom): void;
   function updateTableActionLabel(): void;
   function syncBlindInputMode(): void;
+  function syncHostFormatToggles(source: "money" | "tournament"): void;
+  function levelSecondsRemaining(room?: ClientRoom | null): number;
+  function renderLevelClock(room?: ClientRoom | null): void;
+  function syncLevelCountdown(): void;
   function setTableMode(mode: string, focusRoom?: boolean): void;
   function isSpectatorView(room?: ClientRoom | null): boolean;
   function showToast(message: string): void;

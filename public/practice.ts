@@ -39,7 +39,7 @@ function isHoldemEngineAPI(value: unknown): value is HoldemEngineAPI {
   function canHandoffToOffline(state: ClientRoom | null | undefined) {
     if (!state || typeof state !== "object") return false;
     if (state.offline) return false;
-    if (state.moneyMode) return false;
+    if (state.moneyMode || state.tournamentMode) return false;
     if (!state.phase) return false;
     if (!Array.isArray(state.players) || state.players.length === 0) return false;
     const humans = state.players.filter((player: ClientPlayer) => !player.isBot);

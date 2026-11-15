@@ -136,6 +136,13 @@
                 <strong>Money mode</strong>
               </span>
             </label>
+            <label id="tournamentModeLabel" class="checkbox-label">
+              <input id="tournamentModeInput" type="checkbox" />
+              <span class="switch-control" aria-hidden="true"></span>
+              <span class="checkbox-copy">
+                <strong>Tournament</strong>
+              </span>
+            </label>
             <label id="buyInLabel" class="form-field hidden">
               <span>Buy-in</span>
               <input
@@ -233,6 +240,10 @@
                 <div class="pot-chip">
                   <span>Pot</span>
                   <strong id="potValue">0</strong>
+                </div>
+                <div id="levelClock" class="level-chip hidden" aria-live="polite">
+                  <span id="levelClockLabel">Level</span>
+                  <strong id="levelClockValue">—</strong>
                 </div>
               </div>
               <button

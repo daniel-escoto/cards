@@ -292,6 +292,31 @@ for (const theme of THEMES) {
         await shot(page.locator("#welcome .join-panel").first(), `${theme}-${vp.name}-welcome`);
       });
 
+      test(`welcome-tournament`, async ({ page }) => {
+        await gotoFresh(page, "/");
+        await page.waitForSelector("#tournamentModeInput");
+        await page.check("#tournamentModeInput");
+        await page.waitForFunction(
+          () =>
+            (document.querySelector("#blindFields") as HTMLElement | null)?.classList.contains(
+              "hidden",
+            ) === true,
+        );
+        await stabilize(page);
+        await shot(
+          page.locator("#welcome .join-panel").first(),
+          `${theme}-${vp.name}-welcome-tournament`,
+        );
+      });
+
+      test(`tournament-level-clock`, async ({ page }) => {
+        await openOfflineTable(page);
+        await forceTableState(page, "tournament-level-clock");
+        await page.waitForSelector("#levelClock:not(.hidden)");
+        await stabilize(page);
+        await shot(page.locator("#tableView .hand-row"), `${theme}-${vp.name}-tournament-level-clock`);
+      });
+
       test(`hand-review-retry`, async ({ page }) => {
         await openOfflineTable(page);
         await forceTableState(page, "lobby-waiting");

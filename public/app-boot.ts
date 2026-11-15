@@ -19,6 +19,8 @@ var roomCodeLabel = document.querySelector("#roomCodeLabel") as HTMLElement;
 var hostModeBtn = document.querySelector("#hostModeBtn") as HTMLButtonElement;
 var joinModeBtn = document.querySelector("#joinModeBtn") as HTMLButtonElement;
 var moneyModeLabel = document.querySelector("#moneyModeLabel") as HTMLElement;
+var tournamentModeLabel = document.querySelector("#tournamentModeLabel") as HTMLElement;
+var tournamentModeInput = document.querySelector("#tournamentModeInput") as HTMLInputElement;
 var blindFields = document.querySelector("#blindFields") as HTMLElement;
 var smallBlindInput = document.querySelector("#smallBlindInput") as HTMLInputElement;
 var bigBlindInput = document.querySelector("#bigBlindInput") as HTMLInputElement;
@@ -110,6 +112,9 @@ var cashInBtn = document.querySelector("#cashInBtn") as HTMLButtonElement;
 var cashOutBtn = document.querySelector("#cashOutBtn") as HTMLButtonElement;
 var moneyNote = document.querySelector(".money-note") as HTMLElement;
 var potValue = document.querySelector("#potValue") as HTMLElement;
+var levelClock = document.querySelector("#levelClock") as HTMLElement | null;
+var levelClockLabel = document.querySelector("#levelClockLabel") as HTMLElement | null;
+var levelClockValue = document.querySelector("#levelClockValue") as HTMLElement | null;
 var community = document.querySelector("#community") as HTMLElement;
 var players = document.querySelector("#players") as HTMLElement;
 var heroHand = document.querySelector("#heroHand") as HTMLElement;
@@ -444,8 +449,8 @@ function disposePracticeSession() {
 
 function hostUsesOfflinePath() {
   // Chip Host with no server connection → local table (add bots in-game).
-  // Connected chip Host and money Host stay on online create-room.
-  return !moneyModeInput.checked && !socket?.connected;
+  // Connected chip Host, money Host, and tournament Host stay on online create-room.
+  return !moneyModeInput.checked && !tournamentModeInput?.checked && !socket?.connected;
 }
 
 /**
@@ -548,6 +553,7 @@ function applyRoomUpdate(room: ClientRoom) {
 function updateTableActionLabel() {
   const isJoining = tableMode === "join";
   const moneyMode = moneyModeInput.checked;
+  const tournamentMode = Boolean(tournamentModeInput?.checked);
   const offlineHost = !isJoining && hostUsesOfflinePath();
   if (!joinPending) {
     tableActionBtn.textContent = isJoining
@@ -563,9 +569,11 @@ function updateTableActionLabel() {
     watchBtn.classList.toggle("watch-offer", Boolean(watchOfferPending));
     watchBtn.textContent = watchOfferPending ? "Watch instead" : "Watch";
   }
-  blindFields?.classList.toggle("hidden", isJoining);
+  // Tournament blinds come from the timed schedule — hide manual blind fields.
+  blindFields?.classList.toggle("hidden", isJoining || tournamentMode);
   moneyModeLabel?.classList.toggle("hidden", isJoining);
-  buyInLabel.classList.toggle("hidden", isJoining || !moneyMode);
+  tournamentModeLabel?.classList.toggle("hidden", isJoining);
+  buyInLabel.classList.toggle("hidden", isJoining || !moneyMode || tournamentMode);
   roomCodeLabel.classList.toggle("hidden", !isJoining);
   hostModeBtn.classList.toggle("selected", !isJoining);
   joinModeBtn.classList.toggle("selected", isJoining);
@@ -575,7 +583,7 @@ function updateTableActionLabel() {
 
 function syncBlindInputMode() {
   if (!blindFields || !smallBlindInput || !bigBlindInput) return;
-  const moneyMode = moneyModeInput.checked;
+  const moneyMode = moneyModeInput.checked && !tournamentModeInput?.checked;
   const previousMode = blindFields.dataset.mode || "chips";
   if ((moneyMode ? "money" : "chips") !== previousMode) {
     if (moneyMode) {
@@ -597,6 +605,17 @@ function syncBlindInputMode() {
   bigBlindInput.min = moneyMode ? "0.02" : "2";
   smallBlindInput.step = moneyMode ? "0.01" : "1";
   bigBlindInput.step = moneyMode ? "0.01" : "1";
+}
+
+function syncHostFormatToggles(source: "money" | "tournament") {
+  if (!tournamentModeInput || !moneyModeInput) return;
+  if (source === "tournament" && tournamentModeInput.checked) {
+    moneyModeInput.checked = false;
+  } else if (source === "money" && moneyModeInput.checked) {
+    tournamentModeInput.checked = false;
+  }
+  syncBlindInputMode();
+  updateTableActionLabel();
 }
 
 function setTableMode(mode: string, focusRoom = false) {
@@ -1486,6 +1505,42 @@ function syncLowTimeWarningEffects(now = clientNow()) {
       }
     }
   }
+}
+
+function levelSecondsRemaining(room: ClientRoom | null = state) {
+  if (!room?.tournamentMode || !room.tournamentLevelEndsAt) return 0;
+  return Math.max(0, Math.ceil((room.tournamentLevelEndsAt - clientNow()) / 1000));
+}
+
+function renderLevelClock(room: ClientRoom | null = state) {
+  if (!levelClock || !levelClockLabel || !levelClockValue) return;
+  if (!room?.tournamentMode) {
+    levelClock.classList.add("hidden");
+    return;
+  }
+  levelClock.classList.remove("hidden");
+  const levelNumber = Math.max(1, Math.floor(Number(room.tournamentLevelIndex) || 0) + 1);
+  const blinds = `${room.smallBlind}/${room.bigBlind}`;
+  levelClockLabel.textContent = room.tournamentPendingAdvance
+    ? `Next · ${blinds}`
+    : `Lv ${levelNumber} · ${blinds}`;
+  if (room.tournamentPendingAdvance || !room.tournamentLevelEndsAt) {
+    levelClockValue.textContent = room.tournamentPendingAdvance ? "Soon" : "—";
+    return;
+  }
+  levelClockValue.textContent = formatTurnCountdown(levelSecondsRemaining(room));
+}
+
+var levelCountdownTimer: ReturnType<typeof setInterval> | null = null;
+
+function syncLevelCountdown() {
+  if (levelCountdownTimer != null) clearInterval(levelCountdownTimer);
+  levelCountdownTimer = null;
+  renderLevelClock();
+  if (!state?.tournamentMode || !state.tournamentLevelEndsAt || state.tournamentPendingAdvance) {
+    return;
+  }
+  levelCountdownTimer = setInterval(() => renderLevelClock(), 250);
 }
 
 function syncTurnCountdown() {

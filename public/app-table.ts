@@ -27,6 +27,7 @@ function render() {
     replayAnimation(potValue.closest("div"), "value-changed", 480);
   }
   lastPot = room.pot;
+  syncLevelCountdown();
   if (watchingCountEl) {
     const count = Number(room.watchingCount) || 0;
     watchingCountEl.textContent = count > 0 ? `${count} watching` : "";
@@ -2001,6 +2002,7 @@ function startOfflineHost() {
   }
   localStorage.setItem("holdem:name", name);
   moneyModeInput.checked = false;
+  if (tournamentModeInput) tournamentModeInput.checked = false;
   disposePracticeSession();
   practiceSession = PracticeSession.createPracticeSession({
     name,
@@ -2049,12 +2051,14 @@ function joinOrCreate(mode: string) {
     acceptedMoneyTerms,
   };
   if (mode !== "join") {
-    payload.moneyMode = moneyModeInput.checked;
+    const tournamentMode = Boolean(tournamentModeInput?.checked);
+    payload.tournamentMode = tournamentMode;
+    payload.moneyMode = moneyModeInput.checked && !tournamentMode;
     payload.buyInCents = moneyCentsFromInput(buyInInput);
     if (payload.moneyMode) {
       payload.smallBlindCents = Math.round(Number(smallBlindInput.value) * 100);
       payload.bigBlindCents = Math.round(Number(bigBlindInput.value) * 100);
-    } else {
+    } else if (!tournamentMode) {
       payload.smallBlind = Math.max(1, Math.floor(Number(smallBlindInput.value) || 10));
       payload.bigBlind = Math.max(2, Math.floor(Number(bigBlindInput.value) || 20));
     }

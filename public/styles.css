@@ -2041,10 +2041,13 @@ button.menu-player-row:not(:disabled):hover {
   top: var(--space-18);
   left: var(--space-18);
   display: flex;
+  align-items: stretch;
+  gap: var(--space-8);
   pointer-events: none;
 }
 
 .table-meta .pot-chip,
+.table-meta .level-chip,
 .table-meta div {
   min-width: 0;
   padding: var(--space-8) var(--space-12);
@@ -2054,6 +2057,10 @@ button.menu-player-row:not(:disabled):hover {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   box-shadow: none;
+}
+
+.table-meta .level-chip {
+  min-width: 5.5em;
 }
 
 .table-meta span {
@@ -3626,7 +3633,12 @@ body.hand-review-open .hand-row .table-meta {
   margin-right: 0;
 }
 
+.hand-row .table-meta {
+  gap: var(--space-6);
+}
+
 .hand-row .table-meta .pot-chip,
+.hand-row .table-meta .level-chip,
 .hand-row .table-meta div {
   height: auto;
   min-height: 0;
@@ -3639,6 +3651,10 @@ body.hand-review-open .hand-row .table-meta {
   background: color-mix(in srgb, var(--panel-2) 72%, transparent);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+
+.hand-row .table-meta .level-chip {
+  min-width: 5.25em;
 }
 
 .hand-row .table-meta span {

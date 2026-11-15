@@ -39,6 +39,14 @@ export interface BlindLevel {
   hands: number;
 }
 
+/** Timed blind level for tournament rooms (clocked, not hand-counted). */
+export interface TimedBlindLevel {
+  smallBlind: number;
+  bigBlind: number;
+  /** Level length in ms. Non-finite / ≤0 = final level (no further advance). */
+  durationMs: number;
+}
+
 /** Persisted / runtime ledger row (`room.moneyLedger`). */
 export interface LedgerEntry {
   playerId: string;
@@ -236,6 +244,17 @@ export interface Room {
   allInCardsExposed: boolean;
   handNumber: number;
   moneyMode: boolean;
+  /** Freezeout tournament room (timed levels). Mutually exclusive with moneyMode. */
+  tournamentMode?: boolean;
+  /** Index into the tournament blind schedule currently posting. */
+  tournamentLevelIndex?: number;
+  /** Timer fired mid-hand; bump level on the next deal. */
+  tournamentPendingAdvance?: boolean;
+  /** Absolute deadline for the current level clock (null between levels / final). */
+  tournamentLevelEndsAt?: number | null;
+  /** Per-level duration used to build the schedule (default 10 minutes). */
+  tournamentLevelDurationMs?: number;
+  tournamentLevelTimer?: TimerHandle;
   moneyUnitCents: 1 | null;
   buyInCents: number;
   baseSmallBlind: number;
@@ -305,6 +324,11 @@ export interface StoredRoom {
   allInCardsExposed: boolean;
   handNumber: number;
   moneyMode: boolean;
+  tournamentMode?: boolean;
+  tournamentLevelIndex?: number;
+  tournamentPendingAdvance?: boolean;
+  tournamentLevelEndsAt?: number | null;
+  tournamentLevelDurationMs?: number;
   moneyUnitCents: 1 | null;
   buyInCents: number;
   baseSmallBlind: number;
@@ -349,6 +373,11 @@ export interface ClientRoom {
   playerColors: string[];
   handNumber: number;
   moneyMode: boolean;
+  tournamentMode: boolean;
+  tournamentLevelIndex: number;
+  tournamentPendingAdvance: boolean;
+  tournamentLevelEndsAt: number | null;
+  tournamentLevelDurationMs: number;
   buyInCents: number;
   chipValueCents: number;
   settlements: Settlement[];
@@ -464,6 +493,9 @@ export interface ClientToServerEvents {
       computerPlayers?: number;
       tableSize?: number;
       moneyMode?: boolean;
+      tournamentMode?: boolean;
+      /** Override default 10-minute level length (tests / future host presets). */
+      tournamentLevelDurationMs?: number;
       buyInCents?: number;
       smallBlind?: number;
       bigBlind?: number;
