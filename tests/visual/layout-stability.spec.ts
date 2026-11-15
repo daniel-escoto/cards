@@ -171,6 +171,49 @@ for (const vp of LAYOUT_VIEWPORTS) {
       await page.waitForTimeout(100);
       const offTurn = await panelMetrics(page);
 
+      // Armed Check/Fold must not shift panel geometry vs unarmed off-turn.
+      await page.evaluate(() => {
+        const w = window as unknown as {
+          checkFoldSession?: { armed: boolean; armedToCall: number; handNumber: number | null };
+          CheckFold?: { arm: (s: unknown, toCall: unknown, hand: unknown) => void };
+          state: Record<string, unknown>;
+          render?: () => void;
+        };
+        if (w.checkFoldSession && w.CheckFold?.arm) {
+          w.CheckFold.arm(w.checkFoldSession, w.state?.toCall ?? 20, w.state?.handNumber ?? 1);
+        } else if (w.checkFoldSession) {
+          w.checkFoldSession.armed = true;
+          w.checkFoldSession.armedToCall = Number(w.state?.toCall) || 20;
+          w.checkFoldSession.handNumber = Number(w.state?.handNumber) || 1;
+        }
+        if (typeof w.render === "function") w.render();
+      });
+      await page.waitForTimeout(100);
+      const offTurnArmed = await panelMetrics(page);
+      expect(
+        nearlyEqual(offTurnArmed.panel!.y, offTurn.panel!.y),
+        "armed Check/Fold panel y drifted",
+      ).toBe(true);
+      expect(
+        nearlyEqual(offTurnArmed.panel!.height, offTurn.panel!.height, 2),
+        "armed Check/Fold panel height drifted",
+      ).toBe(true);
+      await page.evaluate(() => {
+        const w = window as unknown as {
+          checkFoldSession?: { armed: boolean; armedToCall: number; handNumber: number | null };
+          CheckFold?: { disarm: (s: unknown) => void };
+          render?: () => void;
+        };
+        if (w.checkFoldSession && w.CheckFold?.disarm) w.CheckFold.disarm(w.checkFoldSession);
+        else if (w.checkFoldSession) {
+          w.checkFoldSession.armed = false;
+          w.checkFoldSession.armedToCall = 0;
+          w.checkFoldSession.handNumber = null;
+        }
+        if (typeof w.render === "function") w.render();
+      });
+      await page.waitForTimeout(80);
+
       // Folded hero still in-hand: reuse off-turn fixture with folded flag.
       await page.evaluate(() => {
         const w = window as unknown as { state: Record<string, unknown>; render?: () => void };

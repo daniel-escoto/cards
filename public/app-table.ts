@@ -1468,8 +1468,13 @@ function renderHeroActionControls(hero: ClientPlayer, disabled: boolean) {
   // Merge Check/Bet or Call/Raise only when a raise is actually available.
   mergePassiveConfirm = canRaiseUi;
 
-  // Fold only when facing a bet — free checks must not offer a fold misclick.
-  if (state.toCall > 0) addActionButton("Fold", { type: "fold" }, "danger", disabled);
+  // Off-turn: Fold chrome becomes an enabled Check/Fold toggle (same slot).
+  // On-turn: Fold only when facing a bet — free checks must not offer a fold misclick.
+  if (disabled) {
+    addCheckFoldToggleButton();
+  } else if (state.toCall > 0) {
+    addActionButton("Fold", { type: "fold" }, "danger", false);
+  }
 
   if (mergePassiveConfirm) {
     addConfirmPassiveButton(disabled);
@@ -1752,6 +1757,54 @@ function addActionButton(label: string, payload: Record<string, unknown>, classN
     emitWithAck("game:action", payload);
   });
   gameButtons.appendChild(button);
+}
+
+/**
+ * Off-turn Fold slot: enabled Check/Fold toggle. Arm/disarm with click or the Fold key.
+ * Uses danger + aria-pressed (same pressed/selected language as appearance choices).
+ */
+function addCheckFoldToggleButton() {
+  if (!state) return;
+  const label =
+    typeof CheckFold !== "undefined" && CheckFold.LABEL ? CheckFold.LABEL : "Check/Fold";
+  const shortcut = keybindLabel(keybinds.fold);
+  const armed = Boolean(checkFoldSession?.armed);
+  const button =
+    typeof HoldemUI !== "undefined" && HoldemUI.createButton
+      ? HoldemUI.createButton({
+          label,
+          variant: "danger",
+          shortcut,
+          onClick: () => toggleCheckFoldArmed(),
+        })
+      : document.createElement("button");
+  if (!(typeof HoldemUI !== "undefined" && HoldemUI.createButton)) {
+    button.type = "button";
+    button.className = "danger";
+    setButtonLabel(button, label, shortcut);
+    button.addEventListener("click", () => toggleCheckFoldArmed());
+  }
+  button.setAttribute("aria-pressed", armed ? "true" : "false");
+  button.classList.toggle("selected", armed);
+  button.disabled = false;
+  button.setAttribute("aria-disabled", "false");
+  button.tabIndex = 0;
+  gameButtons.appendChild(button);
+}
+
+function toggleCheckFoldArmed() {
+  if (!state || typeof CheckFold === "undefined" || !CheckFold.toggle) return;
+  if (
+    !CheckFold.shouldOffer({
+      isYourTurn: state.isYourTurn,
+      phase: state.phase,
+      hero: activeHero(),
+    })
+  ) {
+    return;
+  }
+  CheckFold.toggle(checkFoldSession, state.toCall, state.handNumber);
+  render();
 }
 
 function makeHost(playerId: string | undefined) {

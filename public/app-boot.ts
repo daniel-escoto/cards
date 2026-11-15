@@ -255,6 +255,11 @@ var raiseControlsDisabled = false;
  */
 var mergePassiveConfirm = false;
 var confirmActionBtn: HTMLButtonElement | null = null;
+/** Off-turn Check/Fold pre-action; shared by live table + offline Practice. */
+var checkFoldSession =
+  typeof CheckFold !== "undefined" && CheckFold.createSession
+    ? CheckFold.createSession()
+    : { armed: false, armedToCall: 0, handNumber: null };
 var leavingEndedRoom = false;
 var menuTimer: ReturnType<typeof setInterval> | null = null;
 var lastAutoRejoinKey = "";
@@ -512,6 +517,17 @@ function applyRoomUpdate(room: ClientRoom) {
     if (typeof recordHandReviewRoom === "function") recordHandReviewRoom(room);
     return;
   }
+  const heroForPreAction = room.players?.find((player) => player.isYou && !player.isBot) || null;
+  const checkFoldAction =
+    typeof CheckFold !== "undefined" && CheckFold.sync
+      ? CheckFold.sync(checkFoldSession, {
+          isYourTurn: room.isYourTurn,
+          phase: room.phase,
+          toCall: room.toCall,
+          handNumber: room.handNumber,
+          hero: heroForPreAction,
+        })
+      : null;
   state = room;
   if (typeof recordHandReviewRoom === "function") recordHandReviewRoom(room);
   if (newTurn) tableSounds.turn();
@@ -522,6 +538,8 @@ function applyRoomUpdate(room: ClientRoom) {
   }
   joinError.textContent = "";
   render();
+  // Fire through the same path as a Fold/Check click once the turn UI is painted.
+  if (checkFoldAction) emitWithAck("game:action", checkFoldAction);
   maybeReloadForPendingBuild(room?.phase);
 }
 

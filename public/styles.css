@@ -1215,6 +1215,17 @@ button.text-action-link:disabled {
   background: color-mix(in srgb, var(--danger) 88%, var(--color-black));
 }
 
+/* Check/Fold armed: pressed/selected language shared with appearance choices. */
+.game-buttons > button.danger.selected,
+.game-buttons > button.danger[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--danger) 72%, var(--color-black));
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-white) 55%, transparent);
+}
+
+.game-buttons > button.danger > span {
+  white-space: nowrap;
+}
+
 .game-buttons .lobby-add-bot {
   border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--line));
   color: var(--accent);

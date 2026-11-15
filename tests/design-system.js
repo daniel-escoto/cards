@@ -29,6 +29,7 @@ const ALLOWED_BUTTON_TOKENS = new Set([
   "lobby-add-bot",
   "leave-game-btn",
   "add-bot-btn",
+  "selected",
 ]);
 
 /** Mirror HoldemUI.isAllowedButtonVariant (plus existing hand-review feature hooks). */

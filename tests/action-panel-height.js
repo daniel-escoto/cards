@@ -21,12 +21,16 @@ const tableSrc = fs.readFileSync(path.join(root, "public/app-table.ts"), "utf8")
 const bootSrc = fs.readFileSync(path.join(root, "public/app-boot.ts"), "utf8");
 const tableJs = fs.readFileSync(path.join(root, "dist/public/app-table.js"), "utf8");
 const raiseSizingJs = fs.readFileSync(path.join(root, "dist/public/raise-sizing.js"), "utf8");
+const checkFoldJs = fs.readFileSync(path.join(root, "dist/public/check-fold.js"), "utf8");
 
 // Source contracts.
 assert.match(tableSrc, /ignoreRaiseOpen:\s*disabled/);
 assert.match(tableSrc, /ignoreRaiseOpen\?:/);
+assert.match(tableSrc, /addCheckFoldToggleButton/);
+assert.match(tableSrc, /Check\/Fold|CheckFold\.LABEL/);
 assert.match(bootSrc, /heroHand\.removeAttribute\("title"\)/);
 assert.doesNotMatch(bootSrc, /heroHand\.title\s*=/);
+assert.match(bootSrc, /checkFoldSession/);
 
 // In-hand panel always uses five tracks (hand · spacer · prompt · buttons · bet).
 // Prompt minmax font size may change by breakpoint (15px → 16px), but on-turn vs
@@ -52,6 +56,11 @@ const raiseSizingContext = { module: { exports: {} }, exports: {} };
 vm.runInNewContext(`${raiseSizingJs}\nthis.api = module.exports;`, raiseSizingContext);
 const RaiseSizing = raiseSizingContext.api;
 assert.ok(RaiseSizing && typeof RaiseSizing.initialRaiseTo === "function");
+
+const checkFoldContext = { module: { exports: {} }, exports: {} };
+vm.runInNewContext(`${checkFoldJs}\nthis.api = module.exports;`, checkFoldContext);
+const CheckFold = checkFoldContext.api;
+assert.ok(CheckFold && typeof CheckFold.createSession === "function");
 
 function buildHarness() {
   const dom = new JSDOM(html);
@@ -89,6 +98,9 @@ function buildHarness() {
     confirmActionBtn: null,
     handReviewActive: false,
     handReviewRetryItem: null,
+    checkFoldSession: CheckFold.createSession(),
+    CheckFold,
+    HoldemUI: undefined,
     keybinds: { fold: "f", call: "c", raise: "r", ready: " ", showHand: "s" },
     RaiseSizing,
     emitWithAck() {},
@@ -104,6 +116,12 @@ function buildHarness() {
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
+    },
+    activeHero() {
+      return context.state?.players?.find((player) => player.isYou) || null;
+    },
+    render() {
+      // Harness paints via paint(); toggle re-render not needed here.
     },
   };
   context.setButtonLabel = function setButtonLabel(button, label, shortcut = "") {
@@ -130,12 +148,15 @@ function buildHarness() {
     "addConfirmPassiveButton",
     "updateConfirmPassiveButton",
     "addActionButton",
+    "addCheckFoldToggleButton",
+    "toggleCheckFoldArmed",
   ];
   vm.runInNewContext(
     fns.map(grab).join("\n") +
       `\nthis.renderHero = renderHeroActionControls;` +
       `\nthis.reserve = reserveActionSpace;` +
-      `\nthis.setReserved = setBetControlsReserved;`,
+      `\nthis.setReserved = setBetControlsReserved;` +
+      `\nthis.toggleCheckFoldArmed = toggleCheckFoldArmed;`,
     context,
   );
   return { document, panel, gameButtons, betControls, betPresets, context };
@@ -186,6 +207,8 @@ function footprint(harness) {
     text: (b.textContent || "").replace(/\s+/g, " ").trim(),
     disabled: b.disabled,
     ariaDisabled: b.getAttribute("aria-disabled"),
+    ariaPressed: b.getAttribute("aria-pressed"),
+    selected: b.classList.contains("selected"),
     tabIndex: b.tabIndex,
   }));
   const presets = [...betPresets.querySelectorAll("button")].map((b) => ({
@@ -244,9 +267,18 @@ function paint(harness, room, disabled) {
   assert.deepEqual(onTurn.presetLabels, offTurn.presetLabels);
   assert.equal(onTurn.buttonCount, offTurn.buttonCount, "same action button count on/off turn");
   assert.ok(onTurn.presetCount >= 1, "raise presets present");
-  assert.ok(offTurn.buttons.every((b) => b.disabled && b.ariaDisabled === "true"));
+  const offFold = offTurn.buttons[0];
+  assert.ok(offFold, "off-turn keeps Fold slot");
+  assert.match(offFold.text, /Check\/Fold/i, "off-turn Fold slot is Check/Fold toggle");
+  assert.equal(offFold.disabled, false, "Check/Fold is enabled off-turn");
+  assert.equal(offFold.ariaDisabled, "false");
+  assert.ok(
+    offTurn.buttons.slice(1).every((b) => b.disabled && b.ariaDisabled === "true"),
+    "Call/Raise stays disabled off-turn",
+  );
   assert.ok(offTurn.presets.every((p) => p.disabled && p.ariaDisabled === "true"));
   assert.ok(onTurn.buttons.some((b) => !b.disabled), "on-turn buttons enabled");
+  assert.match(onTurn.buttons[0].text, /^Fold/i, "on-turn Fold label restored");
 }
 
 // --- Free check/bet spot: ignoreRaiseOpen still keeps shell after canRaise clears ---
@@ -265,7 +297,40 @@ function paint(harness, room, disabled) {
   assert.equal(onTurn.compact, false);
   assert.equal(offTurn.compact, false);
   assert.equal(onTurn.presetCount, offTurn.presetCount);
-  assert.equal(onTurn.buttonCount, offTurn.buttonCount);
+  // Off-turn mounts Check/Fold even when free; on-turn free omits Fold (no misclick).
+  assert.equal(onTurn.buttonCount, 1, "on-turn free: Check/Bet only");
+  assert.equal(offTurn.buttonCount, 2, "off-turn free: Check/Fold + Check");
+  assert.match(offTurn.buttons[0].text, /Check\/Fold/i);
+  assert.equal(offTurn.buttons[0].disabled, false);
+  assert.equal(offTurn.buttons[1].disabled, true, "Check stays disabled off-turn");
+}
+
+// --- Armed vs unarmed: same button count / labels (pressed state only) ---
+{
+  const harness = buildHarness();
+  CheckFold.disarm(harness.context.checkFoldSession);
+  const unarmed = paint(
+    harness,
+    makeRoom({ isYourTurn: false, canRaise: false, canShove: false, toCall: 40 }),
+    true,
+  );
+  CheckFold.arm(harness.context.checkFoldSession, 40, 1);
+  const armed = paint(
+    harness,
+    makeRoom({ isYourTurn: false, canRaise: false, canShove: false, toCall: 40 }),
+    true,
+  );
+  assert.equal(unarmed.buttonCount, armed.buttonCount, "armed/unarmed same button count");
+  assert.deepEqual(
+    unarmed.buttons.map((b) => b.text),
+    armed.buttons.map((b) => b.text),
+    "armed/unarmed same labels (pressed state only)",
+  );
+  assert.equal(unarmed.compact, armed.compact);
+  assert.equal(unarmed.buttons[0].ariaPressed, "false");
+  assert.equal(armed.buttons[0].ariaPressed, "true");
+  assert.equal(unarmed.buttons[0].selected, false);
+  assert.equal(armed.buttons[0].selected, true);
 }
 
 // --- True Call-only (every villain all-in): still compact on your turn ---
