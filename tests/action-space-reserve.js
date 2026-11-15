@@ -110,6 +110,17 @@ context.reserve(true);
 context.fill();
 assert.ok(!panel.classList.contains("is-compact"), "complete Ready up: full in-hand footprint");
 assert.ok(!panel.classList.contains("is-idle"), "complete with Ready up button: not idle");
+// Tournament eliminated: status-only (no buttons) — same full tracks as Ready up / in-hand,
+// via is-idle (not is-compact). Compact Fold/Call-only would shrink the panel.
+context.gameButtons.innerHTML = "";
+context.state = { phase: "complete" };
+context.fill();
+assert.ok(!panel.classList.contains("is-compact"), "eliminated complete: full in-hand footprint");
+assert.ok(panel.classList.contains("is-idle"), "eliminated complete: idle status, not compact");
+context.state = { phase: "flop" };
+context.fill();
+assert.ok(!panel.classList.contains("is-compact"), "eliminated mid-hand: keeps reserved space");
+assert.ok(panel.classList.contains("is-idle"), "eliminated mid-hand: idle status, not compact");
 context.gameButtons.innerHTML = "";
 context.state = { phase: "lobby" };
 context.fill();

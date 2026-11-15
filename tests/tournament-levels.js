@@ -214,6 +214,14 @@ async function ok(p, event, payload) {
     assert.equal(restored.tournamentLevelDurationMs, 5_000);
     rooms.delete(restored.id);
 
+    // Game over clears the level clock so eliminated / spectators see "—".
+    room.phase = "gameover";
+    room.tournamentLevelEndsAt = fakeNow + 60_000;
+    emitRoom(room);
+    await wait(() => host.state.phase === "gameover");
+    assert.equal(host.state.tournamentLevelEndsAt, null, "level clock cleared on gameover");
+    assert.equal(room.tournamentLevelEndsAt, null);
+
     assert.equal(TOURNAMENT_LEVEL_DURATION_MS, 10 * 60 * 1000);
     console.log("Tournament levels integration test passed");
   } finally {

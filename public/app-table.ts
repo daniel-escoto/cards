@@ -1325,6 +1325,9 @@ function renderControlsContent(hero: ClientPlayer | null | undefined) {
     return;
   }
   if (room.tournamentMode && hero?.finishPlace) {
+    // Status-only: leave gameButtons empty so reserveActionSpace keeps the full
+    // in-hand tracks via is-idle (not is-compact). Same panel height as Ready up /
+    // off-turn with raise shell — no layout jump when you bust mid-hand.
     turnInfo.textContent = `${formatFinishPlace(hero.finishPlace)} · eliminated`;
     turnInfo.classList.add("bust-message");
     return;

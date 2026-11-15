@@ -185,18 +185,30 @@ export function forceTableState(
         ],
       };
     } else if (sceneName === "tournament-eliminated") {
+      // Still mid-event: freeze the level clock so the snapshot shows a real countdown.
+      const fixedNow = 1_700_000_000_000;
+      Date.now = () => fixedNow;
+      const win = window as unknown as { serverTimeOffsetMs?: number };
+      win.serverTimeOffsetMs = 0;
       room = {
         ...room,
         tournamentMode: true,
+        tournamentLevelIndex: 0,
+        tournamentPendingAdvance: false,
+        tournamentLevelEndsAt: fixedNow + 9 * 60 * 1000 + 42 * 1000,
+        tournamentLevelDurationMs: 600_000,
         placesRemaining: 2,
         phase: "complete",
         pot: 0,
         toCall: 0,
         currentBet: 0,
+        smallBlind: 10,
+        bigBlind: 20,
         isYourTurn: false,
         turn: null,
         canReady: false,
         handNumber: 4,
+        serverNow: fixedNow,
         canAddBot: false,
         canChangeBlinds: false,
         players: [

@@ -1565,11 +1565,13 @@ function renderLevelClock(room: ClientRoom | null = state) {
   levelClock.classList.remove("hidden");
   const levelNumber = Math.max(1, Math.floor(Number(room.tournamentLevelIndex) || 0) + 1);
   const blinds = `${room.smallBlind}/${room.bigBlind}`;
-  levelClockLabel.textContent = room.tournamentPendingAdvance
-    ? `Next · ${blinds}`
-    : `Lv ${levelNumber} · ${blinds}`;
-  if (room.tournamentPendingAdvance || !room.tournamentLevelEndsAt) {
-    levelClockValue.textContent = room.tournamentPendingAdvance ? "Soon" : "—";
+  const tournamentOver = room.phase === "gameover";
+  const pendingNext = Boolean(room.tournamentPendingAdvance) && !tournamentOver;
+  levelClockLabel.textContent = pendingNext ? `Next · ${blinds}` : `Lv ${levelNumber} · ${blinds}`;
+  // Live countdown for everyone still in the event (including eliminated seats + spectators).
+  // "—" only when the clock is not running: not started, paused for next-deal, or tournament over.
+  if (tournamentOver || pendingNext || !room.tournamentLevelEndsAt) {
+    levelClockValue.textContent = pendingNext ? "Soon" : "—";
     return;
   }
   levelClockValue.textContent = formatTurnCountdown(levelSecondsRemaining(room));
@@ -1581,7 +1583,12 @@ function syncLevelCountdown() {
   if (levelCountdownTimer != null) clearInterval(levelCountdownTimer);
   levelCountdownTimer = null;
   renderLevelClock();
-  if (!state?.tournamentMode || !state.tournamentLevelEndsAt || state.tournamentPendingAdvance) {
+  if (
+    !state?.tournamentMode ||
+    state.phase === "gameover" ||
+    !state.tournamentLevelEndsAt ||
+    state.tournamentPendingAdvance
+  ) {
     return;
   }
   levelCountdownTimer = setInterval(() => renderLevelClock(), 250);
