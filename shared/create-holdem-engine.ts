@@ -1458,6 +1458,7 @@ export function createHoldemEngine(Hand: HandConstructor) {
       preflopPlayThreshold(player) -
       discount -
       preflopTableWiden(room) -
+      preflopPositionWiden(room, player) -
       preflopBigBlindDiscount(room, player);
     return Math.max(0, Math.min(0.97, 0.5 + (preflopHandScore(player.hand) - threshold) / 0.08));
   }
@@ -1468,24 +1469,61 @@ export function createHoldemEngine(Hand: HandConstructor) {
   }
 
   /**
-   * Short-handed tables play wider: lowers the preflop bar by 0.035 per missing seat
-   * below six dealt in (6-max unchanged, 3-handed −0.105, heads-up −0.14).
+   * Short-handed tables play wider; full ring (7–9) tightens. Positive = subtract
+   * from the play threshold (widen); negative = tighten. 6-max is the baseline.
    */
   function preflopTableWiden(room: Room): number {
-    return Math.max(0, Math.min(0.14, (6 - playersDealtIn(room)) * 0.035));
+    const dealt = playersDealtIn(room);
+    if (dealt < 6) return Math.max(0, Math.min(0.14, (6 - dealt) * 0.035));
+    // 7 → −0.025, 8 → −0.05, 9 → −0.075 — pulls 9-max VPIP toward a full-ring band.
+    if (dealt >= 7) return -Math.min(0.075, (dealt - 6) * 0.025);
+    return 0;
   }
 
   /**
-   * Short-handed (≤3 dealt in) big blind already has a blind in and closes the action,
-   * so it defends wider. 0 for everyone else.
+   * Late seats (BTN/CO) open wider; UTG/early stay tight. Positive = widen
+   * (subtract from threshold). Heads-up skips position (blinds-only).
+   */
+  function preflopPositionWiden(room: Room, player: Player): number {
+    const dealt = playersDealtIn(room);
+    if (dealt <= 2) return 0;
+    const dealer = room.dealer;
+    const playerIndex = room.players.findIndex((item) => item.id === player.id);
+    if (playerIndex < 0) return 0;
+    // Clockwise from the button among players dealt into this hand:
+    // 0 = BTN, 1 = SB, 2 = BB, 3 = UTG, …, n−1 = CO.
+    const order: number[] = [];
+    for (let offset = 0; offset < room.players.length; offset += 1) {
+      const index = (dealer + offset) % room.players.length;
+      if (room.players[index].hand.length === 2) order.push(index);
+    }
+    const seatFromButton = order.indexOf(playerIndex);
+    if (seatFromButton < 0) return 0;
+    const n = order.length;
+    if (seatFromButton === 0) return 0.04; // BTN
+    if (n >= 5 && seatFromButton === n - 1) return 0.03; // CO
+    if (n >= 6 && seatFromButton === n - 2) return 0.012; // HJ
+    if (seatFromButton === 1) return -0.02; // SB a touch tighter than IP
+    if (n >= 6 && seatFromButton === 3) return -0.045; // UTG
+    if (n >= 7 && seatFromButton === 4) return -0.03; // UTG+1
+    if (n >= 8 && seatFromButton === 5) return -0.02; // early MP
+    return 0;
+  }
+
+  /**
+   * Big blind already has money in and often closes the action, so it defends wider.
+   * Short-handed (≤3) gets the full discount; full tables get a smaller one.
    */
   function preflopBigBlindDiscount(room: Room, player: Player): number {
-    return room.bigBlindPlayerId === player.id && playersDealtIn(room) <= 3 ? 0.04 : 0;
+    if (room.bigBlindPlayerId !== player.id) return 0;
+    return playersDealtIn(room) <= 3 ? 0.045 : 0.025;
   }
 
   /** preflopHandScore a style needs to play a hand (looser styles need less). */
   function preflopPlayThreshold(player: Player): number {
-    return 0.57 - (computerProfile(player).looseness - 0.68) * 0.13;
+    // Baseline nudged up vs the old 0.57 so 6-max VPIP stays in a solid-regular band
+    // after late-position widening; looseness still separates Grinder/Quick from Casual.
+    return 0.595 - (computerProfile(player).looseness - 0.68) * 0.13;
   }
 
   /**
@@ -1502,25 +1540,73 @@ export function createHoldemEngine(Hand: HandConstructor) {
     const extra = bb
       ? Math.max(0, Math.min(PREFLOP_FLAT_RAISE_EXTRA, (room.currentBet / bigBlind - 2) * 0.08))
       : PREFLOP_FLAT_RAISE_EXTRA;
-    const threshold = preflopPlayThreshold(player) + extra - preflopTableWiden(room) - bb;
+    const tableAdj = preflopTableWiden(room);
+    // Full-ring tighten mainly cuts unopened junk; facing an open, only keep part of it
+    // so 9-max does not overfold to steals.
+    const tableForDefense = tableAdj < 0 ? tableAdj * 0.35 : tableAdj;
+    const threshold =
+      preflopPlayThreshold(player) +
+      extra -
+      tableForDefense -
+      preflopPositionWiden(room, player) -
+      bb;
     return Math.max(0, Math.min(1, 0.5 + (preflopHandScore(player.hand) - threshold) / 0.08));
   }
 
   /**
    * Aggressive styles turn part of their limping range into open-raises when the pot
-   * is still unopened (only blinds/limps in).
+   * is still unopened (only blinds/limps in). Late position converts a bit more.
    */
-  const PREFLOP_FLAT_RAISE_EXTRA = 0.08;
+  const PREFLOP_FLAT_RAISE_EXTRA = 0.04;
 
-  function preflopOpenInsteadOfLimpChance(player: Player): number {
+  function preflopOpenInsteadOfLimpChance(player: Player, room: Room | null = null): number {
     const profile = computerProfile(player);
-    return Math.max(0, Math.min(0.75, (profile.aggression - 1) * 1.2));
+    // Even TAG-ish styles open a chunk of their limp range; Casual stays limp-heavy.
+    const base = Math.max(0, Math.min(0.88, 0.46 + (profile.aggression - 1) * 1.0));
+    const lateBoost = room ? Math.max(0, preflopPositionWiden(room, player)) * 2.8 : 0;
+    return Math.max(0, Math.min(0.92, base + lateBoost));
+  }
+
+  /** 88+, AK, AQ — premiums that should never fold to a small open. */
+  function isPreflopPremiumHand(hand: CardCode[]): boolean {
+    if (!Array.isArray(hand) || hand.length !== 2) return false;
+    const values = hand.map(cardRankValue).sort((a, b) => b - a);
+    const [high, low] = values;
+    if (high === low && high >= 8) return true;
+    if (high === 14 && low >= 12) return true; // AK, AQ
+    return false;
+  }
+
+  /** Facing an open/raise of at most 2.5× the big blind. */
+  function facingSmallPreflopRaise(room: Room, callAmount: number): boolean {
+    const { bigBlind } = currentBlinds(room);
+    return (
+      room.phase === "preflop" &&
+      room.community.length === 0 &&
+      callAmount > bigBlind &&
+      room.currentBet <= bigBlind * 2.5 + 0.01
+    );
+  }
+
+  /**
+   * Soft multiway equity: opponents' holdings correlate, so independence (hu ** n)
+   * over-penalizes. Use hu ** (1 + (n−1)·k).
+   */
+  const MULTIWAY_EQUITY_SCALE = 0.2;
+
+  function multiwayEquityExponent(opponentCount: number): number {
+    const n = Math.max(1, opponentCount);
+    return 1 + (n - 1) * MULTIWAY_EQUITY_SCALE;
+  }
+
+  function multiwayEquity(headsUpEquity: number, opponentCount: number): number {
+    return headsUpEquity ** multiwayEquityExponent(opponentCount);
   }
 
   function preflopBlindRaiseChance(player: Player, confidence: number): number {
     const profile = computerProfile(player);
-    const valueRaiseChance = confidence >= 0.42 ? (confidence - 0.2) * 1.2 * profile.aggression : 0;
-    const bluffRaiseChance = confidence < 0.44 ? profile.bluff * 0.55 : profile.bluff * 0.16;
+    const valueRaiseChance = confidence >= 0.4 ? (confidence - 0.18) * 1.28 * profile.aggression : 0;
+    const bluffRaiseChance = confidence < 0.44 ? profile.bluff * 0.55 : profile.bluff * 0.18;
     return Math.max(0, Math.min(0.9, valueRaiseChance + bluffRaiseChance));
   }
 
@@ -1636,7 +1722,7 @@ export function createHoldemEngine(Hand: HandConstructor) {
     );
     if (room.community.length > 0) {
       const headsUpEquity = estimatePostflopEquity(player.hand, room.community, 140, random);
-      return headsUpEquity ** opponentCount;
+      return multiwayEquity(headsUpEquity, opponentCount);
     }
     const { bigBlind } = currentBlinds(room);
     const raiseSizeInBlinds = callAmount / Math.max(1, bigBlind);
@@ -1650,7 +1736,7 @@ export function createHoldemEngine(Hand: HandConstructor) {
       140,
       random,
     );
-    return headsUpEquity ** opponentCount;
+    return multiwayEquity(headsUpEquity, opponentCount);
   }
 
   function currentPreflopAllInAggressor(room: Room, player: Player): Player | null {
@@ -1707,7 +1793,7 @@ export function createHoldemEngine(Hand: HandConstructor) {
       1,
       livePlayers(room).filter((item) => item.id !== player.id).length,
     );
-    const equity = headsUpEquity ** opponentCount;
+    const equity = multiwayEquity(headsUpEquity, opponentCount);
     const requiredEquity = callAmount / Math.max(1, collectPot(room) + callAmount);
     const safetyMargin = Math.max(-0.01, Math.min(0.055, 0.025 + (1 - profile.looseness) * 0.05));
     const judgmentNoise = (random() - 0.5) * (1 - profile.skill) * 0.05;
@@ -1826,8 +1912,8 @@ export function createHoldemEngine(Hand: HandConstructor) {
     if (callAmount === 0) {
       const ableToBet = canRaise && minRaiseTo <= maxBet;
       if (!ableToBet) return { type: "check" };
-      if (made && strength > 0.5) {
-        const valueChance = Math.min(0.92, (strength - 0.36) * 2 * profile.aggression);
+      if (made && strength > 0.42) {
+        const valueChance = Math.min(0.94, (strength - 0.3) * 2.15 * profile.aggression);
         if (Math.random() < valueChance) return { type: "raise", raiseTo: raiseTo(strength) };
       }
       const isPfr = preflopRaiserId(room) === player.id;
@@ -1855,20 +1941,31 @@ export function createHoldemEngine(Hand: HandConstructor) {
     const betFraction = Math.min(1.5, callAmount / potBeforeBet);
     const requiredEquity = callAmount / Math.max(1, collectPot(room) + callAmount);
     // A bet narrows the bettor's range toward made hands: bigger bets, more so.
-    const rangeDiscount = 1.45 + betFraction * 0.65 + (river ? 0.7 : 0);
-    const rangeEquity = Math.max(headsUpEquity ** rangeDiscount, drawEquity * 0.9) ** opponents;
+    // Tiny river bets keep most of the price — A-high shouldn't fold ~half the time to 1/10-pot.
+    const riverRangeBump = river
+      ? betFraction <= 0.12
+        ? 0.12
+        : betFraction <= 0.25
+          ? 0.35
+          : 0.7
+      : 0;
+    const rangeDiscount = 1.45 + betFraction * 0.65 + riverRangeBump;
+    const rangeEquity =
+      Math.max(headsUpEquity ** rangeDiscount, drawEquity * 0.9) ** multiwayEquityExponent(opponents);
     const margin = 0.04 - profile.stickiness - (profile.looseness - 1) * 0.05;
     const edge = rangeEquity - requiredEquity - margin;
     const ableToRaise = canRaise && minRaiseTo <= maxBet;
 
     if (ableToRaise) {
       const valueRaise =
-        made && rangeEquity > 0.6 ? Math.min(0.7, (rangeEquity - 0.5) * 1.6 * profile.aggression) : 0;
+        made && rangeEquity > 0.5
+          ? Math.min(0.78, (rangeEquity - 0.4) * 1.75 * profile.aggression)
+          : 0;
       const bluffRaise = river
-        ? profile.barrel * 0.06
+        ? profile.barrel * 0.08
         : outs >= 8
-          ? profile.barrel * 0.4
-          : profile.barrel * 0.05;
+          ? profile.barrel * 0.45
+          : profile.barrel * 0.06;
       if (Math.random() < valueRaise + bluffRaise * multiwayDamp) {
         return { type: "raise", raiseTo: raiseTo(Math.max(rangeEquity, 0.45)) };
       }
@@ -1941,7 +2038,7 @@ export function createHoldemEngine(Hand: HandConstructor) {
           unopened &&
           canRaise &&
           minRaiseTo <= maxBet &&
-          Math.random() < preflopOpenInsteadOfLimpChance(player)
+          Math.random() < preflopOpenInsteadOfLimpChance(player, room)
         ) {
           return {
             type: "raise",
@@ -1969,15 +2066,38 @@ export function createHoldemEngine(Hand: HandConstructor) {
       Math.min(0.98, 0.5 + edge * 3.2 + (profile.looseness - 1) * 0.16),
     );
     const valueReraiseChance =
-      perceivedEquity > 0.56
-        ? Math.min(0.9, (perceivedEquity - 0.4) * 1.55 * profile.aggression)
+      perceivedEquity > 0.5
+        ? Math.min(0.92, (perceivedEquity - 0.36) * 1.65 * profile.aggression)
         : 0;
-    const reraiseChance = Math.min(0.92, valueReraiseChance + profile.bluff * 0.16);
+    const reraiseChance = Math.min(0.94, valueReraiseChance + profile.bluff * 0.2);
     if (canRaise && minRaiseTo <= maxBet && Math.random() < reraiseChance) {
       return {
         type: "raise",
         raiseTo: chooseComputerRaiseTo(room, player, minRaiseTo, perceivedEquity),
       };
+    }
+    // Premiums vs ≤2.5× opens: always continue, preferring a 3-bet. Runs before
+    // pot-odds × raiseGate so multiway equity noise cannot fold 88+/AK/AQ.
+    if (facingSmallPreflopRaise(room, callAmount) && isPreflopPremiumHand(player.hand)) {
+      if (canRaise && minRaiseTo <= maxBet) {
+        const handScore = preflopHandScore(player.hand);
+        const threeBetChance = Math.min(
+          0.95,
+          0.58 + profile.aggression * 0.24 + Math.max(0, handScore - 0.7) * 0.95,
+        );
+        if (Math.random() < threeBetChance) {
+          return {
+            type: "raise",
+            raiseTo: chooseComputerRaiseTo(
+              room,
+              player,
+              minRaiseTo,
+              Math.max(perceivedEquity, 0.72),
+            ),
+          };
+        }
+      }
+      return { type: "call" };
     }
     const raiseGate = preflopFacingRaiseGate(room, player, callAmount);
     // Short-handed BB closing vs a small open (≤3x): the price is fixed and good, so the
@@ -2590,6 +2710,12 @@ export function createHoldemEngine(Hand: HandConstructor) {
     preflopBlindRaiseChance,
     preflopOpenInsteadOfLimpChance,
     preflopHandScore,
+    isPreflopPremiumHand,
+    facingSmallPreflopRaise,
+    preflopPositionWiden,
+    preflopTableWiden,
+    multiwayEquityExponent,
+    multiwayEquity,
     preflopShoveRange,
     estimatePreflopEquityAgainstRange,
     estimatePostflopEquity,

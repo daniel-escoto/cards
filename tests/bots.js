@@ -6,6 +6,8 @@ const {
   estimateComputerConfidence,
   estimatePostflopEquity,
   estimatePreflopEquityAgainstRange,
+  isPreflopPremiumHand,
+  multiwayEquity,
   preflopBlindRaiseChance,
   preflopShoveRange,
 } = require("../dist/shared/engine.node");
@@ -158,7 +160,7 @@ function facingBlindRoom(botNumber, hand) {
   };
 }
 
-function facingOpenRoom(botNumber, hand) {
+function facingOpenRoom(botNumber, hand, raiseTo = 60) {
   const bot = {
     id: `bot:TEST:${botNumber}`,
     hand,
@@ -171,9 +173,9 @@ function facingOpenRoom(botNumber, hand) {
   const villain = {
     id: "human",
     hand: [],
-    bet: 60,
-    stack: 940,
-    invested: 60,
+    bet: raiseTo,
+    stack: 1000 - raiseTo,
+    invested: raiseTo,
     folded: false,
     allIn: false,
   };
@@ -182,8 +184,8 @@ function facingOpenRoom(botNumber, hand) {
     room: {
       phase: "preflop",
       community: [],
-      currentBet: 60,
-      minRaise: 40,
+      currentBet: raiseTo,
+      minRaise: Math.max(20, raiseTo - 20),
       deadPot: 0,
       handNumber: 1,
       baseSmallBlind: 10,
@@ -192,6 +194,65 @@ function facingOpenRoom(botNumber, hand) {
       raiseEligible: new Set([bot.id, villain.id]),
       actionLog: [],
       players: [bot, villain],
+      dealer: 1,
+    },
+  };
+}
+
+/** Six-max: hero in BB facing a 2.5× open with four others still to act (multiway). */
+function facingSmallOpenMultiway(botNumber, hand) {
+  const bot = {
+    id: `bot:TEST:${botNumber}`,
+    hand,
+    bet: 20,
+    stack: 980,
+    invested: 20,
+    folded: false,
+    allIn: false,
+  };
+  const opener = {
+    id: "opener",
+    hand: ["2c", "3d"],
+    bet: 50,
+    stack: 950,
+    invested: 50,
+    folded: false,
+    allIn: false,
+  };
+  const others = [1, 2, 3, 4].map((n) => ({
+    id: `wait:${n}`,
+    hand: ["4c", "5d"],
+    bet: 0,
+    stack: 1000,
+    invested: 0,
+    folded: false,
+    allIn: false,
+  }));
+  const players = [bot, opener, ...others];
+  return {
+    bot,
+    room: {
+      phase: "preflop",
+      community: [],
+      currentBet: 50,
+      minRaise: 30,
+      deadPot: 0,
+      handNumber: 1,
+      baseSmallBlind: 10,
+      baseBigBlind: 20,
+      moneyMode: false,
+      raiseEligible: new Set(players.map((p) => p.id)),
+      actionLog: [
+        {
+          phase: "preflop",
+          playerId: opener.id,
+          action: "Raises to 50",
+        },
+      ],
+      players,
+      dealer: 2,
+      bigBlindPlayerId: bot.id,
+      smallBlindPlayerId: others[0].id,
     },
   };
 }
@@ -308,6 +369,59 @@ const aboveMin = openSizes.filter((size) => size > 40).length / openSizes.length
 assert(
   aboveMin >= 0.55,
   `preflop opens should usually size above the min-raise (got ${(aboveMin * 100).toFixed(1)}%)`,
+);
+
+assert(isPreflopPremiumHand(["As", "Ah"]), "AA is a premium");
+assert(isPreflopPremiumHand(["8s", "8h"]), "88 is a premium");
+assert(isPreflopPremiumHand(["As", "Qd"]), "AQ is a premium");
+assert(isPreflopPremiumHand(["As", "Kd"]), "AK is a premium");
+assert(!isPreflopPremiumHand(["7s", "7h"]), "77 is below the premium short-circuit");
+assert(!isPreflopPremiumHand(["As", "Jd"]), "AJ is below the premium short-circuit");
+
+assert(
+  multiwayEquity(0.8, 5) > 0.8 ** 5 + 0.05,
+  "softened multiway equity must beat hu**n for strong hands",
+);
+
+const freeCheckFolds = actionRate((hand) => checkedToRoom(3, hand, ["Kd", "9s", "2c"]), ["7s", "2h"], 120);
+assert(
+  freeCheckFolds.fold === 0,
+  `free checks must never fold (got ${(freeCheckFolds.fold * 100).toFixed(1)}% fold)`,
+);
+const freePreflopFolds = actionRate((hand) => checkedToRoom(3, hand), ["7s", "2h"], 80);
+assert(
+  freePreflopFolds.fold === 0,
+  `preflop free checks must never fold (got ${(freePreflopFolds.fold * 100).toFixed(1)}% fold)`,
+);
+
+const premiumSmallOpen = actionRate(
+  (hand) => facingOpenRoom(3, hand, 50),
+  ["Js", "Jh"],
+  200,
+);
+assert(
+  premiumSmallOpen.fold === 0,
+  `JJ must never fold a ≤2.5x open heads-up (got ${(premiumSmallOpen.fold * 100).toFixed(1)}%)`,
+);
+assert(
+  premiumSmallOpen.raise >= 0.45,
+  `JJ should prefer 3-betting a small open (got ${(premiumSmallOpen.raise * 100).toFixed(1)}%)`,
+);
+
+const aqSmallOpen = actionRate((hand) => facingOpenRoom(3, hand, 50), ["As", "Qd"], 160);
+assert(
+  aqSmallOpen.fold === 0,
+  `AQ must never fold a ≤2.5x open (got ${(aqSmallOpen.fold * 100).toFixed(1)}%)`,
+);
+
+const jjMultiway = actionRate((hand) => facingSmallOpenMultiway(3, hand), ["Js", "Jh"], 200);
+assert(
+  jjMultiway.fold === 0,
+  `JJ must never fold a ≤2.5x open multiway (got ${(jjMultiway.fold * 100).toFixed(1)}%)`,
+);
+assert(
+  jjMultiway.raise + jjMultiway.call === 1,
+  "JJ vs small open multiway only continues (3-bet or call)",
 );
 
 console.log("Bot aggression test passed");
