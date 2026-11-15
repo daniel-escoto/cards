@@ -1251,22 +1251,6 @@ function nextToActSeat(
   return null;
 }
 
-/**
- * Arrow on the acting row pointing toward the next-to-act row in visual list order.
- * ▲ = next seat is above (including wraparound); ▼ = next seat is below.
- */
-function nextActArrowGlyph(
-  visualSeats: Array<{ id: string }>,
-  actingId: string | null | undefined,
-  nextId: string | null | undefined,
-): "▲" | "▼" | "" {
-  if (!actingId || !nextId || actingId === nextId) return "";
-  const actingIdx = visualSeats.findIndex((seat) => seat.id === actingId);
-  const nextIdx = visualSeats.findIndex((seat) => seat.id === nextId);
-  if (actingIdx < 0 || nextIdx < 0) return "";
-  return nextIdx < actingIdx ? "▲" : "▼";
-}
-
 /** Live seat with no street action yet — blank used to look "resolved". */
 function seatWaitingForStreetAction(
   player: ClientPlayer,
@@ -1699,7 +1683,6 @@ function renderActionFeed(newEntryId = "") {
   const activePlayer = currentTurnPlayer();
   const nextPlayer = nextToActSeat(room.players, room.turn, room.phase);
   const seats = seatedPlayers();
-  const nextArrow = nextActArrowGlyph(seats, activePlayer?.id, nextPlayer?.id);
   const latestByPlayer = new Map<string, ActionLogEntry>();
   entries.forEach((entry) => {
     // Blind posts aren't actions; the SB/BB chips mark those seats for the whole hand.
@@ -1711,6 +1694,7 @@ function renderActionFeed(newEntryId = "") {
     .map((player) => {
       const entry = latestByPlayer.get(player.id);
       const isActing = player.id === activePlayer?.id;
+      const isNext = Boolean(nextPlayer && player.id === nextPlayer.id && !isActing);
       const betweenHands = ["lobby", "complete"].includes(room.phase);
       const isAllIn = Boolean(player.allIn);
       const isOutOfAction = player.folded || isAllIn;
@@ -1725,7 +1709,7 @@ function renderActionFeed(newEntryId = "") {
         : playerTableStatus(player, isActing);
       let actionClass = showStreetAction ? actionTokenClass(entry, player) : "";
       if (!action && waiting) {
-        // Waiting seats share a muted em dash — next-to-act is the arrow on the actor.
+        // Waiting seats share a muted em dash — next-to-act is a quiet row tint.
         action = "—";
         actionClass = " is-waiting";
       }
@@ -1769,15 +1753,24 @@ function renderActionFeed(newEntryId = "") {
         : showReadyClock
           ? ' data-ready-seat-clock="1"'
           : "";
-      const arrowMarkup =
-        isActing && nextArrow
-          ? `<span class="next-act-arrow" title="Next to act ${nextArrow === "▲" ? "above" : "below"}" aria-label="Next player ${nextArrow === "▲" ? "above" : "below"}">${nextArrow}</span>`
-          : "";
+      const rowClasses = [
+        "table-player-row",
+        isActing ? "turn" : "",
+        isNext ? "next-to-act" : "",
+        showClock ? "shot-clock" : "",
+        lowTime ? "low-time" : "",
+        player.folded ? "folded" : "",
+        isAllIn ? "all-in" : "",
+        player.isYou ? "you" : "",
+        entry?.id === newEntryId ? "new-action" : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
       return `
-      <article class="table-player-row ${isActing ? "turn" : ""} ${showClock ? "shot-clock" : ""} ${lowTime ? "low-time" : ""} ${player.folded ? "folded" : ""} ${isAllIn ? "all-in" : ""} ${player.isYou ? "you" : ""} ${entry?.id === newEntryId ? "new-action" : ""}"${seatClockAttr}${styleAttr}>
+      <article class="${rowClasses}"${isNext ? ' aria-label="Next to act"' : ""}${seatClockAttr}${styleAttr}>
         <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
         <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}</span>${seatChipMarkup(player)}</span>
-        <span class="player-action${actionClass}">${escapeHtml(action)}${arrowMarkup}${clockMarkup}</span>
+        <span class="player-action${actionClass}">${escapeHtml(action)}${clockMarkup}</span>
         <strong class="player-stack">${playerStackLabel(player)}</strong>
         ${barMarkup}
       </article>

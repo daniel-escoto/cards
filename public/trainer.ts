@@ -756,9 +756,21 @@
                 atDetent,
                 value: spot.raiseTo,
               })
-            : spot.raiseTo;
+            : atDetent
+              ? null
+              : spot.raiseTo;
         raiseLabelEl!.textContent = "Raise to";
-        raiseAmountEl!.textContent = String(display);
+        if (display == null) {
+          const placeholder =
+            sizing && typeof sizing.detentPlaceholderLabel === "function"
+              ? sizing.detentPlaceholderLabel(spot.minRaiseTo)
+              : `Min ${spot.minRaiseTo}`;
+          raiseAmountEl!.textContent = placeholder;
+          raiseAmountEl!.classList.add("is-placeholder");
+        } else {
+          raiseAmountEl!.textContent = String(display);
+          raiseAmountEl!.classList.remove("is-placeholder");
+        }
         setBetControlsVisible(true);
         // Live table: Call/Raise merge hides the standalone Raise button.
         raiseActionBtn!.classList.add("hidden");
@@ -1060,12 +1072,7 @@
                 !spot!.answered && heroIndex >= 0
                   ? seats[(heroIndex + 1) % seats.length] || null
                   : null;
-              const nextArrow =
-                isActing && nextSeat
-                  ? seats.indexOf(nextSeat) < heroIndex
-                    ? "▲"
-                    : "▼"
-                  : "";
+              const isNext = Boolean(nextSeat && seat === nextSeat && !isActing);
               if (folded) {
                 action = "Fold";
               } else if (isHero && spot!.answered) {
@@ -1080,6 +1087,7 @@
               const classes = [
                 "table-player-row",
                 isActing ? "turn" : "",
+                isNext ? "next-to-act" : "",
                 folded ? "folded" : "",
                 isHero ? "you" : "",
               ]
@@ -1087,9 +1095,9 @@
                 .join(" ");
               const full = positionFullName(seat);
               const blurb = positionBlurb(seat);
-              const arrowMarkup = nextArrow
-                ? `<span class="next-act-arrow" title="Next to act ${nextArrow === "▲" ? "above" : "below"}" aria-label="Next player ${nextArrow === "▲" ? "above" : "below"}">${nextArrow}</span>`
-                : "";
+              const seatAria = isNext
+                ? `${seat}, ${full}. ${blurb}. Next to act`
+                : `${seat}, ${full}. ${blurb}`;
               return `<article
               class="${classes} trainer-seat-row"
               data-seat="${escapeHtml(seat)}"
@@ -1097,13 +1105,13 @@
               data-blurb="${escapeHtml(blurb)}"
               tabindex="0"
               role="button"
-              aria-label="${escapeHtml(seat)}, ${escapeHtml(full)}. ${escapeHtml(blurb)}"
+              aria-label="${escapeHtml(seatAria)}"
             >
               <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
               <span class="seat-name seat-name-with-chips">
                 <span class="seat-name-text">${escapeHtml(seat)}</span>${seatChipMarkup(seat)}
               </span>
-              <span class="player-action${actionClass}">${escapeHtml(action)}${arrowMarkup}</span>
+              <span class="player-action${actionClass}">${escapeHtml(action)}</span>
               <strong class="player-stack">${stackForSeat(seat)}</strong>
             </article>`;
             })
@@ -1134,12 +1142,7 @@
               !facing.answered && heroIndex >= 0
                 ? seats[(heroIndex + 1) % seats.length] || null
                 : null;
-            const nextArrow =
-              isActing && nextSeat
-                ? seats.indexOf(nextSeat) < heroIndex
-                  ? "▲"
-                  : "▼"
-                : "";
+            const isNext = Boolean(nextSeat && seat === nextSeat && !isActing);
             if (foldedBefore) {
               action = "Fold";
             } else if (isOpener) {
@@ -1164,6 +1167,7 @@
             const classes = [
               "table-player-row",
               isActing ? "turn" : "",
+              isNext ? "next-to-act" : "",
               foldedBefore ? "folded" : "",
               isHero ? "you" : "",
             ]
@@ -1171,9 +1175,9 @@
               .join(" ");
             const full = positionFullName(seat);
             const blurb = positionBlurb(seat);
-            const arrowMarkup = nextArrow
-              ? `<span class="next-act-arrow" title="Next to act ${nextArrow === "▲" ? "above" : "below"}" aria-label="Next player ${nextArrow === "▲" ? "above" : "below"}">${nextArrow}</span>`
-              : "";
+            const seatAria = isNext
+              ? `${seat}, ${full}. ${blurb}. Next to act`
+              : `${seat}, ${full}. ${blurb}`;
             return `<article
               class="${classes} trainer-seat-row"
               data-seat="${escapeHtml(seat)}"
@@ -1181,13 +1185,13 @@
               data-blurb="${escapeHtml(blurb)}"
               tabindex="0"
               role="button"
-              aria-label="${escapeHtml(seat)}, ${escapeHtml(full)}. ${escapeHtml(blurb)}"
+              aria-label="${escapeHtml(seatAria)}"
             >
               <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
               <span class="seat-name seat-name-with-chips">
                 <span class="seat-name-text">${escapeHtml(seat)}</span>${seatChipMarkup(seat)}
               </span>
-              <span class="player-action${actionClass}">${escapeHtml(action)}${arrowMarkup}</span>
+              <span class="player-action${actionClass}">${escapeHtml(action)}</span>
               <strong class="player-stack">${seatStackFacing(seat, facing)}</strong>
             </article>`;
           })

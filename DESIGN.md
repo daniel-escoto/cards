@@ -20,8 +20,10 @@ Read this before any UI change. Prefer shared helpers in `public/ui.ts` and shar
 - **No layout shift** when text or state changes.
 - Keep controls **rendered but disabled** when it is not the hero’s turn (do not unmount the row).
 - Reserve **fixed-width slots** for labels that change (amounts, Ready / Not ready, Call / Raise).
-- **Control panel height stays constant** across on-turn, off-turn, fold, between-hands, and Hand Review step/retry/result. Do not grow or shrink the panel when chrome appears.
-- **Hand Review bottom zone is pinned** (`hand-review-bottom`: continue + nav) to the panel bottom via `--cp-pad`; the close control lives in the hand-row with the pot, not floating over content.
+- **Control panel height stays constant** across on-turn, off-turn, fold, post-hand Ready up, and Hand Review step/retry/result (375 / 390 / 1280). Do not grow or shrink the panel when chrome appears; Hand Review chrome fills the reserved prompt+controls tracks without expanding them.
+- Next-to-act uses a quiet `.next-to-act` row tint (no ▲/▼ glyphs, no extra badges).
+- **Merged Call/Raise (and Check/Bet):** main button defaults to Call/Check. While the raise box is on that detent, show a muted `Min N` placeholder (min legal raise) — never the call-total. First `+` / Up (or typing) jumps to min raise and the button becomes Raise; stepping back down returns to placeholder + Call. Same box size (no layout shift). Live, Trainer, and Hand Review retry share this.
+- **Hand Review close** lives in the hand-row with the pot, not floating over content.
 
 ## Hand Review
 

@@ -32,11 +32,13 @@ assert.match(css, /body\.hand-review-open \.hand-review-retry-bar\.is-idle\s*\{[
 // Close control is a real icon button in the hand-row (top-right with pot).
 assert.match(html, /hand-row[\s\S]*hand-review-close[^>]*icon-btn|hand-row[\s\S]*icon-btn[^>]*hand-review-close/);
 assert.match(css, /\.hand-row \.hand-review-close\.icon-btn/);
-assert.match(css, /\.hand-review-verdict\s*\{[^}]*min-height:\s*calc\(13px \* 1\.3 \* 4/s);
+/* Verdict no longer reserves a 4-line box — chrome is absolute in the live
+   prompt+controls tracks, so panel height stays on those tracks (min-height:0). */
+assert.match(css, /\.hand-review-verdict\s*\{[^}]*min-height:\s*0/s);
 assert.match(
   css,
-  /body\.hand-review-open:not\(\.hand-review-retrying\) \.hand-review-bottom\s*\{[^}]*position:\s*absolute/s,
-  "non-retry bottom stack (continue + nav) pins to the panel bottom",
+  /body\.hand-review-open:not\(\.hand-review-retrying\) \.hand-review-bottom\s*\{[^}]*position:\s*static/s,
+  "non-retry bottom stack stays in-flow inside absolute chrome (no absolute gap)",
 );
 assert.match(
   css,
