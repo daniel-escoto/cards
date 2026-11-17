@@ -229,16 +229,16 @@
           action = room.currentBet > 0 ? "raise" : "bet";
           verdict = action;
           raiseTo = pickRaiseTo(room, hero, true);
-          reason = "Strong hand — take the lead.";
+          reason = "Strong hand — lead.";
         } else if (equity >= 0.4 && canRaise && maxRaise > room.currentBet && equity >= 0.52) {
           action = room.currentBet > 0 ? "raise" : "bet";
           verdict = action;
           raiseTo = pickRaiseTo(room, hero, false);
-          reason = "Slight edge — small value bet.";
+          reason = "Slight edge — small bet.";
         } else {
           action = "check";
           verdict = "check";
-          reason = equity < 0.35 ? "Weak — keep the pot small." : "No price to call — check.";
+          reason = equity < 0.35 ? "Weak — pot small." : "No price — check.";
         }
       } else if (equity + 0.03 < potOdds) {
         const codes: [string, string] = [heroCodes[0]!, heroCodes[1]!];
@@ -250,20 +250,26 @@
         } else {
           action = "fold";
           verdict = "fold";
-          reason = `You win about ${winIn(equity)}, calling needs ${winIn(potOdds)}. Fold.`;
+          reason =
+            oddsApi && typeof oddsApi.formatNeedHave === "function"
+              ? `${oddsApi.formatNeedHave(equity, potOdds)} Fold.`
+              : `Need ${Math.round(potOdds * 100)}%, have ~${Math.round(equity * 100)}%. Fold.`;
         }
       } else if (equity >= potOdds + 0.12 && canRaise && maxRaise > room.currentBet) {
         action = "raise";
         verdict = "raise";
         raiseTo = pickRaiseTo(room, hero, equity >= 0.65);
-        reason = `You win about ${winIn(equity)}, calling only needs ${winIn(potOdds)}. Raise.`;
+        reason =
+          oddsApi && typeof oddsApi.formatNeedHave === "function"
+            ? `${oddsApi.formatNeedHave(equity, potOdds)} Raise.`
+            : `Need ${Math.round(potOdds * 100)}%, have ~${Math.round(equity * 100)}%. Raise.`;
       } else {
         action = "call";
         verdict = "call";
         reason =
-          equity >= potOdds
-            ? `You win about ${winIn(equity)}, calling only needs ${winIn(potOdds)}. Call.`
-            : `Close call — you win about ${winIn(equity)}, calling needs ${winIn(potOdds)}.`;
+          oddsApi && typeof oddsApi.formatNeedHave === "function"
+            ? `${oddsApi.formatNeedHave(equity, potOdds)} Call.`
+            : `Need ${Math.round(potOdds * 100)}%, have ~${Math.round(equity * 100)}%. Call.`;
       }
 
       const actionLabel =

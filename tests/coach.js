@@ -126,7 +126,8 @@ function seat(id, overrides = {}) {
   assert.match(model.equity, /\d+ in \d+/);
   assert.doesNotMatch(model.equity, /%/);
   assert.equal(model.action, suggestion.action);
-  assert.doesNotMatch(model.headline + model.reason, /Coach ·|equity|pot odds|%/i);
+  assert.doesNotMatch(model.headline + model.reason, /Coach ·|equity|pot odds/i);
+  assert.ok(model.reason.trim().split(/\s+/).length <= 12);
 }
 
 {
@@ -163,8 +164,9 @@ function seat(id, overrides = {}) {
   assert.ok(suggestion.equity + 0.03 < suggestion.potOdds, "air vs huge bet is behind");
   assert.equal(suggestion.action, "fold");
   assert.equal(suggestion.verdict, "fold");
-  assert.match(suggestion.reason, /you win about|Fold/i);
-  assert.doesNotMatch(suggestion.reason, /%|equity|pot odds/i);
+  assert.match(suggestion.reason, /Need \d+%, have ~\d+%\./i);
+  assert.match(suggestion.reason, /Fold\./);
+  assert.ok(suggestion.reason.trim().split(/\s+/).length <= 12);
 }
 
 {
@@ -218,9 +220,11 @@ function seat(id, overrides = {}) {
     model.headline.startsWith(label.split(" ")[0]),
   ));
   assert.match(model.reason, /\./);
+  assert.ok(model.reason.trim().split(/\s+/).length <= 12);
   assert.match(model.equity, /\d+ in \d+/);
   assert.match(model.potOdds, /\d+ in \d+/);
-  assert.doesNotMatch(model.reason + model.equity + model.potOdds, /%|equity|pot odds/i);
+  assert.doesNotMatch(model.equity + model.potOdds, /%|equity|pot odds/i);
+  assert.doesNotMatch(model.reason, /equity|pot odds/i);
   assert.equal(model.toCall, "40");
 }
 

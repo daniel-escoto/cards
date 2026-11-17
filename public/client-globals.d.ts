@@ -192,6 +192,10 @@ declare global {
     speculativeDepthThreshold(category: "small_pair" | "suited_connector" | "suited_ace" | null): number | null;
     effectiveStackForCall(heroStack: number, opponentStacks: readonly number[]): number;
     formatWinIn?(probability: number): string;
+    formatNeedHave?(equity: number, potOdds: number): string;
+    speculativeCategoryLabel?(
+      category: "small_pair" | "suited_connector" | "suited_ace",
+    ): string;
     adviseFacingBet(input: {
       equity: number;
       potOdds: number;

@@ -7,8 +7,10 @@
 import {
   adviseFacingBet,
   effectiveStackForCall,
-  formatWinIn,
+  formatNeedHave,
+  speculativeCategoryLabel,
   type CoachOddsAdvice,
+  type SpeculativeCategory,
 } from "./coach-odds";
 
 export type ReviewStreet = "preflop" | "flop" | "turn" | "river";
@@ -267,6 +269,17 @@ function sameAction(taken: ReviewAction, recommended: ReviewAction): boolean {
   return false;
 }
 
+/** Cap review why-copy at ~12 words (minimal UI). */
+function trimReason(text: string, maxWords = 12): string {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) return words.join(" ");
+  return words.slice(0, maxWords).join(" ");
+}
+
+function categoryLabel(category: SpeculativeCategory): string | null {
+  return category ? speculativeCategoryLabel(category) : null;
+}
+
 function buildReason(args: {
   taken: ReviewAction;
   recommended: ReviewAction;
@@ -277,40 +290,45 @@ function buildReason(args: {
   advice: CoachOddsAdvice | null;
   match: boolean;
 }): string {
+  let reason: string;
   if (args.advice && args.advice.reason) {
-    if (args.match) return args.advice.reason;
-    return `${args.advice.reason} You ${actionLabel(args.taken, args.raiseTo).toLowerCase()}.`;
-  }
-  if (args.potOdds <= 0) {
     if (args.match) {
-      return args.recommended === "check"
-        ? "No bet to call — checking is fine."
-        : "Strong enough to take the lead.";
+      reason = args.advice.reason;
+    } else if (
+      args.advice.action === "call" &&
+      (args.taken === "raise" || args.taken === "bet")
+    ) {
+      const cat = categoryLabel(args.advice.category);
+      reason = cat ? `${cat}, fine call. Raise is too much.` : "Fine call. Raise is too much.";
+    } else {
+      // Recommended play is the punchline — do not append the taken action.
+      reason = args.advice.reason;
     }
-    return `Better to ${actionLabel(args.recommended, args.recommendedRaiseTo).toLowerCase()} here.`;
-  }
-  const win = formatWinIn(args.equity);
-  const need = formatWinIn(args.potOdds);
-  if (args.match) {
-    if (args.recommended === "fold") {
-      return `You win about ${win}, calling needs ${need}. Fold.`;
+  } else if (args.potOdds <= 0) {
+    if (args.match) {
+      reason =
+        args.recommended === "check" ? "No bet — check." : "Strong enough — lead.";
+    } else {
+      reason = `Better to ${actionLabel(args.recommended, args.recommendedRaiseTo).toLowerCase()}.`;
     }
-    if (args.recommended === "raise" || args.recommended === "bet") {
-      return `You win about ${win}, calling only needs ${need}. Raise.`;
+  } else {
+    const needHave = formatNeedHave(args.equity, args.potOdds);
+    if (args.match) {
+      if (args.recommended === "fold") reason = `${needHave} Fold.`;
+      else if (args.recommended === "raise" || args.recommended === "bet") {
+        reason = `${needHave} Raise.`;
+      } else reason = `${needHave} Call.`;
+    } else if (args.recommended === "raise" || args.recommended === "bet") {
+      reason = `${actionLabel(args.recommended, args.recommendedRaiseTo)}. ${needHave}`;
+    } else if (args.recommended === "fold") {
+      reason = `${needHave} Fold.`;
+    } else if (args.recommended === "call") {
+      reason = `${needHave} Call.`;
+    } else {
+      reason = `${actionLabel(args.recommended, args.recommendedRaiseTo)} was better.`;
     }
-    return `You win about ${win}, calling only needs ${need}. Call.`;
   }
-  // Compact chess.com-style why line for mistakes.
-  if (args.recommended === "raise" || args.recommended === "bet") {
-    return `${actionLabel(args.recommended, args.recommendedRaiseTo)} — you win about ${win}, calling only needs ${need}.`;
-  }
-  if (args.recommended === "fold") {
-    return `Fold — you win about ${win}, calling needs ${need}.`;
-  }
-  if (args.recommended === "call") {
-    return `Call — you win about ${win}, calling only needs ${need}.`;
-  }
-  return `${actionLabel(args.recommended, args.recommendedRaiseTo)} was better.`;
+  return trimReason(reason);
 }
 
 /**
@@ -511,7 +529,7 @@ export function gradeRetry(
   }
   return {
     correct: false,
-    line: `Your retry: Still off — ${actionLabel(item.recommended, item.recommendedRaiseTo)} was the play.`,
+    line: `Your retry: Still off — ${actionLabel(item.recommended, item.recommendedRaiseTo)}.`,
   };
 }
 

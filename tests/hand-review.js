@@ -67,9 +67,9 @@ function table(overrides = {}) {
   assert.equal(raiseSpot.recommended, "raise");
   assert.equal(raiseSpot.verdict, "best");
   assert.equal(raiseSpot.badge, "Best");
-  assert.match(raiseSpot.reason, /you win about \d+ in \d+/i);
-  assert.match(raiseSpot.reason, /calling only needs \d+ in \d+/i);
-  assert.doesNotMatch(raiseSpot.reason, /%|equity|pot odds/i);
+  assert.match(raiseSpot.reason, /Need \d+%, have ~\d+%\./i);
+  assert.match(raiseSpot.reason, /Raise\./);
+  assert.ok(raiseSpot.reason.trim().split(/\s+/).length <= 12);
 
   const callMistake = HandReview.gradeHandDecision({
     id: "1b",
@@ -113,9 +113,8 @@ function table(overrides = {}) {
   });
   assert.equal(snappedRaise.recommendedRaiseTo, 120);
   assert.match(snappedRaise.reason, /Raise to 120/);
-  assert.match(snappedRaise.reason, /you win about \d+ in \d+/i);
-  assert.match(snappedRaise.reason, /calling only needs \d+ in \d+/i);
-  assert.doesNotMatch(snappedRaise.reason, /%|equity|pot odds/i);
+  assert.match(snappedRaise.reason, /Need \d+%, have ~\d+%\./i);
+  assert.ok(snappedRaise.reason.trim().split(/\s+/).length <= 12);
   assert.doesNotMatch(snappedRaise.reason, /Raise to 125/);
   assert.match(HandReview.formatVerdictBadge(snappedRaise), /✗\uFE0E? Mistake/);
   assert.match(HandReview.formatVerdictWhy(snappedRaise), /Raise to 120/);
@@ -144,7 +143,9 @@ function table(overrides = {}) {
   assert.equal(deepCall.recommended, "call");
   assert.ok(deepCall.verdict === "fine" || deepCall.verdict === "best");
   assert.match(deepCall.badge, /Fine|Borderline|Best/);
-  assert.match(deepCall.reason, /small pairs|Calling is fine|set/i);
+  assert.match(deepCall.reason, /Small pair/i);
+  assert.match(deepCall.reason, /fine call|borderline call/i);
+  assert.ok(deepCall.reason.trim().split(/\s+/).length <= 12);
 
   const deepFold = HandReview.gradeHandDecision({
     id: "2b",
@@ -164,6 +165,31 @@ function table(overrides = {}) {
   });
   assert.equal(deepFold.verdict, "mistake");
   assert.equal(deepFold.recommended, "call");
+  assert.match(deepFold.reason, /Small pair/i);
+  assert.ok(deepFold.reason.trim().split(/\s+/).length <= 12);
+
+  // Speculative call, but hero raised too big → short "Raise is too much."
+  const raiseTooMuch = HandReview.gradeHandDecision({
+    id: "2raise",
+    street: "preflop",
+    boardCodes: [],
+    heroCodes: ["8h", "7h"],
+    pot: 80,
+    toCall: 40,
+    currentBet: 50,
+    heroStack: 950,
+    opponentStacks: [950],
+    taken: "raise",
+    raiseTo: 80,
+    equity: 0.17,
+    canRaise: true,
+    minRaiseTo: 90,
+    maxRaiseTo: 1000,
+  });
+  assert.equal(raiseTooMuch.verdict, "mistake");
+  assert.equal(raiseTooMuch.recommended, "call");
+  assert.match(raiseTooMuch.reason, /Suited connector, fine call\. Raise is too much\./i);
+  assert.ok(raiseTooMuch.reason.trim().split(/\s+/).length <= 12);
 
   const shortFold = HandReview.gradeHandDecision({
     id: "2c",
@@ -307,8 +333,8 @@ function table(overrides = {}) {
   assert.equal(replay.steps[1].decision.verdict, "mistake");
   assert.equal(replay.steps[1].decision.recommendedRaiseTo, 120);
   assert.match(replay.steps[1].decision.reason, /Raise to 120/);
-  assert.match(replay.steps[1].decision.reason, /you win about \d+ in \d+/i);
-  assert.doesNotMatch(replay.steps[1].decision.reason, /%|equity|pot odds/i);
+  assert.match(replay.steps[1].decision.reason, /Need \d+%, have ~\d+%\./i);
+  assert.ok(replay.steps[1].decision.reason.trim().split(/\s+/).length <= 12);
   assert.equal(replay.steps[2].isHeroDecision, true);
   assert.ok(
     replay.steps[2].decision.verdict === "fine" || replay.steps[2].decision.verdict === "best",

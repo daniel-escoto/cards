@@ -89,16 +89,17 @@ async function forceHandReview(page: Page, kind: "mistake" | "result") {
       recommendedRaiseTo: null,
       verdict: "best",
       badge: "Best",
-      reason: "Calling is fine here.",
+      reason: "Need 25%, have ~62%. Call.",
     };
     const decisionMistake = {
       ...decisionBest,
       id: "d2",
-      taken: "fold",
+      taken: "raise",
+      raiseTo: 80,
       recommended: "call",
       verdict: "mistake",
       badge: "Mistake",
-      reason: "Folding is too tight.",
+      reason: "Suited connector, fine call. Raise is too much.",
     };
 
     const seats = [
@@ -115,7 +116,7 @@ async function forceHandReview(page: Page, kind: "mistake" | "result") {
         isSmallBlind: false,
         isBigBlind: true,
         isTurn: true,
-        holeCodes: ["As", "Ks"],
+        holeCodes: scene === "mistake" ? ["8h", "7h"] : ["As", "Ks"],
         lastAction: null,
       },
       {
@@ -384,6 +385,19 @@ for (const theme of THEMES) {
         await page.waitForSelector("#scoreView:not(.hidden)");
         await stabilize(page);
         await shot(page.locator("#scoreView .score-panel").first(), `${theme}-${vp.name}-tournament-results`);
+      });
+
+      test(`hand-review-mistake`, async ({ page }) => {
+        await openOfflineTable(page);
+        await forceTableState(page, "lobby-waiting");
+        await forceHandReview(page, "mistake");
+        // Reveal the why-line (Show answer) while Try again stays — the overflow case.
+        const showBtn = page.locator(".hand-review-show-answer");
+        await showBtn.waitFor({ state: "visible", timeout: 5000 });
+        await showBtn.click();
+        await expect(page.locator(".hand-review-verdict-why")).toContainText(/Raise is too much|Need \d+%/);
+        await stabilize(page);
+        await shot(page.locator("#tableView .control-panel"), `${theme}-${vp.name}-hand-review-mistake`);
       });
 
       test(`hand-review-retry`, async ({ page }) => {
