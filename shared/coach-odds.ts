@@ -47,7 +47,7 @@ export type CoachOddsAdvice = {
   stackToCallRatio: number;
   /** Required depth for this category, or null if not speculative. */
   depthThreshold: number | null;
-  /** Plain-English one-liner for the coach card. */
+  /** Short facts-only one-liner (≤ ~12 words) for Coach / Hand Review. */
   reason: string;
 };
 
@@ -144,16 +144,20 @@ export function formatWinIn(probability: number): string {
   return `${bestN} in ${bestD}`;
 }
 
-function categoryPhrase(category: Exclude<SpeculativeCategory, null>): string {
-  if (category === "small_pair") return "small pairs";
-  if (category === "suited_ace") return "suited aces";
-  return "suited connectors";
+/** Singular UI label for speculative categories (Hand Review / Coach one-liners). */
+export function speculativeCategoryLabel(
+  category: Exclude<SpeculativeCategory, null>,
+): string {
+  if (category === "small_pair") return "Small pair";
+  if (category === "suited_ace") return "Suited ace";
+  return "Suited connector";
 }
 
-function hitPhrase(category: Exclude<SpeculativeCategory, null>): string {
-  if (category === "small_pair") return "hit a set";
-  if (category === "suited_ace") return "flop well";
-  return "hit a strong draw";
+/** Compact "Need 33%, have ~17%." line for review / coach reasons. */
+export function formatNeedHave(equity: number, potOdds: number): string {
+  const need = Math.round(Math.max(0, Math.min(1, potOdds)) * 100);
+  const have = Math.round(Math.max(0, Math.min(1, equity)) * 100);
+  return `Need ${need}%, have ~${have}%.`;
 }
 
 /**
@@ -168,6 +172,7 @@ export function adviseFacingBet(input: CoachOddsInput): CoachOddsAdvice {
   const ratio = toCall > 0 ? effectiveStack / toCall : Number.POSITIVE_INFINITY;
   const category = classifySpeculativeHand(input.heroCodes);
   const depthThreshold = speculativeDepthThreshold(category);
+  const needHave = formatNeedHave(equity, potOdds);
 
   const foldBehind = (): CoachOddsAdvice => ({
     verdict: "fold",
@@ -175,7 +180,7 @@ export function adviseFacingBet(input: CoachOddsInput): CoachOddsAdvice {
     category,
     stackToCallRatio: ratio,
     depthThreshold,
-    reason: `You win about ${formatWinIn(equity)}, calling needs ${formatWinIn(potOdds)}. Fold.`,
+    reason: `${needHave} Fold.`,
   });
 
   // Already getting the price (with the same cushion as the live coach).
@@ -186,7 +191,7 @@ export function adviseFacingBet(input: CoachOddsInput): CoachOddsAdvice {
       category,
       stackToCallRatio: ratio,
       depthThreshold,
-      reason: `You win about ${formatWinIn(equity)}, calling only needs ${formatWinIn(potOdds)}. Call.`,
+      reason: `${needHave} Call.`,
     };
   }
 
@@ -205,7 +210,7 @@ export function adviseFacingBet(input: CoachOddsInput): CoachOddsAdvice {
         category,
         stackToCallRatio: ratio,
         depthThreshold,
-        reason: `You win about ${formatWinIn(equity)}, calling needs ${formatWinIn(potOdds)}, and stacks are too short for ${categoryPhrase(category)} to get paid. Fold.`,
+        reason: `${speculativeCategoryLabel(category)}, stacks short. Fold.`,
       };
     }
     return foldBehind();
@@ -219,7 +224,7 @@ export function adviseFacingBet(input: CoachOddsInput): CoachOddsAdvice {
       category,
       stackToCallRatio: ratio,
       depthThreshold,
-      reason: `You win about ${formatWinIn(equity)}, calling needs ${formatWinIn(potOdds)}, but ${categoryPhrase(category)} win big when they ${hitPhrase(category)}, and you're deep. Calling is fine.`,
+      reason: `${speculativeCategoryLabel(category)}, fine call.`,
     };
   }
 
@@ -229,7 +234,7 @@ export function adviseFacingBet(input: CoachOddsInput): CoachOddsAdvice {
     category,
     stackToCallRatio: ratio,
     depthThreshold,
-    reason: `You win about ${formatWinIn(equity)}, calling needs ${formatWinIn(potOdds)}, but ${categoryPhrase(category)} can get paid when they ${hitPhrase(category)} and stacks are deep. Borderline call.`,
+    reason: `${speculativeCategoryLabel(category)}, borderline call.`,
   };
 }
 

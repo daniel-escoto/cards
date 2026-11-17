@@ -517,7 +517,7 @@ export function forceTableState(
               recommendedRaiseTo: null,
               verdict: "best",
               badge: "Best",
-              reason: "Calling is fine here.",
+              reason: "Need 25%, have ~62%. Call.",
             },
             table: {
               street: "preflop",

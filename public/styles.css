@@ -3988,7 +3988,8 @@ body.hand-review-open.hand-review-retrying .control-panel > .bet-controls {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Verdict fills leftover chrome space and wraps; panel height stays on the live tracks. */
+/* Verdict fills leftover chrome space; panel height stays on the live tracks.
+   Clip inside the verdict track — never paint under Try again / Show answer. */
 .hand-review-verdict {
   display: grid;
   align-content: start;
@@ -4004,9 +4005,7 @@ body.hand-review-open.hand-review-retrying .control-panel > .bet-controls {
   line-height: 1.3;
   color: var(--text);
   min-height: 0;
-  /* Visible so nudge/reason is never clipped under the action row; chrome overflow
-     still contains the block if copy is extreme. */
-  overflow: visible;
+  overflow: hidden;
 }
 body.hand-review-open.hand-review-retrying .hand-review-verdict {
   display: block;
@@ -4036,7 +4035,13 @@ body.hand-review-open .hand-review-verdict.is-idle {
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
-  overflow: visible;
+  min-height: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  text-overflow: ellipsis;
 }
 .hand-review-verdict.is-best .hand-review-verdict-mark {
   color: color-mix(in srgb, var(--color-raw-143) 90%, var(--text));

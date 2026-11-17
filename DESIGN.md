@@ -30,7 +30,7 @@ Read this before any UI change. Prefer shared helpers in `public/ui.ts` and shar
 - Hand Review **stops only on the hero’s decisions** (and the final result frame).
 - **Continue review** advances to the next landable step (do not re-call paint with the same index — that early-returns).
 - Retry must not overlap the HAND REVIEW header (`turnInfo` stays empty/hidden while retrying).
-- Header is one line (`HAND REVIEW · 1 mistake`); tighten chrome gaps before growing the panel. Verdict copy must stay fully readable (never clipped under Try again). Try again / Show answer share Fold/Call horizontal insets and even flex.
+- Header is one line (`HAND REVIEW · 1 mistake`); tighten chrome gaps before growing the panel. Verdict why-copy is one short line (ideally ≤8 words, ≤12 max); never paint under Try again — clamp/ellipsis inside the verdict track if needed. Try again / Show answer share Fold/Call horizontal insets and even flex.
 
 ## Visual regression
 

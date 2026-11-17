@@ -60,7 +60,7 @@ async function openReviewScene(
       recommendedRaiseTo: null,
       verdict: "mistake",
       badge: "Mistake",
-      reason: "Folding is too tight versus a small open.",
+      reason: "Need 25%, have ~55%. Call.",
     };
     const seats = [
       {

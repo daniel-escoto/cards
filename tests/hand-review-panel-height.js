@@ -39,7 +39,9 @@ assert.match(
 assert.match(css, /\.hand-review-chrome\s*\{[^}]*grid-template-rows:\s*auto minmax\(0, 1fr\) auto/s);
 assert.match(html, /hand-review-bottom[\s\S]*handReviewRetryBar[\s\S]*hand-review-nav/);
 assert.match(css, /\.hand-review-verdict\s*\{[^}]*min-height:\s*0/s);
+assert.match(css, /\.hand-review-verdict\s*\{[^}]*overflow:\s*hidden/s);
 assert.match(css, /\.hand-review-verdict-why\s*\{[^}]*overflow-wrap:\s*anywhere/s);
+assert.match(css, /\.hand-review-verdict-why\s*\{[^}]*line-clamp:\s*3/s);
 assert.match(html, /hand-review-kicker/);
 assert.match(css, /\.hand-review-kicker\s*\{[^}]*white-space:\s*nowrap/s);
 assert.match(
@@ -151,7 +153,7 @@ async function main() {
     recommendedRaiseTo: null,
     verdict: "mistake",
     badge: "Mistake",
-    reason: "Folding is too tight versus a small open.",
+    reason: "Need 25%, have ~55%. Call.",
   };
 
   try {

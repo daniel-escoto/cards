@@ -34,11 +34,9 @@ assert.equal(Odds.effectiveStackForCall(950, [200]), 200);
   assert.notEqual(advice.verdict, "fold", "deep 44 must not hard-fold");
   assert.equal(advice.action, "call");
   assert.ok(advice.verdict === "borderline" || advice.verdict === "call");
-  assert.match(advice.reason, /you win about \d+ in \d+/i);
-  assert.match(advice.reason, /calling needs \d+ in \d+/i);
-  assert.doesNotMatch(advice.reason, /%|equity|pot odds/i);
-  assert.match(advice.reason, /small pairs|set/i);
-  assert.match(advice.reason, /deep|Borderline|Calling is fine/i);
+  assert.match(advice.reason, /Small pair/i);
+  assert.match(advice.reason, /borderline call|fine call/i);
+  assert.ok(advice.reason.trim().split(/\s+/).length <= 12);
 }
 
 {
@@ -54,8 +52,9 @@ assert.equal(Odds.effectiveStackForCall(950, [200]), 200);
   assert.equal(advice.verdict, "fold");
   assert.equal(advice.action, "fold");
   assert.ok(advice.stackToCallRatio < 20);
-  assert.match(advice.reason, /short/i);
+  assert.match(advice.reason, /stacks short/i);
   assert.match(advice.reason, /Fold/i);
+  assert.ok(advice.reason.trim().split(/\s+/).length <= 12);
 }
 
 {
@@ -70,10 +69,9 @@ assert.equal(Odds.effectiveStackForCall(950, [200]), 200);
   });
   assert.equal(advice.category, null);
   assert.equal(advice.verdict, "fold");
-  assert.match(advice.reason, /you win about \d+ in \d+/i);
-  assert.match(advice.reason, /calling needs \d+ in \d+/i);
-  assert.doesNotMatch(advice.reason, /%|equity|pot odds/i);
+  assert.match(advice.reason, /Need \d+%, have ~\d+%\./i);
   assert.match(advice.reason, /Fold\./);
+  assert.ok(advice.reason.trim().split(/\s+/).length <= 12);
 }
 
 assert.equal(Odds.formatWinIn(0.5), "1 in 2");
@@ -108,8 +106,13 @@ assert.match(Odds.formatWinIn(0.62), /\d+ in \d+/);
   });
   assert.equal(advice.category, "suited_connector");
   assert.notEqual(advice.verdict, "fold");
-  assert.match(advice.reason, /suited connectors/i);
+  assert.match(advice.reason, /Suited connector/i);
+  assert.match(advice.reason, /borderline call|fine call/i);
+  assert.ok(advice.reason.trim().split(/\s+/).length <= 12);
 }
+
+assert.equal(Odds.formatNeedHave(0.17, 0.33), "Need 33%, have ~17%.");
+assert.equal(Odds.speculativeCategoryLabel("suited_connector"), "Suited connector");
 
 {
   // Postflop: no implied-odds rescue (use real pot odds).
