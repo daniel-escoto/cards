@@ -560,6 +560,97 @@ export function forceTableState(
   }, scene);
 }
 
+/** Crowded in-hand table: many seats with a lower seat acting (auto-scroll target). */
+export function forceCrowdedInHand(
+  page: Page,
+  options: {
+    playerCount: 6 | 9;
+    actingIndex: number;
+    offline?: boolean;
+  },
+) {
+  return page.evaluate((opts) => {
+    const colors = [
+      "#60a5fa",
+      "#4caf82",
+      "#f59e0b",
+      "#ef4444",
+      "#a78bfa",
+      "#22d3ee",
+      "#f472b6",
+      "#94a3b8",
+      "#eab308",
+    ];
+    const actingIndex = Math.max(0, Math.min(opts.playerCount - 1, opts.actingIndex));
+    const players = [];
+    for (let i = 0; i < opts.playerCount; i++) {
+      const isYou = i === 0;
+      const isTurn = i === actingIndex;
+      players.push({
+        id: isYou ? "you" : `p${i}`,
+        name: isYou ? "Alex" : `Player${i}`,
+        stack: 1000 - i * 40,
+        stackCents: 0,
+        isYou,
+        isBot: !isYou,
+        sittingOut: false,
+        ready: true,
+        folded: false,
+        allIn: false,
+        bet: i === 1 ? 10 : i === 2 ? 20 : 0,
+        showCards: false,
+        cards: isYou
+          ? [
+              { rank: "A", suit: "♠", code: "As", color: "black" },
+              { rank: "K", suit: "♠", code: "Ks", color: "black" },
+            ]
+          : [],
+        dealer: i === 0,
+        isSmallBlind: i === 1,
+        isBigBlind: i === 2,
+        isTurn,
+        color: colors[i % colors.length],
+      });
+    }
+    const turnId = players[actingIndex]!.id;
+    const base =
+      window.state && typeof window.state === "object"
+        ? (window.state as Record<string, unknown>)
+        : {};
+    const room = {
+      ...base,
+      offline: Boolean(opts.offline),
+      coachAvailable: Boolean(opts.offline),
+      phase: "preflop",
+      status: "playing",
+      pot: 30,
+      toCall: 20,
+      currentBet: 20,
+      isYourTurn: turnId === "you",
+      turn: turnId,
+      canReady: false,
+      isReady: false,
+      canRaise: true,
+      handNumber: 3,
+      community: [],
+      winners: [],
+      actionLog: [],
+      players,
+    };
+    const win = window as unknown as {
+      state: unknown;
+      render?: () => void;
+      lastPlayersListScrollKey?: string | null;
+      playersListUserScrollAt?: number;
+    };
+    // Allow auto-scroll to run for the forced turn change.
+    win.playersListUserScrollAt = 0;
+    win.lastPlayersListScrollKey = null;
+    win.state = room;
+    if (typeof win.render === "function") win.render();
+  }, options);
+}
+
 /** Crowded showdown: many seat rows + appended reveal rows (reproduces flex-shrink overflow). */
 export function forceCrowdedShowdown(
   page: Page,

@@ -1107,6 +1107,12 @@ declare global {
   function captureActionFeedScroll(): ActionFeedScrollSnapshot | null;
   function restoreActionFeedScroll(snapshot: ActionFeedScrollSnapshot | null): void;
   function scrollActionFeed(): void;
+  function bindPlayersListScrollGuard(): void;
+  function syncPlayersListAutoScroll(options?: { forceVisible?: boolean }): void;
+  var playersListScrollGuardBound: boolean;
+  var playersListUserScrollAt: number;
+  var playersListProgrammaticScroll: boolean;
+  var lastPlayersListScrollKey: string | null;
   function renderControls(hero: ClientPlayer | null | undefined): void;
   function renderHeroActionControls(hero: ClientPlayer, disabled: boolean): void;
   function configureRaiseControls(hero: ClientPlayer, disabled?: boolean): void;

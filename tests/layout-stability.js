@@ -104,6 +104,22 @@ assert.match(tokensCss, /--card-sm-w:\s*34px/, "sm card width lives in tokens");
 const bootSrc = fs.readFileSync(path.join(__dirname, "../public/app-boot.ts"), "utf8");
 assert.match(bootSrc, /shown-hand-card/);
 assert.match(bootSrc, /seatHoleCardsMayReveal/);
+assert.match(bootSrc, /data-player-id=/);
+
+// Seat list auto-scroll: keep acting/winner rows visible inside `#players` only.
+assert.match(tableSrc, /function syncPlayersListAutoScroll/);
+assert.match(tableSrc, /function scrollPlayersListChildIntoView/);
+assert.match(tableSrc, /PLAYERS_LIST_MANUAL_SCROLL_PAUSE_MS\s*=\s*4000/);
+assert.match(tableSrc, /prefers-reduced-motion:\s*reduce/);
+assert.match(tableSrc, /bindPlayersListScrollGuard/);
+const playersAutoScrollFn =
+  /function scrollPlayersListChildIntoView\([\s\S]*?\n\}/.exec(tableSrc)?.[0] || "";
+assert.match(playersAutoScrollFn, /players\.scrollTo|players\.scrollTop/);
+assert.doesNotMatch(
+  playersAutoScrollFn,
+  /scrollIntoView\(/,
+  "auto-scroll must use container scrollTop, not element.scrollIntoView (page jump risk)",
+);
 
 // Welcome: centered idle; keyboard-open only via body class (not focus-within jump).
 assert.match(css, /\.welcome\s*\{[^}]*align-content:\s*safe center/s);

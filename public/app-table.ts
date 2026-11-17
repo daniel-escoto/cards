@@ -87,6 +87,7 @@ function render() {
   if (hasNewAction) replayAnimation(players, "feed-updated", 420);
   if (hasNewAction && !isFirstTableRender) playActionSound(entries.at(-1));
   lastActionEntryId = latestEntryId;
+  bindPlayersListScrollGuard();
 
   const hero = activeHero();
   // Pre-deal / lobby / game-over: never paint hole cards (also clears stale DOM
@@ -151,7 +152,10 @@ function render() {
     if (menuHero) sitOutBtn.textContent = menuHero.sittingOut ? "Sit back in" : "Sit out";
     if (typeof syncHandReviewBtn === "function") syncHandReviewBtn();
   }
-  requestAnimationFrame(() => restoreActionFeedScroll(feedScroll));
+  requestAnimationFrame(() => {
+    restoreActionFeedScroll(feedScroll);
+    syncPlayersListAutoScroll();
+  });
 }
 
 /** Chess.com-style hand recording + table replay (bot games only). */
@@ -1150,6 +1154,15 @@ function handReviewStepBy(delta: number) {
   paintHandReviewStep(landable[nextPos]!);
 }
 
+/** Pause auto-scroll briefly after the viewer manually pans the seat list. */
+const PLAYERS_LIST_MANUAL_SCROLL_PAUSE_MS = 4000;
+
+var playersListScrollGuardBound = false;
+var playersListUserScrollAt = 0;
+var playersListProgrammaticScroll = false;
+var playersListProgrammaticScrollTimer: ReturnType<typeof setTimeout> | null = null;
+var lastPlayersListScrollKey: string | null = null;
+
 function captureActionFeedScroll() {
   const maxScrollTop = Math.max(0, players.scrollHeight - players.clientHeight);
   return {
@@ -1162,12 +1175,177 @@ function restoreActionFeedScroll(snapshot: ActionFeedScrollSnapshot | null) {
   if (!snapshot) return;
   if (!snapshot || players.scrollHeight <= players.clientHeight) return;
   const maxScrollTop = Math.max(0, players.scrollHeight - players.clientHeight);
+  beginPlayersListProgrammaticScroll();
   players.scrollTop = snapshot.followBottom ? maxScrollTop : Math.min(snapshot.top ?? 0, maxScrollTop);
 }
 
 function scrollActionFeed() {
-  const snapshot = captureActionFeedScroll();
-  requestAnimationFrame(() => restoreActionFeedScroll(snapshot));
+  requestAnimationFrame(() => syncPlayersListAutoScroll({ forceVisible: true }));
+}
+
+function playersListOverflows() {
+  return players.scrollHeight - players.clientHeight > 1;
+}
+
+function playersListScrollBehavior(): ScrollBehavior {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return "auto";
+  return "smooth";
+}
+
+function playersListManualScrollPaused() {
+  return Date.now() - playersListUserScrollAt < PLAYERS_LIST_MANUAL_SCROLL_PAUSE_MS;
+}
+
+function beginPlayersListProgrammaticScroll(settleMs = 80) {
+  playersListProgrammaticScroll = true;
+  if (playersListProgrammaticScrollTimer != null) clearTimeout(playersListProgrammaticScrollTimer);
+  // scrollend is not universal; keep the flag through smooth-scroll settle time.
+  playersListProgrammaticScrollTimer = setTimeout(() => {
+    playersListProgrammaticScroll = false;
+    playersListProgrammaticScrollTimer = null;
+  }, settleMs);
+}
+
+function markPlayersListUserScroll() {
+  if (playersListProgrammaticScroll) return;
+  playersListUserScrollAt = Date.now();
+}
+
+function bindPlayersListScrollGuard() {
+  if (playersListScrollGuardBound || !players) return;
+  playersListScrollGuardBound = true;
+  players.addEventListener("scroll", markPlayersListUserScroll, { passive: true });
+  players.addEventListener("wheel", markPlayersListUserScroll, { passive: true });
+  players.addEventListener(
+    "touchstart",
+    () => {
+      // Touch pans count as manual even before scroll fires.
+      if (!playersListProgrammaticScroll) playersListUserScrollAt = Date.now();
+    },
+    { passive: true },
+  );
+}
+
+function playersListRowFullyVisible(row: HTMLElement) {
+  const containerRect = players.getBoundingClientRect();
+  const rowRect = row.getBoundingClientRect();
+  return rowRect.top >= containerRect.top - 0.5 && rowRect.bottom <= containerRect.bottom + 0.5;
+}
+
+/**
+ * Scroll a seat/reveal row into view inside `#players` only — never the page/window.
+ * Uses nearest-edge semantics so already-visible rows do not move.
+ */
+function scrollPlayersListChildIntoView(row: HTMLElement, behavior: ScrollBehavior) {
+  if (!playersListOverflows()) return;
+  const containerRect = players.getBoundingClientRect();
+  const rowRect = row.getBoundingClientRect();
+  let delta = 0;
+  if (rowRect.top < containerRect.top) delta = rowRect.top - containerRect.top;
+  else if (rowRect.bottom > containerRect.bottom) delta = rowRect.bottom - containerRect.bottom;
+  if (Math.abs(delta) < 1) return;
+  const maxScrollTop = Math.max(0, players.scrollHeight - players.clientHeight);
+  const nextTop = Math.max(0, Math.min(players.scrollTop + delta, maxScrollTop));
+  beginPlayersListProgrammaticScroll(behavior === "smooth" ? 450 : 80);
+  if (behavior === "smooth" && typeof players.scrollTo === "function") {
+    players.scrollTo({ top: nextTop, behavior: "smooth" });
+  } else {
+    players.scrollTop = nextTop;
+  }
+}
+
+function playersListScrollTargetKey(room: ClientRoom) {
+  const hand = Number(room.handNumber) || 0;
+  if (isBettingPhase(room.phase) && room.turn) {
+    return `turn:${hand}:${room.turn}`;
+  }
+  if (room.phase === "showdown" || room.phase === "complete") {
+    const winner = (room.winners || [])[0];
+    const winnerId = winner?.playerId || winner?.name || "";
+    const firstReveal =
+      (room.players || []).find(
+        (player) =>
+          player.showCards && player.cards?.some((card) => card && (card.code || card.rank)),
+      )?.id || "";
+    return `result:${hand}:${winnerId || firstReveal || "none"}`;
+  }
+  // New hand / lobby: pin to the top (or first to act once dealing starts).
+  return `hand:${hand}:top`;
+}
+
+function playersListScrollTargetEl(room: ClientRoom): HTMLElement | null {
+  if (isBettingPhase(room.phase) && room.turn) {
+    return (
+      (players.querySelector(".table-player-row.turn") as HTMLElement | null) ||
+      (players.querySelector(
+        `.table-player-row[data-player-id="${cssEscapeAttr(room.turn)}"]`,
+      ) as HTMLElement | null)
+    );
+  }
+  if (room.phase === "showdown" || room.phase === "complete") {
+    const winner = (room.winners || [])[0];
+    const winnerId = winner?.playerId || "";
+    return (
+      (players.querySelector(".table-player-row.shown-hand-card.showdown-winner") as HTMLElement | null) ||
+      (players.querySelector(".table-player-row.shown-hand-card") as HTMLElement | null) ||
+      (winnerId
+        ? (players.querySelector(
+            `.table-player-row[data-player-id="${cssEscapeAttr(winnerId)}"]`,
+          ) as HTMLElement | null)
+        : null) ||
+      (winner?.name
+        ? (Array.from(players.querySelectorAll(".table-player-row")).find((row) =>
+            row.querySelector(".seat-name-text")?.textContent?.startsWith(String(winner.name)),
+          ) as HTMLElement | undefined) || null
+        : null)
+    );
+  }
+  return (
+    (players.querySelector(".table-player-row.turn") as HTMLElement | null) ||
+    (players.querySelector(".table-player-row") as HTMLElement | null)
+  );
+}
+
+function cssEscapeAttr(value: string) {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(value);
+  return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+/**
+ * Keep the relevant seat (acting / winner / first reveal) visible in the height-capped
+ * `#players` list. No-ops when the list does not overflow or the viewer recently scrolled.
+ */
+function syncPlayersListAutoScroll(options: { forceVisible?: boolean } = {}) {
+  if (!players || !state) return;
+  if (!playersListOverflows()) {
+    lastPlayersListScrollKey = playersListScrollTargetKey(state);
+    return;
+  }
+  if (playersListManualScrollPaused()) return;
+
+  const key = playersListScrollTargetKey(state);
+  const keyChanged = key !== lastPlayersListScrollKey;
+  lastPlayersListScrollKey = key;
+
+  if (key.endsWith(":top") && !players.querySelector(".table-player-row.turn")) {
+    if (players.scrollTop > 1 && (keyChanged || options.forceVisible)) {
+      const behavior = keyChanged ? playersListScrollBehavior() : "auto";
+      beginPlayersListProgrammaticScroll(behavior === "smooth" ? 450 : 80);
+      if (behavior === "smooth" && typeof players.scrollTo === "function") {
+        players.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        players.scrollTop = 0;
+      }
+    }
+    return;
+  }
+
+  const target = playersListScrollTargetEl(state);
+  if (!target) return;
+  const needsScroll = keyChanged || options.forceVisible || !playersListRowFullyVisible(target);
+  if (!needsScroll) return;
+  const behavior = keyChanged ? playersListScrollBehavior() : "auto";
+  scrollPlayersListChildIntoView(target, behavior);
 }
 
 function renderControls(hero: ClientPlayer | null | undefined) {
