@@ -4,6 +4,7 @@ import {
   openOfflineTable,
   forceTableState,
   forceCrowdedShowdown,
+  forceCrowdedInHand,
 } from "./fixtures";
 
 const LAYOUT_VIEWPORTS = [
@@ -424,6 +425,73 @@ async function revealCardContainment(page: import("@playwright/test").Page) {
       revealCount: revealRows.length,
       rows,
     };
+  });
+}
+
+/** Crowded seat lists auto-scroll so the acting row stays inside `#players` bounds. */
+for (const vp of [
+  { name: "375", width: 375, height: 667 },
+  { name: "1280", width: 1280, height: 800 },
+] as const) {
+  test.describe(`players list auto-scroll ${vp.name}`, () => {
+    test.use({
+      colorScheme: "dark",
+      viewport: { width: vp.width, height: vp.height },
+      deviceScaleFactor: 1,
+    });
+
+    test("9-player table keeps a lower acting seat within #players visible bounds", async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await openOfflineTable(page);
+      await forceCrowdedInHand(page, {
+        playerCount: 9,
+        actingIndex: 8,
+        offline: true,
+      });
+      await page.waitForSelector("#players .table-player-row.turn", { timeout: 10000 });
+      // Instant scroll with reduced motion; give rAF + sync a beat.
+      await page.waitForTimeout(200);
+      await page.evaluate(() => {
+        const win = window as unknown as {
+          syncPlayersListAutoScroll?: (opts?: { forceVisible?: boolean }) => void;
+          playersListUserScrollAt?: number;
+        };
+        win.playersListUserScrollAt = 0;
+        win.syncPlayersListAutoScroll?.({ forceVisible: true });
+      });
+      await page.waitForTimeout(50);
+
+      const measured = await page.evaluate(() => {
+        const container = document.querySelector("#players");
+        const row = document.querySelector("#players .table-player-row.turn");
+        if (!container || !row) return null;
+        const c = container.getBoundingClientRect();
+        const r = row.getBoundingClientRect();
+        return {
+          overflows: container.scrollHeight - container.clientHeight > 1,
+          scrollTop: container.scrollTop,
+          pageScrollY: window.scrollY,
+          contained:
+            r.top >= c.top - 1 &&
+            r.bottom <= c.bottom + 1 &&
+            r.left >= c.left - 1 &&
+            r.right <= c.right + 1,
+          actingName: row.querySelector(".seat-name-text")?.textContent || "",
+        };
+      });
+
+      expect(measured, "expected acting seat metrics").not.toBeNull();
+      if (vp.name === "375") {
+        expect(measured!.overflows, "9 seats should overflow the capped list on mobile").toBe(
+          true,
+        );
+      }
+      expect(measured!.contained, "acting row must sit inside #players viewport").toBe(true);
+      expect(measured!.actingName).toMatch(/Player8/);
+      expect(measured!.pageScrollY, "must not scroll the page/window").toBe(0);
+    });
   });
 }
 

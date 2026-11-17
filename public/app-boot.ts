@@ -1374,7 +1374,7 @@ function renderShownHandCard(player: ClientPlayer) {
     .filter(Boolean)
     .join(" ");
   return `
-    <article class="${rowClasses}" ${playerColorStyle(player)}>
+    <article class="${rowClasses}" data-player-id="${escapeHtml(player.id)}" ${playerColorStyle(player)}>
       <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
       <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}${player.isYou ? " (you)" : ""}</span></span>
       <span class="shown-hand">${cards}</span>
@@ -1889,7 +1889,7 @@ function renderActionFeed(newEntryId = "") {
         .filter(Boolean)
         .join(" ");
       return `
-      <article class="${rowClasses}"${isNext ? ' aria-label="Next to act"' : ""}${seatClockAttr}${styleAttr}>
+      <article class="${rowClasses}" data-player-id="${escapeHtml(player.id)}"${isNext ? ' aria-label="Next to act"' : ""}${seatClockAttr}${styleAttr}>
         <span class="seat-timer" aria-hidden="true"><i class="player-dot"></i></span>
         <span class="seat-name seat-name-with-chips"><span class="seat-name-text">${escapeHtml(player.name)}</span>${seatChipMarkup(player)}</span>
         <span class="player-action${actionClass}">${escapeHtml(action)}${clockMarkup}</span>
